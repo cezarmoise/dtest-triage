@@ -1,0 +1,186 @@
+{
+ "file": "clustering_key_filter_test.py",
+ "analyzed_at": "2026-10-20",
+ "scylla_rev": "814c05a00f",
+ "tests": {
+  "TestClusteringKeyFilter::test_check_consistence_after_row_tombstone": {
+   "description": "Single node, cache off, compaction disabled. Rows key1/a and key2/b each flushed to own sstable; then key1/c (memtable) + partition delete of key2 flushed together, so key2's tombstone lives in an sstable whose ck range is [c,c]. SELECT p1 IN (key1,key2) AND c1 in [a,b] must return only key1/a, i.e. the CK filter must not drop the sstable holding key2's partition tombstone.",
+   "origin": {
+    "sha": "4ba09152",
+    "date": "2016-08-05",
+    "pr": 378,
+    "summary": "Raphael Carvalho: dtest for correctness of clustering range filter (sstable min/max clustering metadata), added alongside scylla 8d03ccd604 'sstables: optimize reads with clustering filter'; row cache disabled so reads hit sstables."
+   },
+   "commits": {
+    "eccda80e": "formatting (ruff 0.9.4).",
+    "9ffd273f": "formatting (ruff format).",
+    "a0ad70ea": "pytest migration: strategy parametrize + strategy_string fixture replace generated subclasses.",
+    "98af29ea": "pytest migration (asserts/helpers rewritten), no behavior change.",
+    "c3471a97": "formatting (autopep8).",
+    "6b5a3275": "@dtest_debug mark.",
+    "07e044de": "@next_gating mark.",
+    "a7013655": "file-level: run with DateTieredCompactionStrategy (only strategy then enabling CK filter) + NullCompactionStrategy; min_threshold 999 to block compaction.",
+    "d948d62f": "added to scylla_tests list (marks only).",
+    "e6fac6a5": "formatting (PEP8).",
+    "ea9142bc": "file-level: DTCS -> TWCS (DTCS deprecated).",
+    "17136662": "file-level: disable compaction with 'enabled':'false' instead of min_threshold 999.",
+    "3040c4e6": "file-level: @next_gating moved to class -> all tests gating.",
+    "4ba09152": "origin: test added."
+   },
+   "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~6.9s. may_contain_rows keeps partition-tombstone sstables via cleared min/max (sstables.cc:2690-2698 comments).",
+   "duplicates": [
+    {
+     "path": "test/lib/mutation_source_test.cc::test_time_window_clustering_slicing",
+     "coverage": "partial",
+     "note": "TWCS mutation source with partition tombstone + static row, ck range outside rows -> tombstone still produced; run over sstable sources by run_mutation_source_tests. Single sstable, not cross-sstable shadowing."
+    },
+    {
+     "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
+     "coverage": "partial",
+     "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::test_twcs_single_key_reader_filtering",
+     "coverage": "partial",
+     "note": "TWCS 2 sstables, ck range slice, asserts CK filter stats (scylla#8432). Single ck component."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Mostly unique end-to-end check that a partition tombstone in an sstable outside the queried ck range still shadows older rows under TWCS CK filtering; partial overlap with test_time_window_clustering_slicing and cqlpy test_clustering_filtering*. Cheap and easily portable to cqlpy (flush + BYPASS CACHE + no_autocompaction_context). Note: name says 'row tombstone' but it is a partition delete (remove_row, :244). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness."
+  },
+  "TestClusteringKeyFilter::test_check_non_composite": {
+   "description": "Single node, cache off, compaction disabled; table with one text ck, rows key1/a and key1/b in separate sstables. Runs 7 slice queries (inverted range, [a,b], (a,b], [a,b), (a,b), >a, <b) and asserts exact rows. Guards CK-range sstable filtering correctness for single-component keys (and inverted-range handling, scylla#1544).",
+   "origin": {
+    "sha": "4ba09152",
+    "date": "2016-08-05",
+    "pr": 378,
+    "summary": "Raphael Carvalho: dtest for correctness of clustering range filter (sstable min/max clustering metadata), added alongside scylla 8d03ccd604 'sstables: optimize reads with clustering filter'; row cache disabled so reads hit sstables."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format).",
+    "a0ad70ea": "pytest migration: strategy parametrize + strategy_string fixture replace generated subclasses.",
+    "98af29ea": "pytest migration (asserts/helpers rewritten), no behavior change.",
+    "c3471a97": "formatting (autopep8).",
+    "6b5a3275": "@dtest_debug mark.",
+    "07e044de": "@next_gating mark.",
+    "a7013655": "file-level: run with DateTieredCompactionStrategy (only strategy then enabling CK filter) + NullCompactionStrategy; min_threshold 999 to block compaction.",
+    "d948d62f": "added to scylla_tests list (marks only).",
+    "e6fac6a5": "formatting (PEP8).",
+    "ea9142bc": "file-level: DTCS -> TWCS (DTCS deprecated).",
+    "17136662": "file-level: disable compaction with 'enabled':'false' instead of min_threshold 999.",
+    "3040c4e6": "file-level: @next_gating moved to class -> all tests gating.",
+    "4ba09152": "origin: test added.",
+    "0ed73139": "enabled the inverted-range (c1<=a AND c1>=b) check after scylla#1544 (inconsistent results with cache disabled) was fixed."
+   },
+   "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~6.3s. scylladb/scylladb#1544 closed.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
+     "coverage": "partial",
+     "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::test_twcs_single_key_reader_filtering",
+     "coverage": "partial",
+     "note": "TWCS 2 sstables, ck range slice, asserts CK filter stats (scylla#8432). Single ck component."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::min_max_clustering_key_test_2_test",
+     "coverage": "partial",
+     "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Live behavior, partial overlap: cqlpy test_clustering_filtering* (TWCS, flush, BYPASS CACHE) cover point lookups outside sstable range but not range slice boundaries across sstables. Cheap; could be ported to cqlpy. Note: leftover '# print query' dead comments (clustering_key_filter_test.py:60,64,67). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness."
+  },
+  "TestClusteringKeyFilter::test_check_composite": {
+   "description": "Single node, cache off, compaction disabled; ck (c1,c2), 4 rows (a,1),(a,2),(b,1),(b,2) each in its own sstable. 13 slice queries on c1 ranges and c1='a' with c2 ranges (open/closed/inverted bounds), asserting exact rows. Guards per-component min/max clustering metadata filtering for composite keys.",
+   "origin": {
+    "sha": "4ba09152",
+    "date": "2016-08-05",
+    "pr": 378,
+    "summary": "Raphael Carvalho: dtest for correctness of clustering range filter (sstable min/max clustering metadata), added alongside scylla 8d03ccd604 'sstables: optimize reads with clustering filter'; row cache disabled so reads hit sstables."
+   },
+   "commits": {
+    "eccda80e": "formatting (ruff 0.9.4).",
+    "9ffd273f": "formatting (ruff format).",
+    "fb3dfc9e": "formatting/lint (noqa PLR0915).",
+    "a0ad70ea": "pytest migration: strategy parametrize + strategy_string fixture replace generated subclasses.",
+    "98af29ea": "pytest migration (asserts/helpers rewritten), no behavior change.",
+    "c3471a97": "formatting (autopep8).",
+    "6b5a3275": "@dtest_debug mark.",
+    "8f315895": "@next_gating mark.",
+    "a7013655": "file-level: run with DateTieredCompactionStrategy (only strategy then enabling CK filter) + NullCompactionStrategy; min_threshold 999 to block compaction.",
+    "d948d62f": "added to scylla_tests list (marks only).",
+    "e6fac6a5": "formatting (PEP8).",
+    "ea9142bc": "file-level: DTCS -> TWCS (DTCS deprecated).",
+    "17136662": "file-level: disable compaction with 'enabled':'false' instead of min_threshold 999.",
+    "3040c4e6": "file-level: @next_gating moved to class -> all tests gating.",
+    "4ba09152": "origin: test added.",
+    "d8816408": "enabled inverted c1 range check (scylla#1544 fixed).",
+    "75171e53": "added c1='a' with c2 >/>= '1' prefix-range queries."
+   },
+   "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~7.9s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
+     "coverage": "partial",
+     "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::test_twcs_single_key_reader_filtering",
+     "coverage": "partial",
+     "note": "TWCS 2 sstables, ck range slice, asserts CK filter stats (scylla#8432). Single ck component."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::min_max_clustering_key_test_2_test",
+     "coverage": "partial",
+     "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Live behavior; composite-ck prefix ranges across multiple sstables under TWCS CK filter not found in scylla tests (cqlpy/boost CK-filter tests use single int ck). Would be GREEN but for found issues; cheap and portable to cqlpy. Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness."
+  },
+  "TestClusteringKeyFilter::test_check_composite_2": {
+   "description": "Single node, cache off, compaction disabled; ck (c1,c2), single row (a,c) in one sstable (min/max [a,c]). SELECT c1='a' AND c2>'b' AND c2<'d' must return it, then count==1. Regression for a bug Raphael introduced while developing the CK-filter optimization (composite range filter wrongly excluding sstable).",
+   "origin": {
+    "sha": "a35a7075",
+    "date": "2016-08-24",
+    "pr": 395,
+    "summary": "Raphael Carvalho: regression test for a composite-range filter bug introduced while developing the CK read optimization (scylla 8d03ccd604)."
+   },
+   "commits": {
+    "eccda80e": "formatting (ruff 0.9.4).",
+    "9ffd273f": "formatting (ruff format).",
+    "a0ad70ea": "pytest migration: strategy parametrize + strategy_string fixture replace generated subclasses.",
+    "98af29ea": "pytest migration (asserts/helpers rewritten), no behavior change.",
+    "c3471a97": "formatting (autopep8).",
+    "a7013655": "file-level: run with DateTieredCompactionStrategy (only strategy then enabling CK filter) + NullCompactionStrategy; min_threshold 999 to block compaction.",
+    "ea9142bc": "file-level: DTCS -> TWCS (DTCS deprecated).",
+    "17136662": "file-level: disable compaction with 'enabled':'false' instead of min_threshold 999.",
+    "3040c4e6": "file-level: @next_gating moved to class -> all tests gating.",
+    "a35a7075": "origin: test added."
+   },
+   "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~5.9s. Not marked dtest_debug unlike the other 3.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
+     "coverage": "partial",
+     "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::test_twcs_single_key_reader_filtering",
+     "coverage": "partial",
+     "note": "TWCS 2 sstables, ck range slice, asserts CK filter stats (scylla#8432). Single ck component."
+    },
+    {
+     "path": "test/boost/sstable_compaction_test.cc::min_max_clustering_key_test_2_test",
+     "coverage": "partial",
+     "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Live behavior; regression for composite-ck exclusive range vs sstable min/max, not found in scylla tests (single-ck only). Tiny scenario, trivially portable to cqlpy (flush + BYPASS CACHE, TWCS). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness."
+  }
+ }
+}
