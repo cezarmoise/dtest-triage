@@ -1,0 +1,250 @@
+{
+  "file": "cdc_batch_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestCDCBatchesSimple::test_delta_batch_only": {
+      "description": "CDC with delta only (no images): logged batches inserting/updating all, even, odd columns, nulling, and re-updating 5 partitions x 3 rows x 10 cols of one of 11 types; asserts per-partition CDC group count, row count (no image rows) and delta values.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique type-matrix coverage of delta-only CDC log for logged multi-partition batches; boost test_batch_images covers images only. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified. (affects this test: no postimage)."
+    },
+    "TestCDCBatchesSimple::test_preimage_true_delta_batch": {
+      "description": "Same batch scenario as test_preimage_on_delta_batch with preimage passed as Python True; asserts preimage rows contain only modified columns' previous values, plus delta.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest cdc_batch_test.py::TestCDCBatchesSimple::test_preimage_on_delta_batch",
+          "coverage": "full",
+          "note": "preimage=True renders as 'True' (line 248), lowercased to 'true' in cdc/log.cc:431 -> identical image_mode::on config and identical expected data (_build_expected_data treats 'true' and True the same)."
+        },
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Exact duplicate of test_preimage_on_delta_batch: True -> 'True' (cdc_batch_test.py:248) lowercased to 'true' in cdc/log.cc:431, same expected data; 11 params x ~5s of redundant gating time. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified."
+    },
+    "TestCDCBatchesSimple::test_preimage_on_delta_batch": {
+      "description": "Batch scenario with preimage='true' (on): asserts preimage rows hold previous values of only the columns modified by the batch (others null), delta rows hold new values.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_pre_image (int/map, single-partition unlogged); dtest adds logged multi-partition batches and 11 types. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified."
+    },
+    "TestCDCBatchesSimple::test_preimage_full_delta_batch": {
+      "description": "Batch scenario with preimage='full': asserts preimage rows contain the full previous row (all columns) for each affected row, plus delta values.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of 'full' preimage with batches (boost test_batch_images has no full mode; cdc_types_test covers full only for single statements). Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified."
+    },
+    "TestCDCBatchesSimple::test_delta_postimage_batch": {
+      "description": "Batch scenario with postimage only: asserts each CDC group has delta + postimage rows and postimage equals merged row state after the batch.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_post_image (int/map, single-partition unlogged); unique logged multi-partition batch x 11-type coverage, stable in gating. Note: the len(rows)-1 delta-slice bug (line 552) does not apply (postimage on)."
+    },
+    "TestCDCBatchesSimple::test_preimage_full_delta_postimage": {
+      "description": "Batch scenario with preimage='full' and postimage: asserts full previous row in preimage, delta values, and merged postimage per affected row.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only batch test combining full preimage with postimage; boost test_batch_pre_post_image uses preimage on only. Live behavior (cdc/log.cc image_mode::full)."
+    },
+    "TestCDCBatchesSimple::test_preimage_on_delta_postimage": {
+      "description": "Batch scenario with preimage='true' and postimage: asserts preimage (modified columns only), delta and postimage rows for every affected row.",
+      "origin": {
+        "sha": "a8f6a928",
+        "date": "2020-04-14",
+        "pr": 1822,
+        "summary": "feature(cdc_batch): Tests for cdc feature behavior with batches (Aleksandr Bykov); covers scylladb/scylla ee7291a (full preimage) and 9042161 (better pre/postimages for complicated batches). Function history stops at 5d26fdbe (pytest port)."
+      },
+      "commits": {
+        "5d26fdbe": "pytest port (PR 2474): file re-added as pytest; test body unchanged in substance.",
+        "13bb3a4f": "formatting (raw strings for regex, tree-wide).",
+        "5df0afb4": "moved get_next_timestamp/mkident helpers to tools/cdc_utils; no behavior change.",
+        "60d976e6": "refactored Column/Row/DataGenerator helpers to be reusable by cdc_static_row_test; no behavior change.",
+        "537f293b": "replaced runtime-generated per-type classes with pytest.fixture(params=checking_types) -> 11 params per test.",
+        "11f9db51": "added @pytest.mark.next_gating to the class (stable 30 days).",
+        "e4a2182c": "class marked required_features('!tablets') (CDC lacked tablets support, scylladb/scylladb#16317).",
+        "5172ba88": "removed '!tablets' mark -> runs with tablets (PR 6220)."
+      },
+      "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
+      "duplicates": [
+        {
+          "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
+          "coverage": "partial",
+          "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
+        },
+        {
+          "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType/TestCDCCollectionsType",
+          "coverage": "partial",
+          "note": "same image modes x types, but single statements, not batches."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_pre_post_image (int/map, single partition, unlogged); dtest adds logged multi-partition batches, null updates and 11 types. Stable in gating."
+    }
+  }
+}
