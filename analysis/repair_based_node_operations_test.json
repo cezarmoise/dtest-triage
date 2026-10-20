@@ -1,0 +1,643 @@
+{
+  "file": "repair_based_node_operations_test.py",
+  "tests": {
+    "TestRepairBasedNodeOperations::test_disable_rbno": {
+      "description": "RF=3 cluster (3 nodes in 3 racks w/o tablets, 4 nodes with tablets), 1000 rows, --enable-repair-based-node-ops false and default allowed list. Runs operations_flow (rebuild, removenode, bootstrap, rejected removenode of live node, replace, decommission) and asserts no 'repair_reason=<op>,' log line on any node, i.e. global switch disables RBNO and streaming is used.",
+      "origin": {
+        "sha": "3c778d6dfb",
+        "date": "2022-01-03",
+        "pr": 2449,
+        "summary": "Initial RBNO dtest for scylla commit 97bb2e47ff (allowed_repair_based_node_ops option, RBNO default for replace)."
+      },
+      "commits": {
+        "7ce002ceb3": "use 3-rack topology via get_cluster_topology; pass dc=DC1 rack=RAC1 to ops (rf-rack-valid)",
+        "3b576a5d7b": "parametrize num_nodes 3 (!tablets) / 4 so removenode works with tablets",
+        "3c778d6dfb": "added test",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: enable_repair_based_node_ops and allowed_repair_based_node_ops (db/config.cc:1465-1466, default 'replace,removenode,rebuild'), gating in storage_service::is_repair_based_node_ops_enabled (service/storage_service.cc:7626).",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_disable_rbno_for_all_operations",
+          "coverage": "full",
+          "note": "identical body (lines 654-667 vs 530-541) except allowed list = all 5 ops; with enable=false that is a superset of the default-list case"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~85s x2 params) and redundant: test_disable_rbno_for_all_operations runs the same topology/flow/expectations with all ops allowed, which subsumes the default allowed list (bootstrap/decommission are not RBNO by default anyway, so half its checks are trivially true). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc)."
+    },
+    "TestRepairBasedNodeOperations::test_disable_rbno_for_all_operations": {
+      "description": "Same as test_disable_rbno but with --allowed-repair-based-node-ops set to all 5 ops while --enable-repair-based-node-ops false. Asserts no 'repair_reason=<op>,' log for any op in operations_flow: global disable overrides the allowed list.",
+      "origin": {
+        "sha": "3c778d6dfb",
+        "date": "2022-01-03",
+        "pr": 2449,
+        "summary": "Added as test_enable_rbno_for_all_operations (enable=true, all ops); renamed and flipped to enable=false in fd51148557 when RBNO became default for all ops (scylladb#12970)."
+      },
+      "commits": {
+        "7ce002ceb3": "3-rack topology via get_cluster_topology; dc/rack passed to ops",
+        "3b576a5d7b": "parametrize num_nodes 3 (!tablets) / 4",
+        "9ffd273f04": "formatting",
+        "fd51148557": "renamed from test_enable_rbno_for_all_operations; enable=false, expect no repair",
+        "3c778d6dfb": "added test",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: enable/allowed RBNO options (db/config.cc:1465-1466), storage_service.cc:7626.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_disable_rbno",
+          "coverage": "full",
+          "note": "subset scenario (default allowed list)"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test asserting enable_repair_based_node_ops=false overrides allowed list (no scylla test checks this); keep this one, drop test_disable_rbno. Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes": {
+      "description": "RBNO enabled with allowed list = all 5 ops, 3 nodes in 2 racks, RF=2, 1000 rows. Runs operations_flow (rebuild, removenode, bootstrap, rejected removenode, replace, decommission) and asserts 'repair_reason=<op>,' appears on the tested node (or all other nodes for removenode) per scenario. Added to exercise RBNO with rf<nodes, racks and DCs, incl. tablets and raft topology.",
+      "origin": {
+        "sha": "13d9801c94",
+        "date": "2024-01-28",
+        "pr": 3905,
+        "summary": "Benny Halevy: add RBNO cases with more interesting topologies (rf=2, multi-rack, multi-dc, multi-dc-rack), passing with raft topology and tablets."
+      },
+      "commits": {
+        "79e88114c3": "explicitly set allowed list to all 5 ops (scylladb#26330 drops bootstrap/decommission from default)",
+        "7ce002ceb3": "topology 3 -> {DC1:{RAC1:1,RAC2:2}}; ops in DC1/RAC1",
+        "13d9801c94": "added test ({DC1:{RAC1:1,RAC2:2}} rf=2, ops in DC1/RAC1)",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: allowed_repair_based_node_ops default now 'replace,removenode,rebuild' (db/config.cc:1466); test forces all ops.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "asserts RBNO repair runs for bootstrap/rebuild/decommission when allowed list includes them; no disable/subset gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "4 near-identical topology variants (128-205s each) of the same flow and same log-grep assertion; consider keeping one (e.g. multi_dc_rack). Docstring copy-pasted and wrong ('allowed not set, repair for replace only'). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_rack": {
+      "description": "RBNO enabled with allowed list = all 5 ops, 4 nodes in 2 racks, RF DC1:2, 1000 rows. Runs operations_flow (rebuild, removenode, bootstrap, rejected removenode, replace, decommission) and asserts 'repair_reason=<op>,' appears on the tested node (or all other nodes for removenode) per scenario. Added to exercise RBNO with rf<nodes, racks and DCs, incl. tablets and raft topology.",
+      "origin": {
+        "sha": "13d9801c94",
+        "date": "2024-01-28",
+        "pr": 3905,
+        "summary": "Benny Halevy: add RBNO cases with more interesting topologies (rf=2, multi-rack, multi-dc, multi-dc-rack), passing with raft topology and tablets."
+      },
+      "commits": {
+        "79e88114c3": "explicitly set allowed list to all 5 ops (scylladb#26330 drops bootstrap/decommission from default)",
+        "13d9801c94": "added test ({DC1:{RAC1:2,RAC2:2}} rf DC1:2, ops in DC1/RAC2)",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: allowed_repair_based_node_ops default now 'replace,removenode,rebuild' (db/config.cc:1466); test forces all ops.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "asserts RBNO repair runs for bootstrap/rebuild/decommission when allowed list includes them; no disable/subset gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "4 near-identical topology variants (128-205s each) of the same flow and same log-grep assertion; consider keeping one (e.g. multi_dc_rack). Docstring copy-pasted and wrong ('allowed not set, repair for replace only'). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc": {
+      "description": "RBNO enabled with allowed list = all 5 ops, 2 DCs x 3 nodes (2 racks each), RF 2/2, 1000 rows. Runs operations_flow (rebuild, removenode, bootstrap, rejected removenode, replace, decommission) and asserts 'repair_reason=<op>,' appears on the tested node (or all other nodes for removenode) per scenario. Added to exercise RBNO with rf<nodes, racks and DCs, incl. tablets and raft topology.",
+      "origin": {
+        "sha": "13d9801c94",
+        "date": "2024-01-28",
+        "pr": 3905,
+        "summary": "Benny Halevy: add RBNO cases with more interesting topologies (rf=2, multi-rack, multi-dc, multi-dc-rack), passing with raft topology and tablets."
+      },
+      "commits": {
+        "79e88114c3": "explicitly set allowed list to all 5 ops (scylladb#26330 drops bootstrap/decommission from default)",
+        "7ce002ceb3": "topology {DC1:3,DC2:3} -> per-rack layout",
+        "13d9801c94": "added test ({DC1:{RAC1:1,RAC2:2},DC2:{RAC1:1,RAC2:2}} rf 2/2, ops in DC2)",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: allowed_repair_based_node_ops default now 'replace,removenode,rebuild' (db/config.cc:1466); test forces all ops.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "asserts RBNO repair runs for bootstrap/rebuild/decommission when allowed list includes them; no disable/subset gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "4 near-identical topology variants (128-205s each) of the same flow and same log-grep assertion; consider keeping one (e.g. multi_dc_rack). Docstring copy-pasted and wrong ('allowed not set, repair for replace only'). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc_rack": {
+      "description": "RBNO enabled with allowed list = all 5 ops, 2 DCs x 4 nodes (2 racks each), RF 2/2, 1000 rows. Runs operations_flow (rebuild, removenode, bootstrap, rejected removenode, replace, decommission) and asserts 'repair_reason=<op>,' appears on the tested node (or all other nodes for removenode) per scenario. Added to exercise RBNO with rf<nodes, racks and DCs, incl. tablets and raft topology.",
+      "origin": {
+        "sha": "13d9801c94",
+        "date": "2024-01-28",
+        "pr": 3905,
+        "summary": "Benny Halevy: add RBNO cases with more interesting topologies (rf=2, multi-rack, multi-dc, multi-dc-rack), passing with raft topology and tablets."
+      },
+      "commits": {
+        "79e88114c3": "explicitly set allowed list to all 5 ops (scylladb#26330 drops bootstrap/decommission from default)",
+        "13d9801c94": "added test ({DC1:{RAC1:2,RAC2:2},DC2:{RAC1:2,RAC2:2}} rf 2/2, ops in DC2/RAC2)",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: allowed_repair_based_node_ops default now 'replace,removenode,rebuild' (db/config.cc:1466); test forces all ops.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_rack",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_dc",
+          "coverage": "partial",
+          "note": "same flow/assertions, different topology"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "same bootstrap/decommission/removenode/rebuild/replace flow with default RBNO config; no allowed/enable gating asserted"
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "asserts RBNO repair runs for bootstrap/rebuild/decommission when allowed list includes them; no disable/subset gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "4 near-identical topology variants (128-205s each) of the same flow and same log-grep assertion; consider keeping one (e.g. multi_dc_rack). Docstring copy-pasted and wrong ('allowed not set, repair for replace only'). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_for_bootstrap": {
+      "description": "RBNO enabled with --allowed-repair-based-node-ops=bootstrap only (3-rack RF=3, 3 or 4 nodes). Runs operations_flow and asserts 'repair_reason=bootstrap,' on the new node and no repair_reason for rebuild/removenode/replace/decommission: allowed list restricts RBNO per op.",
+      "origin": {
+        "sha": "3c778d6dfb",
+        "date": "2022-01-03",
+        "pr": 2449,
+        "summary": "Initial RBNO dtest for scylla commit 97bb2e47ff (allowed_repair_based_node_ops)."
+      },
+      "commits": {
+        "7ce002ceb3": "3-rack topology via get_cluster_topology; dc/rack passed to ops",
+        "3b576a5d7b": "parametrize num_nodes 3 (!tablets) / 4",
+        "9ffd273f04": "formatting",
+        "fd51148557": "docstring only ('allowed list set for all ops by default')",
+        "3c778d6dfb": "added test",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Live: allowed_repair_based_node_ops parsing/gating (storage_service.cc:7626).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "asserts RBNO repair runs for bootstrap/rebuild/decommission when allowed list includes them; no disable/subset gating"
+        },
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py",
+          "coverage": "partial",
+          "note": "uses allowed_repair_based_node_ops='decommission' as setup, no gating assertion"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique check that the allowed list restricts RBNO to a subset of ops (no scylla test asserts this). Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc). Note: only assertion is grep of 'repair_reason=<op>,' in logs (repair/repair.cc:1252), no data check; in the tablets job ks uses tablets (no RBNO), so hits come only from vnode system keyspaces. Note: docstring 'by default allowed list is set for all node operations' stale (default now 'replace,removenode,rebuild', db/config.cc:1466)."
+    },
+    "TestRepairBasedNodeOperations::test_enable_rbno_for_default_operation": {
+      "description": "3 nodes RF=3 (vnodes only), RBNO enabled with allowed list = all 5 ops; runs operations_flow and asserts repair_reason log per op. Originally tested the default allowed list ('replace' only, later all ops); since 79e88114c3 the list is set explicitly, so it no longer tests the default.",
+      "origin": {
+        "sha": "3c778d6dfb",
+        "date": "2022-01-03",
+        "pr": 2449,
+        "summary": "Initial RBNO dtest; checked that with default allowed list only replace used RBNO."
+      },
+      "commits": {
+        "79e88114c3": "explicitly set allowed list to all 5 ops (scylladb#26330); test no longer exercises default",
+        "8013a6d9ee": "required_features('!tablets'): removenode rejected with tablets when nodes==RF",
+        "fd51148557": "RBNO default for all ops: expect repair for all scenarios",
+        "3c778d6dfb": "added test",
+        "1e9c7da4cc": "file-level: added removenode_rejecting scenario to operations_flow (rejected removenode of live node)",
+        "79bae79da9": "file-level: restart removed node after expected removenode rejection",
+        "37bb32a69b": "file-level: remove replaced node from ccm cluster after replace",
+        "97a341adc4": "file-level: replace via replace_node_host_id instead of replace_address",
+        "f02cfb2577": "file-level: wait for raft-mode 'Finished to force remove node' log after replace",
+        "eb859a9fed": "file-level: adjust force-remove log regex for host-id transition"
+      },
+      "relevance": "Name/docstring stale: default allowed list is now 'replace,removenode,rebuild' (db/config.cc:1466) and test overrides it with all ops.",
+      "duplicates": [
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes",
+          "coverage": "full",
+          "note": "same flags (all ops allowed), same operations_flow and assertions on 3 nodes (rf=2, 2 racks), and also runs with tablets"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_enable_rbno_extra_nodes_multi_rack",
+          "coverage": "full",
+          "note": "same flow, 4 nodes"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant since 79e88114c3 made it set the same allowed list as the test_enable_rbno_extra_nodes* tests, which run the same flow/assertions (and also under tablets); name 'default_operation' and docstring are stale. Bug: RepairBasedNodeOperationsScenarios.removenode (repair_based_node_operations_test.py:383-387) puts the re.match(removenode_reject_msg, ...) check inside pytest.raises after the raising call, so it never runs; any NodetoolError passes the 'removenode rejected' scenario (since 1e9c7da4cc)."
+    },
+    "TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option": {
+      "description": "7 nodes in 3 racks, RF=3, 1000 rows, RBNO on. Stops last 3 nodes, replaces one with a new node passing --ignore-dead-nodes-for-replace <host ids of other 2>; asserts replace succeeds and 'repair_reason=replace,' logged on the new node. Guards scylla eba4a4fba4 (RBNO replace ignores dead nodes, allowing replace of multiple dead nodes).",
+      "origin": {
+        "sha": "641f6b47ef",
+        "date": "2022-03-24",
+        "pr": 2669,
+        "summary": "Add test for --ignore-dead-nodes-for-replace (scylla commit eba4a4fba4)."
+      },
+      "commits": {
+        "7ce002ceb3": "topology 7 -> {DC1:{RAC1:2,RAC2:2,RAC3:3}}",
+        "9ffd273f04": "formatting",
+        "a3dd338ef9": "5 -> 7 nodes so raft majority survives 3 dead",
+        "641f6b47ef": "added test",
+        "f0948609b4": "file-level: ignore dead nodes by host_id instead of IP",
+        "d6035e762a": "file-level: don't restart ignored (banned) nodes in raft topology; re-enabled for raft",
+        "b6a7e5dda3": "file-level: temporarily deselected for raft topology (scylladb#17349)",
+        "69d73123cb": "file-level: overwrite older --ignore-dead-nodes-for-replace in shared jvm_args",
+        "8d74b87749": "file-level: limited voters adjustments (only after-restart helper)"
+      },
+      "relevance": "Live: ignore_dead_nodes_for_replace (db/config.cc:1463), used by test/pylib ReplaceConfig.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes",
+          "coverage": "partial",
+          "note": "7 nodes, 3 dead, replace with ignore_dead_nodes by host id (plus negative cases); no user data so RBNO repair skipping dead replicas not exercised"
+        },
+        {
+          "path": "test/cluster/test_tablets.py",
+          "coverage": "partial",
+          "note": "replace with ignore_dead_nodes in tablets tests"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario largely covered by test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes, but dtest has RF=3 user data so RBNO replace repair must skip dead replicas; no data verification though (only log grep). Note: gossip-mode branches (lines 173-177, 200-204, 255-258) are dead in CI (consistent-topology-changes always set in conftest.py:734; force_gossip_topology_changes deprecated). Note: add_node mutates self.tester.jvm_args in place (line 139-146)."
+    },
+    "TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option_multi_dc": {
+      "description": "3 DCs [3,2,2], RF 1 per DC, 1000 rows, RBNO on. Picks 3 nodes (skipping topology coordinator, keeping voter majority), stops the whole cluster, restarts all but those 3, then replaces one in place (same IP, cleared data) with --ignore-dead-nodes-for-replace for the other 2; asserts 'repair_reason=replace,' on it. Guards scylladb#15787 (replace after full restart could not find lost nodes / missing rack in token metadata).",
+      "origin": {
+        "sha": "6ff32982f5",
+        "date": "2023-10-20",
+        "pr": 3685,
+        "summary": "Add ignore_dead_nodes cases after full cluster restart (multi_dc, multi_rack) for scylladb#15787."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "6ff32982f5": "added test (require scylladb#15787)",
+        "0a349c5a41": "file-level: removed require/skip marks for closed #15787/#16858",
+        "1dad5d921b": "file-level: require marks -> skip_if(issue_open(...))",
+        "8d74b87749": "file-level: choose nodes to stop respecting limited voters and topology coordinator",
+        "9c6fee3d1c": "file-level: gossip-topology fallback to last 3 nodes",
+        "3aeee1cedb": "file-level: deterministic (reversed) node selection instead of random",
+        "f0948609b4": "file-level: ignore dead nodes by host_id"
+      },
+      "relevance": "Live option; #15787 fix (scylla 655d624e01, 6aaa1b0f48) is in gossip join_token_ring path, while CI runs only raft topology (next-dtest-consistent-topology/tablets), so original bug path is not exercised.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes",
+          "coverage": "partial",
+          "note": "replace with ignored dead nodes, but no full-cluster restart, new IP"
+        },
+        {
+          "path": "test/cluster/test_raft_recovery_user_data.py::test_raft_recovery_user_data[replace]",
+          "coverage": "partial",
+          "note": "rolling restarts + replace dead DC nodes with ignore_dead_nodes, with user data"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option_multi_rack",
+          "coverage": "partial",
+          "note": "same scenario, single DC 3 racks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Replace-in-place after full restart with ignored nodes is not covered in scylla tests, but the guarded bug (#15787) was gossip-only and CI is raft-only; only log grep, no data check (RF=1 per DC). Note: docstring wrong ('multi-rack, single-dc'). Note: line 308-309 extends shared self.tester.jvm_args in place. Note: gossip-mode branches (lines 173-177, 200-204, 255-258) are dead in CI (consistent-topology-changes always set in conftest.py:734; force_gossip_topology_changes deprecated)."
+    },
+    "TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option_multi_rack": {
+      "description": "Single DC, 3 racks {RACK1:3,RACK2:2,RACK3:2}, RF DC1=3, 1000 rows, RBNO on. Picks 3 nodes (skipping topology coordinator, keeping voter majority), stops whole cluster, restarts all but those 3, replaces one in place (same IP, cleared data) with --ignore-dead-nodes-for-replace for the other 2; asserts 'repair_reason=replace,' in its log. Guards scylladb#15787 (replace after full restart could not find lost nodes / a missing rack broke token metadata).",
+      "origin": {
+        "sha": "6ff32982f5",
+        "date": "2023-10-20",
+        "pr": 3685,
+        "summary": "Add ignore_dead_nodes cases after full cluster restart (multi_dc, multi_rack) for scylladb#15787."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "6ff32982f5": "added test (require scylladb#15787)",
+        "0a349c5a41": "file-level: removed require marks for closed #15787/#16858",
+        "8d74b87749": "file-level: choose nodes to stop respecting limited voters and topology coordinator",
+        "9c6fee3d1c": "file-level: gossip-topology fallback to last 3 nodes",
+        "3aeee1cedb": "file-level: deterministic (reversed) node selection instead of random",
+        "f0948609b4": "file-level: ignore dead nodes by host_id",
+        "7ce002ceb3": "file-level: explicit rack topology in prepare_cluster"
+      },
+      "relevance": "--ignore-dead-nodes-for-replace live; #15787 (closed) fix was in gossip join_token_ring path, CI runs raft topology only (next-dtest-consistent-topology/tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes",
+          "coverage": "partial",
+          "note": "replace with ignored dead nodes, no full-cluster restart, new IP"
+        },
+        {
+          "path": "test/cluster/test_raft_recovery_user_data.py::test_raft_recovery_user_data[replace]",
+          "coverage": "partial",
+          "note": "replace dead DC nodes with ignore_dead_nodes after restarts"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option_multi_dc",
+          "coverage": "partial",
+          "note": "same helper/scenario, 3 DCs instead of 3 racks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of the _multi_dc variant (same helper replace_node_when_two_nodes_dead_after_cluster_restart, only topology differs); guarded bug #15787 was gossip-only while CI is raft-only; only log grep, no data verification. Note: helper extends shared self.tester.jvm_args in place (repair_based_node_operations_test.py:308-309). Note: gossip-mode branches in helpers are dead in CI (conftest.py:734 forces consistent-topology-changes)."
+    },
+    "TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_whole_dc_replace_option": {
+      "description": "3 DCs (DC1 {RAC1:2,RAC2:1}, DC2 {RAC1:2,RAC2:1}, DC3:1), RF {DC1:2,DC2:2,DC3:0}, RBNO on. Stops all DC2 nodes, then replaces them one by one, each with --ignore-dead-nodes-for-replace listing the not-yet-replaced DC2 nodes; asserts 'repair_reason=replace,' only on the last replacing node. Scenario of scylladb#16826 (RBNO replace unsafe when DC lost too many replicas -> must sync from other DC). No data verification.",
+      "origin": {
+        "sha": "32c83f47f7",
+        "date": "2024-07-03",
+        "pr": 4549,
+        "summary": "Add test replacing all nodes of a DC one at a time."
+      },
+      "commits": {
+        "7ce002ceb3": "explicit rack topology for DC1/DC2",
+        "9b13e56a98": "add skip_if(issue_open(scylladb#16826))",
+        "32c83f47f7": "added test",
+        "69d73123cb": "file-level: add_node overwrites previous --ignore-dead-nodes-for-replace value (needed for this loop)"
+      },
+      "relevance": "Live: ignore_dead_nodes replace + RBNO source selection (repair/repair.cc). #16826 closed 2024-09-04 so skip_if is a no-op now; test runs in both vnodes and tablets CI (32 runs, 100%).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_recovery_user_data.py::test_raft_recovery_user_data[replace]",
+          "coverage": "partial",
+          "note": "replaces all dead dc2 nodes with ignore_dead_nodes, but dc2 RF altered to 0 first (no data rebuild from other DC)"
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_replace_with_no_normal_token_owners_in_dc",
+          "coverage": "partial",
+          "note": "tablets only: replace both token owners of a DC, data rebuilt from other DC and verified"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap in scylla tests (test_raft_recovery_user_data, test_tablets::test_replace_with_no_normal_token_owners_in_dc); dtest adds vnodes RBNO case but checks only a log line, no data check, so the #16826 safety aspect is not verified. Bug: shared self.tester.jvm_args mutated by add_node (lines 139-146); last iteration has empty ignore list so the stale value (host id of the node being replaced) is passed. Note: skip_if(issue_open(#16826)) dead (issue closed). Only last replacing node validated."
+    },
+    "TestRepairBasedNodeOperations::test_lcs_reshape_efficiency": {
+      "description": "3 nodes, LCS table, RBNO for bootstrap,replace, small_table_optimization_for_rbno_max_table_size=0. Runs bootstrap then replace; asserts 'repair_reason=...' log and that the new node logged 'LeveledManifest - Reshaping N disjoint sstables in level 0 into level L' (efficient reshape of repair disjoint run into ideal level, scylla a390f4eb61). Vnodes only.",
+      "origin": {
+        "sha": "7509e56537",
+        "date": "2022-01-31",
+        "pr": 2576,
+        "summary": "Add test for efficient LCS reshape after repair-based bootstrap/replace."
+      },
+      "commits": {
+        "7d462c04b8": "set small_table_optimization_for_rbno_max_table_size=0 so ranged repair path (and reshape) is exercised after scylladb#30741",
+        "8013a6d9ee": "required_features('!tablets') (no offstrategy with tablets)",
+        "9ffd273f04": "formatting",
+        "7509e56537": "added test",
+        "79e88114c3": "file-level: no change for this test (already sets allowed ops)"
+      },
+      "relevance": "Log line live at compaction/leveled_compaction_strategy.cc:199; option small_table_optimization_for_rbno_max_table_size live (db/config.cc:1480). Vnodes-only path (offstrategy reshape after RBNO); tablets skip it.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::lcs_reshape_test",
+          "coverage": "partial",
+          "note": "unit: LCS reshape job picks all 256 disjoint L0 sstables; no ideal-level / RBNO flow"
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "covers the small-table RBNO routing the dtest disables, not reshape"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only end-to-end check that repair-based bootstrap/replace triggers the efficient LCS ideal-level reshape (scylla a390f4eb61); boost lcs_reshape_test covers job selection only. Recently maintained (7d462c04b8, 2026-07). Weak assertion (log presence only), vnodes only."
+    },
+    "TestRepairBasedNodeOperations::test_removenode_rejected_with_rnbo": {
+      "description": "3 nodes in 3 racks, RBNO on. Kills last node (gently=False, wait_other_notice=False) and immediately runs removenode from node1, expecting NodetoolError because gossiper still considers it alive; then waits for death in logs and restarts it. Asserts no 'repair_reason=removenode,' anywhere.",
+      "origin": {
+        "sha": "1e9c7da4cc",
+        "date": "2023-01-05",
+        "pr": 2964,
+        "summary": "Add removenode-rejected-if-node-alive scenario."
+      },
+      "commits": {
+        "7ce002ceb3": "cluster topology with 3 racks",
+        "9ffd273f04": "formatting",
+        "1e9c7da4cc": "added test + removenode(wait_stop=False) helper",
+        "79bae79da9": "file-level: wait for death and restart removed node after expected failure",
+        "13d9801c94": "file-level: helper signature **kwargs"
+      },
+      "relevance": "Live: storage_service.cc:2885-2891 rejects removenode when _gossiper.is_alive(host_id) ('the node being removed is alive, maybe you should use decommission instead?').",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails",
+          "coverage": "full",
+          "note": "same raft_removenode is_alive check, asserts the exact error message (which the dtest does not)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylla test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails covers the same check (storage_service.cc:2885) and asserts the message. Bug: message regex at repair_based_node_operations_test.py:383-387 is after the raising call inside pytest.raises, never runs (and would TypeError: re.match on ExceptionInfo) since 1e9c7da4cc. Note: relies on race (kill then removenode before failure detection)."
+    },
+    "TestRepairBasedNodeOperations::test_replace_error_with_different_dc_or_rack": {
+      "description": "2 DCs x 2 racks, RF 2/2. Four attempts to replace a node with a new node in a different DC/rack (other existing DC, other rack, non-existent rack, non-existent DC); each must die at startup with 'Cannot replace node ... with a node on a different data center or rack. Current location=<dc>/<rack>, new location=<dc>/<rack>'; replaced node restarted after each. Reproducer for scylladb#16858.",
+      "origin": {
+        "sha": "176e607a4e",
+        "date": "2024-01-18",
+        "pr": 3881,
+        "summary": "Reproduce scylladb#16858: replace with different dc/rack must fail."
+      },
+      "commits": {
+        "176e607a4e": "added test",
+        "6eca2a01b3": "file-level: require scylladb#16858",
+        "1dad5d921b": "file-level: require -> skip_if(issue_open)",
+        "0a349c5a41": "file-level: removed checks for closed issues"
+      },
+      "relevance": "Live: service/storage_service.cc:1604 (added by scylla 34dfa4d3a3, fixes #16858, closed). Applies in raft topology.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No scylla test asserts 'different data center or rack' (grep test/ empty; fix 34dfa4d3a3 added no test); unique coverage of live check, fast (48s), 100% pass."
+    },
+    "TestRepairBasedNodeOperations::test_replace_node_after_cluster_restart": {
+      "description": "Single DC, RF 3, 3 or 4 nodes (param; 3 only without tablets). Stops all nodes, restarts all but the last, then replaces the down node in place (same IP, cleared data, seeds reset); asserts 'repair_reason=replace,' on it. Verifies a node that was down during full cluster restart (endpoint state lost) can still be replaced (scylladb#15787/#16858 era).",
+      "origin": {
+        "sha": "f1734c8d42",
+        "date": "2023-10-26",
+        "pr": 3685,
+        "summary": "Add replace after full cluster restart with one node down."
+      },
+      "commits": {
+        "7ce002ceb3": "get_cluster_topology: 3 racks",
+        "3b576a5d7b": "parametrize num_nodes 3 (!tablets) / 4 for tablets",
+        "8013a6d9ee": "required_features('!tablets') due to scylladb#17025 (later removed by 3b576a5d7b)",
+        "9ffd273f04": "formatting",
+        "f1734c8d42": "added test",
+        "6eca2a01b3": "file-level: require #16858/#15787",
+        "0a349c5a41": "file-level: removed checks for closed issues",
+        "45e0149c79": "file-level: drop deprecated replace_address"
+      },
+      "relevance": "Live behavior; #15787 (closed) fix was gossip join path, CI runs raft only. Raft replace with same IP after full restart still meaningful.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_replace.py::test_replace_reuse_ip",
+          "coverage": "partial",
+          "note": "replace with same IP, with data check, no full-cluster restart"
+        },
+        {
+          "path": "test/cluster/test_ip_mappings.py::test_full_shutdown_during_replace",
+          "coverage": "partial",
+          "note": "full shutdown during replace (not before)"
+        },
+        {
+          "path": "repair_based_node_operations_test.py::TestRepairBasedNodeOperations::test_ignore_dead_nodes_for_replace_option_multi_dc",
+          "coverage": "partial",
+          "note": "same full-restart + in-place replace, with ignored nodes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap (test_replace_reuse_ip, and the _multi_dc/_multi_rack dtests which do full restart + in-place replace plus ignored nodes); guarded bug was gossip-only; assertion is a log grep only, no data verification. Note: gossip-mode branches in helpers are dead in CI (conftest.py:734 forces consistent-topology-changes)."
+    },
+    "TestRepairBasedNodeOperations::test_safe_unsafe_rebuild": {
+      "description": "2 DCs x 3 nodes, RF n in each DC (param 1,2,3), RBNO on incl. rebuild. Wipes ks data on a DC2 node and runs nodetool rebuild with source DC1 (must succeed), DC2 (must fail if RF=1), no source (succeeds), '--force DC2' (succeeds); after each, reads 1000 rows at QUORUM. For RF=1 after --force expects Unavailable with DC1 stopped. Covers RBNO rebuild source_dc safety check (scylladb PR #16827, issue #16826). Vnodes only.",
+      "origin": {
+        "sha": "f44b49082a",
+        "date": "2024-06-25",
+        "pr": 4505,
+        "summary": "Add safe/unsafe nodetool rebuild source_dc test (scylla-dtest#4481)."
+      },
+      "commits": {
+        "8f4e73e413": "audit keyspace detection via system_schema query instead of driver metadata refresh (flaky)",
+        "6c434c8c09": "bump schema refresh timeout to 60s (flaky, scylladb#28044)",
+        "3a3660a9c4": "alter audit keyspace to replicate in both DCs",
+        "4d872ab1f9": "unmark_if next_gating while #16826 open",
+        "961cf090fb": "expect 'rebuild DC2' to fail with RF=1 (new #16827 behavior); tolerate --force result (#20242)",
+        "2bb17793c6": "unmark from next_gating (scylla-dtest#4823)",
+        "f44b49082a": "added test",
+        "c7aa27da9a": "file-level: expect success for --force",
+        "79e88114c3": "file-level: no-RBNO default prep (test already sets allowed ops)"
+      },
+      "relevance": "Live: repair/repair.cc:2413-2420 (source_dc safety check, --force), raft rebuild with source_dc (storage_service.cc:3628). Skipped with tablets (scylladb#17575); vnodes still supported.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_rebuild.py::test_rebuild_force_source_dc",
+          "coverage": "partial",
+          "note": "mocked REST only, argument plumbing"
+        },
+        {
+          "path": "test/cluster/dtest/rebuild_test.py::test_rebuild_stream_abort_repro",
+          "coverage": "partial",
+          "note": "rebuild, not source_dc safety"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique end-to-end coverage of the rebuild source_dc safety check (repair/repair.cc:2413-2420), but has issues. Bug: in the RF=1 --force branch, start_nodes(dc1_nodes) after the raising verify_data_integrity inside pytest.raises never runs; and with DC1 stopped QUORUM (total RF 2) is unavailable regardless of data, so the 'data lost' check is trivial. Note: QUORUM reads include other-DC replicas, so they do not prove the rebuilt node got the data. Note: unmark_if(issue_open('#16826')) dead (closed 2024-09-04). History of flakiness (6c434c8c09, 8f4e73e413)."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
