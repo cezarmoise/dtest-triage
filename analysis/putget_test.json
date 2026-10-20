@@ -1,0 +1,263 @@
+{
+  "file": "putget_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestPutGet::test_putget": {
+      "description": "3-node cluster (3 racks), RF=3, uncompressed table (compression={}). tools.data.putget writes one partition with 100 cells, then overwrites 50 and 20 of them, flushing between each batch so reads merge 3 sstables; SELECT at QUORUM asserts 100 rows with the newest values. Generic multi-sstable merge/overwrite read correctness.",
+      "origin": {
+        "sha": "6ffa61116c",
+        "date": "2011-10-18",
+        "pr": null,
+        "summary": "Sylvain Lebresne 'New tests': original Cassandra dtest putget_test (pre-GitHub PRs)."
+      },
+      "commits": {
+        "4cd9bd2b84": "Use cluster_setup_3_nodes fixture (1 DC, 3 racks x 1 node) instead of populate(3); for RF==#racks (tablets rf-rack-valid).",
+        "9ffd273f04": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "2d8cd93fdd": "Add docstring; logic moved to tools.putget helper.",
+        "155dd00dae": "Split body into _putget(compression) so snappy/deflate variants can reuse it.",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Live: basic write/flush/read merge path.",
+      "duplicates": [
+        {
+          "path": "dtest:internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_without_compression",
+          "coverage": "full",
+          "note": "Same tools.data.putget helper, compression=None, 4 nodes/2 racks RF=2, no SSL/compression; 6 more internode_ssl_test putget variants + native_transport_ssl_test call putget too."
+        },
+        {
+          "path": "dtest:native_transport_ssl_test.py::TestNativeTransportSSL::*",
+          "coverage": "partial",
+          "note": "putget helper at CL.ONE, RF=1, with client SSL."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully duplicated by internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_without_compression (same putget helper, uncompressed, multi-node, encryption none) plus 6 more internode SSL putget variants, all in next gating. Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    },
+    "TestPutGet::test_putget_snappy": {
+      "description": "Same as test_putget (3 nodes, RF=3, 3 overwrite batches with flush between, QUORUM read of 100 cells) but table created with compression={'sstable_compression':'SnappyCompressor'}. Guards reading/merging multiple Snappy-compressed sstables end to end.",
+      "origin": {
+        "sha": "155dd00dae",
+        "date": "2011-10-30",
+        "pr": null,
+        "summary": "Sylvain Lebresne 'new tests': added putget_snappy_test via _putget(compression) (Cassandra dtest, pre-GitHub)."
+      },
+      "commits": {
+        "4cd9bd2b84": "Use cluster_setup_3_nodes fixture (1 DC, 3 racks x 1 node) instead of populate(3); for RF==#racks (tablets rf-rack-valid).",
+        "9ffd273f04": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "7ac4b3d029": "Re-enabled the test (was commented out awaiting CASSANDRA-3374).",
+        "2d8cd93fdd": "Docstring added (test still commented out).",
+        "142e415661": "Commented out test pending CASSANDRA-3374.",
+        "155dd00dae": "Test created.",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Live: scylla still supports SnappyCompressor (compression_parameters::algorithm::snappy, test/boost/sstable_datafile_test.cc:260-264).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_datafile_test.cc::datafile_generation_14 / datafile_generation_15",
+          "coverage": "partial",
+          "note": "Write/read round-trip of sstable with snappy/deflate compressor (single mutation, no multi-sstable merge)."
+        },
+        {
+          "path": "test/boost/sstable_compression_config_test.cc",
+          "coverage": "partial",
+          "note": "Snappy/Deflate compression config via CQL (schema only)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/create_test.py",
+          "coverage": "partial",
+          "note": "CREATE TABLE with SnappyCompressor options (schema only)."
+        },
+        {
+          "path": "dtest:sstable_generation_loading_test.py::TestSSTableGenerationAndLoading",
+          "coverage": "partial",
+          "note": "Uses Deflate-compressed table (create_cf compression='Deflate')."
+        },
+        {
+          "path": "dtest:internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_without_compression",
+          "coverage": "partial",
+          "note": "Same putget scenario but uncompressed."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only end-to-end multi-node multi-sstable read with Snappy compression; compressor round-trip covered by boost datafile_generation_14, merge path by internode_ssl putget tests -> partial overlap, cheap (~17s). Snappy and deflate variants are near-identical; one could be kept. Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    },
+    "TestPutGet::test_putget_deflate": {
+      "description": "Same as test_putget (3 nodes, RF=3, 3 overwrite batches with flush between, QUORUM read of 100 cells) but table created with compression={'sstable_compression':'DeflateCompressor'}. Guards reading/merging multiple Deflate-compressed sstables end to end.",
+      "origin": {
+        "sha": "155dd00dae",
+        "date": "2011-10-30",
+        "pr": null,
+        "summary": "Sylvain Lebresne 'new tests': added putget_deflate_test via _putget(compression) (Cassandra dtest, pre-GitHub)."
+      },
+      "commits": {
+        "4cd9bd2b84": "Use cluster_setup_3_nodes fixture (1 DC, 3 racks x 1 node) instead of populate(3); for RF==#racks (tablets rf-rack-valid).",
+        "9ffd273f04": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "7ac4b3d029": "Re-enabled the test (was commented out awaiting CASSANDRA-3374).",
+        "2d8cd93fdd": "Docstring added (test still commented out).",
+        "142e415661": "Commented out test pending CASSANDRA-3374.",
+        "155dd00dae": "Test created.",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Live: scylla still supports DeflateCompressor (compression_parameters::algorithm::deflate, test/boost/sstable_datafile_test.cc:260-264).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_datafile_test.cc::datafile_generation_14 / datafile_generation_15",
+          "coverage": "partial",
+          "note": "Write/read round-trip of sstable with snappy/deflate compressor (single mutation, no multi-sstable merge)."
+        },
+        {
+          "path": "test/boost/sstable_compression_config_test.cc",
+          "coverage": "partial",
+          "note": "Snappy/Deflate compression config via CQL (schema only)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/create_test.py",
+          "coverage": "partial",
+          "note": "CREATE TABLE with SnappyCompressor options (schema only)."
+        },
+        {
+          "path": "dtest:sstable_generation_loading_test.py::TestSSTableGenerationAndLoading",
+          "coverage": "partial",
+          "note": "Uses Deflate-compressed table (create_cf compression='Deflate')."
+        },
+        {
+          "path": "dtest:internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_without_compression",
+          "coverage": "partial",
+          "note": "Same putget scenario but uncompressed."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only end-to-end multi-node multi-sstable read with Deflate compression; compressor round-trip covered by boost datafile_generation_15, merge path by internode_ssl putget tests -> partial overlap, cheap (~17s). Snappy and deflate variants are near-identical; one could be kept. Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    },
+    "TestPutGet::test_non_local_read": {
+      "description": "3 nodes (3 racks), RF=3, c1c2 table; inserts 1000 keys at QUORUM and reads each back at QUORUM through node1. Intended to exercise reads where the coordinator has no replica of the data.",
+      "origin": {
+        "sha": "2d8cd93fdd",
+        "date": "2011-12-02",
+        "pr": null,
+        "summary": "Sylvain Lebresne 'Add test for range slices': added non_local_read_test with RF=2 on 3 nodes (Cassandra dtest, pre-GitHub)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: unused node vars -> _node2/_node3)",
+        "4cd9bd2b84": "Switched to 3-rack fixture and RF 2 -> 3, so every node now holds every key (defeats test purpose).",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "29646f1956": "py3: xrange -> range.",
+        "54df4845a1": "Single concurrent insert_c1c2(n=1000) instead of per-key insert in loop.",
+        "1761f6fac2": "formatting (cursor -> session)",
+        "3ff68a1f5c": "formatting",
+        "2986b97fca": "Port to python driver; CL strings -> ConsistencyLevel.",
+        "02e361b110": "Use patient_cql_connection.",
+        "1de0399a8f": "Use create_c1c2_table helper.",
+        "2d8cd93fdd": "Test created (RF=2).",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Coordinator forwarding of reads/writes is live, but the test no longer exercises it: RF=3 on 3 nodes makes node1 a replica of every key.",
+      "duplicates": [
+        {
+          "path": "dtest:internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_without_compression",
+          "coverage": "partial",
+          "note": "4 nodes RF=2 putget: does involve non-replica coordinators for some keys."
+        },
+        {
+          "path": "dtest: many tests using insert_c1c2/query_c1c2 at QUORUM (e.g. consistency_test.py)",
+          "coverage": "full",
+          "note": "Plain QUORUM insert/read of c1c2 keys is ubiquitous."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: since 4cd9bd2b84 (PR #5674) RF=3 on 3 nodes, so no read is non-local; docstring and comment 'since RF=2' at putget_test.py:62,70 are false. Remaining check (1000 QUORUM insert/read) is low-value and covered by many dtests using insert_c1c2/query_c1c2. Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    },
+    "TestPutGet::test_rangeputget": {
+      "description": "3 nodes (3 racks), RF=3; _put_with_overwrite on 100 partitions (100 cells each, overwritten in 3 batches with flush between), then full-table SELECT (paged, LIMIT 10000000) asserts 10000 rows and validates each partition's newest values. Guards range scans merging multiple sstables with overwrites.",
+      "origin": {
+        "sha": "2d8cd93fdd",
+        "date": "2011-12-02",
+        "pr": null,
+        "summary": "Sylvain Lebresne 'Add test for range slices': added rangeputget_test + tools.range_putget (Cassandra dtest, pre-GitHub)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting",
+        "4cd9bd2b84": "3-rack fixture, RF 2 -> 3.",
+        "9ffd273f04": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "1761f6fac2": "formatting (cursor -> session)",
+        "3ff68a1f5c": "formatting",
+        "2986b97fca": "Port to python driver ('range not working' at the time).",
+        "02e361b110": "Use patient_cql_connection.",
+        "2b51f094f8": "Moved put/get logic to tools helpers.",
+        "155dd00dae": "Initial file structure (pre-test).",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Live: range scan + multi-sstable merge.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_scan.py",
+          "coverage": "partial",
+          "note": "Range scans, single node, no multi-sstable overwrite."
+        },
+        {
+          "path": "dtest:paging_test.py::TestPagingData::test_paging_across_multi_wide_rows",
+          "coverage": "partial",
+          "note": "Multi-partition paged scan, no flush/overwrite merge."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (scans are tested widely, but rarely with overwrites across 3 flushed sstables on a multi-node cluster); cheap (~22s). Note: range_putget's SELECT ignores the cl arg (default CL), loop var k unused (tools/data.py:202-214). Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    },
+    "TestPutGet::test_wide_row": {
+      "description": "3 nodes (no racks), RF=1; writes one partition with 500000 cells via 5000 logged batches of 100 UPDATEs, then issues ~5500 clustering-range slice queries (sizes 10/100/1000) asserting row count and values. Guards clustering slice reads in a wide partition.",
+      "origin": {
+        "sha": "8413f0beed",
+        "date": "2012-07-30",
+        "pr": null,
+        "summary": "Brandon Williams 'Wide row slice test' (Cassandra dtest, pre-GitHub)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting",
+        "9ffd273f04": "formatting",
+        "141eb3959f": "Port to pytest: rename *_test -> test_*, start_rpc via fixture, helpers moved to dtest_class/tools.data.",
+        "29646f1956": "py3: xrange -> range, / -> //.",
+        "cfadc7cda2": "formatting",
+        "1761f6fac2": "formatting (cursor -> session)",
+        "3ff68a1f5c": "formatting",
+        "2986b97fca": "Port to python driver.",
+        "02e361b110": "Use patient_cql_connection.",
+        "1de0399a8f": "Pass self to tools helpers (later reverted in pytest port).",
+        "8413f0beed": "Test created.",
+        "b9ffbff236": "File-level: removed ThriftConnection class; left start_rpc fixture and unused imports.",
+        "3e73fe78ad": "File-level: class marked next_gating."
+      },
+      "relevance": "Live: clustering range slices on large partitions.",
+      "duplicates": [
+        {
+          "path": "dtest:paging_test.py::TestPagingData::test_paging_a_single_wide_row",
+          "coverage": "partial",
+          "note": "10000-row partition paged read."
+        },
+        {
+          "path": "dtest:compact_storage_tests.py::TestCompactStorage::test_wide_row",
+          "coverage": "partial",
+          "note": "Wide partition write/flush/read."
+        },
+        {
+          "path": "dtest:paging_test.py::TestUnpagedQueryLimit::test_unpaged_large_partition",
+          "coverage": "partial",
+          "note": "Large partition read."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slowest in file (~41s) with partial overlap (paging_test wide-row tests); single-partition slices could be a cqlpy test. Bug: query loop bound 50001 (putget_test.py:101) while 500000 cells are inserted, so slices cover only the first ~10% (c000009..c049998); no flush, so reads may be memtable-only. Note: class fixture sets start_rpc=true, dead config (scylla db/config.cc:1288 start_rpc value_status::Unused; Thrift removed, dtest b9ffbff236 left fixture). Note: unused imports binascii/sys/time/retry_till_success (putget_test.py:1-20, leftovers of Thrift/wide_slice removal 956ef94e14, b9ffbff236)."
+    }
+  }
+}
