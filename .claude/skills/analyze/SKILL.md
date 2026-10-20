@@ -21,6 +21,8 @@ Run from `~/github/dtest-triage`.
    Wait for it, then `python3 scripts/check_analysis.py <module>`; fix/re-run a chunk if it reports problems.
    Check that every issue/bug the subagent reports is in that test's `reason`, and that no test with a
    found issue is GREEN (→ YELLOW). Fix the JSON if not.
+   If the report contradicts itself (e.g. "helper check can't fail" vs GREEN for "exact counts"), check
+   the code: which helper each test calls and what it asserts. Fix the JSON/summary before replying.
 5. Done when `check_analysis.py` shows all tests analyzed and no problems. Then:
    `git add analysis/<module>.json && git commit -m "analysis: <module>" && git push -q`.
 6. Reply: table of test, decision, short reason; count of GREEN/YELLOW/RED; notable findings

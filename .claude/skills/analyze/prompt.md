@@ -34,6 +34,8 @@ For EACH of those tests:
    issues apply to every test of the class):
    always add them to `reason` ("Bug: ..." / "Note: ...", with file:line or sha). Downgrade GREEN to YELLOW;
    YELLOW and RED keep their decision.
+   Name the exact helper (name + file:line) when judging assertion strength; similar helpers may differ
+   (e.g. `==` vs `<=`). "Can't fail" claims must hold for the code actually called by that test.
 
 Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if needed), schema:
 ```json
