@@ -1,0 +1,1602 @@
+{
+  "file": "paging_test.py",
+  "tests": {
+    "TestPagingData::test_group_by_paging": {
+      "description": "3-node RF=3 CL=QUORUM. Table (a,b,c,d,e) with some rows plus row/partition tombstones; for page sizes 2,3,4,5,7,10 runs ~50 GROUP BY queries (range, single-partition, IN multi-partition, DISTINCT, ORDER BY, LIMIT, PER PARTITION LIMIT, with/without aggregates count/max) and asserts exact result rows. Port of Cassandra dtest for CASSANDRA-10707 (GROUP BY); guards scylla GROUP BY+paging bugs #14514, #18842 (GROUP BY+LIMIT), #21125 (GROUP BY+PER PARTITION LIMIT).",
+      "origin": {
+        "sha": "7ff7a7a2fe",
+        "date": "2016-08-05",
+        "pr": 1155,
+        "summary": "Cassandra dtest 'Add test for GROUP BY queries (CASSANDRA-10707)'; brought into scylla-dtest by PR #1155 'Group by function' with fb92152dd8 fitting results to scylla."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "abfa14a0de": "re-enabled PER PARTITION LIMIT assertions after scylla fix (#21125)",
+        "c40e2b9e35": "assert correct GROUP BY+LIMIT results after scylladb#18842",
+        "6cdc94e2e0": "temporarily commented GROUP BY+LIMIT asserts pending scylladb#18842",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "fb3dfc9ea9": "formatting (ruff pylint checks)",
+        "e3ddac7e5a": "adjusted LIMIT expectations to buggy behaviour of scylladb#14514, re-enabled in gating",
+        "a00cf4a0d8": "added ALLOW FILTERING to WHERE b=2 queries (scylla#7608)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "2334e88c7e": "removed ALLOW FILTERING / assert_invalid filtering checks (later restored)",
+        "fb92152dd8": "switched to dict rows, fitted expected results to scylla (bugs noted)",
+        "7ff7a7a2fe": "origin (C* dtest)"
+      },
+      "relevance": "GROUP BY with paging is live CQL; cql3/selection + query pager.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithPaging",
+          "coverage": "full",
+          "note": "Same Cassandra source (GroupByTest.testGroupByWithPaging), same data, page sizes 1..9, near-superset of queries; not xfail. dtest-only extras are a few PER PARTITION LIMIT/LIMIT combos on IN queries without aggregates."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithoutPaging",
+          "coverage": "partial",
+          "note": "same queries without paging"
+        },
+        {
+          "path": "test/cqlpy/test_group_by.py::test_group_by_clustering_prefix_with_limit_and_paging",
+          "coverage": "partial",
+          "note": "GROUP BY+LIMIT+paging"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy port test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithPaging (same C* origin, more page sizes, superset of queries). RF=3 on 3 nodes (1de3e4d869) means no real distributed aspect. Note: missing space in 'count(a)FROM' queries (harmless)."
+    },
+    "TestPagingData::test_group_by_with_range_name_query_paging": {
+      "description": "3-node RF=3 CL=QUORUM. 4x4x4 rows, partition a=3 deleted; for page sizes 2..10 runs GROUP BY queries with ALLOW FILTERING on b=/b IN and c IN, with LIMIT and PER PARTITION LIMIT, asserting exact rows. Port of Cassandra CASSANDRA-10707 GROUP BY 'range names query' paging test.",
+      "origin": {
+        "sha": "7ff7a7a2fe",
+        "date": "2016-08-05",
+        "pr": 1155,
+        "summary": "Cassandra dtest GROUP BY (CASSANDRA-10707); ported via scylla-dtest PR #1155."
+      },
+      "commits": {
+        "abfa14a0de": "re-enabled PER PARTITION LIMIT assertions after scylla fix",
+        "c40e2b9e35": "assert correct GROUP BY+LIMIT results (scylladb#18842)",
+        "f7bf15b593": "fix flakiness: CL=QUORUM, RF=3 (dtest#4810, exposed by scylla 08f3219cb8)",
+        "6cdc94e2e0": "temporarily commented GROUP BY+LIMIT asserts",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "c17a017d5e": "xrange -> range",
+        "fb92152dd8": "dict rows, fitted results to scylla",
+        "7ff7a7a2fe": "origin (C* dtest)"
+      },
+      "relevance": "GROUP BY + filtering + paging is live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithRangeNamesQueryWithPaging",
+          "coverage": "full",
+          "note": "Identical queries and data (query sets match exactly); cqlpy loop only uses pageSize=1 vs dtest 2..10."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithRangeNamesQueryWithoutPaging",
+          "coverage": "partial",
+          "note": "same queries unpaged"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Identical query set in cqlpy test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithRangeNamesQueryWithPaging (same C* origin); cqlpy pages at size 1 (strictest). Only historical value was flakiness (f7bf15b593) with RF=2; now RF=3 on 3 nodes so no distributed aspect."
+    },
+    "TestPagingData::test_group_by_with_static_columns_paging": {
+      "description": "3-node RF=3 CL=QUORUM. Table with static column s; tests GROUP BY/DISTINCT/LIMIT/PER PARTITION LIMIT/ORDER BY queries with count(b)/count(s) for page sizes 2..10, first with only static data, then mixed static-only and regular partitions plus tombstones. Port of CASSANDRA-10707; guards scylla #12477 (empty groups), #14514, #21267 (stale clustering key / phantom count on static-only partitions).",
+      "origin": {
+        "sha": "7ff7a7a2fe",
+        "date": "2016-08-05",
+        "pr": 1155,
+        "summary": "Cassandra dtest GROUP BY (CASSANDRA-10707); ported via scylla-dtest PR #1155."
+      },
+      "commits": {
+        "c0420a1941": "assert only correct results after scylladb#30860 fixed #21267",
+        "f6591b3102": "accept buggy or fixed results for #21267 to let scylla fix pass CI",
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "abfa14a0de": "re-enabled PER PARTITION LIMIT asserts",
+        "c40e2b9e35": "assert correct GROUP BY+LIMIT results (scylladb#18842)",
+        "6cdc94e2e0": "temporarily commented GROUP BY+LIMIT asserts",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "fb3dfc9ea9": "formatting (ruff pylint checks)",
+        "e3ddac7e5a": "adjusted to scylladb#14514 behaviour",
+        "b5c3ef9b04": "added paged query with empty groups + aggregations (scylladb#12477, PR 14399)",
+        "a00cf4a0d8": "added ALLOW FILTERING (scylla#7608)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "2334e88c7e": "removed ALLOW FILTERING/assert_invalid filtering checks",
+        "fb92152dd8": "dict rows, fitted to scylla results",
+        "7ff7a7a2fe": "origin (C* dtest)"
+      },
+      "relevance": "GROUP BY with static columns and paging is live; #21267 fixed by scylla 2bdf94952b (selection: reset clustering key for static-only partitions).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithStaticColumnsWithPaging",
+          "coverage": "full",
+          "note": "Same C* origin, page sizes 1..9, larger query set, not xfail, also marks 'Reproduces #21267'. dtest-only: a handful of PER PARTITION LIMIT/LIMIT variants and the b5c3ef9b04 empty-group query."
+        },
+        {
+          "path": "test/cqlpy/test_group_by.py::test_group_by_static_column",
+          "coverage": "partial",
+          "note": "GROUP BY with static column"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy test/cqlpy/cassandra_tests/validation/operations/select_group_by_test.py::testGroupByWithStaticColumnsWithPaging (same origin, superset of queries, also reproduces #21267). RF=3 on 3 nodes gives no distributed value. Consider porting the dtest-only empty-group query from b5c3ef9b04 (scylladb#12477) to cqlpy before removal."
+    },
+    "TestPagingData::test_paging_a_single_wide_row": {
+      "description": "3-node RF=3. Inserts 10000 clustering rows into one partition at CL=ALL, pages with fetch_size=3000 at CL=ALL and asserts exactly 4 pages [3000,3000,3000,1000] and all data returned.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Initial port of Cassandra paging tests from jython (C* dtest)."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "29646f1956": "python3 port",
+        "1761f6fac2": "cursor -> session rename",
+        "238c4284d8": "data-table formatting of create_rows input",
+        "48789486c5": "uuid1 -> uuid4 to avoid collisions",
+        "2deaf10a76": "write/read at CL.ALL",
+        "c040b6fcb2": "helper rename",
+        "51305e7afa": "origin (port from jython paging tests)"
+      },
+      "relevance": "Basic paging of a large partition at CL=ALL across replicas (digest/data reads with paging) - live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "small multi-page single-partition case"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_paging_pk_ck",
+          "coverage": "partial",
+          "note": "exact page sizes, but indexed query, single node"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test asserts exact page sizes for a large single partition read at CL=ALL across 3 replicas; cqlpy test_paging.py only has sticky-stop/page_size_0. Cheap regression for short pages."
+    },
+    "TestPagingData::test_paging_across_multi_wide_rows": {
+      "description": "3-node RF=3. Two partitions x 5000 rows at CL=ALL; 'WHERE id IN (1,2)' with fetch_size=3000 at CL=ALL; asserts 4 pages [3000,3000,3000,1000] (page crossing partition boundary) and full data.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Initial port of Cassandra paging tests from jython (C* dtest)."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "29646f1956": "python3 port",
+        "1761f6fac2": "cursor -> session rename",
+        "238c4284d8": "data-table formatting of create_rows input",
+        "48789486c5": "uuid1 -> uuid4 to avoid collisions",
+        "2deaf10a76": "write/read at CL.ALL",
+        "c040b6fcb2": "helper rename",
+        "51305e7afa": "origin (port from jython paging tests)"
+      },
+      "relevance": "Multi-partition IN query paging at CL=ALL - live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingData::test_paging_a_single_wide_row",
+          "coverage": "partial",
+          "note": "same pattern, single partition"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique: exact page boundaries across partitions for an IN query at CL=ALL on 3 replicas; no scylla test/ equivalent found."
+    },
+    "TestPagingData::test_paging_on_compact_table_with_tombstone_on_first_column": {
+      "description": "COMPACT STORAGE table without clustering columns; 5 rows inserted then first regular column b deleted; full scan at page sizes 2..10 asserts all 5 rows returned with b=None. Regression for CASSANDRA-11467 (paging stopping early on compact table when first column is a tombstone).",
+      "origin": {
+        "sha": "7b45fddfec",
+        "date": "2016-04-01",
+        "pr": 437,
+        "summary": "Cassandra dtest for CASSANDRA-11467, imported via scylla-dtest PR #437 'Tests for 2.2'."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "ddff319b52": "added cluster_options enable_create_table_with_compact_storage=True (compact storage deprecation, scylla PR #16403)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "29646f1956": "python3 port",
+        "b5188e17cd": "row_factory passed via prepare()",
+        "7b45fddfec": "origin (C* dtest)"
+      },
+      "relevance": "COMPACT STORAGE is deprecated in scylla: gated by enable_create_table_with_compact_storage (db/config.cc:1752, 'deprecated ... will eventually be removed'). Bug was C* storage-engine specific (CASSANDRA-11467).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/compact_storage_test.py",
+          "coverage": "partial",
+          "note": "compact tables with 'DELETE b' (line ~612) but no paged scan"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Tests a deprecated feature (COMPACT STORAGE behind enable_create_table_with_compact_storage, db/config.cc:1752) for a C*-specific bug (CASSANDRA-11467); single-node CQL check, partial cqlpy coverage. RED once compact storage is removed."
+    },
+    "TestPagingData::test_paging_using_secondary_indexes": {
+      "description": "3-node RF=3. 4 partitions (100/300/500/400 rows) with secondary index on boolean mybool; 'WHERE mybool=true' (600 rows) at fetch_size=400 CL=ALL; asserts 2 pages [400,200] and data.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Initial port of Cassandra paging tests from jython (C* dtest)."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "702829c281": "swap assertEqualIgnoreOrder arg order",
+        "29646f1956": "python3 port",
+        "1761f6fac2": "cursor -> session rename",
+        "238c4284d8": "data-table formatting",
+        "c040b6fcb2": "helper rename",
+        "48789486c5": "uuid1 -> uuid4",
+        "2deaf10a76": "CL.ALL reads/writes",
+        "d94e13e530": "(sibling static-col variant added; no change here)",
+        "51305e7afa": "origin"
+      },
+      "relevance": "Secondary index (global, MV-based) query paging - live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_paging_pk_ck",
+          "coverage": "partial",
+          "note": "SI on regular column, asserts full pages of page_size and correct rows for page sizes 1,2,3,100; single node, small data"
+        },
+        {
+          "path": "paging_test.py::TestPagingData::test_paging_using_secondary_indexes_with_static_cols",
+          "coverage": "full",
+          "note": "identical data/query/asserts plus two static columns"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Superseded by sibling test_paging_using_secondary_indexes_with_static_cols (same data, query, page asserts + statics) and partially by cqlpy test_secondary_index.py::test_index_paging_pk_ck. RF=3 on 3 nodes adds little distributed value."
+    },
+    "TestPagingData::test_paging_using_secondary_indexes_with_static_cols": {
+      "description": "Same as test_paging_using_secondary_indexes but table has two static columns s1,s2: SI on mybool, 600 matching rows over 2 partitions, fetch_size=400 CL=ALL; asserts pages [400,200] and rows including static values.",
+      "origin": {
+        "sha": "d94e13e530",
+        "date": "2015-04-29",
+        "pr": null,
+        "summary": "Tyler Hobbs (C* dtest): paging over table with statics through 2i query."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "702829c281": "swap assertEqualIgnoreOrder arg order",
+        "29646f1956": "python3 port",
+        "1761f6fac2": "cursor -> session rename",
+        "238c4284d8": "data-table formatting",
+        "c040b6fcb2": "helper rename",
+        "d94e13e530": "origin (C* dtest)"
+      },
+      "relevance": "SI paging on tables with static columns - live (scylla had static+SI bugs, e.g. #8869).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/static_columns_test.py::testStaticColumnsWithSecondaryIndex",
+          "coverage": "partial",
+          "note": "SI query returning statics, no paging"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_paging_pk_ck",
+          "coverage": "partial",
+          "note": "SI paging page sizes, no statics"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique combination: SI query paging with exact page sizes over multi-row partitions with static columns; scylla tests cover SI+statics and SI paging only separately."
+    },
+    "TestPagingData::test_paging_with_empty_row_and_empty_static_columns": {
+      "description": "Table with static s and regular v; inserts only (pk,c) so rows and static row are empty; for page sizes 2..10 asserts SELECT DISTINCT pk / DISTINCT pk,s with and without LIMIT 4 return all partitions in token order. Regression for CASSANDRA-13017.",
+      "origin": {
+        "sha": "846290efd3",
+        "date": "2017-01-09",
+        "pr": 437,
+        "summary": "Cassandra dtest for CASSANDRA-13017 (DISTINCT paging with empty rows/statics), imported via scylla-dtest PR #437."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "29646f1956": "python3 port",
+        "b5188e17cd": "row_factory passed via prepare()",
+        "846290efd3": "origin (C* dtest)"
+      },
+      "relevance": "SELECT DISTINCT with paging is live; the original bug was in C* storage engine.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/distinct_query_paging_test.py::testSelectDistinctWithStaticColumnsAndPaging",
+          "coverage": "partial",
+          "note": "DISTINCT a,s paging page sizes 1..6 but static values set; xfail #10354"
+        },
+        {
+          "path": "test/cqlpy/test_distinct.py::test_distinct_limit",
+          "coverage": "partial",
+          "note": "DISTINCT + LIMIT, unpaged"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Single-node CQL regression for a C*-specific bug (CASSANDRA-13017); partial cqlpy overlap (distinct_query_paging_test.py, test_distinct.py). Empty-static-row DISTINCT paging case itself not in scylla tests; better ported to cqlpy than kept as 3-node dtest."
+    },
+    "TestPagingData::test_paging_with_in_orderby_and_two_partition_keys": {
+      "description": "Composite partition key (col_1,col_2); asserts that paged (default fetch size) 'col_1=1 AND col_2 IN (1,2) ORDER BY col_3 DESC' (both restriction orders) is rejected with InvalidRequest. From CASSANDRA-9970.",
+      "origin": {
+        "sha": "2ecff37420",
+        "date": "2015-08-17",
+        "pr": null,
+        "summary": "Benjamin Lerer C* dtest for CASSANDRA-9970 (ORDER BY with IN on partition key columns), imported via scylla-dtest upstream merge PR #52."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "fb92152dd8": "formatting (line wrap)",
+        "2ecff37420": "origin (C* dtest)"
+      },
+      "relevance": "Live: scylla cql3/statements/select_statement.cc:606 throws 'Cannot page queries with both ORDER BY and a IN restriction on the partition key'.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_order_by_test.py::testInOrderByWithTwoPartitionKeyColumns",
+          "coverage": "partial",
+          "note": "same schema/queries but only unpaged (execute_without_paging) success path; no scylla test asserts the paged rejection"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test asserting the paged ORDER BY + IN rejection (select_statement.cc:606); cqlpy covers only the unpaged path. Trivial single-node check - good candidate to move into cqlpy."
+    },
+    "TestPagingData::test_per_partition_limit_paging": {
+      "description": "3-node RF=3, 5x5 rows. For 9 PER PARTITION LIMIT queries (range scan, IN, single partition, ORDER BY DESC, clustering slice, combined with LIMIT) and page sizes None,2,3,4,5,15,16,17,100 at CL=ALL, asserts exact rows (or row count for PPL+LIMIT range scans). Port of CASSANDRA-11535 tests, added for scylla PER PARTITION LIMIT feature (scylladb#2202).",
+      "origin": {
+        "sha": "762a886696",
+        "date": "2019-06-17",
+        "pr": 1011,
+        "summary": "'Per partition limit' (#1011): paging dtests for PER PARTITION LIMIT (CASSANDRA-11535), for scylladb#2202."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "762a886696": "origin"
+      },
+      "relevance": "PER PARTITION LIMIT with paging is live CQL (cql3/statements/select_statement.cc, query::partition_slice partition_row_limit).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_limit_test.py::testPerPartitionLimit",
+          "coverage": "partial",
+          "note": "Same C* source data (5x5) and near-identical query set, but unpaged and whole test xfail (scylladb#15099, IN+ORDER BY, still open)."
+        },
+        {
+          "path": "test/cqlpy/test_limit.py::test_limit_and_per_partition_limit",
+          "coverage": "partial",
+          "note": "PPL + LIMIT on range scan with page sizes 0,1,2, exact rows."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_limit_test.py::testPerPartitionLimitWithStaticDataAndPaging",
+          "coverage": "partial",
+          "note": "PPL with paging (sizes 1..7) incl. IN, single partition, ORDER BY - but static-only partitions (1 row each)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Largely covered by cqlpy PPL tests (test_limit.py::test_limit_and_per_partition_limit paged; select_limit_test.py::testPerPartitionLimit same queries unpaged but xfail on #15099); remaining unique bit is paged PPL on multi-row single-partition slices/ORDER BY. Good candidate to move into cqlpy. Bug: is_per_partition_result_correct() result discarded (no-op) and its logic is inverted (returns True when a partition exceeds the limit) (paging_test.py:1702-1705, 1731)."
+    },
+    "TestPagingData::test_static_columns_paging": {
+      "description": "3-node RF=3. Table with 2 static columns, 4x4 rows + a 16-row partition; for page sizes 2..100 and 5 selectors runs full scan, IN on partitions, single partition, reversed, IN on clustering, and slices (with/without ORDER BY DESC), asserting row counts, clustering order and static values on every row. Port of Cassandra CASSANDRA-8502 test; caught scylla flakiness scylladb#17667 (missing rows in single-partition paged read, closed as not reproduced).",
+      "origin": {
+        "sha": "d650983b1b",
+        "date": "2015-05-28",
+        "pr": null,
+        "summary": "C* dtest for CASSANDRA-8502 (static columns lost when paging), moved into paging_test.py; pre-fork, no scylla-dtest PR."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "fb3dfc9ea9": "formatting (ruff pylint checks)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "29646f1956": "python3 port (unicode/str)",
+        "b5188e17cd": "row_factory passed via prepare()",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "30157bf239": "added page_size/selector to assert messages (for scylladb#17667); introduced 'dest_desc' typo",
+        "9c9d9a6702": "docstring tags cleanup",
+        "d650983b1b": "origin (moved into paging_test)"
+      },
+      "relevance": "Static columns + paging (forward/reverse, IN, slices) is live core read path.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_reversed_slice_with_empty_range_before_all_rows",
+          "coverage": "partial",
+          "note": "Same 16-row partition dataset with statics, but no paging and only 3 queries."
+        },
+        {
+          "path": "test/cqlpy/test_scan.py::test_scan_ending_with_static_row",
+          "coverage": "partial",
+          "note": "Paged scan over static-only partitions, only checks no error."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/static_columns_test.py::testStaticColumns",
+          "coverage": "partial",
+          "note": "static column semantics unpaged"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique matrix of static-column paging (page sizes x selectors x forward/reverse/IN/slices) with no scylla test/ equivalent, and it found scylladb#17667. Bug: NameError-on-failure typo 'dest_desc' in first loop's s2 assert (paging_test.py:1416, from 30157bf239; only hit on failure) and missing test_desc on some asserts (:1411-1412, :1554); single-node CQL check, would fit cqlpy."
+    },
+    "TestPagingData::test_static_columns_with_empty_non_static_columns_paging": {
+      "description": "3-node RF=3. 10 partitions with only a static value (no clustering rows); with fetch_size=2 asserts SELECT * returns all 10 static rows and IN on 5 partitions returns 5. Regression for CASSANDRA-10381 (static-only partitions dropped while paging).",
+      "origin": {
+        "sha": "f72307fdaa",
+        "date": "2015-10-05",
+        "pr": 52,
+        "summary": "C* dtest 'Add tests for paging with only static columns containing data' (CASSANDRA-10381); came into scylla-dtest via upstream merge PR #52."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "b5188e17cd": "row_factory passed via prepare()",
+        "9300017eec": "dropped redundant len asserts, format()",
+        "f72307fdaa": "origin (C* dtest)"
+      },
+      "relevance": "Static-only partitions with paging live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_limit_test.py::testPerPartitionLimitWithStaticDataAndPaging",
+          "coverage": "full",
+          "note": "Static-only partitions, SELECT * and IN, page sizes 1..7, exact rows asserted (with PER PARTITION LIMIT 2, which is a no-op for 1-row partitions)."
+        },
+        {
+          "path": "test/cqlpy/test_scan.py::test_scan_ending_with_static_row",
+          "coverage": "partial",
+          "note": "100 static-only partitions paged fetch_size=10 (scylladb#9482), only checks no error."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario (paging over static-only partitions, full scan + IN) covered by cqlpy select_limit_test.py::testPerPartitionLimitWithStaticDataAndPaging (more page sizes, exact rows) and test_scan.py::test_scan_ending_with_static_row; C*-origin bug, single-node CQL check with no distributed aspect."
+    },
+    "TestPagingDatasetChanges::test_cell_ttl_expiry_during_paging": {
+      "description": "3-node RF=3 CL=ALL. 3 partitions x 500 rows; IN query fetch_size=500. After page 1, sets TTL 10 on two regular cells of all rows of page 3, reads page 2, sleeps ttl+2, reads page 3 and asserts those cells are now null while rows remain. Guards that expiry is evaluated per page (query time) during a paged read.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "bced67d0fa": "sleep(15) -> sleep(ttl+2)",
+        "b2767cdd0b": "marked next-gating",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "TTL cell expiry + paging live.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No scylla test/ checks data modification/expiry between pages of a paged read (grep for paging + ttl/expiry in test/ found none); live behavior, gating, 100% pass."
+    },
+    "TestPagingDatasetChanges::test_data_change_impacting_earlier_page": {
+      "description": "3-node RF=3 CL=ALL. Two partitions x 500 rows; IN query fetch_size=501. After page 1 (which finished partition 1) inserts a new row into partition 1 and asserts it does not appear: pages [501, 499] and data equals original set.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Paging state resume semantics (position-based) live.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Unique: no scylla test/ asserts paging-state position semantics with writes behind the cursor; cheap (15s), stable."
+    },
+    "TestPagingDatasetChanges::test_data_change_impacting_later_page": {
+      "description": "3-node RF=3 CL=ALL. Partition 1 x 500 rows, partition 2 x 499; IN query fetch_size=500. After page 1 inserts a row into partition 2 and asserts it is returned on the later page: pages [500, 500] and data includes the new row.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "aedaa57c4e": "formatting (ruff isort/pyupgrade)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Paged read sees writes ahead of the cursor; live (querier cache must not serve stale data).",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Unique: no scylla test/ checks that writes ahead of the paging cursor are visible on later pages (relevant to querier cache reuse); cheap, stable."
+    },
+    "TestPagingDatasetChanges::test_node_unavailable_during_paging": {
+      "description": "3-node RF=3. 10000 rows, filtering query at CL=ALL fetch_size=2000; after first page stops node1 (the coordinator the session was created on) and asserts request_all() raises PageFetcher's own 'Requested pages were not delivered before timeout' RuntimeError (5s client-side wait).",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "056f5dc7a8": "formatting (unused node vars renamed)",
+        "178d7d5592": "RF 1->3 so stopping a node still affects keys with rack-list RF",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Behavior (CL=ALL read fails with a node down) is live, but the test only observes a client-side timeout.",
+      "duplicates": [
+        {
+          "path": "dtest consistency/availability tests (e.g. consistency_test.py)",
+          "coverage": "partial",
+          "note": "Unavailable at CL=ALL with a node down covered generically elsewhere."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Low-value, near-tautological assertion: PageFetcher.handle_error does not count failed pages (tools/paging.py), so any error or hang yields the same RuntimeError; it never checks the error type (Unavailable) or scylla behavior. Note: stops the coordinator node1 rather than a replica, leftover TODO at end; RED candidate unless rewritten to assert Unavailable/ReadFailure."
+    },
+    "TestPagingDatasetChanges::test_row_ttl_expiry_during_paging": {
+      "description": "3-node RF=3 CL=ALL. Partition 1 (300 rows) and 2 (400 rows) with TTL 10, partition 3 (500 rows) without; IN query fetch_size=300 reads page 1, sleeps ttl+2, then reads rest and asserts pages [300, 300, 200], i.e. expired partition 2 rows vanish mid-query.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "bced67d0fa": "sleep(15) -> sleep(ttl+2), assert page 1 read before TTL",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Row TTL expiry during paged read is live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_ttl_deletions",
+          "coverage": "partial",
+          "note": "TTL expiry with paging, but between whole queries, not mid-query."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique coverage of rows expiring between pages of one paged query; no scylla test/ equivalent. Timing-sensitive but hardened in bced67d0fa; 100% pass."
+    },
+    "TestPagingQueryIsolation::test_query_isolation": {
+      "description": "3-node RF=3 CL=ALL. 10 partitions x 5000 rows; opens 11 concurrent paged queries (different partitions/page sizes, one over all 10), interleaves page fetches, then asserts exact page counts and that each query returns exactly its own data. Guards that paging state / cached readers of concurrent queries do not mix.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Cassandra dtest 'initial port of paging tests from jython' (Russ Hatch), inherited by scylla-dtest fork."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "87e6428b17": "compare flattened sets (runtime + race fix)",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Live: scylla querier cache keys cached readers by query uuid (querier/querier_cache).",
+      "duplicates": [
+        {
+          "path": "test/boost/querier_cache_test.cc::lookup_with_wrong_key_misses",
+          "coverage": "partial",
+          "note": "unit-level check that a querier is not served to a different query key"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "End-to-end isolation of interleaved paged queries is not covered in scylla test/ (only unit-level querier_cache_test.cc); stable, ~37s."
+    },
+    "TestPagingSize::test_undefined_page_size_default": {
+      "description": "3-node RF=3 CL=ALL. Inserts 5001 rows, queries without fetch_size and asserts pages [5000, 1]. The 5000 default is the python driver's Session.default_fetch_size, sent explicitly by the client; scylla just honors the page size.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "C* dtest jython port, originally test_zero_page_size_ignored (fetch_size=0); turned into driver-default test in c850892932."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites, rename)",
+        "c3471a97e4": "formatting (autopep8)",
+        "29646f1956": "python3 port (unicode/str)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "238c4284d8": "formatting (data table description prettier)",
+        "48789486c5": "uuid1 -> uuid4 random keys (collisions caused failures)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "c850892932": "renamed from test_zero_page_size_ignored; fetch_size=0 removed, now relies on driver default",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Tests python driver default (Session.default_fetch_size=5000), not a scylla default; page-size honoring is live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "full",
+          "note": "same scylla behavior (explicit page size honored, exact page split)"
+        },
+        {
+          "path": "test/cqlpy/test_paging.py::test_page_size_0",
+          "coverage": "partial",
+          "note": "server-side default for page_size 0"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Asserts the python driver's default fetch_size (5000), not scylla behavior; the scylla side (honoring page size) is covered by sibling test_with_more_results_than_page_size and cqlpy test_paging.py::test_page_size_0 (server default). 25s for a driver check."
+    },
+    "TestPagingSize::test_with_no_results": {
+      "description": "3-node RF=3. Paged (fetch_size=100) CL=ALL full scan of an empty table; asserts no rows and no more pages.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "C* dtest 'initial port of paging tests from jython'; came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)"
+      },
+      "relevance": "Paged range scan is live; empty-result case trivial.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_empty_table",
+          "coverage": "full",
+          "note": "paged (driver default) SELECT on empty table, full scan/single partition/filtering, returns []"
+        },
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "same table/query, non-empty"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Trivial check covered by cqlpy test_tombstone_limit.py::test_empty_table. Bug: `assert not pf.has_more_pages` after request_all() is tautological and `[] == all_data()` can't fail on empty pages (tools/paging.py PageFetcher.handle_page drops empty pages and request_all() loops until has_more_pages is False), paging_test.py:62-63."
+    },
+    "TestPagingSize::test_with_less_results_than_page_size": {
+      "description": "3-node RF=3. 5 rows, paged CL=ALL full scan with fetch_size=100; asserts no more pages and row count 5.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "C* dtest 'initial port of paging tests from jython'; came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)",
+        "29646f1956": "python3 port",
+        "238c4284d8": "formatting (data table description prettier)"
+      },
+      "relevance": "Paged range scan is live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "full",
+          "note": "same table/query, stricter asserts (page sizes + data)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Subsumed by sibling test_with_more_results_than_page_size (same setup, checks page split and data); single-page small scan is exercised by virtually every cqlpy SELECT. Bug: `assert not pf.has_more_pages` after request_all() is tautological (tools/paging.py PageFetcher.handle_page drops empty pages and request_all() loops until has_more_pages is False), paging_test.py:84; only row count asserted."
+    },
+    "TestPagingSize::test_with_more_results_than_page_size": {
+      "description": "3-node RF=3. 9 rows, paged CL=ALL full-table range scan with fetch_size=5; asserts exactly 2 pages [5,4] and same data (ignoring order). Guards that multi-node range scans fill pages to page_size.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "C* dtest 'initial port of paging tests from jython'; came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)",
+        "29646f1956": "python3 port",
+        "238c4284d8": "formatting (data table description prettier)"
+      },
+      "relevance": "Range-scan paging across vnodes/tablets on multiple replicas is live (storage_proxy range scan).",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_allow_filtering",
+          "coverage": "partial",
+          "note": "range scan with filtering, exact pages [4,3]"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py",
+          "coverage": "partial",
+          "note": "exact paging checks but single node and tombstone-focused"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test asserting exact page fill for a plain multi-node full-table scan (siblings use single partition / IN); no scylla test/ equivalent. Cheap (15s), 100% pass in gating."
+    },
+    "TestPagingSize::test_with_equal_results_to_page_size": {
+      "description": "3-node RF=3. 5 rows, paged CL=ALL full scan with fetch_size=5; asserts pages [5], 1 page, same data. Origin: CASSANDRA-9775 (query hanging when results exactly fill the page).",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "C* dtest 'initial port of paging tests from jython'; came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3 and 3-rack topology (rf-rack-valid); with 3 nodes every node holds all data",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "2deaf10a76": "read/write at CL=ALL",
+        "c040b6fcb2": "helper method rename",
+        "51305e7afa": "origin (C* dtest)",
+        "29646f1956": "python3 port",
+        "238c4284d8": "formatting (data table description prettier)",
+        "4e12c9674b": "removed 'Hangs the build' skip (CASSANDRA-9775 fixed)",
+        "7981c360dd": "hard-skipped as hanging the build (CASSANDRA-9775)"
+      },
+      "relevance": "Exact-boundary paging (trailing empty page) is live behavior.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "same setup, non-boundary"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_single_cell_deletions",
+          "coverage": "partial",
+          "note": "200 rows / page 25 = exact boundary [25]*8 (IN query, not range scan)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The distinctive boundary case (possible trailing empty page) is masked: tools/paging.py PageFetcher.handle_page drops empty pages and request_all() loops until has_more_pages is False, so it only catches a hang/error; exact-boundary paging also hit by TestPagingWithDeletions (200 rows/page 25). Candidate to merge into test_with_more_results_than_page_size."
+    },
+    "TestPagingWithDeletions::test_multiple_partition_deletions": {
+      "description": "Setup: 3-node RF=3, 5 partitions x 40 rows (random uuid ck), read with `SELECT ... WHERE id IN (1..5)` fetch_size=25 CL=ALL; check_all_paging_results compares page count, page sizes and exact per-page data. Deletes partitions 2-5 in one `DELETE ... WHERE id IN (2,3,4,5)` and asserts pages [25,15] with partition 1's rows.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (TestPagingWithDeletions); came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology in prepare/setup_data"
+      },
+      "relevance": "Partition tombstones + paging live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_single_partition_deletions",
+          "coverage": "partial",
+          "note": "same setup, deletes partitions one by one (start/middle/end), ends in same shape [25,15]"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_partition_tombstone_span",
+          "coverage": "partial",
+          "note": "paging over partition tombstones (single node)"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithNoClusteringColumns",
+          "coverage": "partial",
+          "note": "DELETE with IN on partition key (unpaged)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of sibling test_single_partition_deletions (same data/query, same final [25,15] check); only extra is multi-partition DELETE IN, covered unpaged in cqlpy delete_test.py. Merge candidate."
+    },
+    "TestPagingWithDeletions::test_multiple_row_deletions": {
+      "description": "Setup: 3-node RF=3, 5 partitions x 40 rows (random uuid ck), read with `SELECT ... WHERE id IN (1..5)` fetch_size=25 CL=ALL; check_all_paging_results compares page count, page sizes and exact per-page data. Deletes 5 rows of partition 3 with `DELETE ... WHERE id=3 AND mytext IN (...)` and asserts pages [25]*7+[20] with exact data.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (TestPagingWithDeletions); came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "3207080918": "enabled: removed @require('6237') and 'Feature In Development' skip",
+        "a81f5608e9": "skipped ('Feature In Development', CASSANDRA-6237)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "2a78f371de": "docstring TODO -> 'finish when CASSANDRA-6237 is done'",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology"
+      },
+      "relevance": "Row tombstones + paging, DELETE with IN on clustering key: live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_single_row_deletions",
+          "coverage": "partial",
+          "note": "same setup, row deletions at first/middle/last positions and a whole page"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_row_tombstone_span",
+          "coverage": "partial",
+          "note": "paging across row tombstones (single node)"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithOneClusteringColumns",
+          "coverage": "partial",
+          "note": "DELETE ... ck IN (...) (unpaged)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Subset of sibling test_single_row_deletions apart from the IN-clustering DELETE (covered in cqlpy delete_test.py). Note: stale docstring 'should be finished when CASSANDRA-6237 is done' (paging_test.py:2189) - test is complete and enabled since 3207080918; odd f'{3}' literal."
+    },
+    "TestPagingWithDeletions::test_paged_read_with_tombstones": {
+      "description": "3-node RF=3, single partition. Randomized (seed logged): inserts rows in chunks of deletion_range, flushing node1 after each insert chunk and after a range DELETE of the first half of each chunk (many sstables with range tombstones); paged BYPASS CACHE scan with random page size 5-100 at QUORUM asserts live row count; then deletes every Nth remaining row and re-checks count. Written for scylla #12361 (mutation_compactor sticky _stop flag ending query early).",
+      "origin": {
+        "sha": "b1e811a088",
+        "date": "2023-02-07",
+        "pr": 3021,
+        "summary": "scylla-dtest PR #3021 'A test of various-page-size reads with tombstones'; refs scylla fix b0d95948e1 (Fixes #12361)."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3, 3-rack topology",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "b1e811a088": "origin"
+      },
+      "relevance": "Mutation compactor page stop / range tombstones across sstables, BYPASS CACHE: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_paging.py::test_sticky_stop_flag",
+          "coverage": "partial",
+          "note": "deterministic reproducer of #12361 added with the fix b0d95948e1"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_range_tombstone_span",
+          "coverage": "partial",
+          "note": "paging across range tombstones, single node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The motivating bug (#12361) has a deterministic cqlpy reproducer test_paging.py::test_sticky_stop_flag; dtest adds randomized multi-sstable/range-tombstone/page-size fuzzing on 3 nodes. Note: non-deterministic (seed only at debug log, paging_test.py:2205), asserts only counts, not contents; slowest of the class (~30s)."
+    },
+    "TestPagingWithDeletions::test_single_cell_deletions": {
+      "description": "Setup: 3-node RF=3, 5 partitions x 40 rows (random uuid ck), read with `SELECT ... WHERE id IN (1..5)` fetch_size=25 CL=ALL; check_all_paging_results compares page count, page sizes and exact per-page data. Deletes col1 in 20 rows of partition 5, col2 in 20 rows of partition 1, col3 in all rows of partition 3; after each step asserts pages unchanged ([25]*8) with nulls in exact positions. Checks cell tombstones don't drop rows or shift page boundaries.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (TestPagingWithDeletions); came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "5a7323e58f": "formatting (style/whitespace)",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology"
+      },
+      "relevance": "Cell tombstones under paging: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_unpaged_query",
+          "coverage": "partial",
+          "note": "cell deletions making rows empty (no row marker), unpaged; here rows keep markers"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_multiple_cell_deletions",
+          "coverage": "partial",
+          "note": "same scenario, 2 cells per DELETE"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test/ asserts exact paged results (page boundaries + null cells) after cell deletions across replicas; cheap (~18s), 100% pass. Note: setup_data has col1=4 for id=3 (typo, harmless), paging_test.py:2095."
+    },
+    "TestPagingWithDeletions::test_multiple_cell_deletions": {
+      "description": "Setup: 3-node RF=3, 5 partitions x 40 rows (random uuid ck), read with `SELECT ... WHERE id IN (1..5)` fetch_size=25 CL=ALL; check_all_paging_results compares page count, page sizes and exact per-page data. Deletes col1,col2 in 20 rows of partition 2, then col2,col3 in all rows of partition 4; asserts pages unchanged ([25]*8) with expected nulls.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (TestPagingWithDeletions); came into scylla-dtest with the upstream merge."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "5a7323e58f": "formatting (style/whitespace)",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology"
+      },
+      "relevance": "Cell tombstones under paging: live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_single_cell_deletions",
+          "coverage": "partial",
+          "note": "same setup/assertions; one cell per DELETE instead of two - identical paging path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of sibling test_single_cell_deletions (multi-column DELETE produces the same cell tombstones; page path identical). Merge candidate; keep one."
+    },
+    "TestPagingWithDeletions::test_deletion_with_distinct_paging": {
+      "description": "3-node RF=3. Table with static column, 4 partitions x 2 rows; for full scan and `WHERE k IN (0..3)`: SELECT DISTINCT k,s with page size 2, after the first page deletes row c=0 of the last partition returned on page 1, finishes paging and asserts pages [2,2]. Port of C* dtest for CASSANDRA-10010 (DISTINCT paging broken by row deletion of the paging-state row).",
+      "origin": {
+        "sha": "81e94b1ea6",
+        "date": "2016-01-25",
+        "pr": 437,
+        "summary": "C* dtest 'Add test to verify that row deletion does not affect paging for distinct queries' (CASSANDRA-10010), merged in scylla-dtest PR #437 'Tests for 2.2'."
+      },
+      "commits": {
+        "1de3e4d869": "RF 2->3, 3-rack topology",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff pyupgrade/isort)",
+        "65cf4f9dab": "pytest port (asserts/self.* rewrites)",
+        "81e94b1ea6": "origin (C* dtest)"
+      },
+      "relevance": "SELECT DISTINCT with paging is live; the bug was C*-specific paging-state handling.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/distinct_query_paging_test.py::testSelectDistinctWithDeletions",
+          "coverage": "partial",
+          "note": "DISTINCT after partition deletion, unpaged"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/distinct_query_paging_test.py::testSelectDistinctWithStaticColumnsAndPaging",
+          "coverage": "partial",
+          "note": "DISTINCT + statics + paging (xfail #10354)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Single-node CQL regression for a C*-specific bug (CASSANDRA-10010); scylla covers DISTINCT+deletion and DISTINCT+paging only separately (cqlpy distinct_query_paging_test.py). Better ported to cqlpy than kept as 3-node dtest. Note: asserts only page sizes, not keys; mutates session.default_fetch_size (paging_test.py:2372)."
+    },
+    "TestPagingWithDeletions::test_single_partition_deletions": {
+      "description": "3-node RF=3, 5 partitions x 40 rows, read with `SELECT * ... WHERE id IN (1..5)` fetch_size=25 CL=ALL. Deletes whole partitions one by one (first id=1, middle id=3, last id=5, then id=4) and after each step check_all_paging_results asserts page count, per-page sizes and exact per-page data. Guards that partition tombstones don't break page boundaries or resurrect/skip rows in a multi-partition paged read.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (Alan Boudreault) adding TestPagingWithDeletions; came in via upstream merge (data JSON PR 52 is that merge, not the origin)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Partition tombstones under paging: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_partition_tombstone_prefix",
+          "coverage": "partial",
+          "note": "paging over partition tombstones (single node, lowered query_tombstone_page_limit, tablets+vnodes); asserts page shapes, not multi-replica CL=ALL IN query"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_partition_tombstone_span",
+          "coverage": "partial",
+          "note": "same, tombstones between live partitions"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_multiple_partition_deletions",
+          "coverage": "partial",
+          "note": "same data/query, one DELETE ... IN; subset of this test"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test/ asserts exact page contents of a multi-partition IN query at CL=ALL across 3 replicas after partition deletions; test_tombstone_limit.py covers tombstone paging only single-node with lowered limit. Cheap (~17s), 100% pass (32 runs). Covering test for test_multiple_partition_deletions."
+    },
+    "TestPagingWithDeletions::test_single_row_deletions": {
+      "description": "Same setup (5x40 rows, IN query, fetch_size=25, CL=ALL). Deletes single rows: first row, a middle row (index 100), the last row, then the 22 rows of the last page one by one; after each step asserts page count/sizes/exact data (8 pages -> 7 pages). Guards that row tombstones don't shift/duplicate rows across page boundaries.",
+      "origin": {
+        "sha": "598a3ba47b",
+        "date": "2015-04-23",
+        "pr": null,
+        "summary": "C* dtest 'Add more paging tests' (Alan Boudreault) adding TestPagingWithDeletions; came in via upstream merge (data JSON PR 52 is that merge, not the origin)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "598a3ba47b": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Row tombstones under paging: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_row_tombstone_prefix",
+          "coverage": "partial",
+          "note": "paging over row tombstones in one partition, single node, exact ck per page"
+        },
+        {
+          "path": "test/cqlpy/test_tombstone_limit.py::test_row_tombstone_span",
+          "coverage": "partial",
+          "note": "same, tombstones between live rows"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithDeletions::test_multiple_row_deletions",
+          "coverage": "partial",
+          "note": "single DELETE ... mytext IN (5 rows); otherwise subset of this test"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test/ checks exact paged contents after row deletions in a multi-partition IN query across 3 replicas at CL=ALL; test_tombstone_limit.py row tombstone tests are single-node/single-partition. Cheap (~18s), 100% pass. Note: last step deletes expected_data[-22:] but never removes them from expected_data (paging_test.py:2181-2185); absence is still proven by pagecount=7 / [25]*7, the extra expected page is just never compared."
+    },
+    "TestPagingWithDeletions::test_ttl_deletions": {
+      "description": "Same setup; re-inserts all 200 rows USING TTL 15 at CL=ALL, checks all 8 pages still readable, sleeps ttl+1 s, then asserts the paged IN query returns 0 pages. Checks expired data is not returned by paging (C* origin: 'paging over a query that has only tombstones').",
+      "origin": {
+        "sha": "2a78f371de",
+        "date": "2015-05-03",
+        "pr": null,
+        "summary": "C* dtest 'Add paging tests over tombstones' (Alan Boudreault); came via upstream merge."
+      },
+      "commits": {
+        "bced67d0fa": "adds elapsed-time context to the pre-expiry assert; keeps TTL 15 (other TTL tests shortened)",
+        "1f0df11447": "fix flakiness SCYLLADB-961: TTL 3->15, sleep 5->ttl+1 (same as CASSANDRA-16530)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "1761f6fac2": "formatting (cursor -> session rename)",
+        "fb24cfce3e": "add pre-expiry check that TTL data is readable",
+        "2a78f371de": "origin (C* dtest)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "TTL expiry: live.",
+      "duplicates": [
+        {
+          "path": "paging_test.py::TestPagingDatasetChanges::test_row_ttl_expiry_during_paging",
+          "coverage": "partial",
+          "note": "rows expiring between pages of one query (stronger scenario)"
+        },
+        {
+          "path": "test/cqlpy/test_ttl.py::test_basic_default_ttl",
+          "coverage": "partial",
+          "note": "expired row not returned, unpaged"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin value for 32s runtime (16s is sleep): final assert is just 'expired data returns nothing', and the pre-expiry read repeats what setup_data already paged. Was flaky (SCYLLADB-961, fixed 1f0df11447, whose author notes the test adds little power). Mid-query expiry is already covered by test_row_ttl_expiry_during_paging."
+    },
+    "TestPagingWithIndexingAndAggregation::test_filter_indexed_column": {
+      "description": "3-node RF=3; table (id, sometext) PK, 1300 rows (100/300/500/400 per id), CREATE INDEX on mybool, then for someint and somebigint runs count/min/max/sum(cast) with `WHERE mybool = true` (600 rows) at fetch_size=40, CL=ALL and asserts a single page with one row equal to the Python-computed value. Regression for scylla #4540 (aggregation over paged indexed query returning per-page partial results).",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "b815fb3257": "generate someint as signed 32-bit (ctypes.c_int) so expected sum matches CQL int (dtest #1160)",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "54138ed760": "add somebigint column; sum via cast(... as varint)",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "full",
+          "note": "#4540 reproducer (port of 3d9a37f28f); lowers select_internal_page_size to 50 so aggregation really pages; index on regular and on non-first ck column, sum/avg, fetch_size 2/3"
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_{ck_first,pk,non_pk_ck}_column_and_aggregation",
+          "coverage": "full",
+          "note": "count(*) over indexed queries with small internal page size, many page-boundary scenarios (#7355)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy test_secondary_index.py::test_indexing_paging_and_aggregation (#4540 reproducer, ported from 3d9a37f28f) and boost secondary_index_test.cc *_and_aggregation tests. Bug: Indexed aggregates go through view_indexed_table_select_statement::do_execute, which uses select_internal_page_size (default 10000, db/config.cc:1650) 'regardless of the user-provided value' (cql3/statements/select_statement.cc:1305-1311); with 600 matching rows the user fetch_size=40 is ignored and the aggregation does a single internal page, so the #4540 multi-page regression is not exercised. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_group_pk_column_index_filter": {
+      "description": "Same setup with index on mybool; aggregates count/min/max of partition-key column id with `WHERE mybool = true` at fetch_size=40, CL=ALL; asserts single-row result. #4540 regression on the indexed path.",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "full",
+          "note": "#4540 reproducer (port of 3d9a37f28f); lowers select_internal_page_size to 50 so aggregation really pages; index on regular and on non-first ck column, sum/avg, fetch_size 2/3"
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_{ck_first,pk,non_pk_ck}_column_and_aggregation",
+          "coverage": "full",
+          "note": "count(*) over indexed queries with small internal page size, many page-boundary scenarios (#7355)"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithIndexingAndAggregation::test_filter_indexed_column",
+          "coverage": "full",
+          "note": "same query path, different aggregated column"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same indexed path as test_filter_indexed_column, covered by cqlpy test_indexing_paging_and_aggregation and boost secondary_index_test.cc aggregation tests. Bug: Indexed aggregates go through view_indexed_table_select_statement::do_execute, which uses select_internal_page_size (default 10000, db/config.cc:1650) 'regardless of the user-provided value' (cql3/statements/select_statement.cc:1305-1311); with 600 matching rows the user fetch_size=40 is ignored and the aggregation does a single internal page, so the #4540 multi-page regression is not exercised. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_group_ck_column_index_filter": {
+      "description": "Same setup with index on mybool; aggregates count/min/max of clustering column sometext (text) with `WHERE mybool = true` at fetch_size=40, CL=ALL; asserts single-row result. #4540 regression on the indexed path.",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "full",
+          "note": "#4540 reproducer (port of 3d9a37f28f); lowers select_internal_page_size to 50 so aggregation really pages; index on regular and on non-first ck column, sum/avg, fetch_size 2/3"
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_{ck_first,pk,non_pk_ck}_column_and_aggregation",
+          "coverage": "full",
+          "note": "count(*) over indexed queries with small internal page size, many page-boundary scenarios (#7355)"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithIndexingAndAggregation::test_filter_indexed_column",
+          "coverage": "full",
+          "note": "same query path, different aggregated column"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same indexed path as test_filter_indexed_column, covered by cqlpy test_indexing_paging_and_aggregation and boost secondary_index_test.cc aggregation tests. Bug: Indexed aggregates go through view_indexed_table_select_statement::do_execute, which uses select_internal_page_size (default 10000, db/config.cc:1650) 'regardless of the user-provided value' (cql3/statements/select_statement.cc:1305-1311); with 600 matching rows the user fetch_size=40 is ignored and the aggregation does a single internal page, so the #4540 multi-page regression is not exercised. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_filter_pk_column": {
+      "description": "Same setup; creates index on mybool but queries `WHERE id = 2` (single partition, 300 rows) with count/min/max/sum(cast) on someint/somebigint at fetch_size=40, CL=ALL; asserts single-row result. Effectively single-partition aggregation with internal paging (fetch_size used as internal page size, select_statement.cc:488-492).",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "b815fb3257": "generate someint as signed 32-bit (ctypes.c_int) so expected sum matches CQL int (dtest #1160)",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "54138ed760": "add somebigint column; sum via cast(... as varint)",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_aggregate.py::test_count_in_partition / test_sum_in_partition",
+          "coverage": "partial",
+          "note": "single-partition aggregates, unpaged, small data"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_test.py::testSelectCountPaging",
+          "coverage": "partial",
+          "note": "count with index, tiny data"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Single-partition aggregation over 8 internal pages has only partial scylla coverage (no small page size). Bug: CREATE INDEX on mybool is dead - query filters on pk id, index unused (paging_test.py:2535-2540), so the test name/intent ('index') does not match what runs. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_filter_non_indexed_column": {
+      "description": "Same setup without index; count/min/max/sum(cast) of someint and somebigint with `WHERE mybool = true ALLOW FILTERING` (600 of 1300 rows) at fetch_size=40, CL=ALL; asserts one page with one correct row. This is the original #4540 report (ALLOW FILTERING aggregate returning per-page partial results); here the user fetch_size is used as internal page size (select_statement.cc:488-492), so ~33 pages are aggregated with post-filtering.",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "b815fb3257": "generate someint as signed 32-bit (ctypes.c_int) so expected sum matches CQL int (dtest #1160)",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "54138ed760": "add somebigint column; sum via cast(... as varint)",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/boost/filtering_test.cc::test_filtering",
+          "coverage": "partial",
+          "note": "COUNT/SUM with ALLOW FILTERING, unpaged, tiny data"
+        },
+        {
+          "path": "test/cqlpy/test_cql_query.py (COUNT(*) ... ALLOW FILTERING, line 3191)",
+          "coverage": "partial",
+          "note": "filtered count, no small page size"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage: no scylla test/ combines ALLOW FILTERING + aggregation + small page size (filtering_test.cc and test_cql_query.py filtered aggregates are unpaged/tiny). Cheap (~15s), 100% pass. Covering test for the two group_*_non_index_filter siblings. Note: Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_group_pk_column_non_index_filter": {
+      "description": "Same setup without index; count/min/max of partition-key column id with `WHERE mybool = true ALLOW FILTERING` at fetch_size=40, CL=ALL; asserts single-row result. #4540 scenario (filtered aggregate over many pages).",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/boost/filtering_test.cc::test_filtering",
+          "coverage": "partial",
+          "note": "COUNT/SUM with ALLOW FILTERING, unpaged, tiny data"
+        },
+        {
+          "path": "test/cqlpy/test_cql_query.py (COUNT(*) ... ALLOW FILTERING, line 3191)",
+          "coverage": "partial",
+          "note": "filtered count, no small page size"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithIndexingAndAggregation::test_filter_non_indexed_column",
+          "coverage": "partial",
+          "note": "same WHERE/paging path, aggregates regular int/bigint columns (incl. sum)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of test_filter_non_indexed_column: same filtered paged-aggregation path, only the aggregated column differs (pk column, count/min/max only). Merge candidate. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithIndexingAndAggregation::test_group_ck_column_non_index_filter": {
+      "description": "Same setup without index; count/min/max of clustering column sometext (text) with `WHERE mybool = true ALLOW FILTERING` at fetch_size=40, CL=ALL; asserts single-row result. #4540 scenario (filtered aggregate over many pages).",
+      "origin": {
+        "sha": "8bb6b6765a",
+        "date": "2019-10-28",
+        "pr": 1125,
+        "summary": "Added paging tests considering aggregation and index, to follow scylla #4540 (ALLOW FILTERING/indexed aggregation returning per-page partial results), fixed for 3.2."
+      },
+      "commits": {
+        "8bb6b6765a": "origin",
+        "89af6741a3": "refactor into create_and_verify_*_results helpers",
+        "9ffd273f04": "formatting (ruff format)",
+        "1de3e4d869": "file-level: RF 2->3, 3-rack topology (rf-rack-valid)"
+      },
+      "relevance": "Aggregation with paging, ALLOW FILTERING and secondary indexes: live.",
+      "duplicates": [
+        {
+          "path": "test/boost/filtering_test.cc::test_filtering",
+          "coverage": "partial",
+          "note": "COUNT/SUM with ALLOW FILTERING, unpaged, tiny data"
+        },
+        {
+          "path": "test/cqlpy/test_cql_query.py (COUNT(*) ... ALLOW FILTERING, line 3191)",
+          "coverage": "partial",
+          "note": "filtered count, no small page size"
+        },
+        {
+          "path": "paging_test.py::TestPagingWithIndexingAndAggregation::test_filter_non_indexed_column",
+          "coverage": "partial",
+          "note": "same WHERE/paging path, aggregates regular int/bigint columns (incl. sum)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of test_filter_non_indexed_column: same filtered paged-aggregation path, only the aggregated column differs (ck column, count/min/max only). Merge candidate. Class notes: docstring copy-pasted from TestPagingWithDeletions ('paging when deletions occur', paging_test.py:2393); test_group_* names have no GROUP BY (they just aggregate a pk/ck column); only mybool=true is ever queried (mybool_val default, paging_test.py:2482)."
+    },
+    "TestPagingWithModifiers::test_with_order_by": {
+      "description": "3-node (3 racks) cluster, RF=3. Single partition with 10 clustering rows (ASC), queried with ORDER BY value ASC, fetch_size=5, CL=ALL; asserts 2 pages of 5 and exact ordered data. Then asserts a paged query with IN on partition key + ORDER BY is rejected with InvalidRequest 'Cannot page queries with both ORDER BY and a IN restriction on the partition key'. Ported from Cassandra jython paging tests (CASSANDRA-6722 design note).",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Russ Hatch, initial port of Cassandra paging tests from jython (pre-fork, no PR)."
+      },
+      "commits": {
+        "1de3e4d869": "prepare() now uses 3 racks x 1 node (rf-rack-valid) and create_ks RF 2->3.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting (ruff naming)",
+        "65cf4f9dab": "migrate to pytest (assertEqual -> assert, pytest.raises).",
+        "c3471a97e4": "formatting",
+        "29646f1956": "python3 port (mechanical).",
+        "1761f6fac2": "rename cursor -> session (mechanical).",
+        "238c4284d8": "data tables reformatted with prettier header/separator syntax (formatting).",
+        "2deaf10a76": "read/write at CL.ALL.",
+        "c040b6fcb2": "helper method renames (mechanical).",
+        "51305e7afa": "initial port from jython: test added."
+      },
+      "relevance": "Live: error string still thrown in scylla cql3/statements/select_statement.cc:606 (needs_post_query_ordering with paging).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_limit.py::test_limit_single_partition_scan_with_paging",
+          "coverage": "partial",
+          "note": "single-partition paging in clustering order (single node)."
+        },
+        {
+          "path": "paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "same dtest file: basic multi-page paging."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_order_by_test.py",
+          "coverage": "partial",
+          "note": "IN + ORDER BY tested unpaged only (execute_without_paging, comment at line ~623); paged rejection not asserted in scylla tests."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Basic ASC paging is covered elsewhere (cqlpy test_limit, TestPagingSize); only unique bit is the IN+ORDER BY paged rejection message, which would be a one-line cqlpy test. Note: malformed docstring '\"\"\" \"' (paging_test.py:172)."
+    },
+    "TestPagingWithModifiers::test_with_order_by_reversed": {
+      "description": "Table WITH CLUSTERING ORDER BY (value DESC), 10 rows in one partition. Query ORDER BY value ASC (reverse of native order) with fetch_size=3, CL=ALL: asserts pages [3,3,3,1] and exact ascending order; then without ORDER BY asserts same paging and descending (native) order. Guards CASSANDRA-8767 (reversed paging on DESC table).",
+      "origin": {
+        "sha": "b6c7f43886",
+        "date": "2015-02-17",
+        "pr": null,
+        "summary": "Tyler Hobbs, Test for CASSANDRA-8767 (pre-fork, no PR); improved in 873d0f64fd."
+      },
+      "commits": {
+        "1de3e4d869": "prepare() now uses 3 racks x 1 node (rf-rack-valid) and create_ks RF 2->3.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting (ruff naming)",
+        "65cf4f9dab": "migrate to pytest (assertEqual -> assert, pytest.raises).",
+        "c3471a97e4": "formatting",
+        "29646f1956": "python3 port (mechanical).",
+        "1761f6fac2": "rename cursor -> session (mechanical).",
+        "238c4284d8": "data tables reformatted with prettier header/separator syntax (formatting).",
+        "873d0f64fd": "rewrote as 'better reversed paging test': DESC table, ASC query + native-order query with page counts.",
+        "b6c7f43886": "test added for CASSANDRA-8767."
+      },
+      "relevance": "Live: reversed reads on DESC-clustered tables with paging (native reversed reads in scylla).",
+      "duplicates": [
+        {
+          "path": "reversed_queries_test.py::TestReversedQueriesPaging::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "same 3-node/RF=3/CL=ALL paged reversed query, but on ASC table queried DESC."
+        },
+        {
+          "path": "reversed_queries_test.py::TestReversedQueriesOnTableWithReversedOrder::test_reversed_query_on_table_with_reversed_order",
+          "coverage": "partial",
+          "note": "DESC table queried ASC, single node, default paging."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_paging_with_desc_clustering_order",
+          "coverage": "partial",
+          "note": "paging on DESC-clustered table (via index)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Combination is spread over reversed_queries_test.py (TestReversedQueriesPaging, TestReversedQueriesOnTableWithReversedOrder) and cqlpy; guards a Cassandra bug (CASSANDRA-8767). Could be merged into reversed_queries_test. Note: malformed docstring '\"\"\" \"' (paging_test.py:221)."
+    },
+    "TestPagingWithModifiers::test_with_limit": {
+      "description": "6 partitions with 5-30 rows each, RF=3, CL=ALL. run_scenarios runs 18 combos of LIMIT/fetch_size/WHERE (single partition '=' and multi-partition IN, incl. no LIMIT and unpaged+LIMIT) asserting exact page sizes and page count, and that results are a subset of inserted data. Scenarios added for CASSANDRA-8408 (paging with LIMIT across partitions).",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Russ Hatch, initial port of paging tests from jython; scenarios added 6a5edd9937/9414cd6cf8/f303b5e51a/9ba94c33cc (pre-fork, no PR)."
+      },
+      "commits": {
+        "1de3e4d869": "prepare() now uses 3 racks x 1 node (rf-rack-valid) and create_ks RF 2->3.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting (ruff naming)",
+        "65cf4f9dab": "migrate to pytest (assertEqual -> assert, pytest.raises).",
+        "c3471a97e4": "formatting",
+        "29646f1956": "python3 port (mechanical).",
+        "1761f6fac2": "rename cursor -> session (mechanical).",
+        "238c4284d8": "data tables reformatted with prettier header/separator syntax (formatting).",
+        "2deaf10a76": "read/write at CL.ALL.",
+        "c040b6fcb2": "helper method renames (mechanical).",
+        "51305e7afa": "initial port from jython: test added.",
+        "9ba94c33cc": "added no-limit and unpaged+limit scenarios for CASSANDRA-8408.",
+        "f303b5e51a": "adjusted scenario data to trigger CASSANDRA-8408.",
+        "9414cd6cf8": "more LIMIT scenarios (IN multi-partition).",
+        "6a5edd9937": "introduced run_scenarios with LIMIT/fetch_size scenarios."
+      },
+      "relevance": "Live: LIMIT + paging, IN multi-partition paging.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_limit.py::test_limit_single_partition_scan_with_paging",
+          "coverage": "partial",
+          "note": "LIMIT x page_size 0..9 single partition, asserts page sizes and contents (single node)."
+        },
+        {
+          "path": "test/cqlpy/test_limit.py::test_limit_and_in",
+          "coverage": "partial",
+          "note": "LIMIT + IN with page sizes, asserts first page size and exact rows (single node)."
+        },
+        {
+          "path": "test/cqlpy/test_limit.py::test_limit_full_table_scan",
+          "coverage": "partial",
+          "note": "unpaged LIMIT."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "cqlpy test_limit.py (test_limit_single_partition_scan_with_paging, test_limit_and_in) covers same LIMIT/paging/IN combos with stricter row checks; dtest adds only multi-node CL=ALL coordination. Note: content check is only assert_is_subset_of (tools/paging.py:175), doesn't verify which rows/order LIMIT returns."
+    },
+    "TestPagingWithModifiers::test_with_allow_filtering": {
+      "description": "9 rows in 9 partitions, RF=3; query 'WHERE value = ... ALLOW FILTERING' with fetch_size=4, CL=ALL; asserts 2 pages [4,3] and matching rows (ignoring order). Implicitly asserts Scylla's semantic that page size counts post-filtering rows.",
+      "origin": {
+        "sha": "51305e7afa",
+        "date": "2014-09-16",
+        "pr": null,
+        "summary": "Russ Hatch, initial port of paging tests from jython (pre-fork, no PR)."
+      },
+      "commits": {
+        "1de3e4d869": "prepare() now uses 3 racks x 1 node (rf-rack-valid) and create_ks RF 2->3.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting (ruff naming)",
+        "65cf4f9dab": "migrate to pytest (assertEqual -> assert, pytest.raises).",
+        "c3471a97e4": "formatting",
+        "29646f1956": "python3 port (mechanical).",
+        "1761f6fac2": "rename cursor -> session (mechanical).",
+        "238c4284d8": "data tables reformatted with prettier header/separator syntax (formatting).",
+        "2deaf10a76": "read/write at CL.ALL.",
+        "c040b6fcb2": "helper method renames (mechanical).",
+        "51305e7afa": "initial port from jython: test added."
+      },
+      "relevance": "Live: filtering + paging. Page-size semantics with filtering is an open divergence from Cassandra (scylladb/scylladb#12102).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_filtering.py::test_filter_and_fetch_size",
+          "coverage": "partial",
+          "note": "same question (fetch_size vs filtering), xfail #12102 expecting Cassandra semantics; this dtest pins current Scylla semantics."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_paging_and_drop_index_allow_filtering",
+          "coverage": "partial",
+          "note": "paged ALLOW FILTERING scan."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Paged ALLOW FILTERING covered partially in cqlpy (test_filtering.py, test_secondary_index.py); single-node vs 3-node only difference. Note: exact page sizes [4,3] encode current post-filter page semantics, which conflicts with cqlpy test_filter_and_fetch_size xfail for scylladb/scylladb#12102 (will break if #12102 is fixed)."
+    },
+    "TestUnpagedQueryLimit::test_unpaged_large_partition": {
+      "description": "3 nodes, RF=1, soft limit 1KB / hard limit 1MB for unpaged queries. Inserts 4096 rows x 1KB into one partition, then via each node as coordinator runs unpaged (default_fetch_size=-1) single-partition and full scans, expecting both to fail (hard limit exceeded). Hard-limit log message ignored via class fixture.",
+      "origin": {
+        "sha": "1bbedfe31b",
+        "date": "2020-05-29",
+        "pr": 1631,
+        "summary": "Botond Denes, add test checking nonpaged queries are limited (max_memory_for_unlimited_query_*)."
+      },
+      "commits": {
+        "1de3e4d869": "populate via generate_cluster_topology (3 racks x 1 node).",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "8249572320": "added '# noqa: BLE001' to blind except (no behavior change).",
+        "047a6e092a": "SimpleStrategy -> NetworkTopologyStrategy keyspace.",
+        "65cf4f9dab": "migrate to pytest (fixture for ignore_log_patterns, pytest.fail).",
+        "c3471a97e4": "formatting",
+        "1bbedfe31b": "test added."
+      },
+      "relevance": "Live: max_memory_for_unlimited_query_hard_limit enforced in mutation/mutation_partition.cc:2065 (result_memory_accounter::check_local_limit).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_query_limit",
+          "coverage": "partial",
+          "note": "unpaged single-partition scan (ASC+DESC) with hard limit expects ReadFailure, paged succeeds; single node, no full scan."
+        },
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_query_unselected_columns",
+          "coverage": "partial",
+          "note": "unpaged partition + full scan under limit (negative case)."
+        },
+        {
+          "path": "test/boost/database_test.cc::max_result_size_for_query_selection_test",
+          "coverage": "partial",
+          "note": "limit selection per scheduling group."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Hard-limit partition scan covered by cqlpy test_cql_query.py::test_query_limit (with exact ReadFailure); dtest adds full scan and non-replica coordinators. Bug: 'except Exception' (paging_test.py ~2569/2576) accepts any failure (timeout, connection error) and never checks error type/message."
+    },
+    "TestUnpagedQueryLimit::test_unpaged_large_partition_soft_limit": {
+      "description": "3 nodes, RF=1, soft limit 1024 bytes. Inserts 4096 x 1KB rows in one partition; from a random coordinator runs unpaged single-partition and full scans (which must succeed) and asserts the 'mutation_partition - Memory usage of unpaged query exceeds soft limit of 1024' warning appears in some node's log after each.",
+      "origin": {
+        "sha": "f5fd15879d",
+        "date": "2020-12-03",
+        "pr": 1800,
+        "summary": "Fabio Gelcer, add test for max_memory_for_unlimited_query_soft_limit (complements hard-limit test)."
+      },
+      "commits": {
+        "1de3e4d869": "populate via generate_cluster_topology (3 racks x 1 node).",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "047a6e092a": "SimpleStrategy -> NetworkTopologyStrategy keyspace.",
+        "65cf4f9dab": "migrate to pytest.",
+        "f5fd15879d": "test added."
+      },
+      "relevance": "Live: soft-limit warning mplog.warn in mutation/mutation_partition.cc:2070, logger 'mutation_partition' (line 38); message text matches.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_query_limit",
+          "coverage": "partial",
+          "note": "sets soft limit but only checks hard-limit failure; no soft-limit warning check."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking that soft limit lets unpaged queries succeed and emits the warning log (mutation_partition.cc:2070); no scylla test asserts this. Passes 100%, ~15s."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
