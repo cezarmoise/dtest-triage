@@ -1,0 +1,177 @@
+{
+  "file": "schema_test.py",
+  "tests": {
+    "TestSchema::test_drop_column_compact": {
+      "description": "Single node: creates a WITH COMPACT STORAGE table (enabled via cluster_options enable_create_table_with_compact_storage) and asserts ALTER TABLE ... DROP c1 raises InvalidRequest matching 'Cannot drop columns from a' (assert_invalid -> _assert_exception tools/assertions.py:60, re.search). Guards the non-CQL3 drop-column validation (CASSANDRA-3919 era).",
+      "origin": {
+        "sha": "2bb3eef00c",
+        "date": "2013-04-18",
+        "pr": null,
+        "summary": "Cassandra dtest 'add tests for #3919' (drop_column_compact_test)."
+      },
+      "commits": {
+        "ddff319b52": "added cluster_options(enable_create_table_with_compact_storage=True) (compact storage deprecated, scylla#12263).",
+        "20545c6312": "rename drop_column_compact_test -> test_drop_column_compact.",
+        "1761f6fac2": "formatting (cursor -> session rename).",
+        "0bac1ab58d": "port to python driver; assertRaises -> assert_invalid.",
+        "915321fdf6": "loosened error message check to prefix 'Cannot drop columns from a'.",
+        "aa7418b909": "(pre-origin, other test) @require('#3919').",
+        "5116cf742b": "file origin (other test, remove_columndef_test).",
+        "26d097cd9f": "prepare(): takes cluster_topology dict (default 1 node) instead of nodes_num; rf default 1 (affects all tests via prepare).",
+        "60fdd2b6c5": "class mark single_node.",
+        "e1bc6f024e": "class added to next_gating."
+      },
+      "relevance": "Live: cql3/statements/alter_table_statement.cc:410-411 throws 'Cannot drop columns from a non-CQL3 table'. But COMPACT STORAGE is deprecated, gated by enable_create_table_with_compact_storage (db/config.cc:1752, default false, 'will eventually be removed').",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "No scylla test found asserting the non-CQL3 DROP rejection (grep 'Cannot drop columns' in test/ empty), so coverage is unique, but it is a trivial single-node CQL validation of a deprecated feature (db/config.cc:1752) better placed in cqlpy (e.g. test/cqlpy/test_guardrail_compact_storage.py). Note: class marks single_node/next_gating; 5s, 100% pass."
+    },
+    "TestSchema::test_drop_column_compaction": {
+      "description": "Single node, server-side timestamps: insert 3 rows, ALTER TABLE DROP c1, ADD c1 int, insert 1 more row, flush+compact, reconnect and assert SELECT c1 returns [None,None,None,4] (assert_all, ignore_order, tools/assertions.py:193 '=='). Originally (CASSANDRA-3919) it also erased dropped_columns from system.schema_columnfamilies and restarted, to prove compaction physically purged the dropped data.",
+      "origin": {
+        "sha": "5ea6bd85ca",
+        "date": "2013-04-18",
+        "pr": null,
+        "summary": "Cassandra dtest 'add compaction test for #3919' (drop_column_compaction_test)."
+      },
+      "commits": {
+        "c3bd2fccc3": "pytest migration (decorators/asserts).",
+        "c3471a97e4": "formatting (autopep8).",
+        "29646f1956": "python3 port (formatting-level).",
+        "6b5a3275e4": "added dtest-debug attr.",
+        "e0fc90dc43": "added next-gating attr.",
+        "1761f6fac2": "formatting (cursor -> session).",
+        "d31b560756": "REMOVED the 'erase dropped_columns + restart' step (CASSANDRA-6717 schema tables), so the 'compacted away' check no longer verifies purging.",
+        "1042662b89": "dropped ignored version='3.0.10' connection arg.",
+        "0bac1ab58d": "port to python driver.",
+        "e1bd5176dd": "cql_connection -> patient_cql_connection (Windows).",
+        "2bb3eef00c": "pre-origin (drop_column_test, renamed/split into this test in 5ea6bd85ca).",
+        "26d097cd9f": "prepare(): takes cluster_topology dict (default 1 node) instead of nodes_num; rf default 1 (affects all tests via prepare).",
+        "53ff2b634a": "prepare(): session.use_client_timestamp=False (server-side timestamps, needed for drop+re-add).",
+        "60fdd2b6c5": "class mark single_node.",
+        "e1bc6f024e": "class added to next_gating."
+      },
+      "relevance": "Live: drop/re-add column semantics with dropped_columns timestamps in scylla schema (system_schema.dropped_columns).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testDropWithTimestamp",
+          "coverage": "partial",
+          "note": "drop + re-add after flush, old values hidden (explicit timestamps)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testAlterDropEmptySSTable",
+          "coverage": "partial",
+          "note": "drop column then compact, check result."
+        },
+        {
+          "path": "schema_test.py::TestSchema::test_drop_column_queries",
+          "coverage": "partial",
+          "note": "same scenario/asserts without flush+compact."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: since d31b560756 the dropped_columns erase+restart was removed, so the assertion (comment 'c1 values have been compacted away', schema_test.py:48) passes whether or not compaction purged the data - dropped_columns filtering at read hides it either way; effectively test_drop_column_queries + flush/compact. Partial overlap with cqlpy alter_test.py::testDropWithTimestamp/testAlterDropEmptySSTable."
+    },
+    "TestSchema::test_drop_column_queries": {
+      "description": "Single node, server-side timestamps: insert 3 rows, DROP c1, ADD c1, insert a 4th row (all in memtable), then asserts old c1 values are not resurrected: SELECT c1 / SELECT * / point SELECTs via assert_all and assert_one (tools/assertions.py:193/135, strict '=='). Originally also checked a secondary index on c2, commented out in scylla (99e1e0dba0).",
+      "origin": {
+        "sha": "5ea6bd85ca",
+        "date": "2013-04-18",
+        "pr": null,
+        "summary": "Cassandra dtest for CASSANDRA-3919 (drop_column_queries_test split from drop_column_test of 2bb3eef00c)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "20545c6312": "rename drop_column_queries_test -> test_drop_column_queries.",
+        "c3bd2fccc3": "pytest migration.",
+        "c3471a97e4": "formatting (autopep8).",
+        "29646f1956": "python3 port (formatting-level).",
+        "6b5a3275e4": "added dtest-debug attr.",
+        "e0fc90dc43": "added next-gating attr.",
+        "99e1e0dba0": "scylla: enabled test, commented out CREATE INDEX and index queries ('Indexes not supported yet'), set experimental=True (since removed).",
+        "a6ebe17c6c": "formatting (PEP8).",
+        "1761f6fac2": "formatting (cursor -> session).",
+        "0bac1ab58d": "port to python driver.",
+        "5ea6bd85ca": "origin (split from drop_column_test).",
+        "2bb3eef00c": "pre-origin drop_column_test.",
+        "26d097cd9f": "prepare(): takes cluster_topology dict (default 1 node) instead of nodes_num; rf default 1 (affects all tests via prepare).",
+        "53ff2b634a": "prepare(): session.use_client_timestamp=False (server-side timestamps, needed for drop+re-add).",
+        "60fdd2b6c5": "class mark single_node.",
+        "e1bc6f024e": "class added to next_gating."
+      },
+      "relevance": "Live: drop + re-add regular column, dropped_columns timestamp filtering in reads (memtable path).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testDropWithTimestamp",
+          "coverage": "partial",
+          "note": "drop+re-add hides pre-drop values (explicit USING TIMESTAMP, after flush)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/collections_test.py::testDropAndReaddDroppedCollection",
+          "coverage": "partial",
+          "note": "drop+re-add collection, no read check."
+        },
+        {
+          "path": "test/boost/schema_loader_test.cc::test_alter_table_drop_and_readd_column",
+          "coverage": "partial",
+          "note": "schema-level only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with cqlpy alter_test.py::testDropWithTimestamp (drop/re-add hides old values); dtest adds server-side timestamps + memtable reads, a single-node CQL check that fits cqlpy. Note: dead commented-out secondary-index checks (schema_test.py:57-58,75-81, 'Indexes not supported yet' from 99e1e0dba0) though scylla supports SI now."
+    },
+    "TestSchema::test_restart_with_large_tables": {
+      "description": "Reproducer for scylladb#2623 (boot hang): sets max_cached_partition_size_in_kb=1, creates 100 tables each with a 1KB column name (large system schema partitions), restarts the node and runs SELECTs on first/last table. Only asserts the node boots and queries don't error. The hang was a deadlock in row_cache when a partition exceeded max_cached_partition_size_in_kb and a second sstable reader was created under the read-concurrency semaphore (fix 0ac2c388b6, branch-1.7).",
+      "origin": {
+        "sha": "5cc324ace6",
+        "date": "2017-07-27",
+        "pr": null,
+        "summary": "Tomasz Grabiec: 'Add reproducer for hang during boot with large schemas' (mailing-list patch)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade f-strings).",
+        "c3bd2fccc3": "pytest migration.",
+        "c3471a97e4": "formatting (autopep8).",
+        "26d097cd9f": "prepare(): takes cluster_topology dict (default 1 node) instead of nodes_num; rf default 1 (affects all tests via prepare).",
+        "60fdd2b6c5": "class mark single_node.",
+        "e1bc6f024e": "class added to next_gating."
+      },
+      "relevance": "Option max_cached_partition_size_in_kb and the wide-partition cache bypass were removed from scylla master in 77f944880c (2017-02-09, 'cache: Remove support for wide partitions'), before this test was added; 0ac2c388b6 message says the problem doesn't exist in 2.0/master (row-granularity cache). The option is now an unknown yaml key (utils/config_file.cc:307 'Unknown option').",
+      "duplicates": [],
+      "decision": "RED",
+      "reason": "Tested option/code path removed: max_cached_partition_size_in_kb gone since scylla 77f944880c (2017), so the scylla#2623 deadlock (fix 0ac2c388b6, 1.7-only) can't be reproduced; what remains is a generic 'restart with 100 tables' smoke with no assertions beyond queries succeeding. Bug: config sets a dead option (schema_test.py:106)."
+    },
+    "TestSchema::test_alter_keyspace_then_table_with_udt": {
+      "description": "2 nodes (2 racks, 1 DC): create keyspace RF=1, UDT ks.my_type, table cf with a UDT column (STCS), ALTER KEYSPACE to RF=2 (or rack list ['rack1','rack2'] when RF is auto-expanded), then ALTER TABLE compaction to LCS. Passes if no 'Unknown type ks.my_type' error. Reproducer for scylla-enterprise#2989 / scylladb#14139 (ALTER KEYSPACE dropped in-memory UDT metadata, fixed by scylla 1a521172ec).",
+      "origin": {
+        "sha": "207fa60227",
+        "date": "2023-06-13",
+        "pr": 3231,
+        "summary": "yarongilor: reproducer for scylla-enterprise#2989, altering keyspace then a table containing a UDT."
+      },
+      "commits": {
+        "ff08858f98": "ALTER KEYSPACE uses rack list ['rack1','rack2'] when current RF is a rack list (auto-expansion), via get_replication_options/describe_rf.",
+        "26d097cd9f": "switched to generate_cluster_topology(rack_num=2) and datacenter1 naming (rack==rf).",
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "0bb865088c": "SimpleStrategy -> NetworkTopologyStrategy (fixes tablets, dtest#3872); prepare() gained rf param.",
+        "9ffd273f04": "formatting (ruff format).",
+        "207fa60227": "origin.",
+        "60fdd2b6c5": "class mark single_node.",
+        "e1bc6f024e": "class added to next_gating."
+      },
+      "relevance": "Live: ALTER KEYSPACE + UDT schema handling. Root cause (scylladb#14139, keyspace_metadata ctor ignoring user_types) fixed in 1a521172ec (2023-06-05).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_keyspace.py::test_alter_keyspace_preserves_udt",
+          "coverage": "full",
+          "note": "explicit reproducer for scylladb#14139 (same root cause/fix 1a521172ec): create UDT+table, ALTER KEYSPACE, DESCRIBE TYPE, DROP TABLE; single node, but the bug was node-local metadata loss."
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlpy test_keyspace.py::test_alter_keyspace_preserves_udt (db0871a644) is the dedicated reproducer for the same root cause (scylladb#14139, fixed by 1a521172ec); the dtest only adds a 2nd node and an RF change, no extra assertions. Note: class mark single_node (schema_test.py:14) is wrong for this 2-node test."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
