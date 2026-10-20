@@ -1,0 +1,2522 @@
+{
+ "file": "materialized_views_test.py",
+ "tests": {
+  "TestMaterializedViews::test_add_dc_after_mv_network_replication": {
+   "description": "3-node dc1 cluster, keyspace NTS {'dc1':1} (4 tablets if tablets feature), table t + view t_by_v. Writes 1000 rows, checks view and base, then bootstraps node4 in dc2, ALTERs keyspace to {'dc1':1,'dc2':1} (200s timeout, waits for tablet rebuild), runs `nodetool rebuild -- dc1`, bootstraps node5 in dc2, verifies all 1000 view rows from node4 at LOCAL_ONE (i.e. really replicated to dc2), inserts 100 rows via node4 and verifies them in view from dc1 at LOCAL_ONE. Guards MV correctness across the add-DC procedure (originally CASSANDRA-10634, cross-DC view replica pairing).",
+   "origin": {
+    "sha": "e43f5e0d23",
+    "date": "2015-11-02",
+    "pr": null,
+    "summary": "Cassandra dtest for CASSANDRA-10634 (MV paired endpoints vs DC-aware replication); imported via upstream merge (data PR #52 'Merge upstream' is the merge artifact). Enabled for Scylla in 6f6c5393 (2017, PR #500)."
+   },
+   "commits": {
+    "8cf80b5c": "file-level: _add_dc_after_mv_test uses 4 initial tablets and 200s timeout on ALTER KEYSPACE (SCYLLADB-3909, debug timeouts)",
+    "aca7c4103f": "pass nodes=[3] for RF-rack-valid topology generation",
+    "ff0837e3": "file-level: remove tablets skip (#17572 fixed), enable test with tablets (PR #5493)",
+    "a01962b2": "file-level: helper verifies with LOCAL_ONE and inserts via dc2 node so cross-DC replication is really tested; added tablets skip",
+    "9ffd273f04": "formatting",
+    "7e7b518592": "rf {'dc1':1,'dc2':0} -> {'dc1':1} (rebase conflict resolution)",
+    "f106c691d1": "port to pytest (rename)",
+    "6f156b1c29": "follow add-DC procedure: start with dc2:0, bootstrap dc2 node, ALTER to dc2:1, rebuild (scylladb#5929)",
+    "639e537c5d": "docstring/rename (Cassandra)",
+    "e43f5e0d23": "origin (Cassandra)"
+   },
+   "relevance": "Live: add-DC via RF change + rebuild is a supported procedure for both vnodes and tablets (tablets RF 0->N, scylladb#17572 closed). Runs in both dtest-release (tablets) and dtest-release-with-raft, 38/38 passed, ~20s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_first_replica_in_dc",
+     "coverage": "partial",
+     "note": "tablets ALTER KEYSPACE adding dc2 with MV, checks view content; uses error injection (release-skipped), only 2 rows"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_rf_change",
+     "coverage": "partial",
+     "note": "RF change with MV across 2 DCs; currently skip_bug scylladb#26540"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_dc_after_mv_simple_replication",
+     "coverage": "full",
+     "note": "same helper, effectively same keyspace definition (see that entry)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Unique release-mode coverage of the full add-DC procedure with an MV (vnodes + tablets); scylla tests only cover pieces under injection. Note: dead exclude pattern `migration_task - Cant send migration request` (materialized_views_test.py:1515) - message removed from scylla (schema pull/migration_task code removed, scylla 02fc4ad0a9). Note: `nodetool rebuild -- dc1` is a no-op for tablet keyspaces."
+  },
+  "TestMaterializedViews::test_add_dc_after_mv_simple_replication": {
+   "description": "Same scenario as test_add_dc_after_mv_network_replication via _add_dc_after_mv_test(rf=1): add DC2 node, ALTER keyspace to dc1:1,dc2:1, rebuild, verify view rows at LOCAL_ONE from dc2 and new writes. Was meant to exercise SimpleStrategy (CASSANDRA-10634: view pairing with non-DC-aware replication). Skipped when tablets enabled.",
+   "origin": {
+    "sha": "e43f5e0d23",
+    "date": "2015-11-02",
+    "pr": null,
+    "summary": "Cassandra dtest for CASSANDRA-10634 (MV paired endpoints filtered to local DC with SimpleStrategy); imported via upstream merge (PR #52 is the merge artifact)."
+   },
+   "commits": {
+    "a01962b218": "add skip_if(tablets) with comment that SimpleStrategy is unsupported with tablets; helper verifies at LOCAL_ONE",
+    "f106c691d1": "port to pytest (rename)",
+    "639e537c5d": "docstring/rename (Cassandra)",
+    "e43f5e0d23": "origin (Cassandra)",
+    "936b6212": "file-level (dtest_class.py): create_ks with int rf now always uses NetworkTopologyStrategy unless replication_class given -> this test stopped using SimpleStrategy",
+    "8cf80b5c": "file-level: helper tablets=4 / ALTER timeout 200s (no effect here, skipped with tablets)"
+   },
+   "relevance": "SimpleStrategy still exists in scylla (vnodes only), but the test no longer uses it: prepare(rf=1) -> create_ks(rf=1) -> `'class':'NetworkTopologyStrategy','replication_factor':1` (dtest_class.py:184-199, default replication_class since 936b6212, 2024-09-23). Runs only in dtest-release-with-raft (vnodes), 19/19 passed, 18s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_dc_after_mv_network_replication",
+     "coverage": "full",
+     "note": "same helper; NTS replication_factor:1 expands to {'dc1':1}, nodes=3 vs nodes=[3] identical; that test also runs on vnodes in dtest-release-with-raft"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Redundant: since 936b6212 create_ks defaults to NetworkTopologyStrategy, so this is the same keyspace/topology/procedure as test_add_dc_after_mv_network_replication; the SimpleStrategy case it was named for is no longer tested. Bug: docstring/name and the comment at materialized_views_test.py:1592-1594 are stale (claims SimpleStrategy). If SimpleStrategy coverage is wanted, pass replication_class='SimpleStrategy' instead of keeping a duplicate. Note: dead exclude pattern `migration_task - Cant send migration request` in helper (scylla 02fc4ad0a9)."
+  },
+  "TestMaterializedViews::test_add_dc_during_mv_insert": {
+   "description": "4 nodes in dc1, keyspace RF=3 (NTS replication_factor:3 -> {'dc1':3}), TableManager table + filtered MV (WHERE last int col = 53). Prefills 1000 rows, checks base vs view at QUORUM, then in parallel bootstraps 2 nodes into new dc2 and inserts 300k (30k in debug) more rows matching the view filter; finally, from each dc2 node, compares base vs view (grouped, filtered) at CL=ALL. Originally guarded scylladb#5459 (broken_promise applying view updates during DC add).",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev added add_dc_during_mv_insert/update tests plus TableManager/MaterializedViewManager helpers."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "0add0e5796": "added @require('#5459') (broken_promise in view updates); mark since removed, issue closed",
+    "4d7f5f8a04": "more_inserts 4000 -> 300000",
+    "9447209584": "more_inserts=4000 parameter added",
+    "04017523a8": "origin",
+    "ec90fbe8": "file-level: helper scales more_inserts //10 in debug mode",
+    "c796bda7": "file-level: session_timeout x3 in debug mode",
+    "29a3d64e": "file-level: helper prefill no longer flushes"
+   },
+   "relevance": "MV writes during node bootstrap are live behavior. But the 'add DC' is hollow: _add_dc_during_mv_change never ALTERs the keyspace to include dc2 nor rebuilds, so dc2 nodes own no replicas of ks; the final CL=ALL check from dc2 nodes only uses them as coordinators reading dc1 replicas. Effectively: MV inserts while non-replica nodes join. 39/39 passed, ~93s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "[vnodes] writes to MV base while a node bootstraps (that node does get ranges), checks view count; release-skipped (injections)"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "writes with MV during node add/decommission, crash check; release-skipped"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update",
+     "coverage": "partial",
+     "note": "MV base writes during a real (replica-owning) bootstrap, base vs view compared"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_dc_after_mv_network_replication",
+     "coverage": "partial",
+     "note": "real add-DC procedure (ALTER + rebuild) with MV"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~93s) and the DC addition is a no-op for the tested keyspace: rf=3 -> {'dc1':3}, no ALTER KEYSPACE/rebuild in _add_dc_during_mv_change (materialized_views_test.py:499-553), so it is MV inserts while unrelated nodes join, covered by test_add_node_during_base_table_update and test_mv_write_during_migration. Bug: final 'validate on dc2' check does not validate dc2 data (dc2 holds none). Note: original guard #5459 closed. If kept, should ALTER RF to include dc2 during inserts."
+  },
+  "TestMaterializedViews::test_add_dc_during_mv_update": {
+   "description": "Same as test_add_dc_during_mv_insert but prefills 4000 rows and, in parallel with bootstrapping 2 dc2 nodes, performs 200 single-row updates (1/s, after 5s delay) of the view-filter column for random rows matching the filter (value moves out of the view). Then compares base vs filtered view from dc2 nodes at CL=ALL.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev added add_dc_during_mv_update test with TableManager helpers."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "7e7b518592": "docstring re-wrap (formatting)",
+    "f106c691d1": "port to pytest (rename)",
+    "19ba6729bc": "@flaky -> @flaky_with_tear_down (since removed)",
+    "c775fdc538": "added @flaky",
+    "4d7f5f8a04": "more_inserts 4000 -> 300000 (unused for update path)",
+    "9447209584": "start_prefill=4000 / more_inserts params",
+    "04017523a8": "origin",
+    "c796bda7": "file-level: session_timeout x3 in debug mode"
+   },
+   "relevance": "Same hollow add-DC as the insert variant: keyspace {'dc1':3} never altered, dc2 nodes own no data. Runtime ~226s, of which ~200s is the time.sleep(1) per update in _multiple_int_updates (200 updates total). 37/37 passed.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update",
+     "coverage": "full",
+     "note": "updates of view-key column during a real bootstrap (replica-owning node), base vs view compared at QUORUM; ~17s"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "[vnodes] MV writes during bootstrap; release-skipped"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~226s, mostly sleep) + redundant: the 'DC add' never touches the keyspace replication (no ALTER/rebuild in _add_dc_during_mv_change, materialized_views_test.py:499-553), so it reduces to 200 MV updates while non-replica nodes join, a weaker version of test_add_node_during_base_table_update. Bug: dc2 'validation' reads dc1 replicas only; `more_inserts=300000` arg is unused for the update path. Note: docstring says 'during MV inserts'."
+  },
+  "TestMaterializedViews::test_add_drop_column": {
+   "description": "3 nodes RF=3, table cf(key, v0, v1) + view mv_v1_view (v1, key). While a thread inserts 20 keys x20 repeats, ALTER TABLE adds v2..v6; checks logs for 'Failed to apply mutation' and row counts (20) in base and view at QUORUM. Then inserts keys 20..40 while dropping v2..v6, rechecks logs and counts (40). Guards scylladb#7061 / scylla-enterprise#1467 (view updates using wrong schema after base ALTER).",
+   "origin": {
+    "sha": "6855bad95a",
+    "date": "2020-11-17",
+    "pr": 1765,
+    "summary": "MV updates after base table schema altered: cover scylla#7061 and scylla-enterprise#1467."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename add_drop_column_test -> test_add_drop_column)",
+    "6855bad95a": "origin",
+    "c35eab0e": "file-level: _search_for_apply_mutation_error mutable-default fix (formatting-level)"
+   },
+   "relevance": "Live: ALTER ADD/DROP on base with MV under concurrent writes. scylladb#7061 closed 2020-08-26 (fix f8df214836, reproducer 617ccc5408). 38/38 passed, ~51s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_column_dropped_from_base",
+     "coverage": "partial",
+     "note": "#7061 reproducer (ported from boost 617ccc5408): drop unselected base column, insert, view row present; single node, no concurrency, no add-then-drop"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_view_update_and_alter_base",
+     "coverage": "partial",
+     "note": "base ALTER then update with MV (#11542)"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_alter_table_drop_allowed",
+     "coverage": "partial",
+     "note": "dropping unselected base column allowed"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_drop_existing_column",
+     "coverage": "partial",
+     "note": "same helpers, drops pre-existing column"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Bug: `_search_for_apply_mutation_error` (materialized_views_test.py:1166-1177) is a no-op: `assert False` sits inside `try` with a bare `except: pass`, so the AssertionError is swallowed and the log check can never fail; also 'Failed to apply mutation' is logged at debug level for most cases (storage_proxy.cc:652). Only real check is row counts. Concurrent multi-node schema change is beyond the cqlpy #7061 reproducer, but core bug is covered by test_column_dropped_from_base."
+  },
+  "TestMaterializedViews::test_add_node_after_mv": {
+   "description": "3 nodes RF=1, table t(id, v) + view t_by_v(v, id). Inserts 1000 rows, waits for each view row (retrying), bootstraps a 4th node, waits for token ring/group0 consistency, reads all 1000 view rows via the new node, inserts 100 more and checks them in the view (via node1). Verifies view data survives/streams correctly on bootstrap (CASSANDRA-10978 origin).",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": null,
+    "summary": "Cassandra MV dtest suite (CASSANDRA-6477); imported via upstream merge (PR #52 is the merge artifact). Enabled for Scylla in 6f6c5393 (2017, PR #500)."
+   },
+   "commits": {
+    "9982b64eac": "debug mode: 300 retry attempts instead of 75",
+    "b04b7ee8c6": "retry_till_success -> retrying(75, 1s) for view checks",
+    "eccda80e42": "formatting",
+    "0f5cfea953": "removed no_boot_speedups mark; eventual view checks; wait_for_token_ring_and_group0_consistency after bootstrap",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "29646f1956": "python3 (xrange->range)",
+    "19ba6729bc": "added @flaky_with_tear_down (since removed)",
+    "41b7ba8643": "docstring (CASSANDRA-10978)",
+    "04017523a8": "use _add_new_node helper",
+    "6f6c539313": "unskipped for Scylla, new node in dc1",
+    "869c45d225": "Cassandra: base pk and view pk tokens differ (v=-i)",
+    "4048321b20": "origin (Cassandra)"
+   },
+   "relevance": "Live: bootstrap with MV (vnodes streaming of base+view; tablets: new node joins, balancer may migrate). Runs in both jobs, 38/38, ~21s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "[vnodes] same schema t/t_by_v RF=1, writes before+during bootstrap, checks view row count; release-skipped (dev/debug only)"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_node_join",
+     "coverage": "partial",
+     "note": "writes during join, view count; release-skipped"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_wide_mv_with_range_deletions",
+     "coverage": "partial",
+     "note": "same bootstrap-after-MV flow with range deletions"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Close to test_mv_write_during_migration[vnodes] (same schema, RF=1, bootstrap, view verified) which only runs in dev/debug; this dtest adds release-mode, tablets, and per-row reads through the new node. Cheap (~21s) but largely overlapping. Note: post-bootstrap inserts are verified only via node1 session, not the new node."
+  },
+  "TestMaterializedViews::test_add_node_after_very_wide_mv": {
+   "description": "3 nodes RF=1, table t(id, v, PK(id, v)) + view t_by_v(v, id). Inserts 5 partitions x 5000 rows (25k sequential inserts), reads each view row, bootstraps a 4th node and reads all 25k view rows through it, then re-inserts 5x5100 rows (5000 are overwrites) and reads all view rows again. Ported from Cassandra CASSANDRA-11670 (streaming of MV generating mutations > max_mutation_size_in_kb).",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Ported from Cassandra (CASSANDRA-11670) by Julia Yakovlev, initially @skip (unsupported -Dcassandra.migration_task_wait_in_seconds); enabled in 0d86d7cde5 (PR #573) with the Cassandra-specific options commented out."
+   },
+   "commits": {
+    "29a3d64e84": "removed cluster.flush() after inserts",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "29646f1956": "python3 (xrange->range)",
+    "0d86d7cde5": "commented out @skip; enabled for Scylla",
+    "930d931d5a": "commented out migration_task_wait_in_seconds jvm arg",
+    "04017523a8": "origin (ported, skipped)"
+   },
+   "relevance": "The Cassandra bug (MV streaming mutations exceeding max_mutation_size_in_kb / commitlog segment) is Cassandra-specific; Scylla has no max_mutation_size_in_kb option (absent from db/config.cc) and the config that made the test meaningful is commented out (materialized_views_test.py:1738-1743). The base partitions are wide, the view partitions are not (5 rows each). Bootstrap+MV itself is live. 37/37 passed, ~106s (2x per build).",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_mv",
+     "coverage": "full",
+     "note": "same flow (write, bootstrap, read view via new node, write more) on narrow rows, ~21s"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_wide_mv_with_range_deletions",
+     "coverage": "partial",
+     "note": "same flow on wide base partitions with range deletions, ~15s"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "[vnodes] bootstrap with MV, view verified; release-skipped"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~106s, 25k sequential inserts + ~50k sequential reads) and redundant with test_add_node_after_mv; the CASSANDRA-11670 trigger (max_mutation_size_in_kb, migration wait jvm arg) is Cassandra-only and commented out. Bug: dead commented-out config and unused MIGRATION_WAIT constant (materialized_views_test.py:71, 1741); view reads right after inserts use assert_one without retry although view updates are async (same flakiness class fixed in ab816f83 for test_allow_filtering); 'very wide MV' is a misnomer (view partitions are 5 rows)."
+  },
+  "TestMaterializedViews::test_add_node_after_wide_mv_with_range_deletions": {
+   "description": "3 nodes RF=1, table t(id, v, PK(id, v)) with compaction disabled + view t_by_v(v, id). Inserts 10x100 rows, verifies base/view, issues range deletions (v >= j and v < j+2 for every 10th j), verifies deleted rows absent in base and view, bootstraps a 4th node, re-verifies via the new node, inserts 10x10 new rows and verifies all via the new node. Ported from Cassandra CASSANDRA-11670.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Ported from Cassandra (CASSANDRA-11670), initially @skip; enabled in 0d86d7cde5 (PR #573) with the Cassandra-specific options commented out."
+   },
+   "commits": {
+    "29a3d64e84": "removed two cluster.flush() calls",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "fb3dfc9ea9": "formatting (noqa)",
+    "f106c691d1": "port to pytest (rename)",
+    "29646f1956": "python3 (xrange->range)",
+    "19ba6729bc": "@flaky -> @flaky_with_tear_down (since removed)",
+    "c775fdc538": "added @flaky",
+    "0d86d7cde5": "commented out @skip; enabled",
+    "930d931d5a": "commented out migration_task_wait_in_seconds jvm arg",
+    "04017523a8": "origin (ported, skipped)"
+   },
+   "relevance": "Range tombstones on base producing view row deletions, then streamed on bootstrap: live (vnodes streaming; tablets migrations). CASSANDRA-11670 trigger is Cassandra-only and its config commented out. Also flush() removal (29a3d64e) means with compaction disabled data may still be in memtables at bootstrap - streaming reads memtables anyway. 38/38, ~15s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_mv",
+     "coverage": "partial",
+     "note": "same bootstrap-after-MV flow without range deletions"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_long_skipped_view_update_delete_with_timestamp",
+     "coverage": "partial",
+     "note": "range/partition deletions reflected in view, single node, no bootstrap"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_build_tombstone_gc.py",
+     "coverage": "partial",
+     "note": "view tombstones vs build/repair, not bootstrap"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Residual unique value is view range-deletions surviving bootstrap streaming; otherwise overlaps test_add_node_after_mv, and the Cassandra-specific trigger is gone. Bug: commented-out Cassandra config / unused MIGRATION_WAIT (materialized_views_test.py:1687-1692); view assert_one/assert_none right after writes without retry despite async view updates (RF=1, 3 nodes); docstring mentions commitlog_segment_size_in_mb/max_mutation_size which are not set."
+  },
+  "TestMaterializedViews::test_add_node_during_base_table_update": {
+   "description": "3 nodes, parametrized RF (1 skipped on open scylladb#26981/#26984; 3 runs). TableManager table (int + text) + MV keyed on the int column. Prefills 5000 rows, waits for base/view counts, then in parallel bootstraps a new node and runs 48 IN-list updates (100 ids each) setting the view-key column; finally (eventually) compares base vs view grouped by updated columns at QUORUM, reading the view through the new node. Guards view update generation during node join.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: add_node_during_base_table_update_test plus TableManager/MaterializedViewManager helpers."
+   },
+   "commits": {
+    "b9fd8400a2": "parametrize rf: rf=1 skipped on open #26981/#26984 (view updates lost on join), rf=3 added (DTEST-114)",
+    "7c27cd34d9": "wrap count check and final base/view compare in eventually() (async views, DTEST-96)",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "fb3dfc9ea9": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "84d8e3083b": "_add_new_node: explicit wait_other_notice=False",
+    "29646f1956": "python3",
+    "171d836b84": "split single 4900-id IN update into 48 updates of 100 ids (cartesian product limit)",
+    "dcbcae519c": "managed_thread -> run_in_parallel style result passing (exceptions propagated)",
+    "5f6d671be0": "_add_new_node new_node_index arg",
+    "7de049bb0a": "_add_new_node delay arg; skip -> require",
+    "9447209584": "moved _managed_thread to shared helper",
+    "04017523a8": "origin"
+   },
+   "relevance": "Live and actively maintained (2026 fixes). Known open bugs scylladb#26981 (view updates lost during topology changes, different replication maps) and #26984 (bootstrap_with_repair vs read-before-write) both OPEN; rf=3 variant runs in both jobs, 38/38, ~17s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "[vnodes] inserts (not updates of view key) during bootstrap, RF=1; release-skipped"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_node_join",
+     "coverage": "partial",
+     "note": "inserts during join with delayed group0 apply (#26976); release-skipped"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "writes during add/decommission, crash-only check"
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Unique release-mode coverage of view-key updates (view row delete+insert) during bootstrap with base/view comparison; scylla cluster tests cover inserts only and are release-skipped. rf=1 param intentionally gated on open #26981/#26984 and will re-enable when fixed. Note: docstring says 4 nodes, test uses 3."
+  },
+  "TestMaterializedViews::test_allow_filtering": {
+   "description": "3 nodes RF=1, table t(id, v, v2 text, v3 decimal) + views t_by_v (v, id) and t_by_v2 (v2, id). Inserts 1000 rows, waits for views, asserts that restricting a non-key view column without ALLOW FILTERING is rejected, and that `WHERE v = i AND v3 = 3.0 ALLOW FILTERING` / `WHERE v2='a' AND v = i ALLOW FILTERING` return the right single row for each of 1000 ids.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": null,
+    "summary": "Cassandra MV dtest suite (CASSANDRA-6477); imported via upstream merge (PR #52 is the merge artifact). Enabled for Scylla in ac16c93a46 (2017, PR #493)."
+   },
+   "commits": {
+    "01c27a75a3": "debug mode: 300 retry attempts instead of 75",
+    "b04b7ee8c6": "retry_till_success -> retrying(75, 1s)",
+    "ab816f8301": "wait for async view updates before asserting (scylladb#23763)",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "29646f1956": "python3",
+    "ac16c93a46": "enabled for Scylla; assert_invalid loosened to expected=Exception",
+    "d56e71cefe": "driver upgrade fix (list(rows))",
+    "4048321b20": "origin (Cassandra)"
+   },
+   "relevance": "Live: filtering on view regular/key columns with ALLOW FILTERING. Pure CQL semantics, no multi-node aspect beyond RF=1 distribution. 38/38, ~13.5s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_base_partition_deletion_with_same_view_partition_key",
+     "coverage": "partial",
+     "note": "only incidental `SELECT ... FROM mv WHERE p=1 ALLOW FILTERING` (line ~1132)"
+    },
+    {
+     "path": "test/cqlpy/test_filtering.py",
+     "coverage": "partial",
+     "note": "extensive ALLOW FILTERING coverage on base tables (same select path; views are read as tables), no view-specific cases"
+    },
+    {
+     "path": "test/cqlpy/test_allow_filtering.py",
+     "coverage": "partial",
+     "note": "when ALLOW FILTERING is required, base tables only"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Filtering on a view uses the same select/filtering code as tables (heavily covered in cqlpy test_filtering.py / test_allow_filtering.py), but no cqlpy test asserts the view-specific cases; better suited as a cqlpy test than a 3-node dtest. Bug: `assert_invalid(..., expected=Exception)` (materialized_views_test.py:1781-1782, since ac16c93a) accepts any exception (timeouts, connection errors) as success."
+  },
+  "TestMaterializedViews::test_create": {
+   "description": "Creates a 3-node cluster RF=1 with users table + users_by_state view (prepare(user_table=True)) and asserts system_schema.views has exactly 1 row for keyspace ks. Pure smoke test of CREATE MATERIALIZED VIEW.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest 'Test for materialized views implementation (CASSANDRA-6477)' by Alan Boudreault, imported via upstream merge (PR 52)."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (create_test -> test_create)",
+    "6b5a3275e4": "add dtest-debug attr",
+    "8f31589531": "add next-gating attr",
+    "f4dcdaa634": "query system_schema.views instead of system.views",
+    "1e0c81dd12": "enable for scylla; query system.views without base_table_name filter",
+    "8c7c27b752": "wrap result in list() after driver upgrade",
+    "187349e257": "system_schema.materialized_views -> system_schema.views (CASSANDRA-9921)",
+    "4048321b20": "origin"
+   },
+   "relevance": "Live (MV creation, system_schema.views). 38/38 passed, ~11s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_mv_where_case_sensitive_function_name",
+     "coverage": "full",
+     "note": "creates a view and reads its row from system_schema.views (:1956); also test_creating_mv_with_existing_id reads view id from system_schema.views; every cqlpy MV test creates views"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews (most tests)",
+     "coverage": "full",
+     "note": "prepare(user_table=True) creates the same view in many other dtests in this class"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Trivial smoke check (one CREATE MV + count rows in system_schema.views) fully covered by cqlpy MV tests (e.g. test/cqlpy/test_materialized_view.py::test_mv_where_case_sensitive_function_name reads system_schema.views) and implicitly by every other test in this class using prepare(user_table=True)."
+  },
+  "TestMaterializedViews::test_complex_mv_select_statements": {
+   "description": "3 nodes, keyspace mvtest RF=3. For each view PK layout ((a,b),c), ((b,a),c), (a,b,c), (c,b,a), ((c,a),b): base test(a,b,c,d) PK(a,b,c), insert 9 rows, CREATE MV with filter `a = 1 AND b IS NOT NULL AND c = 1` (built over existing data), then inserts/updates/deletes rows that do / do not match the filter and partition deletion, asserting view contents at QUORUM with retries. Guards CASSANDRA-9664 (MV WHERE restrictions on PK columns).",
+   "origin": {
+    "sha": "c07bb30300",
+    "date": "2015-09-16",
+    "pr": 52,
+    "summary": "Cassandra dtest 'Add complex_mv_statements_test' (CASSANDRA-9664), imported via upstream merge."
+   },
+   "commits": {
+    "78574afcfb": "mvtest keyspace SimpleStrategy -> NetworkTopologyStrategy (tablets)",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c186e1979c": "assert_all attempts= -> num_attempts= (retrying decorator)",
+    "73fd79bece": "use shared wait_for_view helper",
+    "efd29099a9": "add attempts=20 retries to view assertions",
+    "b99838da14": "debug message changes",
+    "d23888d540": "enable on scylla (remove @skip #2434), wait for view build instead of sleep",
+    "41b7ba8643": "scylla adaptations in MV test file",
+    "6f6c539313": "revise file (imports/style)",
+    "6d0e4c4fb1": "use correct DELETE statement for whole partition",
+    "c07bb30300": "origin"
+   },
+   "relevance": "Live: MV WHERE with PK equality restrictions. 38/38 passed, ~29s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_partition_key_and_clustering_key_filtering_restrictions",
+     "coverage": "full",
+     "note": "same 5 view PK layouts, same filter 'a = 1 and b is not null and c = 1', same 9 rows, same insert/update/delete/partition-delete sequence (single node; view created before data)"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_clustering_key_filtering_restrictions",
+     "coverage": "partial",
+     "note": "related PK-restriction filters"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_base_non_pk_columns_in_view_partition_key_are_non_empty",
+     "coverage": "partial",
+     "note": "view created over existing data, waits for build, reads view"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Fully duplicated by cqlpy test_partition_key_and_clustering_key_filtering_restrictions (identical PK permutations, filter and row set). Only extras here are RF=3 and view build over pre-existing data, covered by e.g. cqlpy test_base_non_pk_columns_in_view_partition_key_are_non_empty and other view-build dtests. Note: prepare(rf=3) creates unused keyspace ks."
+  },
+  "TestMaterializedViews::test_concurrent_updates_deletes": {
+   "description": "4 nodes RF=3, TableManager table with one int column and one MV keyed by it, prefill 2 rows. Two client threads run in parallel: 1000 UPDATEs of the view-key column of id=0 to random values in [-100,-1], and 1001 DELETEs of id=0. Afterwards base and view contents are compared (grouped by view key) at QUORUM with eventually(). Guards view consistency under racing view-key updates and deletes of the same base row (read-before-write + row locking in view update generation).",
+   "origin": {
+    "sha": "41b7ba8643",
+    "date": "2018-03-06",
+    "pr": 574,
+    "summary": "Scylla-specific test added by Julia Yakovlev in 'Materialized views: repair tests'."
+   },
+   "commits": {
+    "29a3d64e84": "remove cluster.flush() before and after the concurrent phase",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "c796bda715": "session_timeout adjusted for debug mode",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "29646f1956": "python3 (xrange/iteritems)",
+    "dcbcae519c": "managed_thread -> run_in_parallel (propagate thread exceptions)",
+    "9248dedf6d": "wrap final comparison in eventually()",
+    "73fd79bece": "wait for view build after creation",
+    "e6f9c69942": "fix call to renamed helpers (_create_mvs_by_one_column, managed_thread)",
+    "41b7ba8643": "origin"
+   },
+   "relevance": "Live: view updates for concurrent writes to the same base row. 38/38 passed, ~19s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_updates",
+     "coverage": "partial",
+     "note": "sequential view-key updates, single node, no concurrency"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_delete_partitions.py::test_delete_partition_rows_from_table_with_mv",
+     "coverage": "partial",
+     "note": "concurrent inserts then partition delete; no racing update/delete of same row"
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "No scylla test races view-key updates against deletes of the same base row across a multi-node cluster and then checks base/view consistency; cheap (~19s) and stable."
+  },
+  "TestMaterializedViews::test_drop_existing_column": {
+   "description": "3 nodes RF=3, table cf(key, v0, v1) + view mv_v1_view (SELECT v1, key, PK (v1, key)), so v0 is unselected. A thread inserts (key, v1) for keys 0..19 x20 repeats while the main thread runs ALTER TABLE cf DROP v0. Then checks logs for 'Failed to apply mutation' and row counts (20) in base and view at QUORUM. Guards scylladb#7061 / scylla-enterprise#1467 (view updates interpreted with wrong schema after dropping a base column).",
+   "origin": {
+    "sha": "6855bad95a",
+    "date": "2020-11-17",
+    "pr": 1765,
+    "summary": "MV updates after base table schema altered: cover scylla#7061 and scylla-enterprise#1467."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename drop_existing_column_test -> test_drop_existing_column)",
+    "6855bad95a": "origin",
+    "c35eab0e": "file-level: _search_for_apply_mutation_error mutable-default fix (formatting-level)"
+   },
+   "relevance": "Live: dropping an unselected base column of a table with an MV. scylladb#7061 closed 2020-08-26. 38/38 passed, ~27s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_column_dropped_from_base",
+     "coverage": "partial",
+     "note": "#7061 reproducer: drop unselected pre-existing base column, insert, view row present; single node, no concurrent writes"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_alter_table_drop_allowed",
+     "coverage": "partial",
+     "note": "dropping unselected base column allowed"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_drop_column",
+     "coverage": "partial",
+     "note": "same helpers and topology; drops columns (added after MV creation) during concurrent inserts"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Core #7061 scenario covered by cqlpy test_column_dropped_from_base; only extra is concurrent inserts during multi-node schema propagation, which test_add_drop_column also exercises. Bug: `_search_for_apply_mutation_error` (materialized_views_test.py:1166-1177) can never fail - `assert False` is inside `try` with bare `except: pass`; so only row counts are checked. Candidate to merge into test_add_drop_column or RED."
+  },
+  "TestMaterializedViews::test_base_column_in_view_pk_complex_timestamp": {
+   "description": "3 nodes RF=3, hinted handoff off, session CL=QUORUM; table t(k PK, a, b), view mv PK (k, a) where a is a regular base column. Walks one base row through writes/updates/deletes with explicit timestamps (b at ts 10/20, a switched at ts 2..8, row delete at ts 5 shadowing a but not b), checking base and view (incl. writetime) after each step; with_flush variant flushes after each write and compacts once. Then stops node2+node3, does CL=ONE updates (a switch @ts9, TTL 3 on another row), restarts them and checks via CL=ALL reads that read repair yields correct view rows (old view row shadowed, new one present, TTL row expired). Guards CASSANDRA-11500 (view row shadowing when base column in view PK has ts different from row ts).",
+   "origin": {
+    "sha": "ca219c58b0",
+    "date": "2017-05-01",
+    "pr": 578,
+    "summary": "Cassandra dtest by Zhao Yang for CASSANDRA-11500, brought into scylla-dtest with the 'Mv tests update' PR 578 (upstream sync)."
+   },
+   "commits": {
+    "056f5dc7a8": "formatting (unused node1 -> _node1)",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "fb3dfc9ea9": "formatting (noqa)",
+    "6dc96cd85b": "with/without_flush wrappers -> pytest parametrize; assert_equal -> local check_query_rows_size",
+    "f106c691d1": "port to pytest",
+    "c3471a97e4": "formatting",
+    "a67a4c0f91": "use cluster.stop_nodes/start_nodes",
+    "344bfe64d0": "wrap all view/base asserts in eventually()",
+    "c5608f889a": "re-enable (remove @skip 'Under investigation')",
+    "43b2c7a5d5": "skip as 'Under investigation'",
+    "2b6afe1004": "Cassandra flakiness fix (follow-up CASSANDRA-11500)",
+    "ca219c58b0": "origin"
+   },
+   "relevance": "Live: view row liveness/shadowing with base regular column in view PK; read repair on views. 76/76 passed (both params), ~24s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_base_column_in_view_pk_complex_timestamp",
+     "coverage": "partial",
+     "note": "same CASSANDRA-11500 family (ported C++ view_complex_test), different walk; single node, no read-repair phase"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_complex_timestamp_updates",
+     "coverage": "partial",
+     "note": "out-of-order timestamp updates of view-key column with flush/noflush"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_no_base_column_in_view_pk_complex_timestamp",
+     "coverage": "partial",
+     "note": "sister dtest, view PK without base regular column"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Single-node timestamp walk largely covered by cqlpy test_base_column_in_view_pk_complex_timestamp/test_complex_timestamp_updates; unique part is the multi-node CL=ONE + read-repair-on-view phase. Note: dead commented-out trace/digest-mismatch checks (materialized_views_test.py:2057-2091), `trace=True` in check_query_rows_size is unused; fixed time.sleep(3) for TTL expiry."
+  },
+  "TestMaterializedViews::test_base_replica_repair": {
+   "description": "3 nodes RF=3, table t + view t_by_v (PK v,id). Writes 10000 rows, verifies view at CL=ALL, stops node1, deletes its t and t_by_v sstables, restarts it alone and checks its view is empty, starts the others, repairs only the base table on node1, waits for view update generation, then repairs t_by_v with -pr on every node and checks base and view rows (CL=ONE via node1 session). Intended to verify that repairing the base replica regenerates view data.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest base_replica_repair_test (CASSANDRA-6477 suite); enabled/adapted for scylla in 41b7ba8643 (PR 574)."
+   },
+   "commits": {
+    "f106c691d1": "port to pytest (rename)",
+    "41b7ba8643": "scylla adaptation: comment out Cassandra MV-lock contention variant and batchlog replay",
+    "4048321b20": "origin",
+    "36a75a3d": "file-level/helper: nodetool repair -> node.repair() / partitioner_range (re-applied after revert d0e55d7e; first 44ed3fa0)",
+    "2a925b9b": "helper: num_keys 1000 -> 10000",
+    "8ba45a43": "helper: wait_for_view_update_generation (scylladb#19727) + repair view on all nodes (tablets, no self-pairing; scylladb#19148)",
+    "b4666ebe": "helper: delete only table sstables instead of node1.clear(clear_all=True)"
+   },
+   "relevance": "Live: repair of base generating view updates (staging sstables). scylladb#19727 still OPEN. 39/39 passed, ~48s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_staging.py::test_staging_backlog_processed_after_restart",
+     "coverage": "partial",
+     "note": "same idea: delete sstables of base+view on one node, repair base, assert view rows regenerated on that node (vnodes, with injection + restart; release-skipped)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Bug: since 8ba45a43 the test also repairs t_by_v on all nodes (materialized_views_test.py:2469-2472), which restores node1's view rows from the other replicas, so the final view check passes even if base repair generated no view updates - the test no longer verifies its stated purpose. Note: dead commented Cassandra code (:2394-2401, :2436-2445). Close scenario in test_mv_staging.py::test_staging_backlog_processed_after_restart (release-skipped)."
+  },
+  "TestMaterializedViews::test_complex_repair": {
+   "description": "5 nodes RF=5, hints off, base gc_grace_seconds=5, view t_by_v (PK v,id). With node2/3 down writes 1000 rows (v=i) at CL=THREE; then with only node2/3 up writes 1000 overlapping rows (id=v=i*2, v3=6.0) at CL=TWO; verifies each side's view at CL=ONE/QUORUM; starts all, runs global repair on node1, then compares full base vs view at QUORUM on node1/4/5 and at CL=ONE on node2/3 alone. Guards view consistency after repair merges divergent base data (view updates from repair streaming, scylla #3275).",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest complex_repair_test (CASSANDRA-6477 suite); enabled for scylla once repair streaming generated view updates (41b7ba8643 / 08d7ff132e, scylla#3275)."
+   },
+   "commits": {
+    "4b8d5e78e4": "writes at CL=THREE / CL=TWO so all live nodes have the data before CL=ONE reads (SCYLLADB-4074 flakiness)",
+    "31abffb6a1": "open fresh session2 to node2 after topology change",
+    "eccda80e42": "formatting",
+    "e780899276": "required_features('!tablets') -> skip_if(tablets & issue_open(scylladb#17043))",
+    "50a149e4b0": "disable for tablets (no base/view self-pairing)",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "aedaa57c4e": "formatting",
+    "fb3dfc9ea9": "formatting",
+    "c796bda715": "session_timeout adjusted for debug mode",
+    "f106c691d1": "port to pytest",
+    "c3471a97e4": "formatting",
+    "09ef1ab5e1": "use cluster.stop_nodes/start_nodes helpers",
+    "29646f1956": "python3",
+    "00ef7a9b4b": "adapt to paused view building (start nodes before validation)",
+    "7de049bb0a": "@skip -> @require('#3275')",
+    "b99838da14": "debug message changes",
+    "08d7ff132e": "skip until #3275; rows 10 -> 1000; drop batchlog-expiry sleep",
+    "41b7ba8643": "scylla adaptation",
+    "6f6c539313": "file revise",
+    "cfadc7cda2": "formatting",
+    "b678153cbb": "Cassandra: gc_grace_seconds=5 on base",
+    "f32eac7889": "Cassandra fix (CASSANDRA-10...)",
+    "9a846c5549": "Cassandra: avoid batchlog replay for a check",
+    "84a6a23208": "Cassandra: disable hints",
+    "e6532c107f": "Cassandra: batchlog insert fix",
+    "4048321b20": "origin"
+   },
+   "relevance": "Live: repair with views (view updates generated from repaired base data). scylladb#17043 CLOSED 2025-07-01, so the tablets skip no longer applies; no tablets-job runs in data. 37/37 passed, ~84s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_staging.py::test_staging_backlog_processed_after_restart",
+     "coverage": "partial",
+     "note": "base repair regenerates view rows (one empty node), not divergent writes on both sides"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_really_complex_repair",
+     "coverage": "partial",
+     "note": "same setup/helpers, more complex overwrite/delete sequence"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Unique coverage of repair reconciling divergent base data into views, but issues: Note: dead config `read_repair_chance` passed as a scylla.yaml option (materialized_views_test.py:2515; not in scylla db/config.cc) and Cassandra-only gc_grace/batchlog comment (:2518); stale debug message at :2556 (says node2/CL=ONE, is node1/QUORUM); no wait_for_view_update_generation after node1.repair() before the num_attempts=1 base/view compare (scylladb#19727 open) - potential race; skip_if references scylladb#17043 (closed COMPLETED 2025-07-01: colocation only when base/view partition keys match), so the test now runs with tablets although base PK id != view PK v and the comment (:2490-2496) says the scenario is invalid without self-pairing - stale/likely-wrong mark, untested in Jenkins tablets data."
+  },
+  "TestMaterializedViews::test_decommission_node_during_mv_insert_4_nodes": {
+   "description": "4 nodes RF=3. Prefills keyspace1 with 10k rows via cassandra-stress, then in parallel runs a c-s user profile (cs_mv_profile.yaml: mview.users + 2 views) insert/read workload and a c-s mixed workload at CL=ONE for 1m, while after 30s node2 is decommissioned and a new node5 bootstrapped. Then waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that each view's row count equals base count(*) at QUORUM. Guards MV write path during decommission/bootstrap (scylla #2783, #3382).",
+   "origin": {
+    "sha": "891c4dd841",
+    "date": "2018-05-24",
+    "pr": 647,
+    "summary": "Julia Yakovlev 'Add decommission test; Remove require of fixed issues' (PR 647 'Fixes of materialized views tests')."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "891c4dd841": "origin",
+    "6c93933b9b": "helper: range_request_timeout + count(*) session timeout",
+    "00ef7a9b4b": "helper: wait for view build after node action (paused view building)",
+    "b554bee8dd": "helper: default stress duration 10m -> 1m"
+   },
+   "relevance": "Live: MV writes during decommission + bootstrap. scylladb#2783 closed 2018-03-24, #3382 closed 2018-09-05. 37/37 passed, ~112s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "MV writes while a node is added then decommissioned (#17786/#18709); only checks no crash; vnodes; release-skipped"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_node_join",
+     "coverage": "partial",
+     "note": "MV writes during bootstrap"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_remove_node_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same helper, removenode instead of decommission"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Release-mode MV-under-decommission+bootstrap with base/view count check is not covered by scylla cluster tests (they are release-skipped and check only for crashes), but slow (~112s). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:227); docstring says 'removes one node' (copy-paste); helper checks error log only on node1 (:472)."
+  },
+  "TestMaterializedViews::test_double_node_failure_during_mv_insert_4_nodes": {
+   "description": "4 nodes RF=3. Same flow as the stop-node tests via _run_node_failure_during_mv_stress_insert with double_failure=True and duration 2m: c-s MV profile + mixed workload at CL=ONE while node2 is stopped after 30s and node3 after 40s; then both restarted, views waited for, node1 log checked (excluding mutation_write_timeout_exception) and view counts compared to base count(*) at CL=ALL. Checks views converge (hints/view-update backlog) after two nodes miss MV writes.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added node-failure-during-MV-insert tests and TableManager/MaterializedViewManager helpers."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "a5d481ffd2": "remove no_boot_speedups mark",
+    "52c82fbe62": "add no_boot_speedups mark",
+    "b3a8c92533": "module-wide next_gating; this test excluded via @unmark.next_gating (scylla-dtest#3372)",
+    "f106c691d1": "port to pytest (rename)",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin",
+    "6c93933b9b": "helper: range_request_timeout + count(*) session timeout",
+    "00ef7a9b4b": "helper: restart stopped nodes and wait for view build before validation",
+    "b554bee8dd": "helper: default stress duration 10m -> 1m"
+   },
+   "relevance": "Live: MV writes with 2 replicas down, hints/view hints replay. 37/37 passed, ~199s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes",
+     "coverage": "partial",
+     "note": "same scenario on 3 nodes (every range loses 2 of 3 replicas - strictly harsher)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_stop_node_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same helper/topology, single stop"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes with a stopped node (hints), no convergence check"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Slow (~199s) and largely redundant with the 3-node double-failure variant plus test_stop_node_during_mv_insert_4_nodes; candidate RED (keep one double-failure variant). Note: @unmark.next_gating (materialized_views_test.py:242) is dead - module gating is commented out (:65, scylladb#15046 now closed) and cited scylla-dtest#3372 is closed; exclude_errors cites closed scylladb#2783."
+  },
+  "TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes": {
+   "description": "3 nodes RF=3, _run_node_failure_during_mv_stress_insert with double_failure=True, 2m stress: c-s MV profile + mixed workload at CL=ONE while node2 (after 30s) and node3 (after 40s) are stopped, leaving only node1; then both restarted, views waited for and view row counts compared to base count(*) at CL=ALL. Verifies views converge after 2 of 3 replicas missed base and view writes.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added node-failure-during-MV-insert tests and TableManager/MaterializedViewManager helpers."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "fb3dfc9ea9": "formatting (noqa)",
+    "6c93933b9b": "range_request_timeout + count(*) session timeout for validation",
+    "f106c691d1": "port to pytest (rename)",
+    "00ef7a9b4b": "restart stopped nodes and wait for view build before validation",
+    "b554bee8dd": "default stress duration 10m -> 1m (this test passes 2m)",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin"
+   },
+   "relevance": "Live: MV writes with only one live replica, then hints/view-update replay. 37/37 passed, ~192s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same scenario, 4 nodes"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes to a stopped node via hints; only checks topology op not blocked"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Unique end-to-end check that views converge after two of three replicas miss MV writes, but slow (~192s). Note: docstring says 'starting size 4' (materialized_views_test.py:254, copy-paste); exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (:259); error log checked only on node1 (:472)."
+  },
+  "TestMaterializedViews::test_drop_mv": {
+   "description": "3-node RF=1 cluster with users + users_by_state view (prepare(user_table=True)); creates a second view users_by_birth_year, asserts system_schema.views has 2 rows for ks, drops users_by_state and asserts 1 row remains. Pure DROP MATERIALIZED VIEW schema smoke test.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest 'Test for materialized views implementation (CASSANDRA-6477)' by Alan Boudreault, imported via upstream merge (PR 52)."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (drop_mv_test -> test_drop_mv)",
+    "f4dcdaa634": "system.views -> system_schema.views",
+    "1e0c81dd12": "enable for scylla; query system.views without base_table_name filter",
+    "8c7c27b752": "wrap results in list() after driver upgrade",
+    "187349e257": "system_schema.materialized_views -> system_schema.views (CASSANDRA-9921)",
+    "cfadc7cda2": "formatting",
+    "4048321b20": "origin"
+   },
+   "relevance": "Live (DROP MATERIALIZED VIEW, system_schema.views). 38/38 passed, ~12s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id",
+     "coverage": "full",
+     "note": "creates MV, drops it, recreates with same id (relies on drop removing the schema entry)"
+    },
+    {
+     "path": "test/cqlpy/test_compaction_strategy_validation.py::test_create_view_compaction_options",
+     "coverage": "partial",
+     "note": "asserts view absent from system_schema.views"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_abort_building_by_remove_view",
+     "coverage": "partial",
+     "note": "drops view and asserts system_schema.views empty (multi-node, injection, release-skipped)"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py (every test via new_materialized_view)",
+     "coverage": "full",
+     "note": "every cqlpy MV test drops its view on exit"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Trivial schema smoke check (create 2nd view, drop one, count system_schema.views rows) implicitly exercised by every cqlpy MV test (new_materialized_view drops on exit) and explicitly by test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id; same pattern as test_create (RED)."
+  },
+  "TestMaterializedViews::test_drop_mv_during_base_table_writes": {
+   "description": "4 nodes RF=3 (auto_snapshot off, range timeout = cql_timeout(300)), TableManager table with 1 int column + MV keyed on it (waits for build), then in parallel inserts 1M rows (100k in debug) and after 40s DROPs the view with a 300s client timeout. Asserts system_schema.views is empty at CL=ALL, base has all rows at QUORUM, and node1 log has no errors except mutation_write_timeout_exception / no_such_column_family. Guards that dropping a view under concurrent base writes neither breaks base writes nor crashes (view updates to replicas that already dropped the view).",
+   "origin": {
+    "sha": "9447209584",
+    "date": "2018-03-08",
+    "pr": 576,
+    "summary": "Julia Yakovlev: 'New tests: few tables with few MVs and dropping a view while building is in progress' (drop_mv_during_building_test); renamed to drop_mv_during_base_table_writes_test by Duarte Nunes in 910d3b38fe (PR 578) once it no longer tested building."
+   },
+   "commits": {
+    "98bf7bb3a2": "auto_snapshot=False and drop_mv(timeout=cql_timeout(300)) to avoid DROP client timeout under load (SCYLLADB-5530)",
+    "29a3d64e84": "remove unneeded cluster.flush() before the parallel phase",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename, dtest_heavy mark)",
+    "c0fa15b68d": "range_request_timeout_in_ms + cql_timeout(300) for count; prefill/10 in debug",
+    "c3471a97e4": "formatting",
+    "29646f1956": "python3 (itervalues -> values)",
+    "d671b654b8": "_check_errors -> shared check_errors",
+    "47efc21a9e": "add dtest-heavy attr",
+    "dcbcae519c": "managed_thread -> run_in_parallel (propagate thread exceptions)",
+    "f00396dc4a": "also exclude no_such_column_family errors (view updates to replicas that already dropped the view)",
+    "faf879e22b": "replace allow_log_errors with check_errors excluding mutation_write_timeout_exception",
+    "0ab0707747": "base row count at QUORUM",
+    "d1f88153a0": "allow_log_errors=True (concurrent writes may fail to see view)",
+    "910d3b38fe": "rename; drop only the 'populated table' branch, keep drop-during-writes",
+    "9447209584": "origin"
+   },
+   "relevance": "Live: DROP MV with in-flight view updates (no_such_column_family path in view update apply). 37 runs, 97.3% (1 failure in dtest-release-with-raft, likely the DROP client timeout fixed today in 98bf7bb3a2 / SCYLLADB-5530); ~280s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_remove_some_view_while_build_in_progress",
+     "coverage": "partial",
+     "note": "drops a view while building (tablets, injection, release-skipped); no concurrent base writes"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_abort_building_by_remove_view",
+     "coverage": "partial",
+     "note": "drop during build, checks system_schema.views empty; no concurrent writes"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_view_building_during_drop_index",
+     "coverage": "partial",
+     "note": "drop index (view) during building"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test dropping a view under sustained concurrent base writes in release mode, but slow (~280s, 1M inserts) and its assertions are weak. Note: error check only on node1 (materialized_views_test.py:1317) and masks mutation_write_timeout_exception/no_such_column_family; drop timing is a fixed 40s sleep (:1309), so in debug (100k rows) the drop may happen after writes end."
+  },
+  "TestMaterializedViews::test_fetch_mv_after_recreate": {
+   "description": "3 nodes RF=3, TableManager table with 2 int columns, MV keyed on an int column, 100 rows; compares base vs view at CL=ALL, drops the view, recreates it with the same name (MaterializedViewManager reuses <table>_view_0) and waits for build via system_distributed.view_build_status, then compares base vs view again. Guards reading a re-created same-name view (stale schema/build state after drop).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (PR 573); originally truncated base before recreate since views could not be built from existing data; 2b31abc908 (Duarte, PR 578) switched to view building."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "c796bda715": "session_timeout 120 -> self.session_timeout (debug x3)",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "73fd79bece": "wait_for_view moved into MaterializedViewManager.create_materialized_view",
+    "2b31abc908": "prefill 100 rows, no truncate before recreate (view building over existing data), compare ignoring order",
+    "0d86d7cde5": "origin"
+   },
+   "relevance": "Live: drop + immediate re-create of same-name view; wait_for_view relies on view_build_status being cleared on drop (exactly SCYLLADB-4869, now covered in cqlpy). 38/38 passed, ~14s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_view_build_status_removed_on_drop",
+     "coverage": "partial",
+     "note": "asserts view_build_status entry gone right after DROP so a re-created same-name view isn't seen as built (SCYLLADB-4869); does not recreate/read data"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id",
+     "coverage": "partial",
+     "note": "drop + recreate (same id), no data check"
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Cheap (~14s) multi-node RF=3 check that a dropped and re-created same-name view is rebuilt and fully readable at CL=ALL; scylla tests only check the view_build_status cleanup (test_view_build_status_removed_on_drop), not the data after recreate."
+  },
+  "TestMaterializedViews::test_gcgs_validation": {
+   "description": "3-node RF=1, users + users_by_state view. Asserts ALTER TABLE base WITH gc_grace_seconds=0 is rejected with exact message, gc_grace=10 accepted, ALTER MATERIALIZED VIEW gc_grace_seconds=0 rejected, then after DROP of the view base gc_grace=0 is allowed and CREATE MATERIALIZED VIEW on a gc_grace=0 base is rejected. Guards the MV gc_grace_seconds validation (undelivered view updates TTL).",
+   "origin": {
+    "sha": "3e5faa11b2",
+    "date": "2015-08-13",
+    "pr": 52,
+    "summary": "Cassandra dtest (Paulo Motta) 'added validation tests for gc_create_seconds on CREATE_MV, ALTER_MV and ALTER_TABLE' (first 270928d9, reverted fb9442a7, re-added), imported via upstream merge (PR 52)."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (gcgs_validation_test -> test_gcgs_validation)",
+    "04017523a8": "rename test_gcgs_validation -> gcgs_validation_test (nose naming)",
+    "3e5faa11b2": "origin"
+   },
+   "relevance": "Live: messages in scylla cql3/statements/alter_table_statement.cc:442, view_prop_defs.cc:75, create_view_statement.cc:182. 38/38 passed, ~13s.",
+   "duplicates": [],
+   "decision": "GREEN",
+   "reason": "No scylla test asserts these three gc_grace_seconds=0 rejections (grep for the messages in test/ finds nothing); cheap. Single-node CQL-only, so a good candidate to port to cqlpy test_materialized_view.py."
+  },
+  "TestMaterializedViews::test_lwt": {
+   "description": "3-node RF=1, table t + view t_by_v keyed on v. 1000 INSERT IF NOT EXISTS, checks all in view; repeats INSERT IF NOT EXISTS with different v and checks view unchanged; UPDATE ... IF v < 10 on all ids, checks only first 10 rows moved to new view key and view has 1000 rows; DELETE ... IF v = i+2000, checks view has 990 rows. Guards view maintenance for LWT (Paxos) writes, incl. view key change and conditional delete.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest 'Test for materialized views implementation (CASSANDRA-6477)' by Alan Boudreault, imported via upstream merge (PR 52); enabled for scylla in 387698ba2a (PR 1206) once LWT existed."
+   },
+   "commits": {
+    "55c4c0f738": "remove tablets skip (#18068), mark lwt (LWT over tablets)",
+    "98d0b4c5e0": "revert of cace024081 (skip restored)",
+    "cace024081": "remove tablets skip, add lwt mark",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "18e5ba189b": "skip with tablets while scylladb#18068 open",
+    "f106c691d1": "port to pytest (lwt_test -> test_lwt)",
+    "c3471a97e4": "formatting",
+    "77c52abacc": "drop experimental_features=['lwt'] (LWT GA)",
+    "29646f1956": "python3 (xrange -> range)",
+    "387698ba2a": "enable for scylla (remove @require 1359/2210), experimental lwt, comment out _replay_batchlogs",
+    "b99838da14": "debug_with_time -> debug",
+    "41b7ba8643": "debug -> debug_with_time",
+    "d56e71cefe": "list() over results (driver upgrade)",
+    "8c7c27b752": "list() over results (driver upgrade)",
+    "cfadc7cda2": "formatting",
+    "4048321b20": "origin"
+   },
+   "relevance": "Live: LWT on base tables with views, vnodes and tablets (runs in both jobs, 38/38 passed, ~14s).",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_tablets_lwt.py::test_lwts_for_special_tables",
+     "coverage": "partial",
+     "note": "only checks LWT directly on a view is rejected; no view maintenance check"
+    },
+    {
+     "path": "lwt_schema_modification_test.py::TestLWTSchemaModification::test_materialized_view",
+     "coverage": "partial",
+     "note": "LWT load while creating a view; only checks untouched rows, not view content of LWT-written rows"
+    },
+    {
+     "path": "paxos_tests.py::_schema_mismatch_mv_tpl",
+     "coverage": "partial",
+     "note": "LWT INSERT on a table with MV, schema-mismatch repair only, release-skipped"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Unique coverage of view maintenance under LWT inserts/updates (view-key change)/conditional deletes; no scylla test checks view content after LWT writes. Note: dead commented-out self._replay_batchlogs() calls (materialized_views_test.py:1834,1844,1854,1867); view read right after each LWT with no eventually() although RF=1 view replica may be remote (async view update) - potential flake (:1837-1873)."
+  },
+  "TestMaterializedViews::test_multi_mvs_on_different_base_tables": {
+   "description": "4 nodes RF=3 (hinted_handoff off), 3 keyspaces (ks, multi1, multi2) handled in parallel from 3 sessions; each creates 3 TableManager tables (2 int + 2 text columns) with 4 one-column MVs each (waiting for build) on EMPTY tables, then prefills 10000/10010/10020 rows, and compares base vs each view (count + grouped content) at CL=ALL. Checks many views across keyspaces/tables are maintained correctly under concurrent DDL+writes.",
+   "origin": {
+    "sha": "9447209584",
+    "date": "2018-03-08",
+    "pr": 576,
+    "summary": "Julia Yakovlev: 'few keyspaces, each with a few tables, each with a few MVs' tests (originally 10 tables x 20 MVs); shrunk to 3x4 in 5101313966 (PR 578)."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "fb3dfc9ea9": "formatting (noqa)",
+    "f106c691d1": "port to pytest (rename)",
+    "5101313966": "enable populated variant (remove skip 'under developing'), shrink both to 3 tables x 4 MVs",
+    "9447209584": "origin",
+    "7799f9654a": "skip in debug mode (timeouts, scylla-dtest#3275)"
+   },
+   "relevance": "Live (MV write path, many views). 39 runs 97.4% (1 failure in dtest-release-with-raft), ~74s; skipped in debug.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_build_two_views",
+     "coverage": "partial",
+     "note": "two views on one populated table, content check (tablets)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_multi_mvs_on_different_populated_base_tables",
+     "coverage": "partial",
+     "note": "same helper, views built over existing data instead of updated by writes"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_small_concurrent",
+     "coverage": "partial",
+     "note": "concurrent inserts with several views"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Scale variant of basic view maintenance (36 views, 3 keyspaces, parallel) without a specific bug it guards; no scylla test does many views across keyspaces, but its value is mostly generic. Bug: dead config `read_repair_chance: 0.0` passed as scylla.yaml option (materialized_views_test.py:1109; not in scylla db/config.cc, it was a table property)."
+  },
+  "TestMaterializedViews::test_multi_mvs_on_different_populated_base_tables": {
+   "description": "Same as test_multi_mvs_on_different_base_tables (4 nodes RF=3, 3 keyspaces in parallel x 3 tables x 4 MVs) but tables are prefilled with 10000+ rows FIRST and the 12 views per keyspace are then created and built from existing data concurrently across keyspaces; base vs view compared at CL=ALL. Covers concurrent view building of many views over populated tables.",
+   "origin": {
+    "sha": "9447209584",
+    "date": "2018-03-08",
+    "pr": 576,
+    "summary": "Julia Yakovlev: added skipped ('under developing'); enabled in 5101313966 (Duarte Nunes, PR 578) once view building existed."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "fb3dfc9ea9": "formatting (noqa)",
+    "f106c691d1": "port to pytest (rename)",
+    "5101313966": "enable populated variant (remove skip 'under developing'), shrink both to 3 tables x 4 MVs",
+    "9447209584": "origin"
+   },
+   "relevance": "Live (view building over existing data, vnodes + tablets view building coordinator). 37/37 passed, ~76s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_build_two_views",
+     "coverage": "partial",
+     "note": "builds 2 views on a populated table, checks contents (tablets only)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mvs_populating_from_existing_data",
+     "coverage": "partial",
+     "note": "several views built from existing data on one table"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Concurrent building of 36 views across 3 keyspaces is not done elsewhere, but it overlaps test_mvs_populating_from_existing_data and view_building_coordinator tests (test_build_two_views); ~76s. Bug: dead config `read_repair_chance: 0.0` as scylla.yaml option (materialized_views_test.py:1109); duplicated dead docstring literal (:1097)."
+  },
+  "TestMaterializedViews::test_multidc_dc_failure_during_mv_insert": {
+   "description": "2 DCs x 3 nodes, keyspace mview NTS {dc1:2, dc2:1} from cs_mv_multidc_profile.yaml (users + 2 views). Runs 2m c-s user profile (insert + 3 reads, CL=QUORUM, retries with exponential delay) while after 30s all dc2 nodes are stopped; then restarts dc2, waits for both views built, and (eventually) checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts match base count(*) at CL=ALL. Verifies MV convergence after a whole remote DC was down during view-generating writes (hints/view update backlog).",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added node/DC-failure-during-MV-insert tests; originally rf=3 nodes=[2,2] with single-DC profile, fixed to real multi-DC keyspace in 06970ff0ab (PR 696)."
+   },
+   "commits": {
+    "47dbad38bf": "run c-s via run_stress_with_tailed_output (memory limits)",
+    "fbe94d9a11": "c-s -errors retries with exponential delay (stress_errors_options)",
+    "d0329c5b99": "drop capture_output arg from c-s call",
+    "9ffd273f04": "formatting",
+    "72809f2380": "formatting",
+    "aedaa57c4e": "formatting",
+    "9017a4458e": "c-s no-warmup",
+    "6c93933b9b": "range_request_timeout + request_timeout = count_request_timeout for count(*) validation",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "7249ce349c": "remove allow_log_errors",
+    "00ef7a9b4b": "restart dc2 nodes and wait for views built before validation (view building paused while updates can't be sent)",
+    "dcbcae519c": "managed_thread -> run_in_parallel",
+    "a284e64464": "wrap validation in eventually()",
+    "06970ff0ab": "real multi-DC: rf {dc1:2,dc2:1}, nodes [3,3], multidc c-s profile",
+    "faf879e22b": "remove @require('#2783'); check_errors excluding mutation_write_timeout_exception",
+    "9447209584": "managed_thread helper rename",
+    "04017523a8": "origin"
+   },
+   "relevance": "Live: MV writes with a whole DC down, hints + view updates replay. 38 runs 94.7% (1/20 failure in dtest-release), ~185s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes",
+     "coverage": "partial",
+     "note": "same helper pattern, single DC, 2 nodes down"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes to a dead node; only checks topology op not blocked"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test of MV convergence after a full remote DC outage during writes, but slow (~185s) and slightly flaky (1/20). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:326,350); docstring wrong ('2 DCs with 2 nodes each, stops 2 nodes', actual nodes=[3,3], all 3 dc2 nodes stopped; :320); error log checked only on node1 (:472); prepare() creates unused keyspace ks (:327)."
+  },
+  "TestMaterializedViews::test_mv_alter_with_synchronous_updates": {
+   "description": "4 nodes RF=3, session CL=QUORUM, table cf with 100000 rows (10000 debug), 50 MVs (10 debug) created async and built. Async phase: updates rows one by one and reads a random view at QUORUM until a stale value is seen (only logged, never asserted). Then ALTERs all views to synchronous_updates=true and for every row updates c2 and asserts a random view immediately returns the new value. Covers ALTER MV WITH synchronous_updates (scylladb cb8a67dc98).",
+   "origin": {
+    "sha": "d6f609f080",
+    "date": "2022-11-20",
+    "pr": 2910,
+    "summary": "Julia Yakovlev 'test(views): run MV updates in synchronous mode': two basic tests for synchronous_updates (create / alter); PR says wider coverage in SCT."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "e7c9178260": "debug mode: 10000 rows, 10 MVs",
+    "d6f609f080": "origin"
+   },
+   "relevance": "Live (synchronous_updates view property, cqlpy test_mv_synchronous_updates). 37/37 passed but ~709s - one of the slowest tests in the module.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates",
+     "coverage": "full",
+     "note": "ALTER MV synchronous_updates true/false and CREATE WITH, verifies via tracing that the synchronous path is (not) taken per view"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_create_with_synchronous_updates",
+     "coverage": "partial",
+     "note": "same read-after-write assertion for views created synchronous"
+    },
+    {
+     "path": "lwt_schema_modification_test.py::TestLWTSchemaModification::test_materialized_view",
+     "coverage": "partial",
+     "note": "uses synchronous_updates=true views"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~709s: 100k sequential update+read pairs x2) + redundant: ALTER to synchronous mode and the sync code path are directly verified by test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates, read-after-write for sync views by test_mv_create_with_synchronous_updates. Bug: async phase never asserts (only logger.error/warning, materialized_views_test.py:992-993,1005-1009), so it can't show the ALTER changed anything; docstring claims ALTER happens during updates (:966) but it is sequential."
+  },
+  "TestMaterializedViews::test_mv_consistency_after_truncate_and_insert": {
+   "description": "3 nodes RF=3 (auto_snapshot off, CL=QUORUM), c1c2 table (caching on) with 100 rows, 5 synchronous_updates views created and verified (100 rows each), TRUNCATE base, asserts all 5 views empty, re-inserts 100 rows and asserts base and all views have 100 rows. Guards that TRUNCATE of a base truncates all views and that views are correctly repopulated afterwards.",
+   "origin": {
+    "sha": "5c06c978a2",
+    "date": "2024-09-16",
+    "pr": 4942,
+    "summary": "Lakshmipathi Ganapathi: 'Truncate base table and verify multiple materialized views' (scylla-dtest#4941 / DTEST-75), added to next_gating."
+   },
+   "commits": {
+    "3bfa2ac36c": "10000 rows/10 views -> 100/5, auto_snapshot off, drop duplicate pre-TRUNCATE counts (SCYLLADB-4877 TRUNCATE timeout)",
+    "5c06c978a2": "origin"
+   },
+   "relevance": "Live: base TRUNCATE propagating to views (scylladb#17635 related). Explicit @pytest.mark.next_gating; 32/32 passed in next-dtest-tablets and next-dtest-consistent-topology (not in dtest-release* data), ~25s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+     "coverage": "partial",
+     "note": "TRUNCATE base with 2 views, asserts both views empty (single node); no re-insert"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_truncate_while_building",
+     "coverage": "partial",
+     "note": "TRUNCATE during view build, contents check (tablets, injection)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_truncate_base",
+     "coverage": "partial",
+     "note": "truncate base + view empty, 1 row"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Truncate-clears-views is covered by cqlpy test_truncate_base; extras here are multi-node RF=3 and re-population after truncate, cheap (~25s) and gating. Bug: unused `cache` fixture parameter (pytest's builtin cache, materialized_views_test.py:3105) - leftover, caching is actually set by create_c1c2_table default."
+  },
+  "TestMaterializedViews::test_mv_create_with_synchronous_updates": {
+   "description": "4 nodes RF=3, session CL=QUORUM, table cf (key, c1, c2) with 1000 rows, 50 MVs `PRIMARY KEY (c1, key) WITH synchronous_updates = true` created and built (row count checked per view). Then 20000 times: INSERT a new c2 for a random key and immediately read c2 from a random view at QUORUM, asserting the new value. Guards CREATE MV WITH synchronous_updates (scylladb cb8a67dc98): view updates are acked with the base write.",
+   "origin": {
+    "sha": "d6f609f080",
+    "date": "2022-11-20",
+    "pr": 2910,
+    "summary": "Julia Yakovlev 'test(views): run MV updates in synchronous mode': two basic tests (create / alter); PR says wider coverage in SCT."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "d6f609f080": "origin"
+   },
+   "relevance": "Live (synchronous_updates view property; 'Forcing ... view update to be synchronous' trace in db/view). 37/37 passed, ~146s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates",
+     "coverage": "partial",
+     "note": "CREATE WITH synchronous_updates=true (and ALTER) verified via tracing that the sync path is taken; single node"
+    },
+    {
+     "path": "test/cluster/test_tablets_colocation.py",
+     "coverage": "partial",
+     "note": "uses a synchronous_updates=true view (:341) in a multi-node tablets test"
+    },
+    {
+     "path": "lwt_schema_modification_test.py::TestLWTSchemaModification::test_materialized_view",
+     "coverage": "partial",
+     "note": "uses synchronous_updates=true views"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only multi-node read-after-write check for synchronous views, but the sync code path itself is verified by test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates, and this assertion would also mostly pass with async views (test_mv_alter_with_synchronous_updates never asserts the async case fails), so it can't prove the mode works; slow (~146s, 20000 sequential insert+read). Bug: `random.randint(0, rows)` is inclusive (materialized_views_test.py:946) so key k1000 is a new row, not an update. Note: module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_with_restriction": {
+   "description": "4 nodes RF=3, TableManager table (id + 11 int columns, clmn_int0 in PK), 10000 rows with int values from a fixed list. Creates MVs keyed by clmn_int<i> filtered `WHERE <pk_list[1]> = data[i-1]`, built from existing data; for each view eventually compares base rows matching the restriction vs view rows (grouped, QUORUM). Guards view building from existing data honoring the view's WHERE restriction.",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (PR 573), added skipped; enabled by Duarte Nunes in 83fd154f8b (PR 578)."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "72809f2380": "formatting (list(keys())[0] -> next(iter()))",
+    "18b11e57ac": "ignore pattern accepts '(rate limiting dropped N similar messages)' prefix",
+    "c796bda715": "session_timeout adjusted for debug mode",
+    "7e7b518592": "rebase conflict resolution (no behavior change here)",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "c9b424ef5c": "fix ignore_log_pattern regex (one pattern instead of per-view)",
+    "29646f1956": "python3 (xrange/keys())",
+    "9248dedf6d": "wrap comparison in eventually()",
+    "73fd79bece": "wait_for_view moved to scylla_tools (MV manager waits for build)",
+    "83fd154f8b": "enable (remove skip), wait for each view",
+    "0d86d7cde5": "origin"
+   },
+   "relevance": "Live (filtered views built from existing data, vnodes + tablets view building). 38/38 passed, ~28s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_build_filtered_view",
+     "coverage": "partial",
+     "note": "filtered view (key IN (1,4,9)) built over populated table, contents checked; tablets only"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_partition_key_filtering_unrestricted_part",
+     "coverage": "partial",
+     "note": "partition-key EQ restriction in view WHERE, but rows inserted after view creation (update path, not building)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Filtered-view building is covered for tablets by test_view_building_coordinator.py::test_build_filtered_view; vnodes building of filtered views from existing data only here, but overlap is significant. Bug: loop `range(2, mvs + 1)` (materialized_views_test.py:721) creates 9 views, not 10, and column clmn_int1 (index 1) is never used; the extra ignore pattern (:715-718) duplicates the one prepare() already adds (:153). Note: module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_inserts": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later insert 20000 more rows (expects 60000 rows). Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view builder vs concurrent writes). 38/38 passed, ~36s.",
+   "duplicates": [
+    {
+     "path": "test/boost/view_build_test.cc::test_builder_with_concurrent_writes",
+     "coverage": "partial",
+     "note": "inserts half the rows, creates view, inserts the rest during build, checks view size; single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "View building racing with concurrent inserts is covered single-node by test/boost/view_build_test.cc::test_builder_with_concurrent_writes; multi-node variant only here, cheap (~36s). Note: `rows_after_test = prefill * 1.5` is a float (:817), works only because 60000.0 == 60000. Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_updates": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later 100 updates of a random int (view-key) column to [-100,-1] for random ids, re-reading the whole table before each update. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view builder vs concurrent view-key updates). 39/39 passed, ~57s.",
+   "duplicates": [
+    {
+     "path": "test/boost/view_build_test.cc::test_builder_with_concurrent_writes",
+     "coverage": "partial",
+     "note": "concurrent inserts only, single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "No scylla test races view-key updates against view building from existing data (boost test_builder_with_concurrent_writes only does inserts), so coverage is unique; downgraded for helper issues. Note: each of the 100 updates re-SELECTs the full 40000-row table (same_id=False, tools/tables_view_manager.py multiple_int_updates_by_id), making it slower (~57s) than needed. Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_deletes": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later 5000 sequential row deletes (ids 1000..5999; expects 35000 rows). Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view builder vs concurrent deletes). 38/38 passed, ~33s.",
+   "duplicates": [
+    {
+     "path": "test/boost/view_build_test.cc::test_builder_with_concurrent_writes",
+     "coverage": "partial",
+     "note": "concurrent inserts only, single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "No scylla test deletes base rows while views are being built from existing data; unique, cheap (~33s); downgraded for helper issues. Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_extend": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later bootstrap node5. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "69ba00ebde": "skip with tablets while scylladb#18826 open (view building vs tablet migrations drops updates); #18826 closed 2025-08-29 so it runs again",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view building + bootstrap). 38/38 passed, ~32s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "tablets, params add/remove/decommission/replace, paused building tasks, check_view_contents"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Full coverage: node add during view building is tested deterministically (builder paused via injection, then view==base) by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[add] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[add] (tablets); dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_remove": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2 ungracefully and `nodetool removenode` it. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL after removal (3 nodes, RF=3)).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "69ba00ebde": "skip with tablets while scylladb#18826 open (view building vs tablet migrations drops updates); #18826 closed 2025-08-29 so it runs again",
+    "faf879e22b": "exclude_errors mechanism for known issues (fail=True kept for this test)",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view building + removenode). 39/39 passed, ~88s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "tablets, params add/remove/decommission/replace, paused building tasks, check_view_contents"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Full coverage: removenode during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[remove] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[remove] (tablets), both with paused builder and content check; dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Also the slowest of the family (~88s). Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_decommission": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 2s later decommission node2 and then bootstrap node5. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "69ba00ebde": "skip with tablets while scylladb#18826 open (view building vs tablet migrations drops updates); #18826 closed 2025-08-29 so it runs again",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (view building + decommission). 38/38 passed, ~33s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "tablets, params add/remove/decommission/replace, paused building tasks, check_view_contents"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Full coverage: decommission during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[decommission] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[decommission] (tablets); the follow-up bootstrap is the [add] case. dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_stop": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2 (gently); node2 is started again after all MVs are created. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "36a75a3da5": "(re-land) add skip_if(with_feature('tablets')) - in a repair-command commit though this test does no repair; no reason/issue given",
+    "d0e55d7e63": "revert of 44ed3fa059 (drops the tablets skip)",
+    "44ed3fa059": "add skip_if(with_feature('tablets')) (repair commit; test does no repair)",
+    "47efc21a9e": "mark dtest-heavy",
+    "faf879e22b": "exclude_errors mechanism for known issues",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (vnodes only here). 19/19 passed, ~31s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Full coverage: stopping a node during view building and restarting it is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[stop] (vnodes, paused builder, view==base). dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Bug: skipped with tablets (only runs in dtest-release-with-raft, 19 runs) via an unexplained skip_if added in repair commit 36a75a3da5 (:776). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_restart": {
+   "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2, sleep 1s, start it. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (in PR 573): added the mv_populating_from_existing_data_* family, all skipped; enabled by Duarte Nunes in 6f07761eb3 (PR 578, 'make sure ... they now test view building')."
+   },
+   "commits": {
+    "36a75a3da5": "(re-land) add skip_if(with_feature('tablets')) - in a repair-command commit though this test does no repair; no reason/issue given",
+    "d0e55d7e63": "revert of 44ed3fa059 (drops the tablets skip)",
+    "44ed3fa059": "add skip_if(with_feature('tablets')) (repair commit; test does no repair)",
+    "47efc21a9e": "mark dtest-heavy",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename *_test -> test_*)",
+    "3711359c35": "debug mode: prefill 10000, max_delete 2000, 2 MVs; defaults moved into helper",
+    "7249ce349c": "allow_log_errors/fail=False -> ignore_log_patterns",
+    "6f07761eb3": "enable (remove skip 'under developing'), 10 MVs x 40000 rows, disable schema agreement, prometheus_port 0",
+    "9447209584": "helper renamed, explicit args (20 MVs x 1000 rows), still skipped",
+    "0d86d7cde5": "origin (skipped 'under developing')"
+   },
+   "relevance": "Live (vnodes only here). 19/19 passed, ~32s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "full",
+     "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Restart during view building = stop + start, which is exactly test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[stop] (vnodes, node stopped mid-build then started, view==base). dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Bug: skipped with tablets (only runs in dtest-release-with-raft) via an unexplained skip_if added in repair commit 36a75a3da5 (:787); `_node_action_with_delay` reuses `delay` as the stop->start sleep (:398). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65)."
+  },
+  "TestMaterializedViews::test_mv_sync_after_remove_add_node": {
+   "description": "4 nodes RF=3 in racks RAC1:1, RAC2:1, RAC3:2, hints off. Creates t + view t_by_v (PK v,id), inserts 4444 rows, decommissions node4 and checks every view row at CL=ONE, bootstraps node5 into RAC3, waits for the view to be built at CL=ALL, stops node2/node3 and reads every view row at CL=ONE via the new node. Added to guard scylla a57724e711 (scylladb#11882: off-strategy compaction must wait for view building, otherwise staging data leaks into the view builder's mutation source).",
+   "origin": {
+    "sha": "3cffa6e831",
+    "date": "2023-09-10",
+    "pr": 3042,
+    "summary": "yarongilor 'verify MV data sync after off-strategy compaction and build view finish' (refs scylla a57724e711)."
+   },
+   "commits": {
+    "29a3d64e84": "file-level 'don't flush() if no need' commit; no change inside this function (data JSON lists it via line range)",
+    "aca7c4103f": "nodes=4 -> explicit rack topology {'dc1': {'RAC1':1,'RAC2':1,'RAC3':2}} for RF-rack-valid; new node added to RAC3",
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "3cffa6e831": "origin"
+   },
+   "relevance": "Live: decommission + bootstrap with MV (vnodes and tablets). Off-strategy/staging wait from a57724e711 still in scylla. 38/38 passed in both jobs, ~27s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
+     "coverage": "partial",
+     "note": "MV content after bootstrap/migration; dev/debug only (injection)"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "add + decommission with MV writes, checks only no crash"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_mv",
+     "coverage": "partial",
+     "note": "bootstrap with MV and per-row view check"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Release-mode decommission+bootstrap view check with no full scylla equivalent, cheap, but the final check is weak. Bug: with racks RAC1={node1}, RAC3={node3,node5} and RF=3, node1 holds a replica of every view row, so the final CL=ONE read with node2/3 stopped can be served by node1 and does not prove node5 received/built the data (materialized_views_test.py:2337-2343). Note: docstring says 'Add and repair node5' and 'off-strategy' but no repair is run (:2305-2314); dead `WITH read_repair_chance = 0.0` table option (:2319-2320, obsolete keyword in scylla cql3/statements/cf_prop_defs.cc:124, accepted and ignored)."
+  },
+  "TestMaterializedViews::test_mv_with_default_ttl_with_flush": {
+   "description": "Wrapper for _test_mv_with_default_ttl(flush=True). 3 nodes RF=3 at QUORUM, hints off. Table t2 (PK k,a, default_time_to_live=600) with view mv2 selecting k,a,b (c unselected): setting/unsetting/deleting only the unselected column c must make base and view rows appear/disappear; then mixed USING TTL updates + delete of c must leave both empty after 6s. Table t (PK k, default TTL 600) with view keyed (k,a): view follows a changes, and USING TTL on a makes the view row expire (expiry of the last TTL=10 update only checked in the flush variant). Cassandra CASSANDRA-14071 (view rows with default TTL deleted via expired livenessInfo); in scylla the unselected-column liveness is handled by virtual columns (scylladb#3362).",
+   "origin": {
+    "sha": "5253e28ff2",
+    "date": "2017-11-28",
+    "pr": 578,
+    "summary": "Cassandra dtest commit (Zhao Yang, CASSANDRA-14071) pulled in by Duarte's 'Mv tests update' sync PR #578; enabled for scylla in c5608f88 (#621)."
+   },
+   "commits": {
+    "eccda80e42": "file-level: formatting (helper)",
+    "9ffd273f04": "file-level: formatting (helper)",
+    "aedaa57c4e": "file-level: formatting (helper)",
+    "fb3dfc9ea9": "file-level: formatting (helper)",
+    "7e7b518592": "file-level: rebase conflict cleanup (unused node vars)",
+    "f106c691d1": "file-level: port to pytest (rename)",
+    "c3471a97e4": "file-level: formatting",
+    "68b9c3e5": "file-level: helper uses shorter TTLs 30/20/10 and waits for the last update to expire before the final check (flake fix)",
+    "344bfe64": "file-level: helper wraps view reads in eventually()",
+    "c5608f88": "file-level: remove @skip('Under investigation'), sleep 5 -> 6",
+    "5253e28ff2": "origin (adds both wrappers + helper)"
+   },
+   "relevance": "Live: base default_time_to_live and TTL'd unselected columns/view-key columns in views. 38/38 passed in both jobs, ~43s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_columns_ttl",
+     "coverage": "partial",
+     "note": "unselected-column/row-marker TTL liveness in view (flush/noflush), explicit TTL not default_time_to_live"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_update_column_in_view_pk_with_ttl",
+     "coverage": "partial",
+     "note": "TTL on base column that is view key"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_column_with_expired_marker",
+     "coverage": "partial",
+     "note": "expired row marker vs unselected column"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_with_default_ttl_without_flush",
+     "coverage": "partial",
+     "note": "same helper, other flush mode"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Semantics largely covered by cqlpy unselected-column TTL tests (test_unselected_columns_ttl, test_update_column_in_view_pk_with_ttl); only the default_time_to_live table option angle is unique, and that would fit cqlpy (single-node, clock fixture) better than a 3-node dtest with fixed sleeps. Note: fixed time.sleep(6)/TTL waits (materialized_views_test.py:1921, 1968-1973); in without_flush the final TTL=10 expiry is never asserted (:1968 under `if flush`)."
+  },
+  "TestMaterializedViews::test_mv_with_default_ttl_without_flush": {
+   "description": "Wrapper for _test_mv_with_default_ttl(flush=False). 3 nodes RF=3 at QUORUM, hints off. Table t2 (PK k,a, default_time_to_live=600) with view mv2 selecting k,a,b (c unselected): setting/unsetting/deleting only the unselected column c must make base and view rows appear/disappear; then mixed USING TTL updates + delete of c must leave both empty after 6s. Table t (PK k, default TTL 600) with view keyed (k,a): view follows a changes, and USING TTL on a makes the view row expire; the final TTL=10 expiry is only checked in the flush variant, so this variant never asserts it. Cassandra CASSANDRA-14071 (view rows with default TTL deleted via expired livenessInfo); in scylla the unselected-column liveness is handled by virtual columns (scylladb#3362).",
+   "origin": {
+    "sha": "5253e28ff2",
+    "date": "2017-11-28",
+    "pr": 578,
+    "summary": "Cassandra dtest commit (Zhao Yang, CASSANDRA-14071) pulled in by Duarte's 'Mv tests update' sync PR #578; enabled for scylla in c5608f88 (#621)."
+   },
+   "commits": {
+    "eccda80e42": "file-level: formatting (helper)",
+    "9ffd273f04": "file-level: formatting (helper)",
+    "aedaa57c4e": "file-level: formatting (helper)",
+    "fb3dfc9ea9": "file-level: formatting (helper)",
+    "7e7b518592": "file-level: rebase conflict cleanup (unused node vars)",
+    "f106c691d1": "file-level: port to pytest (rename)",
+    "c3471a97e4": "file-level: formatting",
+    "68b9c3e5": "file-level: helper uses shorter TTLs 30/20/10 and waits for the last update to expire before the final check (flake fix)",
+    "344bfe64": "file-level: helper wraps view reads in eventually()",
+    "c5608f88": "file-level: remove @skip('Under investigation'), sleep 5 -> 6",
+    "5253e28ff2": "origin (adds both wrappers + helper)"
+   },
+   "relevance": "Live: base default_time_to_live and TTL'd unselected columns/view-key columns in views. 38/38 passed in both jobs, ~18s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_columns_ttl",
+     "coverage": "partial",
+     "note": "unselected-column/row-marker TTL liveness in view (flush/noflush), explicit TTL not default_time_to_live"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_update_column_in_view_pk_with_ttl",
+     "coverage": "partial",
+     "note": "TTL on base column that is view key"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_column_with_expired_marker",
+     "coverage": "partial",
+     "note": "expired row marker vs unselected column"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_with_default_ttl_with_flush",
+     "coverage": "partial",
+     "note": "same helper, other flush mode"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Semantics largely covered by cqlpy unselected-column TTL tests (test_unselected_columns_ttl, test_update_column_in_view_pk_with_ttl); only the default_time_to_live table option angle is unique, and that would fit cqlpy (single-node, clock fixture) better than a 3-node dtest with fixed sleeps. Note: fixed time.sleep(6)/TTL waits (materialized_views_test.py:1921, 1968-1973); in without_flush the final TTL=10 expiry is never asserted (:1968 under `if flush`); candidate to drop in favour of the flush variant + cqlpy."
+  },
+  "TestMaterializedViews::test_mvs_populating_from_existing_data": {
+   "description": "4 nodes RF=3, TableManager table with 10 int columns, prefill 1000 rows, then creates 10 views (one per int column as view PK) and waits for each to be built; validates row counts and full base vs view content grouped by the view key at CL=ALL. Baseline check that view building from pre-existing data is complete and correct for many concurrent views.",
+   "origin": {
+    "sha": "0d86d7cde5",
+    "date": "2018-02-19",
+    "pr": 573,
+    "summary": "Julia Yakovlev 'Populating MV from existent data test' (PR #573)."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "9447209584": "helper renamed to _mv_populating_from_existing_data with explicit args (nodes=4, rf=3, mvs=10, prefill=1000)",
+    "0d86d7cde5": "origin",
+    "29a3d64e84": "file-level: helper no longer flushes after prefill",
+    "18b11e57": "file-level: ignore pattern accepts rate-limited view error messages",
+    "cc73e487": "file-level: update expected no_such_column_family error pattern",
+    "eeed8b25": "file-level: helper ignores no_such_column_family view update errors",
+    "73fd79be": "file-level: wait_for_view helper used for view build",
+    "99e57e37": "file-level: _validate_data_in_mvs CL depends on node action (here ALL)"
+   },
+   "relevance": "Live: view building from existing data (vnodes view_builder; tablets view_building_coordinator). 38/38 passed in both jobs, ~28s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_build_one_view",
+     "coverage": "partial",
+     "note": "tablets, 3 nodes RF=3, build view from existing data and compare content; release-runnable"
+    },
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_build_two_views",
+     "coverage": "partial",
+     "note": "two views concurrently (tablets, injection, release-skipped)"
+    },
+    {
+     "path": "test/boost/view_build_test.cc",
+     "coverage": "partial",
+     "note": "single-node builder tests from existing data"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_multi_mvs_on_different_populated_base_tables",
+     "coverage": "partial",
+     "note": "36 views over populated tables, superset scale"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Cheap baseline, but overlapping: tablets path covered by test_view_building_coordinator.py::test_build_one_view, and many-view building over populated tables by test_multi_mvs_on_different_populated_base_tables; vnodes multi-node build of 10 views is the only unique bit. Note: ignore pattern for `data_dictionary::no_such_column_family` view errors (materialized_views_test.py:706, from eeed8b25/cc73e487) looks stale - the test never drops a table/view."
+  },
+  "TestMaterializedViews::test_prepared_statement": {
+   "description": "3 nodes RF=1, users table + users_by_state view (prepare(user_table=True)). Inserts 4 rows with a prepared INSERT, checks base has 4 rows, and a prepared SELECT on the view by state returns 2/1/0 rows for TX/CA/MA. Smoke test that prepared statements work against a view (CASSANDRA-6477 suite).",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": null,
+    "summary": "Cassandra dtest for MV implementation (CASSANDRA-6477); data PR #52 'Merge upstream' is the merge artifact."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "8c7c27b752": "Cassandra: wrap results in list() after driver upgrade",
+    "4048321b20": "origin (Cassandra)"
+   },
+   "relevance": "Live but trivial: prepared SELECT on a view is the regular select path. 38/38 passed in both jobs, ~10s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_mv_prepared_statement_with_altered_base",
+     "coverage": "full",
+     "note": "prepared SELECT on a view vs base (and after ALTER, scylladb#16392)"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_prepared_view_options_validated_on_every_execute",
+     "coverage": "partial",
+     "note": "prepared statements against views"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Trivial smoke check fully covered by cqlpy test_mv_prepared_statement_with_altered_base (prepared SELECT on view, stronger: also after ALTER); nothing multi-node-specific is asserted. Note: view reads right after RF=1 writes with no eventually() although the view replica may be remote (materialized_views_test.py:1420-1428)."
+  },
+  "TestMaterializedViews::test_query_new_column": {
+   "description": "3 nodes RF=1, users table; creates users_by_state2 selecting only username (+ PK state), inserts 4 users, checks one view row, then ALTER TABLE users ADD first_name and asserts the view row does not gain the new column. Verifies that a view with an explicit column list does not pick up newly added base columns.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": null,
+    "summary": "Cassandra dtest for MV implementation (CASSANDRA-6477); data PR #52 is the merge artifact."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "8c7c27b752": "Cassandra: wrap results in list() after driver upgrade",
+    "4048321b20": "origin (Cassandra)"
+   },
+   "relevance": "Live: base ALTER ADD with non-SELECT* view. 38/38 passed in both jobs, ~12s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_alter_table_with_updates",
+     "coverage": "full",
+     "note": "explicit-column view, base ALTER ADD columns, view row unchanged"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_column",
+     "coverage": "partial",
+     "note": "unselected base columns not visible in view"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_alter_table_add_select_star",
+     "coverage": "partial",
+     "note": "complementary SELECT * case"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Single-node schema semantics fully covered by cqlpy test_alter_table_with_updates (explicit-column view + base ALTER ADD) and test_unselected_column; the 3-node dtest adds nothing. Note: first view read right after RF=1 inserts without eventually() (materialized_views_test.py:1812)."
+  },
+  "TestMaterializedViews::test_range_tombstone_and_repair_test": {
+   "description": "Parametrized over 5 range-delete WHERE sets. 2 nodes RF=2, table (id,ck) + view keyed (v2,id,ck), 4x300 rows with 10KB text, flush; range-deletes rows, stops node2, deletes its base+view sstables, restarts and repairs ks on node2 (60s), greps node2 log for 'permit ks.<table>:view_update_generator: was not closed before destruction', then with node1 stopped compares base vs view on node2 and asserts deleted ranges are absent in the view. Reproducer for scylladb#14503 (fix c25201c1: view_updating_consumer split inside an open range tombstone).",
+   "origin": {
+    "sha": "1b55df0f26",
+    "date": "2023-07-20",
+    "pr": 3319,
+    "summary": "Julia Yakovlev 'test(materialized views): range tombstones' for scylladb#14503 / scylla-enterprise#3072."
+   },
+   "commits": {
+    "36a75a3da5": "repair via node2.repair() (cluster repair with tablets) - re-applied",
+    "d0e55d7e63": "revert of 44ed3fa059 (back to nodetool repair)",
+    "44ed3fa059": "nodetool repair -> node2.repair(keyspace, timeout=60)",
+    "9ffd273f04": "formatting",
+    "17f9d01586": "removed @pytest.mark.next_gating (module out of gating, scylladb#15046)",
+    "1b55df0f26": "origin"
+   },
+   "relevance": "Live: repair-generated view updates through view_updating_consumer; the error message still exists (readers/mutation_reader.cc:46). Runs in both jobs, 190/190 passed, ~16s per param (~80s total).",
+   "duplicates": [
+    {
+     "path": "test/boost/view_build_test.cc::test_view_update_generator_buffering",
+     "coverage": "partial",
+     "note": "added by the fix (c25201c1): range tombstones split across buffer flushes, direct unit check"
+    },
+    {
+     "path": "test/boost/view_build_test.cc::test_view_update_generator_buffering_with_random_mutations",
+     "coverage": "partial",
+     "note": "random mutations incl. range tombstones through the consumer"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_range_tombstone_and_repair_multiple_cycles",
+     "coverage": "partial",
+     "note": "same scenario, loop over 4 deletes on one cluster"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "The bug itself is unit-tested by boost view_build_test.cc::test_view_update_generator_buffering(_with_random_mutations) added with the fix; this is the only end-to-end repair reproducer, but 5 params x ~16s is more than needed (one or two params would do). Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix); repair TimeoutExpired is swallowed (`except subprocess.TimeoutExpired: pass`) so a hung/incomplete repair is not reported; self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3010-3046)."
+  },
+  "TestMaterializedViews::test_range_tombstone_and_repair_multiple_cycles": {
+   "description": "Same setup as test_range_tombstone_and_repair_test (2 nodes RF=2, 4x300 rows), but loops over 4 range deletes on one cluster: delete, stop node2, remove its sstables, restart, nodetool repair ks, grep for the view_update_generator permit error, stop node1, compare base vs view and check the deleted range is gone, restart node1. Reproducer for scylladb#14503 (repeated cycles).",
+   "origin": {
+    "sha": "1b55df0f26",
+    "date": "2023-07-20",
+    "pr": 3319,
+    "summary": "Julia Yakovlev 'test(materialized views): range tombstones'."
+   },
+   "commits": {
+    "36a75a3da5": "added @pytest.mark.skip_if(with_feature('tablets')) (re-applied with the cluster-repair change; this test keeps nodetool repair)",
+    "9ffd273f04": "formatting",
+    "1b55df0f26": "origin"
+   },
+   "relevance": "Live behavior, but skipped with tablets (vnodes-only, runs only in dtest-release-with-raft). 18/20 passed (90%), ~78s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_range_tombstone_and_repair_test",
+     "coverage": "full",
+     "note": "same where clauses (open/closed range, multi-partition) on fresh clusters, both vnodes and tablets"
+    },
+    {
+     "path": "test/boost/view_build_test.cc::test_view_update_generator_buffering",
+     "coverage": "partial",
+     "note": "unit test for the fix"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Flaky (2/20 failures) + slow (~78s) + redundant: its deletes are the same cases as test_range_tombstone_and_repair_test params (which also run with tablets) and the bug is unit-tested in boost view_build_test.cc. Note: tablets skip at materialized_views_test.py:3048 has no reason/issue. Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix); repair TimeoutExpired is swallowed (`except subprocess.TimeoutExpired: pass`) so a hung/incomplete repair is not reported; self.allow_log_errors=True disables the generic error log check (:3065-3103)."
+  },
+  "TestMaterializedViews::test_really_complex_repair": {
+   "description": "5 nodes RF=5, hints off, base PK (id,v,v2) gc_grace_seconds=1, view keyed (v2,v,id). With node2/3 down writes 'a' and 'b' rows at CL=THREE; then with only node2/3 up writes 'c','d' rows at CL=TWO and a clustering-prefix (range) delete of id/v, checks view on node2. Starts all nodes, checks 'a' rows are either all present or none at QUORUM, runs global repair on node1, asserts 'a' rows are gone from the view at QUORUM. Guards view consistency after repair propagates a newer range tombstone to replicas holding older rows (repair-generated view updates, scylladb#3275).",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": null,
+    "summary": "Cassandra really_complex_repair_test (CASSANDRA-6477 suite; data PR #52 is the merge artifact); adapted/enabled for scylla in 41b7ba8643 (PR #574) and 08d7ff132e (PR #578) once scylladb#3275 was fixed."
+   },
+   "commits": {
+    "4b8d5e78e4": "inserts at CL=THREE (3 live) / CL=TWO (2 live) so all live replicas have data before checks (SCYLLADB-4074 flake)",
+    "eccda80e42": "formatting",
+    "e780899276": "required_features('!tablets') -> skip_if(tablets & issue_open(scylladb#17043))",
+    "50a149e4b0": "disabled for tablets (no base/view self-pairing)",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "6065520b9b": "first inserts at CL=THREE to avoid flake (scylladb#15314)",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "09ef1ab5e1": "use cluster start/stop helpers",
+    "94fc4eeb6d": "pre-repair check relaxed to assert_all_or_none",
+    "00ef7a9b4b": "adapt to paused view building (start nodes before validation)",
+    "7de049bb0a": "@skip -> @require for #3275",
+    "b99838da14": "debug message timestamps",
+    "08d7ff132e": "fix @skip annotation (#3275)",
+    "41b7ba8643": "scylla adaptation of repair tests",
+    "540b754108": "Cassandra: batchlog replay",
+    "b678153cbb": "Cassandra: base gc_grace_seconds",
+    "f32eac7889": "Cassandra: fix (CASSANDRA-10171)",
+    "86091a390c": "Cassandra: fix",
+    "e6532c107f": "Cassandra: batchlog insert fix",
+    "4048321b20": "origin (Cassandra)"
+   },
+   "relevance": "Live: repair of base generating view deletions from range tombstones. scylladb#17043 CLOSED (2025-07-01), so the test now also runs with tablets: 39/39 passed in both jobs, ~44s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_complex_repair",
+     "coverage": "partial",
+     "note": "same setup/helpers, divergent inserts instead of range delete"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_staging.py::test_staging_backlog_processed_after_restart",
+     "coverage": "partial",
+     "note": "repair regenerates view rows, no tombstones"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test where repair must propagate a newer range tombstone into view deletions; stable. Bug: final check only asserts 'a' rows are gone (materialized_views_test.py:2670); 'b' rows (also shadowed by the delete) and base content are never checked after repair. Note: no wait_for_view_update_generation after node1.repair() before the single-shot assert_none (scylladb#19727 open) - potential race; comment says gc_grace_seconds=5 'so batchlog will expire' but uses 1 and batchlog is Cassandra-only (:2594-2595), and with gc_grace=1 the range tombstone could be purged before repair under timeout tombstone_gc; skip_if references closed scylladb#17043 and the comment (:2577-2583) is stale - test now runs with tablets."
+  },
+  "TestMaterializedViews::test_remove_node_during_mv_insert_3_nodes": {
+   "description": "3 nodes RF=3. Prefills 10k rows with c-s, then in parallel runs a c-s user profile (mview.users + 2 views) insert/read workload and c-s mixed at CL=ONE for 1m, while after 30s node2 is removed (removenode). Waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts equal base count(*) at QUORUM (RF 3 > 2 nodes). Guards MV writes during removenode leaving RF > nodes (scylladb#6022 crash in view update with null schema).",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev, added with the stop/remove-node-during-MV-insert family (PR #566)."
+   },
+   "commits": {
+    "151cd5eef2": "skip with tablets (c-s NTS default enables tablets; removenode RF=3 on 3 nodes rejected); covered by the 4-node variant",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "b0bf476cd6": "added to next_gating after scylladb#6022 fix (mark later removed with module gating)",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin",
+    "e780899276": "file-level: skip comment reworded (removenode rejected with tablets)",
+    "6c93933b9b": "file-level: helper range_request_timeout + count(*) timeout",
+    "00ef7a9b4b": "file-level: helper waits for view build after node action",
+    "b554bee8dd": "file-level: helper default duration 10m -> 1m"
+   },
+   "relevance": "vnodes-only: skipped with tablets (removenode leaving fewer nodes than RF is rejected), runs only in dtest-release-with-raft: 20/20 passed, ~119s. scylladb#6022 closed 2020-03-23, #2783 closed.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_remove_node_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same helper/removenode on 4 nodes (RF stays satisfiable); runs on both vnodes and tablets; the skip comment and 151cd5ee say it covers the same issue"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "MV writes during topology changes, crash-only check, release-skipped"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~119s) + redundant: same helper and removenode as test_remove_node_during_mv_insert_4_nodes, which runs on both vnodes and tablets; the test's own skip comment (materialized_views_test.py:229-232) and 151cd5ee state the 4-node variant covers the same issue (scylladb#6022, closed). The only difference is RF > nodes after removal on vnodes. Note: exclude_errors masks mutation_write_timeout_exception (cited scylladb#2783 closed) (:240); helper checks error log only on node1 (:472)."
+  },
+  "TestMaterializedViews::test_stop_node_during_mv_insert_4_nodes": {
+   "description": "4 nodes RF=3. Prefills 10k rows with c-s, then in parallel for 1m runs a c-s user profile (cs_mv_profile.yaml: mview.users + views users_by_first_name/users_by_last_name) insert/read workload and a c-s mixed workload at CL=ONE, while after 30s node2 is stopped. node2 is restarted, both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and each view's row count compared with base count(*) at QUORUM. Guards MV write path and view convergence when a replica is down (with 4 nodes base and view replicas differ, so view updates go to remote/dead replicas).",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added stop/remove-node-during-MV-insert family and TableManager/MaterializedViewManager helpers."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin",
+    "6c93933b9b": "file-level: helper range_request_timeout + count(*) session timeout",
+    "00ef7a9b4b": "file-level: helper restarts stopped nodes and waits for view build before validation",
+    "b554bee8dd": "file-level: helper default stress duration 10m -> 1m",
+    "89804a1bb3": "rename stop_node_during_mv_insert_4_nodes_test -> test_ (was not collected by pytest before 2022-02)",
+    "7e7b518592": "file-level: rebase conflict resolution; helper uses CL from set_consistency_level + consistency_value_to_name",
+    "8c8ae3eaf2": "file-level: helper passes other_nodes to stop/remove (wait only on live nodes)"
+   },
+   "relevance": "Live: MV writes with a dead view replica (view hints, storage_proxy view hints manager) and convergence after restart. 37/37 passed, ~108s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes to a stopped node via hints; only checks topology op not blocked, no base/view count compare"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same helper/4 nodes, stops node2 (same timing) plus node3; validates at CL=ALL"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_populating_from_existing_data_during_node_stop",
+     "coverage": "partial",
+     "note": "node stop during view build (not during base writes)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "End-to-end MV convergence after one stopped replica under c-s load with non-colocated view replicas; no scylla equivalent with count checks, but slow (~108s) and largely a subset of test_double_node_failure_during_mv_insert_4_nodes (same helper, node2 stopped at the same 30s mark, stricter CL=ALL check). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:199,201); helper checks error log only on node1 (materialized_views_test.py:472)."
+  },
+  "TestMaterializedViews::test_stop_node_during_mv_insert_3_nodes": {
+   "description": "3 nodes RF=3, same helper as the 4-node variant: 10k c-s prefill, then 1m c-s MV-profile + mixed workload at CL=ONE while node2 is stopped after 30s; node2 restarted, views waited for, node1 log checked and view row counts compared with base count(*) at QUORUM. With 3 nodes/RF=3 every node holds all base and view replicas (vnodes self-pairing), so view updates are local.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added with the stop/remove-node-during-MV-insert family."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin",
+    "6c93933b9b": "file-level: helper range_request_timeout + count(*) session timeout",
+    "00ef7a9b4b": "file-level: helper restarts stopped nodes and waits for view build before validation",
+    "b554bee8dd": "file-level: helper default stress duration 10m -> 1m",
+    "8c8ae3eaf2": "file-level: helper passes other_nodes to stop/remove (wait only on live nodes)"
+   },
+   "relevance": "Live MV write path; 39/39 passed, ~108s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes",
+     "coverage": "partial",
+     "note": "same helper, same 3-node cluster, stops node2 at the same 30s mark plus node3 at 40s, validates at CL=ALL (superset scenario, 2m stress)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_stop_node_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same scenario on 4 nodes (non-colocated view replicas, harder)"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes to a stopped node, crash/blocking-only check"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Likely RED: slow (~108s) and subsumed by test_double_node_failure_during_mv_insert_3_nodes (same helper/cluster, stops node2 identically then node3, stricter CL=ALL check) and by the 4-node stop variant; kept YELLOW only because the double-failure test itself is YELLOW - if it stays, remove this one. Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:209); helper checks error log only on node1 (materialized_views_test.py:472)."
+  },
+  "TestMaterializedViews::test_remove_node_during_mv_insert_4_nodes": {
+   "description": "4 nodes RF=3. 10k c-s prefill, then 1m c-s MV-profile (mview.users + 2 views) + mixed workload at CL=ONE while after 30s node2 is removed (stopped + removenode). Then both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and view row counts compared to base count(*) at ALL (remove action, RF 3 <= 3 nodes). Guards MV writes during removenode (scylladb#6022-class crashes) and view consistency after token/tablet ownership change.",
+   "origin": {
+    "sha": "04017523a8",
+    "date": "2018-01-21",
+    "pr": 566,
+    "summary": "Julia Yakovlev: added with the stop/remove-node-during-MV-insert family."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "faf879e22b": "pass exclude_errors=['mutation_write_timeout_exception']",
+    "04017523a8": "origin",
+    "6c93933b9b": "file-level: helper range_request_timeout + count(*) session timeout",
+    "00ef7a9b4b": "file-level: helper restarts stopped nodes and waits for view build before validation",
+    "b554bee8dd": "file-level: helper default stress duration 10m -> 1m",
+    "8c8ae3eaf2": "file-level: helper passes other_nodes to stop/remove (wait only on live nodes)"
+   },
+   "relevance": "Live: removenode with MVs on both vnodes and tablets (the 3-node variant is skipped with tablets and points to this one, 151cd5ee). 37/37 passed, ~125s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_decommission_node_during_mv_insert_4_nodes",
+     "coverage": "partial",
+     "note": "same helper, decommission+bootstrap instead of removenode"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_populating_from_existing_data_during_node_remove",
+     "coverage": "partial",
+     "note": "removenode during view build rather than during base writes"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[remove]",
+     "coverage": "partial",
+     "note": "remove during view build with base/view row compare; repairs view first; not under write load"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+     "coverage": "partial",
+     "note": "MV writes during topology changes, crash-only check, release-skipped"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test of removenode while MV base writes run with a base/view count check at CL=ALL, runs on vnodes and tablets and is the designated replacement for the RED 3-node variant; slow (~125s). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:216,218); helper checks error log only on node1 (materialized_views_test.py:472); validation is counts only, not content."
+  },
+  "TestMaterializedViews::test_truncate_base_during_mv_insert_test_with_auto_snapshot": {
+   "description": "3 nodes RF=3, auto_snapshot=true. Runs 1m c-s user profile (mview.users + 2 views) insert/read at QUORUM and, 30s after the users table exists, TRUNCATEs mview.users (which also truncates/snapshots its views). Then waits for both views to report built. Only implicit checks: no unexpected errors in node logs (teardown) and view build completes; data is not validated (docstring: can't know what was truncated).",
+   "origin": {
+    "sha": "7e7b518592",
+    "date": "2021-11-14",
+    "pr": 2319,
+    "summary": "Julia Yakovlev, 'resolve conflicts after rebase with master': added _truncate_base_during_mv_insert with auto_snapshot True/False variants."
+   },
+   "commits": {
+    "7e7b518592": "origin (auto_snapshot-parametrized helper)",
+    "f106c691d1": "file-level: port to pytest",
+    "8c8ae3eaf2": "attributed by git log -L (helper area); no change to this test's behavior",
+    "f179d2b536": "attributed by git log -L (node stop wait); no change to this test's behavior",
+    "04017523a8": "attributed by git log -L (helper area); predates the test",
+    "81222f2729": "file-level: _truncate_table waits for the c-s-created table before the 30s delay (truncate used to race schema creation)",
+    "9ffd273f04": "file-level: formatting"
+   },
+   "relevance": "Live: TRUNCATE of a base with views (auto_snapshot snapshots base+views) under concurrent MV writes. 38/39 passed (1 failure, raft build 1158, 213s, cause not checked), ~88s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_truncate_while_building",
+     "coverage": "partial",
+     "note": "TRUNCATE during view build with contents check (tablets, injection), no write load"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+     "coverage": "partial",
+     "note": "basic TRUNCATE base clears views, single node"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_truncate_base_during_mv_insert_test_without_auto_snapshot",
+     "coverage": "partial",
+     "note": "same scenario, auto_snapshot=false"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test of TRUNCATE base racing MV writes (with snapshot), but the assertions are thin (view build finished + log errors) and it costs ~88s. Bug: node1.stress() result is discarded (materialized_views_test.py:364), so c-s failures are never asserted; no data/consistency check after truncate. Note: redundant '_test' in name."
+  },
+  "TestMaterializedViews::test_truncate_base_during_mv_insert_test_without_auto_snapshot": {
+   "description": "Same as the with_auto_snapshot variant but auto_snapshot=false (TRUNCATE without snapshot of base/views): 3 nodes RF=3, 1m c-s MV-profile workload at QUORUM, TRUNCATE mview.users 30s after the table exists, then wait for both views built. Implicit checks only (log errors, view build completes). Marked dtest_debug (also runs in debug).",
+   "origin": {
+    "sha": "7e7b518592",
+    "date": "2021-11-14",
+    "pr": 2319,
+    "summary": "Julia Yakovlev, 'resolve conflicts after rebase with master': added _truncate_base_during_mv_insert with auto_snapshot True/False variants."
+   },
+   "commits": {
+    "7e7b518592": "origin (auto_snapshot-parametrized helper)",
+    "f106c691d1": "file-level: port to pytest",
+    "8c8ae3eaf2": "attributed by git log -L (helper area); no change to this test's behavior",
+    "f179d2b536": "attributed by git log -L (node stop wait); no change to this test's behavior",
+    "04017523a8": "attributed by git log -L (helper area); predates the test",
+    "81222f2729": "file-level: _truncate_table waits for the c-s-created table before the 30s delay (truncate used to race schema creation)",
+    "9ffd273f04": "file-level: formatting"
+   },
+   "relevance": "Live: TRUNCATE without snapshot of a base with views under MV writes. 39/39 passed, ~89s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_view_building_coordinator.py::test_truncate_while_building",
+     "coverage": "partial",
+     "note": "TRUNCATE during view build with contents check (tablets, injection), no write load"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+     "coverage": "partial",
+     "note": "basic TRUNCATE base clears views, single node"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_truncate_base_during_mv_insert_test_with_auto_snapshot",
+     "coverage": "partial",
+     "note": "same scenario with auto_snapshot=true"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_consistency_after_truncate_and_insert",
+     "coverage": "partial",
+     "note": "multi-node TRUNCATE base with auto_snapshot off, checks views emptied and repopulated (no concurrent load)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test of snapshot-less TRUNCATE base racing MV writes, but thin assertions (view build finished + log errors), ~89s. Bug: node1.stress() result is discarded (materialized_views_test.py:364), so c-s failures are never asserted; no data check after truncate. Note: redundant '_test' in name."
+  },
+  "TestMaterializedViews::test_truncate_base": {
+   "description": "3 nodes RF=1, users table + users_by_state view. Inserts one row, flushes (sstables), reads it from the view (populates cache), TRUNCATEs the base, asserts base and view counts are 0 at QUORUM. Checks TRUNCATE of a base also truncates its view, including sstables and cache.",
+   "origin": {
+    "sha": "930d931d5a",
+    "date": "2018-02-15",
+    "pr": 573,
+    "summary": "Julia Yakovlev: 'Materialized view: add truncate test; add concurrent update/inserts/reads test'."
+   },
+   "commits": {
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "930d931d5a": "origin"
+   },
+   "relevance": "Live: TRUNCATE of a base truncates views. 38/38 passed, ~11s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+     "coverage": "full",
+     "note": "TRUNCATE base with 2 views, asserts base and both views empty (single node, no explicit flush)"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mv_consistency_after_truncate_and_insert",
+     "coverage": "partial",
+     "note": "multi-node RF=3, 5 views, caching on, TRUNCATE + empty check + repopulate"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Same scenario as cqlpy test_materialized_view.py::test_truncate_base (TRUNCATE base empties views), with the multi-node/cached variant also in test_mv_consistency_after_truncate_and_insert; only extra is an explicit flush of a single row, which TRUNCATE itself performs/handles anyway. Note: assert_one on the view row only checks visibility, the cache-clearing claim is not verified separately."
+  },
+  "TestMaterializedViews::test_small_concurrent": {
+   "description": "3 nodes RF=3 with PasswordAuthenticator/CassandraAuthorizer. TableManager table with 10 int columns and 10 views (one per column as view key). Prefills 2000 rows and checks base + each view have 2000 rows at QUORUM, then in parallel (each workload under its own role + service level) inserts 2000 more rows, runs two view-key update streams and 2000 view reads; eventually checks all 4000 rows in base and views and compares base vs each view grouped by view key column at QUORUM. Functional test of concurrent view-key updates/inserts across many views.",
+   "origin": {
+    "sha": "930d931d5a",
+    "date": "2018-02-15",
+    "pr": 573,
+    "summary": "Julia Yakovlev: added hundred_mv_concurrent_test and small_concurrent_test (5 views at first)."
+   },
+   "commits": {
+    "33ae077cf0": "docstring rewritten (no longer refers to removed test_many_mv_concurrent) - PR 6635 removed the 100-view variant, citing this test as its functional replacement",
+    "0c2d585d40": "add @pytest.mark.timeout(4500)",
+    "f106c691d1": "port to pytest (rename)",
+    "9447209584": "helper parametrized: records=2000, nodes=3, rf=3, mvs_amount=10",
+    "930d931d5a": "origin",
+    "cc06e6d1a3": "file-level: helper runs each workload with its own role + service level (auth enabled) to avoid full-scan starvation",
+    "5bb1ce2577": "file-level: helper num_updates = records // 4 instead of fixed 1000",
+    "7799c590d5": "file-level: helper drops flush + sleep(180), num_updates records // 10",
+    "9248dedf6d": "file-level: eventually() around final validations"
+   },
+   "relevance": "Live MV write path with many views per base and concurrent view-key changes. 38/38 passed, ~25s.",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_concurrent_updates_deletes",
+     "coverage": "partial",
+     "note": "concurrent view-key updates vs deletes of the same rows, multi-node"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_mvs_populating_from_existing_data",
+     "coverage": "partial",
+     "note": "10 views on one base, but built from existing data, no concurrent writes"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Cheap (~25s), stable and the designated functional replacement for the removed test_many_mv_concurrent (PR 6635); no scylla test does concurrent view-key updates across 10 views with base/view comparison. Note: dead else branch in _assert_rows_count (expected_rows is always passed; materialized_views_test.py:628-629); @pytest.mark.timeout(4500) is a leftover of the 100-view variant; needs auth enabled only for the service-level isolation added in cc06e6d1."
+  },
+  "TestMaterializedViews::test_view_tombstone": {
+   "description": "3 nodes RF=3, hinted_handoff off, cache_hit_rate_read_balancing off. Table t + view t_by_v (PK v,id). Writes with explicit timestamps (TS 0 insert v=2, TS 1 update v2, TS 3 set v=0 -> view row v=2 shadowed), checks view each step; stops node2+node3, at TS 4 sets v=2 back at CL=ONE on node1 only; restarts them, syncs view hints from node1, then reads view at CL=ALL (row v=2 present with v2='b', v=0 and v=1 absent; read repair) and from node2 at CL=ONE. Guards correct shadowable view tombstones/resurrection when the view key flips back (CASSANDRA-10261/10910).",
+   "origin": {
+    "sha": "688798cd7a",
+    "date": "2015-09-09",
+    "pr": 52,
+    "summary": "Cassandra dtest 'added test for CASSANDRA-10261'; enabled for scylla in 1e0c81dd12/ac16c93a46 (PR 415/493), reworked by Duarte Nunes 54f438b3db (PR 578)."
+   },
+   "commits": {
+    "eccda80e42": "formatting",
+    "edb4b04745": "sync_hinted_handoff(node1) (view hints sync point) instead of eventually-asserts",
+    "67980d52f5": "use v=2 instead of v=1 so the flipped-back row is distinguishable from the id value",
+    "1cb2cef194": "eventually-assert the CL=ALL view reads (tablets: no base-view self-pairing, update may arrive via hint) - scylla-dtest#4628",
+    "7d4904bdb8": "drop stale-replica asserts on node2/3 (not guaranteed without self-pairing on tablets, scylladb#19146)",
+    "9ffd273f04": "formatting",
+    "f106c691d1": "port to pytest (rename)",
+    "7249ce349c": "no change to this test's logic (allow_log_errors cleanup elsewhere)",
+    "a67a4c0f91": "use cluster.stop_nodes/start_nodes",
+    "744be29dc0": "fix flakiness: disable read_repair_chance/speculative_retry on view, stop node3 too, write at CL=ONE",
+    "b99838da14": "debug -> debug_with_time",
+    "54f438b3db": "cleanup: cache_hit_rate_read_balancing off, remove Cassandra trace checks, add node2 stale check",
+    "41b7ba8643": "minor touch in repair-tests PR",
+    "6f6c539313": "revise file (scylla adaptation)",
+    "ac16c93a46": "enable test for scylla",
+    "1e0c81dd12": "enable selected MV tests",
+    "17e5d67cf6": "list() for ResultSet length (driver compat)",
+    "688798cd7a": "origin"
+   },
+   "relevance": "Live: shadowable tombstones and view-key flip-back, view hints (view hints manager is always enabled regardless of hinted_handoff_enabled, service/storage_proxy.cc:3395), read repair on views. 38/38 passed, ~15s.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_shadowable_tombstone_and_newer_atomic_cells",
+     "coverage": "partial",
+     "note": "shadowable tombstone semantics, single node"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_views_with_future_tombstones",
+     "coverage": "partial",
+     "note": "timestamped view tombstones, single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Unique multi-node coverage of view-key flip-back with explicit timestamps while two replicas missed the update, cheap (~15s), stable; downgraded for issues. Note: view created WITH read_repair_chance/dclocal_read_repair_chance (materialized_views_test.py:2108) - obsolete options accepted and ignored by scylla (cql3/statements/cf_prop_defs.cc:125-126); hinted_handoff_enabled=False (:2101) does not disable view hints, so on tablets the view may be fixed by the hint (sync_hinted_handoff) rather than read repair as the comment claims; the comment 'We should get a digest mismatch' is not asserted."
+  },
+  "TestMaterializedViews::test_repair_mv": {
+   "description": "3 nodes RF=3, hinted_handoff off. Table t(id, v1, v2) with view mv keyed (id, v1) [colocated_view_replicas] or (v1, id) [non_colocated_view_replicas]; 100 rows with symmetric id/v1 so base == view. Stops node2, updates v2=3 for 50 rows, checks base == view at CL=TWO, restarts node2, repairs ONLY the view table from node1, stops node1+node3, and on node2 at CL=ONE asserts the view has 50 rows v2=2 and 50 v2=3 while the base still has v2=2 everywhere. Verifies that repairing a view table alone repairs the view replica (and not the base).",
+   "origin": {
+    "sha": "41b7ba8643",
+    "date": "2018-03-06",
+    "pr": 574,
+    "summary": "Julia Yakovlev: 'Materialized views: repair tests' (repair_mv_test)."
+   },
+   "commits": {
+    "d67f26cc77": "re-open exclusive session to node2 after node1/node3 stopped (driver had no conn to restarted node2, SCYLLADB-3123)",
+    "197d640cc6": "skip colocated param with tablets while scylladb#24816 open (repair of a single colocated table rejected)",
+    "4084e27a0a": "rewrite with plain CQL and split into colocated / non-colocated view-key params",
+    "29a3d64e84": "drop cluster.flush() calls",
+    "36a75a3da5": "use node.repair() helper (cluster repair for tablets) - re-applied",
+    "d0e55d7e63": "revert of 44ed3fa059",
+    "44ed3fa059": "use nodetool cluster repair when needed",
+    "051028618e": "eventually-compare base/view and read at CL=TWO while node2 down (tablets, no self-pairing, scylladb#17043)",
+    "9ffd273f04": "formatting",
+    "19991c953b": "formatting",
+    "2980e37e1b": "formatting",
+    "aedaa57c4e": "formatting",
+    "f055bf2cba": "range_request_timeout + count(*) request timeout",
+    "c796bda715": "session_timeout adjusted for debug mode",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "a67a4c0f91": "use cluster.stop_nodes",
+    "29646f1956": "python3",
+    "b99838da14": "debug_with_time",
+    "b1b763996f": "un-skip (#3253 fixed): update 50 rows and assert updated/not-updated view rows and untouched base on node2",
+    "41b7ba8643": "origin",
+    "6f6c539313": "attributed by git log -L (pre-origin lines)",
+    "1e0c81dd12": "attributed by git log -L (pre-origin lines)"
+   },
+   "relevance": "Live: per-table repair of a view (nodetool/cluster repair), tablet colocation of views (base/view with same partition key). colocated param skipped on tablets: scylladb#24816 OPEN. non_colocated 38/38, colocated 19/19 (raft/vnodes only), ~18s.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_tablets_colocation.py::test_repair_colocated_base_and_view",
+     "coverage": "partial",
+     "note": "tablet repair of base also repairs colocated view; skip_bug SCYLLADB-362 (not supported)"
+    },
+    {
+     "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+     "coverage": "partial",
+     "note": "calls repair of the view table before comparing, not asserted as repair behavior"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_complex_repair",
+     "coverage": "partial",
+     "note": "global repair reconciling views, with node isolation"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Only test that repairs a view table alone and checks the isolated replica's view (and that the base is untouched); cheap (~18s), stable; downgraded for issues. Bug: debug messages swapped - 'updated rows' precedes the v2=2 (not-updated) check and vice versa (materialized_views_test.py:2294,2297). Note: colocated variant skipped on tablets (scylladb#24816 open, :2238); on vnodes with 3 nodes RF=3 colocated vs non-colocated view keys make no placement difference, so the colocated param duplicates the other there; view hints are always on (hinted_handoff_enabled=False only affects base hints, storage_proxy.cc:3395), so on tablets node2's view rows may arrive via hints rather than repair."
+  },
+  "TestMaterializedViews::test_simple_repair": {
+   "description": "3 nodes RF=3, hinted_handoff off. Table t + view t_by_v (PK v,id). Stops node2, inserts 1000 rows, eventually checks all view rows at CL=TWO, checks CL=ALL reads are Unavailable, starts node2, runs node1.repair() (all keyspaces, base and view tables), then reads every view row at CL=ONE through the node1 session. Cassandra port: views consistent after a simple repair.",
+   "origin": {
+    "sha": "4048321b20",
+    "date": "2015-07-02",
+    "pr": 52,
+    "summary": "Cassandra dtest simple_repair_test (CASSANDRA-6477 MV suite, Alan Boudreault); enabled for scylla in 41b7ba8643 (PR 574)."
+   },
+   "commits": {
+    "056f5dc7a8": "formatting (unused node3 -> _node3)",
+    "eccda80e42": "formatting",
+    "051028618e": "read view at CL=TWO eventually while node2 down (tablets, no self-pairing, scylladb#17043)",
+    "9ffd273f04": "formatting",
+    "aedaa57c4e": "formatting",
+    "3cffa6e831": "attributed by git log -L (adjacent new test); no change",
+    "f106c691d1": "port to pytest (rename)",
+    "c3471a97e4": "formatting",
+    "29646f1956": "python3",
+    "b99838da14": "debug_with_time",
+    "54f438b3db": "attributed by git log -L; no behavioral change",
+    "08d7ff132e": "fix @skip annotation",
+    "41b7ba8643": "enable for scylla (remove skip, comment out batchlog replay)",
+    "f73a2d2514": "disable hinted handoff",
+    "4048321b20": "origin"
+   },
+   "relevance": "Live repair of base+view; but the check is weak. 37/37 passed, ~345s (slowest repair test here).",
+   "duplicates": [
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_complex_repair",
+     "coverage": "full",
+     "note": "same down-replica-then-node1.repair() flow (5 nodes) and verifies after repair with the up-to-date nodes stopped; runs on vnodes and tablets"
+    },
+    {
+     "path": "materialized_views_test.py::TestMaterializedViews::test_repair_mv",
+     "coverage": "partial",
+     "note": "down node + repair (view table only), verification isolated on the repaired node"
+    },
+    {
+     "path": "test/cluster/test_tablets_colocation.py::test_repair_colocated_base_and_view",
+     "coverage": "partial",
+     "note": "repair of a node that missed writes, view checked on that node (skip_bug)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Slow (~345s) + weak + redundant: after node1.repair() the CL=ONE reads go through node1's session with all nodes up (materialized_views_test.py:2385-2389), so node1/node3 (which already had the data) can serve them and the test passes even if repair fixed nothing; test_complex_repair and test_repair_mv cover repair of views with the stale replica isolated. Note: keyspace-wide repair also repairs the view tables, so view equality need not come from base repair."
+  },
+  "TestMaterializedViews::test_write_to_hinted_handoff_for_views": {
+   "description": "3 nodes RF=3, users table + users_by_state view (prepare user_table=True). Inserts 500 rows at CL=ALL and flushes, stops node2, issues 500 UPDATEs setting state at CL=ANY, restarts node2, then polls (up to 60s) SELECT * FROM users_by_state at CL=ALL until 500 rows, asserting each username/state pair matches. Guards view-update hints for unavailable paired view replicas (scylladb/scylla#3383).",
+   "origin": {
+    "sha": "13160a83",
+    "date": "2018-06-08",
+    "pr": null,
+    "summary": "Piotr Sarna: 'materialized_views: add hints test' for dedicated view hints manager, refs scylladb/scylla#3383; split into single/double failure by 08d3e73062 (PR #1000). data JSON only lists 08d3e73062/f106c691d1 (line range of the 2-line wrapper)."
+   },
+   "commits": {
+    "13160a83": "origin: added write_to_hinted_handoff_for_views_test (rf=1, 2 nodes stopped, CL=ANY updates) for view hints manager (scylladb/scylla#3383)",
+    "1de5e091": "rf=3, populate at CL=ALL + flush, wait_other_notice on stop/start, wait_for_view + retry loop before row count check",
+    "08d3e73062": "split into single-failure (stop node2) and double_failure (stop node2+node3) variants via _write_to_hinted_handoff_for_views",
+    "29646f19": "formatting (python3 port: xrange->range)",
+    "a67a4c0f": "use cluster.stop_nodes/start_nodes for the stopped list",
+    "c3471a97": "formatting (autopep8)",
+    "f106c691d1": "port to pytest (rename to test_*)",
+    "aedaa57c": "formatting (pyupgrade/isort)",
+    "19991c95": "formatting (f-strings)",
+    "9ffd273f": "formatting (ruff format)",
+    "eccda80e": "formatting (ruff 0.9.4)",
+    "aca7c4103f": "file-level: prepare() now populates rack-aware topology (generate_cluster_topology_based_rf), 3 nodes in 3 racks",
+    "056f5dc7": "formatting (node1 -> _node1 unused var)"
+   },
+   "relevance": "View update hints still live: separate view hints manager (db/config.cc:794 view_hints_directory, default 'view_hints'), used for view updates to unavailable paired replicas regardless of hinted_handoff_enabled (storage_proxy.cc:3395). CL=ANY writes to dead nodes and base hints also live. Docstring's 'data/view_pending_updates' dir does not exist in scylla anymore (only referenced as reserved name in nodetool_additional_test.py:86).",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes with a node down generating view hints (#19529), but checks only that topology change is not blocked; no view data verification after restart"
+    },
+    {
+     "path": "test/cluster/test_hints.py",
+     "coverage": "partial",
+     "note": "base-table hint tests (CL=ANY to dead node, sync points, draining); none use materialized views"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Live behavior, only partial scylla overlap (test_mv_write_to_dead_node has no data check), 100% pass, ~16s; but the test does not isolate view hints. Note: test never verifies hints were stored/replayed (no view_hints dir/metrics check; docstring path data/view_pending_updates stale, real dir is view_hints, db/config.cc:1923); final SELECT at CL=ALL triggers read repair across view replicas and base hints regenerate view updates, so missing view hints would likely be masked. Note: the 500 setup INSERTs (Jane0..Jane499, no state) never appear in the view; UPDATEs target nonexistent Jane502..Jane1500 (upserts), so setup+flush is dead weight (:2827-2838). Note: options hinted_handoff_enabled=True is the default and does not gate view hints anyway (storage_proxy.cc:3395). wait_for_view is a no-op (view created before data)."
+  },
+  "TestMaterializedViews::test_write_to_hinted_handoff_for_views_double_failure": {
+   "description": "Same as test_write_to_hinted_handoff_for_views but stops node2 and node3, so only node1 holds base replicas during the 500 CL=ANY UPDATEs (base hints for 2 replicas + view hints). After restart, polls view at CL=ALL until 500 rows with consistent username/state.",
+   "origin": {
+    "sha": "08d3e73062",
+    "date": "2019-06-04",
+    "pr": 1000,
+    "summary": "Benny Halevy split double_failure case out of write_to_hinted_handoff_for_views_test (originally added by 13160a83, 2018-06-08, refs scylladb/scylla#3383); PR #1000 'fix write_to_hinted_handoff_for_views_test'."
+   },
+   "commits": {
+    "13160a83": "origin: added write_to_hinted_handoff_for_views_test (rf=1, 2 nodes stopped, CL=ANY updates) for view hints manager (scylladb/scylla#3383)",
+    "1de5e091": "rf=3, populate at CL=ALL + flush, wait_other_notice on stop/start, wait_for_view + retry loop before row count check",
+    "08d3e73062": "split into single-failure (stop node2) and double_failure (stop node2+node3) variants via _write_to_hinted_handoff_for_views",
+    "29646f19": "formatting (python3 port: xrange->range)",
+    "a67a4c0f": "use cluster.stop_nodes/start_nodes for the stopped list",
+    "c3471a97": "formatting (autopep8)",
+    "f106c691d1": "port to pytest (rename to test_*)",
+    "aedaa57c": "formatting (pyupgrade/isort)",
+    "19991c95": "formatting (f-strings)",
+    "9ffd273f": "formatting (ruff format)",
+    "eccda80e": "formatting (ruff 0.9.4)",
+    "aca7c4103f": "file-level: prepare() now populates rack-aware topology (generate_cluster_topology_based_rf), 3 nodes in 3 racks",
+    "056f5dc7": "formatting (node1 -> _node1 unused var)"
+   },
+   "relevance": "View update hints still live: separate view hints manager (db/config.cc:794 view_hints_directory, default 'view_hints'), used for view updates to unavailable paired replicas regardless of hinted_handoff_enabled (storage_proxy.cc:3395). CL=ANY writes to dead nodes and base hints also live. Docstring's 'data/view_pending_updates' dir does not exist in scylla anymore (only referenced as reserved name in nodetool_additional_test.py:86).",
+   "duplicates": [
+    {
+     "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_to_dead_node",
+     "coverage": "partial",
+     "note": "MV writes with a node down generating view hints (#19529), but checks only that topology change is not blocked; no view data verification after restart"
+    },
+    {
+     "path": "test/cluster/test_hints.py",
+     "coverage": "partial",
+     "note": "base-table hint tests (CL=ANY to dead node, sync points, draining); none use materialized views"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Live behavior, partial overlap only; ~16s, 100% pass. With 2 of 3 replicas down, recovery comes mostly from base hints regenerating view updates, so view hints are even less isolated. Near-duplicate of test_write_to_hinted_handoff_for_views (shared helper). Note: test never verifies hints were stored/replayed (no view_hints dir/metrics check; docstring path data/view_pending_updates stale, real dir is view_hints, db/config.cc:1923); final SELECT at CL=ALL triggers read repair across view replicas and base hints regenerate view updates, so missing view hints would likely be masked. Note: the 500 setup INSERTs (Jane0..Jane499, no state) never appear in the view; UPDATEs target nonexistent Jane502..Jane1500 (upserts), so setup+flush is dead weight (:2827-2838). Note: options hinted_handoff_enabled=True is the default and does not gate view hints anyway (storage_proxy.cc:3395). wait_for_view is a no-op (view created before data)."
+  },
+  "TestMaterializedViews::test_viewbuildstatus_progress_success_flow": {
+   "description": "3 nodes RF=3, TableManager table with 20 int columns prefilled with 100k rows (10k debug), creates MV without waiting. Polls nodetool viewbuildstatus from random nodes every 1s (20/60 retries): while building, NodetoolError stdout must list 3 hosts each STARTED or SUCCESS; finally must print 'has finished building'.",
+   "origin": {
+    "sha": "8fac9535b9",
+    "date": "2022-03-02",
+    "pr": 2605,
+    "summary": "Raya Kurlyand implemented the previously skipped viewbuildstatus stub as success/unknown flow tests. Older function commits come from line-range history of the stub."
+   },
+   "commits": {
+    "8fac9535b9": "origin: replaced skipped test_viewbuildstatus stub with _setup_for_viewbuildstatus + success/unknown flow tests",
+    "3bc3ea944c": "debug mode: 10k rows instead of 100k, max_retries 60 vs 20 (success flow)",
+    "a5d481ffd2": "formatting (assert spacing); no_boot_speedups marks removed from other tests in file",
+    "2980e37e1b": "formatting (ruff)",
+    "9ffd273f04": "formatting (ruff format)",
+    "eccda80e42": "formatting (ruff 0.9.4)",
+    "056f5dc7a8": "formatting (_mv unused var)",
+    "f106c691d1": "pre-origin: pytest port of the old stub test_viewbuildstatus (line-range history, not this test)",
+    "b99838da14": "pre-origin: old stub viewbuildstatus_test region (not this test)",
+    "41b7ba8643": "pre-origin: added skipped viewbuildstatus_test stub (not this test)",
+    "6f6c539313": "pre-origin: unrelated (line-range history)",
+    "1e0c81dd12": "pre-origin: unrelated (line-range history)"
+   },
+   "relevance": "nodetool viewbuildstatus is native scylla-nodetool (tools/scylla-nodetool.cc:3945) over REST /storage_service/view_build_statuses; prints 'has finished building' or table + exit 1 (scylla-nodetool.cc:3991, intended). Hosts without status reported as UNKNOWN (db/view/view.cc:2683). Status source is now view_build_status_v2 / group0 (test/cluster/test_view_build_status.py).",
+   "duplicates": [
+    {
+     "path": "test/nodetool/test_viewbuildstatus.py::test_viewbuildstatus",
+     "coverage": "partial",
+     "note": "output format + return code for STARTED/SUCCESS/UNKNOWN mixes, mocked REST"
+    },
+    {
+     "path": "test/cluster/test_view_build_status.py::test_view_build_status_v2_table",
+     "coverage": "partial",
+     "note": "real multi-node cluster, per-node SUCCESS statuses via system_distributed.view_build_status"
+    },
+    {
+     "path": "test/cluster/test_view_build_status.py::test_view_build_status_marked_started_on_node_added_during_building",
+     "coverage": "partial",
+     "note": "STARTED status during building"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_view_in_API",
+     "coverage": "partial",
+     "note": "REST view_build_statuses values UNKNOWN/STARTED/SUCCESS, single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Combination of scylla tests covers it piecewise (nodetool formatting mocked in test/nodetool/test_viewbuildstatus.py, real per-node statuses in test/cluster/test_view_build_status.py); only end-to-end real-cluster nodetool check left. Note: stale TODO referencing scylla-tools-java#289 (:2199; exit 1 while building is intended in native nodetool, scylla-nodetool.cc:3991). Note: STARTED path not guaranteed to run (build may finish before first poll); loop condition relies on `output` switching from str to tuple on success (fragile)."
+  },
+  "TestMaterializedViews::test_viewbuildstatus_progress_unknown_flow": {
+   "description": "Same setup with 10 rows; runs nodetool viewbuildstatus with the base table name instead of a view and expects NodetoolError whose stdout contains UNKNOWN once per node (3).",
+   "origin": {
+    "sha": "8fac9535b9",
+    "date": "2022-03-02",
+    "pr": 2605,
+    "summary": "Added together with success flow, replacing skipped viewbuildstatus stub."
+   },
+   "commits": {
+    "8fac9535b9": "origin: replaced skipped test_viewbuildstatus stub with _setup_for_viewbuildstatus + success/unknown flow tests",
+    "9ffd273f04": "formatting (ruff format)",
+    "eccda80e42": "formatting (ruff 0.9.4)",
+    "056f5dc7a8": "formatting (_mv unused var)",
+    "f106c691d1": "pre-origin: pytest port of the old stub test_viewbuildstatus (line-range history, not this test)",
+    "b99838da14": "pre-origin: old stub viewbuildstatus_test region (not this test)",
+    "41b7ba8643": "pre-origin: added skipped viewbuildstatus_test stub (not this test)",
+    "6f6c539313": "pre-origin: unrelated (line-range history)",
+    "1e0c81dd12": "pre-origin: unrelated (line-range history)"
+   },
+   "relevance": "nodetool viewbuildstatus is native scylla-nodetool (tools/scylla-nodetool.cc:3945) over REST /storage_service/view_build_statuses; prints 'has finished building' or table + exit 1 (scylla-nodetool.cc:3991, intended). Hosts without status reported as UNKNOWN (db/view/view.cc:2683). Status source is now view_build_status_v2 / group0 (test/cluster/test_view_build_status.py).",
+   "duplicates": [
+    {
+     "path": "test/nodetool/test_viewbuildstatus.py::test_viewbuildstatus",
+     "coverage": "partial",
+     "note": "UNKNOWN statuses -> 'has not finished' table + returncode 1 (mocked REST)"
+    },
+    {
+     "path": "test/cqlpy/test_materialized_view.py::test_view_in_API",
+     "coverage": "partial",
+     "note": "REST view_build_statuses can return UNKNOWN"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Low-value check (non-view name -> all UNKNOWN, db/view/view.cc:2683), formatting/returncode covered by test/nodetool/test_viewbuildstatus.py; cheap (~11s). Bug: assertion lives only in `except NodetoolError` (:2227-2233); if nodetool succeeds the test passes silently (no fail/else). Note: also creates and builds an unused MV (_mv)."
+  },
+  "TestMaterializedViews::test_virtual_columns_schema": {
+   "description": "3-node cluster, RF=3 table tab(a,b,c). Stops node2, creates MV selecting a,b with same PK so c becomes a virtual column; asserts 1 row in system_schema.view_virtual_columns on node1. Restarts node2 and asserts it has the same single view_virtual_columns row (schema catch-up includes view_virtual_columns). Reproducer for scylladb/scylla#4339.",
+   "origin": {
+    "sha": "2938c59f04",
+    "date": "2019-04-02",
+    "pr": 908,
+    "summary": "Nadav Har'El: add virtual_columns_schema_test reproducing scylladb/scylla#4339 (view_virtual_columns not synced between nodes)."
+   },
+   "commits": {
+    "2938c59f04": "origin: reproducer for scylladb/scylla#4339 (2 nodes, view created while node2 down, compare view_virtual_columns)",
+    "52d367e668": "file-level only (adds test_injected_noncritical_errors next to it); no change to this test",
+    "c3471a97e4": "formatting (autopep8)",
+    "f106c691d1": "port to pytest",
+    "d06101fe50": "raft: 3 nodes/RF=3 so the CREATE MV is done with majority while node2 is down",
+    "64e2f227c9": "remove invalid 'b IS NOT NULL' (non-PK column) from view definition, rejected since scylladb#13013",
+    "aedaa57c4e": "formatting (pyupgrade/isort)",
+    "9ffd273f04": "formatting (ruff format)",
+    "eccda80e42": "formatting (ruff 0.9.4)",
+    "aca7c4103f": "populate({'dc1':[1,1,1]}) rack-aware, self.rf -> self.total_rf",
+    "056f5dc7a8": "formatting (_node3 unused var)"
+   },
+   "relevance": "system_schema.view_virtual_columns still exists (db/schema_tables.cc:465) and is part of view schema mutations; schema catch-up now goes through raft group0 (snapshot/log) instead of gossip pull, still worth checking it carries this table.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/test_materialized_view_old.py",
+     "coverage": "partial",
+     "note": "virtual column semantics on single node; no cross-node schema sync of view_virtual_columns"
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Unique multi-node check that view_virtual_columns propagates to a node that missed the CREATE (scylladb/scylla#4339); no scylla test checks view_virtual_columns across nodes. Cheap (~14s), 100% pass."
+  }
+ },
+ "analyzed_at": "2026-10-20",
+ "scylla_rev": "814c05a00f"
+}
