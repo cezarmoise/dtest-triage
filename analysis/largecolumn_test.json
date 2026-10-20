@@ -1,0 +1,32 @@
+{
+  "file": "largecolumn_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestLargeColumn::test_large_columns_mixed_workload_stress": {
+      "description": "Single node; cassandra-stress writes 10k partitions with one 40KB column (2 threads), then runs a 15s mixed read/write workload over the same keys (8 threads). No explicit assertions: passes if c-s succeeds and the Tester teardown finds no crash/errors in the log. Guards scylla#1574 (assertion `lc._nesting` in managed_bytes::do_linearize(): MVCC snapshot removal merged large (fragmented) cells outside a linearization context).",
+      "origin": {"sha": "48f13472b8c10c75be45b392456309955f733155", "date": "2016-08-12", "pr": 382, "summary": "Tomasz Grabiec: add mixed workload test stressing consistency algorithms, same day as scylla fix 1b2ea14d0e 'partition_version: Add missing linearization context' (Fixes #1574)."},
+      "commits": {
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "add @pytest.mark.use_cassandra_stress",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format, quotes)",
+        "dc650950c037d82fe7b6f4dc7040574fd7a28432": "port to pytest (attrs -> pytest marks, rename to test_*)",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting (autopep8)",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "merge attrs + add single_node attr",
+        "6b5a3275e422c8392ef3dae2705b284813eb6cf6": "add dtest-debug attr",
+        "8f31589531039a0e8e2b773f80d3af15b252cd7a": "add next-gating attr",
+        "48f13472b8c10c75be45b392456309955f733155": "origin: add test",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: add dtest-full attr to class",
+        "b0723934729194afbbba4b40aae2fd29be037eda": "file-level: remove skipped test_cleanup (CASSANDRA-8670 off-heap test)",
+        "f45150aefa4980e0a4200da2ad1531e2feb9b295": "file-level: remove unused gcstats helpers left over from test_cleanup"
+      },
+      "relevance": "Large cells / MVCC snapshot merging still live, but the specific bug path is gone: linearization_context and do_linearize were removed from managed_bytes in scylla eb523d4ac8 (2020-10, 'utils: remove unused linearization facilities in managed_bytes'); no linearization_context left in utils/. Test is now a generic large-cell read/write smoke run. Cheap (~47s), 100% pass over 32 runs (next-dtest-tablets, next-dtest-consistent-topology).",
+      "duplicates": [
+        {"path": "test/boost/mvcc_test.cc::test_versions_are_merged_when_snapshots_go_away", "coverage": "partial", "note": "snapshot removal merging versions (random mutations, incl. external blobs), unit level; the #1574 code path"},
+        {"path": "test/boost/row_cache_test.cc::test_update_failure", "coverage": "partial", "note": "64KB blob mutations through cache update"},
+        {"path": "test/cqlpy/test_large_cells_rows.py::test_create_large_static_cells_and_rows", "coverage": "partial", "note": "large cells write/read via CQL, no concurrent mixed workload"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Regression test for scylla#1574 whose code path (managed_bytes linearization_context) was removed in scylla eb523d4ac8; what remains is a no-assertion c-s smoke with 40KB cells, partially covered by mvcc_test/row_cache_test/test_large_cells_rows.py. Cheap and stable, gating (next_gating), so keep-vs-remove is a judgment call. Note: no explicit assertions (relies on c-s exit + log checks); class docstring (largecolumn_test.py:13-16, off-heap memory per CASSANDRA-8670) is stale since test_cleanup was removed in b0723934."
+    }
+  }
+}
