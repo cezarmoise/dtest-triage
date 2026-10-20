@@ -1,0 +1,1680 @@
+{
+  "file": "secondary_indexes_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestLocalIndexes::test_global_local_index_on_same_column": {
+      "description": "4 nodes RF=3: creates a local index ((key), v) and a global index (v) on the same column, inserts 9 rows with repeating v values, then asserts each key+v query returns its single row via the local index and each v-only query returns all matching (pk,c) rows via the global index (assert_all, QUORUM, 30 retries). Guards coexistence of local and global indexes on one column and correct index selection.",
+      "origin": {
+        "sha": "cf80f0d5d6",
+        "date": "2019-05-08",
+        "pr": 968,
+        "summary": "'Local index tests' (Julia Yakovlev): first 2 local-index dtests (simple + global/local on same column)."
+      },
+      "commits": {
+        "b69420206e": "formatting (f-strings).",
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "cf80f0d5d6": "origin.",
+        "b256636aa0": "moved into TestLocalIndexes/config_keyspace helper with global_index_name param."
+      },
+      "relevance": "Live: local indexes ((pk), col) syntax and coexistence with global index on same column (cql3/statements/create_index_statement.cc; index selection prefers local when pk restricted, test/cqlpy/test_secondary_index.py::test_order_of_indexes).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_local_and_global_secondary_index",
+          "coverage": "full",
+          "note": "Same scenario (local+global index on v1, query p=..&v1=.. and v1=..), plus asserts which index view was read via read counters - stronger."
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_local_index_operations",
+          "coverage": "partial",
+          "note": "Both global and local index creatable on same column, naming."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_order_of_indexes",
+          "coverage": "partial",
+          "note": "Local preferred over global when usable (tracing)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_and_global_secondary_index with stronger assertions (index read counters); multi-node local index querying is already exercised by test_delete_local_indexed_rows and the node-action tests in this class."
+    },
+    "TestLocalIndexes::test_query_data_created_before_local_index": {
+      "description": "4 nodes RF=3, users table: inserts 2 rows, creates 3 local indexes (gender, state, birth_year) and waits for build, inserts 2 more rows, asserts total count 4 and count 1 for key='user4' AND state='TX' (post-index row) and key='user2' AND state='CA' (pre-index row, must come from view building). Guards local-index view building over pre-existing data.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "b256636aa0": "origin."
+      },
+      "relevance": "Live: view builder populates local index views for existing data (db/view/view_builder / view_building_coordinator with tablets).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::_node_action_after_index_build (test_*_node_after_local_index_build)",
+          "coverage": "partial",
+          "note": "Inserts 1000 rows before creating the local index and validates every row via the index (stronger pre-existing-data check)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_query_data_created_before_index",
+          "coverage": "partial",
+          "note": "Global twin."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_too_large_indexed_value_build",
+          "coverage": "partial",
+          "note": "Global index build over existing data."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin assertions: only 1 pre-index row is checked through the index; the gender and birth_year local indexes are created/built but never queried (secondary_indexes_test.py:~1455-1468). Pre-existing-data local index build is checked more thoroughly (1000 rows) by _node_action_after_index_build tests in this class."
+    },
+    "TestLocalIndexes::test_query_data_by_ck_and_local_index": {
+      "description": "4 nodes RF=3: inserts 4 rows, then creates local index ((key), v) and waits for build; asserts count(*)=4, count 1 for key+c+v matching (CL=ALL) and 0 for key+c with wrong v. Guards queries restricting full primary key plus local-indexed column.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "b256636aa0": "origin."
+      },
+      "relevance": "Live: local index query with full PK + CK restrictions (cql3/restrictions/statement_restrictions.cc local index prefix handling).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_local_index_prefix_optimization",
+          "coverage": "full",
+          "note": "Local index queried with pk + full ck + v (and partial ck), matching and invalid cases."
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_local_index_multi_pk_columns",
+          "coverage": "partial",
+          "note": "pk + v queries incl. empty result."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_query_data_by_ck_and_index",
+          "coverage": "partial",
+          "note": "Global twin."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same query shape (pk + full ck + local-indexed column, match and non-match) is covered by test/boost/secondary_index_test.cc::test_local_index_prefix_optimization; the only extra (index built over pre-existing rows) is covered by _node_action_after_index_build tests here. Assertions are 3 count(*) checks."
+    },
+    "TestLocalIndexes::test_insert_data_after_recreating_ks_with_local_index": {
+      "description": "4 nodes RF=3: 10 rounds of DROP KEYSPACE, recreate ks (RF=1) + table + local index ((key), v), insert 10 rows, then assert each key+v='asdf' count is 1 (60x1s retries). Local-index mirror of the Cassandra regression 'data inserted right after dropping/recreating an indexed keyspace is not indexed'.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "origin.",
+        "dc58ee4d98": "removed unconditional time.sleep(30) per round; assert_all now retries 60x1s.",
+        "7a009d095a": "pytest-port fixups (create_index func refs).",
+        "17281a1922": "formatting (docstring rewrap after rebase)."
+      },
+      "relevance": "Live: drop/recreate keyspace with indexed table and immediate writes (schema/view lifecycle).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_insert_data_after_recreating_ks",
+          "coverage": "partial",
+          "note": "Global twin; also test_insert_data_after_recreating_cf."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_instant_table_recreation",
+          "coverage": "partial",
+          "note": "Drop/recreate indexed table immediately (different bug #13548)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slow (~74s) mirror of the global twin; 1/39 failed (dtest-release-with-raft #1151: OperationTimedOut on DDL). Bug: DROP KEYSPACE has no timeout tolerance - the retry_till_success fix 653bc07f7f was applied only to the CF-recreate twin; 'except ConfigurationException' on DROP is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0."
+    },
+    "TestLocalIndexes::test_local_indexed_values": {
+      "description": "Parametrized [oversize]=66536 / [long]=8193 chars. 4 nodes RF=3: for 3 table shapes (indexed regular column, indexed clustering key, COMPACT STORAGE regular column) creates a local index ((a), col), inserts the value via prepared INSERT and via BATCH (assert_request). execute_and_assert (secondary_indexes_test.py:202): [long] reads the row back through the local index and asserts value length; [oversize] requires the write to fail with 'Key size too large|is longer than maximum' (InvalidRequest text or WriteFailure + log grep). Guards 64KiB view-key limit for local indexes (scylla#10366).",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "b256636aa0": "origin (as test_oversize_local_indexed_values + test_long_local_indexed_values).",
+        "921be1d2c0": "ignore regex accepts both exception formats ('std::runtime_error[ :]+\\(?Key size too large').",
+        "42ad3dfdde": "oversize param expects 'Key size too large|is longer than maximum' (scylla 71542206bc InvalidRequest for oversized keys).",
+        "2bb74c2e52": "add expect_message to ignore_log_patterns only if set.",
+        "ddff319b52": "cluster_options(enable_create_table_with_compact_storage=True).",
+        "03a8525c0e": "regex match of expect_message; ignore 'is longer than maximum' (#10366 fix).",
+        "12ebad8037": "check_errors_all_nodes -> ignore_log_patterns.",
+        "7a009d095a": "merged two tests into one parametrized test_local_indexed_values.",
+        "17281a1922": "formatting (CQL strings rewrapped)."
+      },
+      "relevance": "Live: 64KiB key limit, keys/compound.hh -> InvalidRequest 'Key length of N is longer than maximum of 65535' (validation.cc:32; scylla 71542206bc fixes #10366). Local index puts the indexed column into the view clustering key. COMPACT STORAGE deprecated but still enableable via enable_create_table_with_compact_storage.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_key_length.py::test_insert_65k_ck",
+          "coverage": "partial",
+          "note": "Base-table oversized clustering key (dtest case 2 oversize is the same base-key limit)."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_too_large_indexed_value",
+          "coverage": "partial",
+          "note": "Global index oversize value, still xfail (#8627); no local-index variant."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_oversize_indexed_values / test_long_indexed_values",
+          "coverage": "partial",
+          "note": "Global twins."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of oversized/long values in a local-index view key (regular + compact-storage column), incl. BATCH path; no scylla cqlpy/boost local-index equivalent (cqlpy global variant still xfail #8627). Cheap (~19s). Note: docstring says 'inserts & updates' but only INSERT and BATCH are exercised."
+    },
+    "TestLocalIndexes::test_multi_column_local_index": {
+      "description": "Single node: tries CREATE INDEX ((key), b, c) and ((key), b..g) on tables with 2 and 6 regular columns; assert_expected_error (tools/assertions.py:502, substring match) requires 'Only CUSTOM indexes support multiple columns'. Guards rejection of multi-column non-custom local indexes.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "b256636aa0": "origin.",
+        "60fdd2b6c5": "single_node mark."
+      },
+      "relevance": "Live: cql3/statements/create_index_statement.cc:720 throws 'Only CUSTOM indexes support multiple columns'.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_malformed_local_index",
+          "coverage": "full",
+          "note": "CREATE INDEX ON tab ((p1,p2),c1,v) must throw invalid_request_exception (no message check), plus many other malformed forms."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_multi_column_index",
+          "coverage": "partial",
+          "note": "Global twin, same error."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Pure CQL validation, covered by test/boost/secondary_index_test.cc::test_malformed_local_index ('((p1,p2),c1,v)' rejected); the 6-column case adds nothing over the 2-column one. Only extra is the exact message text."
+    },
+    "TestLocalIndexes::test_delete_local_indexed_rows": {
+      "description": "4 nodes RF=3: local index ((key), b), insert 100 rows, delete 10 by primary key; asserts base row count 90 (CL=ALL, retried), each deleted key+b query returns none and each remaining returns its row (CL=ALL), and the backing index view has 90 rows. Guards propagation of base row deletions to the local index view.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "origin.",
+        "29a3d64e84": "removed unneeded cluster.flush().",
+        "dc58ee4d98": "removed sleep(30); base row-count check retries 60x1s.",
+        "980879b6be": "session on rack2 node (rf-rack-valid topology).",
+        "7a009d095a": "pytest-port fixups.",
+        "17281a1922": "formatting."
+      },
+      "relevance": "Live: view update generation for row deletions into local index view (db/view/view.cc).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_delete_indexed_rows",
+          "coverage": "partial",
+          "note": "Global twin."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py (range delete + read c1_idx_index view, ~line 265)",
+          "coverage": "partial",
+          "note": "Global index view after base deletes."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking that base deletions are reflected in a local index (both via index query and backing view row count) on a multi-node cluster; cheap (~15s), passes 38/38. Note: comment 'Delete 10 rows by index' is misleading - rows are deleted by primary key."
+    },
+    "TestLocalIndexes::test_remove_node_after_local_index_build": {
+      "description": "_node_action_after_index_build (4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'removenode' on the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "29b5966228": "pre-origin (2018, global SI code at same lines via git log -L); not this test.",
+        "dfb3cf64db": "pre-origin (global test_query_indexes_with_vnodes); not this test.",
+        "79eacb6747": "pre-origin (skip irrelevant global tests); not this test.",
+        "867db0473d": "pre-origin (global test_query_data_created_before_index); not this test.",
+        "b256636aa0": "origin.",
+        "cf80f0d5d6": "pre-origin (refactored shared node-action code at same lines); not this test.",
+        "980879b6be": "rf-rack-valid: prepare() uses generate_cluster_topology_based_rf (RF racks), session on rack2, acted-on node = last node of rack1; add_new_node gets rack param.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns.",
+        "6b8bd802d4": "skip_if tablets & issue_open('#22394')."
+      },
+      "relevance": "Live: removenode/decommission/bootstrap with vnodes and tablets; local index views move with base (colocated tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV (not local SI) consistency across add+decommission under writes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_{stop,remove,decommission,add}_node_after_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for global index (same file)."
+        },
+        {
+          "path": "test/cluster/mv/tablets/test_mv_tablets.py::test_tablet_cql_lsi",
+          "coverage": "partial",
+          "note": "Local SI sync view updates with tablets, no topology op."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN (secondary_indexes_test.py mark skip_if(with_feature('tablets') & issue_open('#22394'))), so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+    },
+    "TestLocalIndexes::test_decommission_node_after_local_index_build": {
+      "description": "_node_action_after_index_build (4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'decommission' on the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "29b5966228": "pre-origin (2018, global SI code at same lines via git log -L); not this test.",
+        "dfb3cf64db": "pre-origin (global test_query_indexes_with_vnodes); not this test.",
+        "79eacb6747": "pre-origin (skip irrelevant global tests); not this test.",
+        "867db0473d": "pre-origin (global test_query_data_created_before_index); not this test.",
+        "b256636aa0": "origin.",
+        "cf80f0d5d6": "pre-origin (refactored shared node-action code at same lines); not this test.",
+        "980879b6be": "rf-rack-valid: prepare() uses generate_cluster_topology_based_rf (RF racks), session on rack2, acted-on node = last node of rack1; add_new_node gets rack param.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns.",
+        "6b8bd802d4": "skip_if tablets & issue_open('#22394').",
+        "921be1d2c0": "(helper node_action_with_delay) decommission ignore regex accepts both exception formats.",
+        "385421a7b7": "(helper) decommission ignore pattern accepts new abort_requested rendering."
+      },
+      "relevance": "Live: removenode/decommission/bootstrap with vnodes and tablets; local index views move with base (colocated tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV (not local SI) consistency across add+decommission under writes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_{stop,remove,decommission,add}_node_after_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for global index (same file)."
+        },
+        {
+          "path": "test/cluster/mv/tablets/test_mv_tablets.py::test_tablet_cql_lsi",
+          "coverage": "partial",
+          "note": "Local SI sync view updates with tablets, no topology op."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+    },
+    "TestLocalIndexes::test_add_node_after_local_index_build": {
+      "description": "_node_action_after_index_build (3 nodes RF=3): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'add node' on the last rack1 node (add_new_node adds a node to rack1; the selected node is unused); validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "29b5966228": "pre-origin (2018, global SI code at same lines via git log -L); not this test.",
+        "dfb3cf64db": "pre-origin (global test_query_indexes_with_vnodes); not this test.",
+        "79eacb6747": "pre-origin (skip irrelevant global tests); not this test.",
+        "867db0473d": "pre-origin (global test_query_data_created_before_index); not this test.",
+        "b256636aa0": "origin.",
+        "cf80f0d5d6": "pre-origin (refactored shared node-action code at same lines); not this test.",
+        "980879b6be": "rf-rack-valid: prepare() uses generate_cluster_topology_based_rf (RF racks), session on rack2, acted-on node = last node of rack1; add_new_node gets rack param.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns."
+      },
+      "relevance": "Live: removenode/decommission/bootstrap with vnodes and tablets; local index views move with base (colocated tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV (not local SI) consistency across add+decommission under writes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_{stop,remove,decommission,add}_node_after_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for global index (same file)."
+        },
+        {
+          "path": "test/cluster/mv/tablets/test_mv_tablets.py::test_tablet_cql_lsi",
+          "coverage": "partial",
+          "note": "Local SI sync view updates with tablets, no topology op."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (global twin TestSecondaryIndexes::test_add_node_after_index_build, test/cluster/mv/test_mv_topology_change.py); runs in both jobs, 38/38 pass. Bug: docstring says 'Decommission one node' (copy-paste); node2/node2_ip selection and its 'node down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+    },
+    "TestLocalIndexes::test_simple_local_index": {
+      "description": "4 nodes RF=3: default create_cf table (key text, c varchar, v varchar, PRIMARY KEY(key, c)), local index ((key), v) built via config_keyspace; inserts 9 rows across 4 partitions with random c and distinct v, then asserts each key+v query returns exactly its row (assert_all, QUORUM, 30 retries). Basic local secondary index create + query.",
+      "origin": {
+        "sha": "cf80f0d5d6",
+        "date": "2019-05-08",
+        "pr": 968,
+        "summary": "'Local index tests' (Julia Yakovlev): first local SI dtests (as simple_local_index_test)."
+      },
+      "commits": {
+        "b69420206e": "formatting (f-strings).",
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "renamed to test_simple_local_index, moved into TestLocalIndexes using config_keyspace helper.",
+        "cf80f0d5d6": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology (generate_cluster_topology_based_rf)."
+      },
+      "relevance": "Live: local secondary indexes ((pk), col) are a Scylla feature, supported with vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_local_secondary_index",
+          "coverage": "full",
+          "note": "Same pk+v local index query, plus asserts the local index view was actually read (read counter) and invalid creations - stronger."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_filter_and_limit_local_index / test_local_secondary_index_null_lookup",
+          "coverage": "partial",
+          "note": "Other local index query shapes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_delete_local_indexed_rows",
+          "coverage": "partial",
+          "note": "Multi-node key+b local index queries on 100 rows (plus deletes)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_secondary_index with stronger assertions (index read counter); multi-node local-index querying remains covered by test_delete_local_indexed_rows (GREEN) and the _node_action_after_index_build tests. Note: config_keyspace (secondary_indexes_test.py:~1358) ignores the random compaction_strategy; test_global_local_index_on_same_column's RED reason cites this test as multi-node coverage - re-point to test_delete_local_indexed_rows if removed."
+    },
+    "TestLocalIndexes::test_stop_node_after_local_index_build": {
+      "description": "_node_action_after_index_build (4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then stops (gently) the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows at QUORUM. Guards local index reads with one replica down.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests' (Julia Yakovlev): TestLocalIndexes mirrors of the TestSecondaryIndexes (global) tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "b256636aa0": "origin.",
+        "cf80f0d5d6": "pre-origin (refactored shared node-action code at same lines); not this test.",
+        "29b5966228": "pre-origin (2018, global SI code at same lines via git log -L); not this test.",
+        "dfb3cf64db": "pre-origin (global test_query_indexes_with_vnodes); not this test.",
+        "79eacb6747": "pre-origin (skip irrelevant global tests); not this test.",
+        "867db0473d": "pre-origin (global test_query_data_created_before_index); not this test.",
+        "980879b6be": "rf-rack-valid: prepare() uses RF racks, session on rack2, stopped node = last node of rack1.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface."
+      },
+      "relevance": "Live: local index views are regular views co-located with base; QUORUM reads with one node down.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_stop_node_after_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for global index (same file)."
+        },
+        {
+          "path": "test/cluster/mv/tablets/test_mv_tablets.py::test_tablet_cql_lsi",
+          "coverage": "partial",
+          "note": "Local SI with tablets, no node down."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (global twin, scylla MV/LSI tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index reads trivially still have 2 replicas, nothing local-index specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1790) matches no scylla log message (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+    },
+    "TestLocalIndexes::test_truncate_base_with_local_index": {
+      "description": "4 nodes RF=3: table (key int, c0, c1, c2 text), local index ((key), c0); inserts 5 rows, flushes, reads each via key+c0 count (QUORUM, expects 1) and full row count 5; TRUNCATE base; asserts base count 0 and every key+c0 index count 0. Guards that truncating the base truncates the local index view (sstables + cache).",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests': local mirror of TestSecondaryIndexes::test_truncate_base."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "b256636aa0": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live, but truncate is index-type agnostic: replica/database.cc database::truncate(..., views, ...) (~line 3383/3424) truncates all views of the base generically.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_truncate_base",
+          "coverage": "full",
+          "note": "Same flow (flush, cache read, TRUNCATE, index counts 0) for two global indexes, plus system.truncated entries checked per view on every node - stronger."
+        },
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+          "coverage": "partial",
+          "note": "TRUNCATE base empties all views (single node)."
+        },
+        {
+          "path": "scylla-dtest materialized_views_test.py::test_truncate_base",
+          "coverage": "partial",
+          "note": "MV variant."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: truncate path is generic over views (replica/database.cc database::truncate), and the global twin TestSecondaryIndexes::test_truncate_base runs the identical flow with stronger assertions (system.truncated per view per node); cqlpy test_materialized_view.py::test_truncate_base covers base->views truncation. Note: c2 column created but unused."
+    },
+    "TestLocalIndexes::test_ttl_local_index_column": {
+      "description": "Single node: table (key int, b, c), row (0,1,2), local index ((key), b) built; UPDATE USING TTL 60 SET b=3; asserts key+b=3 returns row, key+b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards view row expiry when indexed column has TTL.",
+      "origin": {
+        "sha": "b256636aa0",
+        "date": "2019-07-08",
+        "pr": 1047,
+        "summary": "'Local index new tests': local mirror of TestSecondaryIndexes::test_ttl_index_column."
+      },
+      "commits": {
+        "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "60fdd2b6c5": "added @single_node mark.",
+        "b256636aa0": "origin."
+      },
+      "relevance": "Live: TTL on view-key column propagates to view row (db/view/view.cc); same code for MV, global and local SI.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_view_update_with_ttl",
+          "coverage": "full",
+          "note": "TTL on base regular column that is view key -> whole view row expires; same view-update code path, 1s TTL."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn",
+          "coverage": "partial",
+          "note": "Global index, TTL on indexed column expires index entry."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_ttl_index_column",
+          "coverage": "partial",
+          "note": "Global twin (same 65s sleep)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test whose scenario (TTL on indexed/view-key column expires the view row) is covered in seconds by test/cqlpy/test_materialized_view.py::test_view_update_with_ttl (same view-update path, local index = view with pk prefix) and cqlpy secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn. Note: docstring mentions default_time_to_live but the test uses USING TTL."
+    },
+    "TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk": {
+      "description": "4 nodes RF=3: table (row PK, name, value) with global indexes on name and value, 8 rows inserted at QUORUM; asserts single-index queries on name / value return the right 4 rows, and that name+value without ALLOW FILTERING is rejected (exact 'Cannot execute this query as it might involve data filtering...' message) while with ALLOW FILTERING it returns the 2 matching rows (QUORUM, ignore_order).",
+      "origin": {
+        "sha": "7ad6b14a73",
+        "date": "2019-11-28",
+        "pr": 1159,
+        "summary": "'Multi indexes test' (Dmitry Kropachev): tests for tables with multiple secondary indexes."
+      },
+      "commits": {
+        "06aea5259c": "CL ONE -> QUORUM for writes/index reads; fixes flaky failures (SCYLLADB-2441) from reading a lagging index view.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "11e4b5e211": "assert_all ignore_order=True (result order not guaranteed).",
+        "7ad6b14a73": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live: two indexes cannot be intersected, ALLOW FILTERING required (cql3 restrictions).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes",
+          "coverage": "full",
+          "note": "Two indexed columns a=..AND b=..: rejected without ALLOW FILTERING, correct rows with it (check_af_mandatory)."
+        },
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a",
+          "coverage": "partial",
+          "note": "Single indexed column query without filtering."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (+ single-index cqlpy queries); multi-node adds nothing but eventual-consistency flakiness (SCYLLADB-2441, fixed by 06aea5259c). Runs in gating (next-dtest-*). Note: `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809) is a no-op attribute on the driver Session (writes are QUORUM only because prepare() passes consistency_level); class lacks INDEX_TYPE."
+    },
+    "TestMultipleSecondaryIndexes::test_multy_secondary_query_with_pk": {
+      "description": "Same fixture (row PK + global indexes on name and value): asserts row+name+value without ALLOW FILTERING is rejected and with it returns 1 row; row+name, row+value and row alone return the row without filtering (QUORUM). Guards restriction validation when full PK is combined with one vs two indexed columns.",
+      "origin": {
+        "sha": "7ad6b14a73",
+        "date": "2019-11-28",
+        "pr": 1159,
+        "summary": "'Multi indexes test' (Dmitry Kropachev)."
+      },
+      "commits": {
+        "06aea5259c": "CL ONE -> QUORUM for writes/index reads (SCYLLADB-2441).",
+        "9ffd273f04": "formatting (ruff format).",
+        "11e4b5e211": "assert_all ignore_order=True.",
+        "7ad6b14a73": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live: cql3 restrictions decide ALLOW FILTERING need for pk + index combinations.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a_and_k",
+          "coverage": "partial",
+          "note": "pk + one indexed column allowed without filtering."
+        },
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes",
+          "coverage": "partial",
+          "note": "Two indexes need filtering, but without pk restriction."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Pure CQL-restriction/single-row checks that belong in cqlpy; pk+one-index is covered by cqlpy test_allow_filtering_indexed_a_and_k, but the pk+two-indexes => ALLOW FILTERING required case has no explicit cqlpy equivalent found (could be moved there). Runs only in gating jobs, 32/32 pass. Note: no-op `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809)."
+    },
+    "TestSecondaryIndexes::test_add_node_after_index_build": {
+      "description": "_node_action_after_index_build (global, 3 nodes RF=3): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then bootstraps a 4th node into rack1 (add_new_node); validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving bootstrap (view streaming).",
+      "origin": {
+        "sha": "21bad483be",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Perform node actions after index building' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "21bad483be": "origin.",
+        "980879b6be": "rf-rack-valid: prepare() uses RF racks, session on rack2; add_new_node gets rack param.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns."
+      },
+      "relevance": "Live: bootstrap with vnodes and tablets; index views are streamed/migrated with base.",
+      "duplicates": [
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV consistency across add+decommission under writes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_add_node_after_local_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for local index."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after bootstrap. 38/38 pass, ~14s. Bug: docstring says 'Decommission one node' (copy-paste, secondary_indexes_test.py:1164); node2/node2_ip selection and its 'node ... is down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+    },
+    "TestSecondaryIndexes::test_agg_query_by_pk": {
+      "description": "4 nodes RF=3: table t3 ((pk1, pk2), ck); 1 row; COUNT/SUM/MIN with pk1=1 ALLOW FILTERING; creates global index on pk1 (first partition key component); COUNT via index = 1; inserts 2 more rows in same partition; asserts COUNT=3, SUM(pk2)=3, MAX(ck)=3 via index (QUORUM). Regression test for wrong aggregate results on indexed selects (scylladb#7355, fix #7438) - 'whole_partitions' path.",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: indexed_table_select_statement aggregation (cql3/statements/select_statement.cc ~1266-1296 whole_partitions/partition_slices selection).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation",
+          "coverage": "full",
+          "note": "Index on pk component (pk2) of ((pk1,pk2),ck) - same whole_partitions path; count/GROUP BY/min/max across many page-size scenarios (#7355) - stronger."
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_partition_key_with_filtering",
+          "coverage": "partial",
+          "note": "Index on first pk component."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "partial",
+          "note": "sum/avg over indexed query with paging."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Regression for scylladb#7355 (CLOSED) is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (comment 'second failing example in issue #7355') with paging scenarios; pk1 vs pk2 hits the same whole_partitions branch (select_statement.cc ~1286). dtest adds only a 4-node cluster for 3 rows. Note: prepare(user_table=True) creates an unused users table; TestSecondaryIndexes is dtest_heavy for a trivial query test."
+    },
+    "TestSecondaryIndexes::test_agg_query_by_ck": {
+      "description": "4 nodes RF=3: table t3 (pk1, ck, v), rows ck=1,4; COUNT/SUM/MIN with ck=1 ALLOW FILTERING; creates global index on ck (only clustering column); COUNT via index = 1; inserts ck=2,3; asserts COUNT(ck=1)=1, SUM(pk1)=1, MAX(v) WHERE ck=3 = 3 (QUORUM). Regression for scylladb#7355 ('partition_slices' path, index on first ck column).",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added by 17281a1922 (PR 2326)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: partition_slices branch of indexed select aggregation (cql3/statements/select_statement.cc ~1280).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation",
+          "coverage": "full",
+          "note": "Explicitly reproduces the first failing example of #7355 (index on ck, COUNT), plus many-partition and large-partition page scenarios with GROUP BY/sum/avg - stronger."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario fully covered by test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation (explicit #7355 repro, paging scenarios); dtest uses 4 nodes for 4 rows and adds nothing distributed. Note: prepare(user_table=True) creates an unused users table."
+    },
+    "TestSecondaryIndexes::test_agg_query_by_second_ck": {
+      "description": "4 nodes RF=3: table t3 (pk1, ck1, ck2) with PK(pk1, ck1, ck2); rows (1,1,1),(1,1,3); COUNT/SUM/MIN with ck2=1 ALLOW FILTERING; creates global index on ck2 (non-first clustering column); COUNT=1; inserts (1,1,2),(1,2,1); asserts COUNT=2, SUM(pk1)=2, MAX(ck1)=2 via index (QUORUM). Regression for scylladb#7355 on the row-by-row (neither whole_partitions nor partition_slices) path.",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added by 17281a1922 (PR 2326)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: index on non-first ck falls into the per-row branch of indexed select aggregation (cql3/statements/select_statement.cc ~1280-1296).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation",
+          "coverage": "full",
+          "note": "Same per-row branch (index on regular column v), count/GROUP BY/sum with page scenarios."
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation",
+          "coverage": "partial",
+          "note": "t3 (pk, ck1, ck2) but index on ck1."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_agg_query_by_two_ck",
+          "coverage": "partial",
+          "note": "Sibling with indexes on ck1 and ck2."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Index on non-first ck uses the same per-row code path (select_statement.cc ~1280-1296) as test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation, which also covers paging; #7355 is CLOSED. dtest adds only 4 nodes for 4 rows. Note: prepare(user_table=True) creates an unused users table."
+    },
+    "TestSecondaryIndexes::test_agg_query_by_second_pk": {
+      "description": "4 nodes RF=3: table t3 ((pk1, pk2), ck); 2 rows in partition (1,1); COUNT/SUM/MIN with pk2=1 ALLOW FILTERING; creates global index on pk2 (second partition key component); COUNT=2 via index; inserts 2 more rows in same partition; asserts COUNT=4, SUM(pk1)=4, MAX(ck)=4 via index (QUORUM). Regression for scylladb#7355 (wrong aggregate on indexed select) - 'whole_partitions' path.",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: indexed_table_select_statement aggregation, whole_partitions branch (cql3/statements/select_statement.cc ~1266-1296).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation",
+          "coverage": "full",
+          "note": "Exactly the same schema ((pk1,pk2),ck) with index on pk2, single large partition + many small partitions; count/GROUP BY/min/max across page-size scenarios (explicit 'second failing example in issue #7355')."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_agg_query_by_pk",
+          "coverage": "partial",
+          "note": "Sibling (index on pk1), already RED."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same schema/index/aggregates as test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (index on pk2, #7355 repro) which additionally covers paging; #7355 is CLOSED. dtest adds only a 4-node cluster for 4 rows. Note: prepare(user_table=True) creates an unused users table."
+    },
+    "TestSecondaryIndexes::test_agg_query_by_two_ck": {
+      "description": "4 nodes RF=3, fetch_size=1: table ((pk1,pk2), ck1, ck2), 3 rows; COUNT/AVG/MAX with ck1=1 AND ck2 IN (1,3) ALLOW FILTERING; then creates global indexes on ck1 and ck2 and re-checks COUNT with IN and with ck2>=1 range; inserts 2 more rows and checks COUNT (ck1=2, ck2 IN), SUM(pk2) (ck1=1, ck2>1)=5, AVG(pk1) (ck1=2, ck2>=1)=2. Guards aggregation correctness when two indexes exist and the query adds IN/range filtering on the second indexed ck (#7355/#7438), with page size 1 driving internal paging.",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: index selection among multiple indexes + filtering + aggregation in indexed_table_select_statement (partition_slices branch for first ck).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation",
+          "coverage": "partial",
+          "note": "Index on first ck (t3 pk, ck1, ck2) + count/GROUP BY with page scenarios; no second index, no IN/range filter on ck2."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "partial",
+          "note": "sum/avg over indexed query with fetch_size and small internal page size; single index, no filtering."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_agg_query_by_second_ck",
+          "coverage": "partial",
+          "note": "Sibling, single index on ck2."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test combining two indexes + IN/range filtering on the second indexed ck + aggregates; scylla boost/cqlpy cover aggregation on a single indexed ck with paging (test_secondary_index_on_ck_first_column_and_aggregation) but not this combination. Better ported to cqlpy (pure single-node CQL semantics, 5 rows on 4 nodes). Note: prepare(user_table=True) creates an unused users table."
+    },
+    "TestSecondaryIndexes::test_group_by_pk_filter_by_index": {
+      "description": "4 nodes RF=3: table t (pk, ck, v), 3 rows with v=3 in 2 partitions; SELECT pk ... v=3 GROUP BY pk ALLOW FILTERING; creates global index on v; asserts GROUP BY pk returns [1],[2] and pk,count(pk) GROUP BY pk returns [1,2],[2,1] via index (QUORUM). Guards GROUP BY on indexed (non-pk) column queries (#7355/#7432).",
+      "origin": {
+        "sha": "55505847",
+        "date": "2021-02-09",
+        "pr": 1945,
+        "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "7a009d095a": "fixup: self.create_index -> create_index.",
+        "17281a1922": "test (re)added on master during rebase-conflict resolution."
+      },
+      "relevance": "Live: GROUP BY over indexed_table_select_statement, regular-column (row-by-row) branch.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation",
+          "coverage": "full",
+          "note": "Index on regular v of (pk, ck, v); 'SELECT pk ... WHERE v = 1 GROUP BY pk' and GROUP BY pk, ck with many page-size scenarios, plus sum/max."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_paging_group_by",
+          "coverage": "partial",
+          "note": "GROUP BY p on indexed ck with paging (#7432, xfail)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "GROUP BY pk on a regular-column index is covered (with paging) by test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation; the extra count(pk)-per-group check is the same aggregation path. 4 nodes for 3 rows adds nothing distributed. Note: docstring is copy-pasted from test_query_data_created_before_index and assert message says 'Index state_key' (index is v_key)."
+    },
+    "TestSecondaryIndexes::test_decommission_node_after_index_build": {
+      "description": "_node_action_after_index_build (global, 4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then decommissions the last rack1 node; validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving decommission (view streaming).",
+      "origin": {
+        "sha": "21bad483be",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Perform node actions after index building' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "6b8bd802d4": "skip_if tablets & issue_open('#22394').",
+        "9ffd273f04": "formatting (ruff format).",
+        "21bad483be": "origin.",
+        "980879b6be": "rf-rack-valid: prepare() uses RF racks, session on rack2, acted-on node = last node of rack1.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns.",
+        "921be1d2c0": "(helper node_action_with_delay) decommission ignore regex accepts both exception formats.",
+        "385421a7b7": "(helper) decommission ignore pattern accepts new abort_requested rendering."
+      },
+      "relevance": "Live: decommission with vnodes; under tablets skipped while scylladb#22394 (OPEN: index view row count short after node removal) is open.",
+      "duplicates": [
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV consistency across add+decommission under writes."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_decommission_node_after_local_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for local index."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after decommission. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19/19 pass, ~17s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+    },
+    "TestSecondaryIndexes::test_delete_indexed_rows": {
+      "description": "4 nodes RF=3: global index on b, insert 100 rows, delete 10 by primary key; asserts base row count 90 (CL=ALL, retried), each deleted key returns none by pk and by index, each remaining returns its row by pk and by index (CL=ALL), and the backing index view has 90 rows. Guards propagation of base row deletions to the global index view.",
+      "origin": {
+        "sha": "63f3e152f9",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Delete indexed rows test' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "29a3d64e84": "removed unneeded cluster.flush().",
+        "dc58ee4d98": "removed unconditional sleep; base row-count check retries 60x1s.",
+        "980879b6be": "session on rack2 node (rf-rack-valid topology).",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "INDEX_TYPE split for local/global helpers; no behavior change here.",
+        "63f3e152f9": "origin."
+      },
+      "relevance": "Live: view update generation for row/partition deletions into global index view (db/view/view.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_partition_deletion",
+          "coverage": "partial",
+          "note": "Partition delete reflected in the global index view table (single node, scylla_only)."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index",
+          "coverage": "partial",
+          "note": "Partition delete then query by index."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_delete_local_indexed_rows",
+          "coverage": "partial",
+          "note": "Local twin (GREEN)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: cqlpy test_partition_deletion/test_static_column_index check base deletes are reflected in a global index (single node); dtest adds only multi-node CL=ALL reads (async view updates, cross-node view replicas). Cheap (~15s), 38/38 pass. Note: comment 'Delete 10 rows by index' (secondary_indexes_test.py:1118) is misleading - rows are deleted by primary key."
+    },
+    "TestSecondaryIndexes::test_index_same_key_twice": {
+      "description": "Single node: table with uuid key and text c0,c1,c2, global index on c0, 5 rows; asserts SELECT count(*) ... WHERE c0='a' AND c0='b' returns 0. Regression for scylladb#7772 (assertion crash in single_column_restrictions::value_for on contradictory EQ restrictions of an indexed column).",
+      "origin": {
+        "sha": "28ecc9c64d",
+        "date": "2020-12-09",
+        "pr": 1807,
+        "summary": "'secondary_indexes_test: multi index filter with same pkey' (Evgeniy Naydanov), repro for scylladb#7772."
+      },
+      "commits": {
+        "cb7c9bbe65": "docstring issue ref scylla -> scylladb (formatting).",
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "28ecc9c64d": "origin."
+      },
+      "relevance": "Fixed long ago (scylla 46b4b59945 'cql3: Fix value_for when restriction is impossible'); restrictions now expression-based.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_clustering_key_query",
+          "coverage": "full",
+          "note": "Explicit '// #7772' repro: country='France' and country='Denmark' on indexed column -> empty; also same-value case -> row. Added with the fix 46b4b59945."
+        },
+        {
+          "path": "test/cqlpy/test_filtering.py::test_multiple_restrictions_on_same_column",
+          "coverage": "partial",
+          "note": "Contradictory/overlapping restrictions on same column (no index)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylladb#7772 is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_clustering_key_query (added with fix 46b4b59945), which also checks the non-contradictory case; single-node dtest adds nothing. Note: docstring/PR say 'indexed part of the pkey' but the test indexes regular column c0; 'b' is not even a c0 value."
+    },
+    "TestSecondaryIndexes::test_insert_data_after_recreating_cf": {
+      "description": "4 nodes RF=3: ks 'ks' (RF=3), table cf (key text, col1 text) with global index on col1; 10 rounds of DROP COLUMNFAMILY (retried on OperationTimedOut), wait for schema agreement, recreate table+index (waits for build), insert 10 rows with col1='asdf', assert count via index = 10 (QUORUM, 60x1s retries). Scylla port of the Cassandra regression CASSANDRA-6924 (data inserted right after recreating an indexed table not indexed).",
+      "origin": {
+        "sha": "36960090d2",
+        "date": "2014-03-31",
+        "pr": null,
+        "summary": "Cassandra dtest 'Adds test for CASSANDRA-6924' (test_6924_dropping_cf); rewritten for Scylla in 2667c2136a (PR 668, Julia Yakovlev, 2018-07-02)."
+      },
+      "commits": {
+        "653bc07f7f": "DROP COLUMNFAMILY via retry_till_success(OperationTimedOut) + wait_for_schema_agreement (SCYLLADB-688 flaky timeouts).",
+        "dc58ee4d98": "removed unconditional sleep per round; assert_all now retries 60x1s.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "b256636aa0": "INDEX_TYPE split; no behavior change here.",
+        "2667c2136a": "Scylla rewrite: prepare(nodes=4), config_keyspace helper, compaction strategy, renamed test.",
+        "ea69925151": "sync with last Cassandra version (pre-Scylla).",
+        "0311d61f62": "Cassandra: removed pre-2.1 logic.",
+        "a6ebe17c6c": "formatting (PEP-8).",
+        "1761f6fac2": "cursor -> session rename.",
+        "b01850de7c": "Cassandra: ported to python driver.",
+        "61749d11c1": "Cassandra: wait for schema agreement before index query.",
+        "36960090d2": "origin (Cassandra)."
+      },
+      "relevance": "Live: drop/recreate indexed table and immediate writes (schema/view lifecycle, view builder).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_instant_table_recreation",
+          "coverage": "partial",
+          "note": "Drop/recreate indexed table immediately (#13548 metrics double registration), no data check."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_paging_and_recreate_table",
+          "coverage": "partial",
+          "note": "Recreate indexed table then query."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_insert_data_after_recreating_ks",
+          "coverage": "partial",
+          "note": "Same flow, dropping the keyspace."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slow (~78s) multi-node schema-churn test; only partial scylla overlap (cqlpy test_instant_table_recreation/test_paging_and_recreate_table, single node, one round). 39/39 pass since the SCYLLADB-688 timeout fix 653bc07f7f. Note: the original Cassandra bug (CASSANDRA-6924, 2.0 native index) does not exist in scylla's MV-based index; test mostly exercises schema-change robustness."
+    },
+    "TestSecondaryIndexes::test_insert_data_after_recreating_ks": {
+      "description": "4 nodes RF=3: 10 rounds of DROP KEYSPACE ks, recreate ks (RF=1) + table cf + global index on col1 (waits for build), insert 10 rows with col1='asdf', assert count via index = 10 (QUORUM, 60x1s retries). Scylla port of the Cassandra regression CASSANDRA-6924 (data inserted right after recreating keyspace with indexed table not indexed).",
+      "origin": {
+        "sha": "36960090d2",
+        "date": "2014-03-31",
+        "pr": null,
+        "summary": "Cassandra dtest 'Adds test for CASSANDRA-6924' (test_6924_dropping_ks); rewritten for Scylla in 2667c2136a (PR 668, Julia Yakovlev, 2018-07-02)."
+      },
+      "commits": {
+        "dc58ee4d98": "removed unconditional sleep per round; assert_all now retries 60x1s.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "b256636aa0": "INDEX_TYPE split; no behavior change here.",
+        "2667c2136a": "Scylla rewrite: prepare(nodes=4), config_keyspace helper, renamed test.",
+        "ea69925151": "sync with last Cassandra version (pre-Scylla; CASSANDRA-11729 MV-builder wait).",
+        "a6ebe17c6c": "formatting (PEP-8).",
+        "1761f6fac2": "cursor -> session rename.",
+        "2627a67afa": "Cassandra: PagedResult len fix.",
+        "b01850de7c": "Cassandra: ported to python driver.",
+        "61749d11c1": "Cassandra: wait for schema agreement before index query.",
+        "36960090d2": "origin (Cassandra).",
+        "3e6c9ee425": "Cassandra: patient_cql_connection (pre-origin helper)."
+      },
+      "relevance": "Live: drop/recreate keyspace with indexed table and immediate writes.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_insert_data_after_recreating_cf",
+          "coverage": "partial",
+          "note": "Same flow at table level."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_insert_data_after_recreating_ks_with_local_index",
+          "coverage": "partial",
+          "note": "Local twin."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_instant_table_recreation",
+          "coverage": "partial",
+          "note": "Drop/recreate indexed table (different bug #13548)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slowest test of the chunk (~91s), only partial overlap (cf twin, local twin, cqlpy table recreation); 39/39 pass. Bug: DROP KEYSPACE (secondary_indexes_test.py:738) has no OperationTimedOut tolerance - the 653bc07f7f fix was applied only to the CF twin (the local twin failed this way, dtest-release-with-raft #1151); 'except ConfigurationException' is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0."
+    },
+    "TestSecondaryIndexes::test_long_indexed_values": {
+      "description": "4 nodes RF=3, compact storage enabled: for 5 table shapes (indexed regular column, clustering key, partition key component, COMPACT STORAGE regular column, static column) creates a global index, inserts an 8193-char value via prepared INSERT and via BATCH (assert_request); execute_and_assert (secondary_indexes_test.py:202) for INDEX_TYPE global reads 'select <col> from <table>' and asserts the value length. Intended to guard that long-but-valid (<64KiB) indexed values are accepted (CASSANDRA-8280 / scylla#3501).",
+      "origin": {
+        "sha": "a88ad93f1a",
+        "date": "2014-11-20",
+        "pr": null,
+        "summary": "Cassandra dtest 'Add test for CASSANDRA-8280'; rewritten for Scylla in 3aaa053e32 (PR 668, 2018-07-02) and fa3f198923 (#3501)."
+      },
+      "commits": {
+        "ddff319b52": "cluster_options(enable_create_table_with_compact_storage=True).",
+        "b256636aa0": "INDEX_TYPE split: global path keeps reading base table, local path queries via index.",
+        "fa3f198923": "adapted to scylla#3501 fix (WriteFailure + log grep handling, check_errors_all_nodes).",
+        "3aaa053e32": "Scylla rewrite: _validate_long_indexed_values with 5 table shapes + batch path.",
+        "ea69925151": "sync with last Cassandra version (pre-Scylla).",
+        "1761f6fac2": "cursor -> session rename.",
+        "a88ad93f1a": "origin (Cassandra).",
+        "12ebad8037": "(helper) check_errors_all_nodes -> ignore_log_patterns."
+      },
+      "relevance": "Live: indexed values up to 64KiB are valid (keys/compound.hh limit 65535); global index puts the value in the view partition key.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_too_large_indexed_value",
+          "coverage": "partial",
+          "note": "Oversize (not long-valid) global indexed value, xfail #8627 (OPEN)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_local_indexed_values[long]",
+          "coverage": "partial",
+          "note": "Local twin, which does query through the index."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test of long-valid global indexed values, but the assertion is weak. Bug: for INDEX_TYPE 'global' execute_and_assert reads the base table ('select {col} from {table}', secondary_indexes_test.py:208-209, since 3aaa053e32) - the index is never queried, so a missing/broken view row would pass; only base-write acceptance is verified. Fix: query by the indexed value as the local branch does."
+    },
+    "TestSecondaryIndexes::test_low_cardinality_indexes": {
+      "description": "4 nodes RF=3: table cf (key text, col1 text) with global index on col1, 100 rows where each col1 value appears 3 times; asserts count(*) WHERE col1='1' = 3 (no LIMIT, LIMIT 100, LIMIT 3) and that SELECT * ... LIMIT 1/2 returns 1/2 rows (QUORUM, 20 retries). Docstring claims it checks low-cardinality subqueries run concurrently (CASSANDRA-1337), but the Scylla rewrite dropped that trace check.",
+      "origin": {
+        "sha": "a4b42a339d",
+        "date": "2013-10-04",
+        "pr": null,
+        "summary": "Cassandra dtest 'Add test for CASSANDRA-1337 behavior' (concurrent range requests, checked via trace events); rewritten for Scylla in 0cbab1d7d5 (PR 668, 2018-07-02) without the trace/concurrency assertion."
+      },
+      "commits": {
+        "29a3d64e84": "removed unneeded cluster.flush().",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "29646f1956": "py3: num_rows / 3 -> num_rows // 3.",
+        "b256636aa0": "INDEX_TYPE split; no behavior change here.",
+        "c186e1979c": "assertions use retrying decorator.",
+        "11dc418a02": "fix: attempts -> num_attempts kwarg, assert_row_count_in_select signature.",
+        "0cbab1d7d5": "Scylla rewrite: dropped trace-event concurrency check, now only count/LIMIT asserts.",
+        "5997e4d908": "pre-Scylla (Cassandra): list() for ResultSet length.",
+        "ea69925151": "pre-Scylla sync with Cassandra.",
+        "17e5d67cf6": "pre-Scylla driver compat.",
+        "f658b06cf7": "pre-Scylla driver API fix.",
+        "8c7c27b752": "pre-Scylla driver fix.",
+        "e6d7c85ce4": "pre-Scylla driver fix.",
+        "3929e9f295": "Cassandra: CASSANDRA-10215 variant.",
+        "1761f6fac2": "cursor -> session rename.",
+        "1042662b89": "Cassandra cleanup.",
+        "0c99ee452e": "merge (pre-Scylla).",
+        "5cb9c469b0": "Cassandra trace regex update.",
+        "5ad4120dfe": "Cassandra CASSANDRA-7599 fix.",
+        "d78a629807": "merge (pre-Scylla).",
+        "5ee7f06fde": "typo.",
+        "350d034b52": "Cassandra trace check fix.",
+        "b01850de7c": "Cassandra: ported to python driver.",
+        "5e98d03f00": "Cassandra: cql version.",
+        "3e6c9ee425": "Cassandra: patient_cql_connection.",
+        "a4b42a339d": "origin (Cassandra)."
+      },
+      "relevance": "The tested property (Cassandra 2i range-request concurrency, 'Submitting range requests ... concurrency' trace) is Cassandra-only; scylla's MV-based index reads a single view partition. Remaining assertions are basic global-index count/LIMIT.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation",
+          "coverage": "full",
+          "note": "count over a regular-column index with many partitions and page scenarios."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_filter_and_limit",
+          "coverage": "partial",
+          "note": "LIMIT with indexed queries (#10649)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_delete_indexed_rows",
+          "coverage": "partial",
+          "note": "Multi-node global index point queries over rows on different nodes."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Its stated purpose (CASSANDRA-1337 concurrent range requests) is Cassandra-only and the check was removed in the Scylla rewrite 0cbab1d7d5; what remains (count/LIMIT over a 3-row global index result) is covered by test/boost/secondary_index_test.cc aggregation tests and cqlpy test_filter_and_limit. Note: docstring is stale."
+    },
+    "TestSecondaryIndexes::test_multi_column_index": {
+      "description": "Single node: tries CREATE INDEX on (b, c) and on (b, c, d, e, f, g) (non-custom global index over several regular columns); assert_expected_error (tools/assertions.py, substring match) requires 'Only CUSTOM indexes support multiple columns'. Guards rejection of multi-column non-custom global indexes.",
+      "origin": {
+        "sha": "22156c5b10",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Test multi column index' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "60fdd2b6c5": "added single_node attr.",
+        "b256636aa0": "moved into class with INDEX_TYPE (Local index new tests refactor); no behavior change.",
+        "22156c5b10": "origin."
+      },
+      "relevance": "Live: cql3/statements/create_index_statement.cc:716-721 validate_targets_for_multi_column_index; the 2-target case hits the 'targets.size() == 2 && front is single_column' branch, the 6-target case the size>2 branch.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_malformed_local_index",
+          "coverage": "partial",
+          "note": "'((p1,p2),c1,v)' rejected (size>2 branch, no message check); the global 2-single-column branch is not tested."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_multi_column_local_index",
+          "coverage": "partial",
+          "note": "Local twin (RED)."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of the global 2-single-column-target rejection branch (create_index_statement.cc:719, no scylla boost/cqlpy test found by grep for the message or '(a, b)' index targets); cheap (~4s, 38/38). Pure CQL validation, would fit better in cqlpy; the 6-column case adds nothing over the size>2 branch already covered by test_malformed_local_index."
+    },
+    "TestSecondaryIndexes::test_multi_index_filtering_query": {
+      "description": "4 nodes RF=3: table (key uuid, c0, c1, c2 text) with global indexes on c0 and c1, 5 rows; asserts count c0='a' = 4 (QUORUM, retried 5x1s), that c0='a' AND c1='b' without ALLOW FILTERING is rejected ('use ALLOW FILTERING'), and with it returns count 2. Guards that two indexes do not remove the ALLOW FILTERING requirement.",
+      "origin": {
+        "sha": "c8f71b181a",
+        "date": "2015-10-12",
+        "pr": null,
+        "summary": "cassandra-dtest 'added test checking for ALLOW FILTERING when using multiple predicates' (Andrew Hust); rewritten for Scylla in a8e07cf4d0 (PR 668, multi-node, compaction strategy, index build wait)."
+      },
+      "commits": {
+        "f08e1e8989": "wrap count asserts in @retrying(5x1s) try_assert_all (async view updates).",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "29646f1956": "python3 port (mechanical).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "a8e07cf4d0": "Scylla rewrite: 4 nodes RF=3, create_and_build_index, count asserts.",
+        "8c7c27b752": "driver upgrade fixes (Cassandra era).",
+        "4534bfab1c": "pre-origin (adjacent rebuild_index test via git log -L); not this test.",
+        "c8f71b181a": "origin (Cassandra).",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live: two indexed restrictions cannot be intersected, ALLOW FILTERING required (cql3/restrictions/statement_restrictions.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes",
+          "coverage": "full",
+          "note": "a=..AND b=.. on two indexed columns: rejected without ALLOW FILTERING, correct rows with it (check_af_mandatory)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk",
+          "coverage": "full",
+          "note": "Same scenario, multi-node (RED)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (rejection + correct filtered result); multi-node adds only eventual-consistency retries (f08e1e8989). Same scenario as TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk (also RED). Note: c2 column unused."
+    },
+    "TestSecondaryIndexes::test_query_data_by_ck_and_index": {
+      "description": "4 nodes RF=3: table (key text, c, v), 4 rows inserted, then global index on v created and built; asserts count(*)=4, count v='f' = 2, count for key+c+v matching = 1 (CL ALL) and 0 for key+c with wrong v. Guards indexed queries restricted by full primary key (scylladb#3539).",
+      "origin": {
+        "sha": "8100de2f5a",
+        "date": "2018-07-02",
+        "pr": 668,
+        "summary": "'Test query data by primary key and index' in 'Test of secondary index for Scylla' (Julia Yakovlev); marked require('#3539') until fix."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "17281a1922": "rebase conflict resolution (self.prepare/create_index calls); no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "9adf5b13d2": "removed require('#3539') (fixed); assert_none on count(*) -> assert_all [[0]] (assert_none could never pass on count).",
+        "8100de2f5a": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live; scylladb#3539 ('Broken queries involving PK and secondary index') CLOSED 2018-07-15.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_index_with_partition_key",
+          "coverage": "full",
+          "note": "Added 82c049692b (2018-07-18, after #3539 fix): full pk + full ck + indexed column queried without filtering, pk-only+index, partial pk rejected, matching rows checked."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_restrictions",
+          "coverage": "partial",
+          "note": "pk + index + ck (static index, #12829)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_query_data_by_ck_and_local_index",
+          "coverage": "partial",
+          "note": "Local twin (RED)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Query shape (full pk + ck + global-indexed column, match and non-match) is covered with stronger row checks by test/boost/secondary_index_test.cc::test_index_with_partition_key (#3539-era regression test); index build over pre-existing rows is covered by _node_action_after_index_build tests here (1000 rows). Assertions are 4 count(*) checks on 4 rows."
+    },
+    "TestSecondaryIndexes::test_query_data_by_pk_and_index": {
+      "description": "4 nodes RF=3, users table: 4 rows inserted, then global index on gender created and built; asserts count(*)=4, count gender='f' = 2, KEY='user2' AND gender='m' returns the full row (CL ALL) and KEY='user1' AND gender='m' count 0. Guards indexed queries restricted by partition key (scylladb#3539).",
+      "origin": {
+        "sha": "8100de2f5a",
+        "date": "2018-07-02",
+        "pr": 668,
+        "summary": "'Test query data by primary key and index' in 'Test of secondary index for Scylla' (Julia Yakovlev); marked require('#3539') until fix."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "9ffd273f04": "formatting (ruff format).",
+        "2980e37e1b": "formatting ('%' -> format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "17281a1922": "rebase conflict resolution; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "9adf5b13d2": "removed require('#3539') (fixed); explicit select column list; assert_none on count(*) -> assert_all [[0]].",
+        "8100de2f5a": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live; scylladb#3539 CLOSED 2018-07-15.",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_index_with_partition_key",
+          "coverage": "full",
+          "note": "pk + indexed column without filtering, exact rows, partial pk rejected."
+        },
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a_and_k",
+          "coverage": "full",
+          "note": "a=.. AND k=.. on global index: allowed without filtering, correct rows."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_restrictions",
+          "coverage": "partial",
+          "note": "pk + indexed static column."
+        }
+      ],
+      "decision": "RED",
+      "reason": "pk + global-index query is covered by test/boost/secondary_index_test.cc::test_index_with_partition_key and test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a_and_k (correct rows, no-filtering requirement); #3539 CLOSED. Multi-node adds nothing (4 rows, CL ALL/QUORUM); index build over existing data covered by _node_action_after_index_build tests here."
+    },
+    "TestSecondaryIndexes::test_query_data_created_before_index": {
+      "description": "4 nodes RF=3, users table: inserts 2 rows, creates and waits for 3 global indexes (gender, state, birth_year), inserts 2 more rows; asserts count(*)=4, count state='TX' = 2 (1 pre-index + 1 post-index row) and state='CA' = 1 (pre-index row, must come from view building). Guards index view building over pre-existing data.",
+      "origin": {
+        "sha": "155dd00dae",
+        "date": "2011-10-30",
+        "pr": null,
+        "summary": "cassandra-dtest 'new tests' (data_created_before_index_not_returned_in_where_query_test); rewritten for Scylla in 867db0473d (2018-07-02, PR 668: 4 nodes, 3 indexes, count asserts)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4).",
+        "9ffd273f04": "formatting (ruff format).",
+        "2980e37e1b": "formatting ('%' -> format).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "17281a1922": "rebase conflict resolution; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "867db0473d": "Scylla rewrite (renamed, 4 nodes RF=3, create_and_build_index, count asserts).",
+        "ea69925151": "synced with last Cassandra version.",
+        "8c7c27b752": "driver upgrade fixes (Cassandra era).",
+        "1761f6fac2": "cursor -> session (Cassandra era).",
+        "b01850de7c": "ported to python driver (Cassandra era).",
+        "3e6c9ee425": "patient_cql_connection (Cassandra era).",
+        "a4b42a339d": "pre-origin (adjacent CASSANDRA-1337 test via git log -L); not this test.",
+        "d2ec1836d2": "quoting fix (Cassandra era).",
+        "155dd00dae": "origin (Cassandra).",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live: view builder populates new index views from existing data (db/view/view_builder, view_building_coordinator with tablets).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::_node_action_after_index_build (test_{stop,remove,decommission,add}_node_after_index_build)",
+          "coverage": "full",
+          "note": "Inserts 1000 rows before creating the global index on 4 nodes and validates every row via the index plus view row count (stronger)."
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_too_large_indexed_value_build",
+          "coverage": "partial",
+          "note": "30 pre-existing rows, global index built, each searchable via the index (single node)."
+        },
+        {
+          "path": "test/cluster/test_view_building_coordinator.py::test_build_one_view",
+          "coverage": "partial",
+          "note": "Multi-node view build over existing data (MV, tablets)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_query_data_created_before_local_index",
+          "coverage": "partial",
+          "note": "Local twin (YELLOW)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: pre-existing-data global index build on 4 nodes is checked far more thoroughly (1000 rows, each queried + view count) by the _node_action_after_index_build tests in this class (kept YELLOW), and by cqlpy test_too_large_indexed_value_build; here only 2 pre-index rows are checked via the state index. Note: gender_key and birth_year_key indexes are created/built but never queried (secondary_indexes_test.py:622-632)."
+    },
+    "TestSecondaryIndexes::test_query_indexes_with_vnodes": {
+      "description": "Single node, use_vnodes=True: two tables (key int, b int), one WITH COMPACT STORAGE, global index on b each; inserts 100 rows (b = i % 2) and asserts SELECT ... WHERE b = 0 returns 50 rows per table. Originally guarded CASSANDRA-11104 (index queries across vnode ranges).",
+      "origin": {
+        "sha": "ea69925151",
+        "date": "2018-06-14",
+        "pr": 657,
+        "summary": "Imported from cassandra-dtest (CASSANDRA-11104, 2 nodes, vnodes only); Scylla rewrite dfb3cf64db (2018-07-03, PR 668) made it single node with create_and_build_index."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "ddff319b52": "cluster_options enable_create_table_with_compact_storage=True (compact storage guardrail).",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "60fdd2b6c5": "added single_node attr.",
+        "29646f1956": "python3 port (mechanical).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "dfb3cf64db": "Scylla rewrite: 2 nodes -> 1 node RF=1, loop over tables, index build wait.",
+        "ea69925151": "origin (Cassandra import).",
+        "36960090d2": "pre-origin (CASSANDRA-6924 test at same lines via git log -L); not this test.",
+        "3e6c9ee425": "pre-origin (Cassandra era); not this test."
+      },
+      "relevance": "CASSANDRA-11104 is a Cassandra 3.0 index-scan-over-token-ranges bug; Scylla global SI reads one view partition (b=0) then base rows, independent of vnodes. With 1 node the original multi-node vnode-range aspect is gone. COMPACT STORAGE is deprecated (guarded by enable_create_table_with_compact_storage).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_paging_pk_only",
+          "coverage": "full",
+          "note": "int pk, index on x, 10 partitions match, all returned (with paging sizes 1..100)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/compact_storage_test.py::testEmptyRestrictionValueWithSecondaryIndexAndCompactTables",
+          "coverage": "partial",
+          "note": "Indexes on compact storage tables queried."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Guards a Cassandra-only bug (CASSANDRA-11104) whose multi-node vnode-range aspect was dropped in the Scylla single-node rewrite dfb3cf64db; what remains (global index query returning 50 of 100 partitions) is covered by test/cqlpy/test_secondary_index.py::test_index_paging_pk_only, compact-storage index queries by cqlpy compact_storage_test.py."
+    },
+    "TestSecondaryIndexes::test_stop_node_after_index_build": {
+      "description": "_node_action_after_index_build (global, 4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then stops (gently) the last rack1 node; validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows at QUORUM. Guards global index reads with one replica down.",
+      "origin": {
+        "sha": "21bad483be",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Perform node actions after index building' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "21bad483be": "origin.",
+        "980879b6be": "rf-rack-valid: prepare() uses RF racks, session on rack2, acted-on node = last node of rack1.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns."
+      },
+      "relevance": "Live: QUORUM base+view reads with one node down; runs under vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_stop_node_after_local_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for local index (YELLOW)."
+        },
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV consistency across topology changes; no node-down SI reads."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index/view reads still have 2 replicas, nothing SI-specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+    },
+    "TestSecondaryIndexes::test_remove_node_after_index_build": {
+      "description": "_node_action_after_index_build (global, 4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then removenode's the last rack1 node (tools.misc.remove_node); validates every row via b= index query at QUORUM (60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving removenode (view streaming/repair).",
+      "origin": {
+        "sha": "21bad483be",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'Perform node actions after index building' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "21bad483be": "origin.",
+        "980879b6be": "rf-rack-valid: prepare() uses RF racks, session on rack2, acted-on node = last node of rack1.",
+        "50714438f0": "_node_action_after_index_build: validate_index_data CL ONE -> QUORUM.",
+        "bd4c15b9ff": "validate_index_data: bare except/sleep loop -> @retrying(60x1s) so real errors surface.",
+        "12ebad8037": "exclude_errors moved to self.ignore_log_patterns.",
+        "6b8bd802d4": "skip_if tablets & issue_open('#22394')."
+      },
+      "relevance": "Live: removenode with vnodes; under tablets skipped while scylladb#22394 (OPEN: index view row count 735/1000 after removenode) is open.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_remove_node_after_local_index_build",
+          "coverage": "partial",
+          "note": "Same helper flow for local index (YELLOW)."
+        },
+        {
+          "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
+          "coverage": "partial",
+          "note": "MV consistency across add+decommission (not removenode) under writes."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after removenode, and it is the reproducer for OPEN scylladb#22394 under tablets. Skipped under tablets (dtest-release), runs only on vnodes (19/19 pass, ~42s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+    },
+    "TestSecondaryIndexes::test_truncate_base": {
+      "description": "4 nodes RF=3: table (key uuid, c0, c1, c2) with global indexes on c0 and c1, 5 rows, flush, count via c0 index = 4 and row count 5; TRUNCATE base; asserts base count 0 and both index counts 0; on every node checks system.truncated has an entry for the base and both index views and system.local.truncated_at is null; reinserts data and rechecks the system.truncated entries. Guards base truncate propagating to SI views (sstables + cache) and truncation records moved to system.truncated.",
+      "origin": {
+        "sha": "85b3afe44a",
+        "date": "2018-05-03",
+        "pr": 629,
+        "summary": "'secondary_indexes: add truncate_base test' (Piotr Sarna): single node, two indexes, counts 0 after TRUNCATE."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "b68206e199": "lint: id -> _id; no behavior change.",
+        "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8).",
+        "29646f1956": "python3 port (mechanical).",
+        "b256636aa0": "moved into TestSecondaryIndexes class; no behavior change.",
+        "59df08791c": "added system.truncated/system.local truncation-record checks per node (PR 1010, 'Move truncation records to separate table').",
+        "4820fba667": "4 nodes RF=3, compaction strategy, flush + cache read, index count validation.",
+        "85b3afe44a": "origin.",
+        "980879b6be": "prepare(): rf-rack-valid topology."
+      },
+      "relevance": "Live: replica/database.cc database::truncate truncates all views of the base; truncation records in system.truncated (db/system_keyspace.cc:1546 save_truncation_record). system.local.truncated_at is only a legacy schema column (db/system_keyspace.cc:537), never written.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+          "coverage": "partial",
+          "note": "TRUNCATE base empties both views (single node, MV)."
+        },
+        {
+          "path": "test/boost/database_test.cc::test_drop_does_not_save_truncation_records",
+          "coverage": "partial",
+          "note": "TRUNCATE saves system.truncated records for the table and its view (single node)."
+        },
+        {
+          "path": "scylla-dtest materialized_views_test.py::test_truncate_base",
+          "coverage": "partial",
+          "note": "Multi-node MV variant (flush, cache read, TRUNCATE, counts 0)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_truncate_base_with_local_index",
+          "coverage": "partial",
+          "note": "Local twin (RED, cites this test as remaining coverage)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Each piece is covered separately (cqlpy MV truncate, boost truncation records per view, MV dtest multi-node truncate) but nothing combines SI views + per-node system.truncated records on a multi-node cluster; it is also the remaining coverage cited by the RED TestLocalIndexes::test_truncate_base_with_local_index. Note: the system.local truncated_at == [[None]] check (secondary_indexes_test.py:950-951, tools/data.py:312) can't fail - scylla never writes that legacy column; data reinserted after truncate is never queried; c2 column unused."
+    },
+    "TestSecondaryIndexes::test_ttl_index_column": {
+      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built; UPDATE USING TTL 60 SET b=3; asserts b=3 returns row, b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards index row expiry when the indexed column has a TTL.",
+      "origin": {
+        "sha": "af3b759ff3",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'TTL tests' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "60fdd2b6c5": "added single_node attr.",
+        "af3b759ff3": "origin."
+      },
+      "relevance": "Live: TTL on view-key column propagates to the index view row (db/view/view.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn",
+          "coverage": "full",
+          "note": "Global index, UPDATE USING TTL 1 SET indexed col = new value; after expiry both old and new value queries are empty (1.1s sleep)."
+        },
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_view_update_with_ttl",
+          "coverage": "partial",
+          "note": "TTL on view-key column expires the view row (MV)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestLocalIndexes::test_ttl_local_index_column",
+          "coverage": "partial",
+          "note": "Local twin (RED)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (same TTL-on-indexed-column update, old/new value both gone after expiry). Note: docstring mentions default_time_to_live but the test uses USING TTL."
+    },
+    "TestSecondaryIndexesOnCollections::test_frozen_list_indexes": {
+      "description": "Single node: table users(key uuid, email text, uuids frozen<list<uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
+      "origin": {
+        "sha": "6d14a16c1c",
+        "date": "2019-08-08",
+        "pr": 1077,
+        "summary": "'Checks that secondary indexes can't be created on frozen collection type column' (Julia Yakovlev), per scylladb#3654."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "b68206e199": "lint: helper kwarg type= renamed to _type= (flake8-builtins); no behavior change.",
+        "6d14a16c1c": "origin."
+      },
+      "relevance": "Live: cql3/statements/create_index_statement.cc:545 validate_for_frozen_collection (line 624) rejects any non-full() target on a frozen collection, for global and local indexes alike (same branch, no is_local_index distinction).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_collections",
+          "coverage": "full",
+          "note": "'create index on t(l2|s2|m2)' on frozen list/set/map rejected with 'Cannot create index' (added in scylla e4ec89473e 'Fixes #3654'); also checks full() succeeds and duplicates are rejected."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnFrozenCollectionOfUDT",
+          "coverage": "partial",
+          "note": "keys()/values() on frozen set rejected, full() works."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/frozen_collections_test.py::testSecondaryIndex",
+          "coverage": "partial",
+          "note": "keys() on frozen map rejected; full() indexes on frozen list/set/map queried."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Global rejection of a plain index on a frozen list is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen list' is misleading - full() indexes are supported and not tested here."
+    },
+    "TestSecondaryIndexesOnCollections::test_frozen_set_indexes": {
+      "description": "Single node: table users(key uuid, email text, uuids frozen<set<uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
+      "origin": {
+        "sha": "6d14a16c1c",
+        "date": "2019-08-08",
+        "pr": 1077,
+        "summary": "'Checks that secondary indexes can't be created on frozen collection type column' (Julia Yakovlev), per scylladb#3654."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "b68206e199": "lint: helper kwarg type= renamed to _type= (flake8-builtins); no behavior change.",
+        "6d14a16c1c": "origin."
+      },
+      "relevance": "Live: cql3/statements/create_index_statement.cc:545 validate_for_frozen_collection (line 624) rejects any non-full() target on a frozen collection, for global and local indexes alike (same branch, no is_local_index distinction).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_collections",
+          "coverage": "full",
+          "note": "'create index on t(l2|s2|m2)' on frozen list/set/map rejected with 'Cannot create index' (added in scylla e4ec89473e 'Fixes #3654'); also checks full() succeeds and duplicates are rejected."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnFrozenCollectionOfUDT",
+          "coverage": "partial",
+          "note": "keys()/values() on frozen set rejected, full() works."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/frozen_collections_test.py::testSecondaryIndex",
+          "coverage": "partial",
+          "note": "keys() on frozen map rejected; full() indexes on frozen list/set/map queried."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Global rejection of a plain index on a frozen set is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen set' is misleading - full() indexes are supported and not tested here."
+    },
+    "TestSecondaryIndexesOnCollections::test_frozen_map_indexes": {
+      "description": "Single node: table users(key uuid, email text, uuids frozen<map<uuid, uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
+      "origin": {
+        "sha": "6d14a16c1c",
+        "date": "2019-08-08",
+        "pr": 1077,
+        "summary": "'Checks that secondary indexes can't be created on frozen collection type column' (Julia Yakovlev), per scylladb#3654."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "b68206e199": "lint: helper kwarg type= renamed to _type= (flake8-builtins); no behavior change.",
+        "6d14a16c1c": "origin."
+      },
+      "relevance": "Live: cql3/statements/create_index_statement.cc:545 validate_for_frozen_collection (line 624) rejects any non-full() target on a frozen collection, for global and local indexes alike (same branch, no is_local_index distinction).",
+      "duplicates": [
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_collections",
+          "coverage": "full",
+          "note": "'create index on t(l2|s2|m2)' on frozen list/set/map rejected with 'Cannot create index' (added in scylla e4ec89473e 'Fixes #3654'); also checks full() succeeds and duplicates are rejected."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnFrozenCollectionOfUDT",
+          "coverage": "partial",
+          "note": "keys()/values() on frozen set rejected, full() works."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/frozen_collections_test.py::testSecondaryIndex",
+          "coverage": "partial",
+          "note": "keys() on frozen map rejected; full() indexes on frozen list/set/map queried."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Global rejection of a plain index on a frozen map is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen map' is misleading - full() indexes are supported and not tested here."
+    },
+    "TestSecondaryIndexes::test_ttl_non_index_column": {
+      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built (_prepare_for_ttl); UPDATE USING TTL 60 SET c=3; asserts row found by key and by b=1, index view has (0,1); sleeps 65s; asserts c is null and the row is still found via b=1 and still in the index view (CL ALL). Guards that TTL on a non-indexed column does not expire the index entry.",
+      "origin": {
+        "sha": "af3b759ff3",
+        "date": "2018-07-03",
+        "pr": 668,
+        "summary": "'TTL tests' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
+      },
+      "commits": {
+        "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
+        "9ffd273f04": "formatting (ruff format).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "60fdd2b6c5": "added single_node attr.",
+        "af3b759ff3": "origin."
+      },
+      "relevance": "Live: view-update logic keeps the view row alive when only an unselected/non-key base column expires (db/view/view.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn",
+          "coverage": "full",
+          "note": "Global index on a, UPDATE USING TTL 1 SET b (non-indexed); after expiry SELECT WHERE a=3 still returns the row with b=null (1.1s sleep)."
+        },
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_ttl_index_column",
+          "coverage": "partial",
+          "note": "Indexed-column twin (RED)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (TTL on non-indexed column, row still returned by index with null value); the extra index-view row check is the same view-update path. Note: docstring typo 'imdex'."
+    },
+    "TestSecondaryIndexesOnCollections::test_tuple_indexes": {
+      "description": "Single node: table with tuple<int>, tuple<int,int>, tuple<int,int,int> and nested tuple<int,tuple<int,int>> columns; 250 rows inserted (5 per value), querying an unindexed tuple must require ALLOW FILTERING; builds global index on each tuple column and checks counts on pre-existing data (5 per value, 0 for -1), after 150 more inserts (8 per value, after time.sleep(5)), and after updating rows of values 0-4 to -999 (0 old, 40 for -999). Guards global SI on (nested) tuple columns: index build, live updates and value changes.",
+      "origin": {
+        "sha": "287a37eada",
+        "date": "2015-08-27",
+        "pr": null,
+        "summary": "Cassandra dtest 'added simple tuple secondary index test' (Andrew Hust); imported into scylla-dtest via upstream merge (PR #52 'Merge upstream'), nested tuple added in 638fb135eb; rewritten for Scylla in e75ef0542c (PR #668)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format).",
+        "19991c953b": "formatting (ruff version bump).",
+        "aedaa57c4e": "formatting (pyupgrade/isort).",
+        "e5c5dba5ac": "helpers no longer staticmethod: prepare call adjusted; no behavior change.",
+        "e6e43dd9db": "port to pytest (mechanical).",
+        "c3471a97e4": "formatting (autopep8) + compaction=self.compaction_strategy passed to create_cf.",
+        "29646f1956": "python3 port (mechanical).",
+        "b256636aa0": "test moved within file (class reorganization for local index tests); no behavior change.",
+        "7f0bea7ac6": "expected error for unindexed tuple query changed to 'use ALLOW FILTERING'.",
+        "e75ef0542c": "rewritten on scylla helpers (prepare/create_cf/create_and_build_index), template-driven loops over index columns, added post-index inserts + sleep(5) validation.",
+        "66a40b70d1": "surrounding helpers refactored (node actions); no change to this test.",
+        "ea69925151": "Cassandra sync: moved into TestSecondaryIndexesOnCollections, dropped <3.0 branch.",
+        "7cb0f591ee": "formatting (pep8).",
+        "0311d61f62": "removed pre-2.1 version branches.",
+        "f658b06cf7": "wrap session.execute results in list() for new driver API.",
+        "9639765329": "loop simplification, no behavior change.",
+        "638fb135eb": "added nested tuple column.",
+        "287a37eada": "origin (Cassandra).",
+        "3e6c9ee425": "pre-origin file commit (patient_cql_connection); not this test."
+      },
+      "relevance": "Live: global secondary indexes on frozen tuple columns are supported (cqlpy test_secondary_index.py:1037 creates CREATE INDEX ON t(t)).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_index_collection_wrong_type",
+          "coverage": "partial",
+          "note": "Only checks CREATE INDEX ON tuple column succeeds and keys/values/entries/full() on a tuple are rejected; no queries."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test querying a secondary index on (nested) tuple columns, incl. index build over existing data and value updates; no scylla cqlpy/boost equivalent (tuple_type_test.py's tuple index part is commented out). Cheap (~16s), 32/32 pass in gating. Could be ported to cqlpy."
+    }
+  }
+}
