@@ -1,0 +1,575 @@
+{
+ "file": "deletion_test.py",
+ "tests": {
+  "TestRangeDeletion::test_delete_by_1ck_range_condition_if_exists_failed": {
+   "description": "Single node, table (pk int, ck date, v1). Asserts `DELETE ... WHERE pk=X AND ck < a AND ck >= b IF EXISTS` is rejected with 'DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns'. Guards that conditional (LWT) range deletes are not allowed.",
+   "origin": {
+    "sha": "6ca109c39e",
+    "date": "2020-04-30",
+    "pr": 1452,
+    "summary": "feature(lwt): conditional delete by range - tests for conditional DELETE by range, plain and in batch"
+   },
+   "commits": {
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "6ca109c39e": "origin: test added"
+   },
+   "relevance": "Live: check in cql3/statements/delete_statement.cc:70-86 (validate_where_clause_for_conditions) rejects any IF on a DELETE not addressing exact rows, before conditions are evaluated.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/insert_update_if_condition_test.py::testConditionalDelete",
+     "coverage": "full",
+     "note": "lines 226-229: DELETE ... WHERE k='k' AND i > 0 IF EXISTS / IF v='foo' -> same 'must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns'"
+    },
+    {
+     "path": "test/cql/lwt_test.cql",
+     "coverage": "full",
+     "note": "lines 222-223: delete from lwt where p=1 and c>0 if exists / if v=10, expected message in lwt_test.result:711-714"
+    },
+    {
+     "path": "dtest cql_additional_tests.py (conditional delete test, lines 4248-4249)",
+     "coverage": "full",
+     "note": "same slice + IF EXISTS / IF v= invalid queries (no message match)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Same slice + IF EXISTS rejection with the exact message is asserted in cqlpy insert_update_if_condition_test.py::testConditionalDelete:226 and test/cql/lwt_test.cql:222; also dtest cql_additional_tests.py:4248. Note: class autouse fixture runs it 3x (LCS/STCS/TWCS) though the compaction strategy is irrelevant to a CQL validation error (deletion_test.py:23-25)."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_condition_if_equality_failed": {
+   "description": "Single node. Asserts `DELETE ... WHERE pk=X AND ck < a AND ck >= b IF v1 = N` is rejected with 'DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns'. Guards that range deletes with an IF column condition are refused.",
+   "origin": {
+    "sha": "6ca109c39e",
+    "date": "2020-04-30",
+    "pr": 1452,
+    "summary": "feature(lwt): conditional delete by range - tests for conditional DELETE by range, plain and in batch"
+   },
+   "commits": {
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "6ca109c39e": "origin: test added"
+   },
+   "relevance": "Live: check in cql3/statements/delete_statement.cc:70-86 (validate_where_clause_for_conditions) rejects any IF on a DELETE not addressing exact rows, before conditions are evaluated.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/insert_update_if_condition_test.py::testConditionalDelete",
+     "coverage": "full",
+     "note": "lines 226-229: DELETE ... WHERE k='k' AND i > 0 IF EXISTS / IF v='foo' -> same 'must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns'"
+    },
+    {
+     "path": "test/cql/lwt_test.cql",
+     "coverage": "full",
+     "note": "lines 222-223: delete from lwt where p=1 and c>0 if exists / if v=10, expected message in lwt_test.result:711-714"
+    },
+    {
+     "path": "dtest cql_additional_tests.py (conditional delete test, lines 4248-4249)",
+     "coverage": "full",
+     "note": "same slice + IF EXISTS / IF v= invalid queries (no message match)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Exact scenario (slice on CK + IF v = ...) with the same message in cqlpy insert_update_if_condition_test.py::testConditionalDelete:228 and test/cql/lwt_test.cql:223 (result :713). Note: class autouse fixture runs it 3x (LCS/STCS/TWCS) though the compaction strategy is irrelevant to a CQL validation error (deletion_test.py:23-25)."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_if_range_failed": {
+   "description": "Single node. Asserts `DELETE ... WHERE pk=X AND ck < a AND ck >= b IF v1 >= m AND v1 < n` is rejected with the 'must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns' error. Variant of the IF-equality case with inequality conditions.",
+   "origin": {
+    "sha": "6ca109c39e",
+    "date": "2020-04-30",
+    "pr": 1452,
+    "summary": "feature(lwt): conditional delete by range - tests for conditional DELETE by range, plain and in batch"
+   },
+   "commits": {
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "6ca109c39e": "origin: test added"
+   },
+   "relevance": "Live: check in cql3/statements/delete_statement.cc:70-86 (validate_where_clause_for_conditions) rejects any IF on a DELETE not addressing exact rows, before conditions are evaluated. Condition operator is irrelevant: the check fires on the WHERE clause whenever any condition exists.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/insert_update_if_condition_test.py::testConditionalDelete",
+     "coverage": "full",
+     "note": "lines 226-229: DELETE ... WHERE k='k' AND i > 0 IF EXISTS / IF v='foo' -> same 'must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns'"
+    },
+    {
+     "path": "test/cql/lwt_test.cql",
+     "coverage": "full",
+     "note": "lines 222-223: delete from lwt where p=1 and c>0 if exists / if v=10, expected message in lwt_test.result:711-714"
+    },
+    {
+     "path": "dtest cql_additional_tests.py (conditional delete test, lines 4248-4249)",
+     "coverage": "full",
+     "note": "same slice + IF EXISTS / IF v= invalid queries (no message match)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Rejection happens in delete_statement.cc:74-86 regardless of the condition operator, so cqlpy testConditionalDelete:226-229 and test/cql/lwt_test.cql:222-223 fully cover it. Note: class autouse fixture runs it 3x (LCS/STCS/TWCS) though the compaction strategy is irrelevant to a CQL validation error (deletion_test.py:23-25)."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_conditional_batch": {
+   "description": "3 nodes RF=3. Batch: unconditional range DELETE (ck in [d1,d3)) + two INSERT ... IF NOT EXISTS of new rows. Asserts batch result is 3 rows [True,None,None,None] (one per statement, scylla format) and the final table has rows 1-2 replaced by new rows. Guards that a non-conditional range delete is accepted and applied inside a conditional (LWT) batch.",
+   "origin": {
+    "sha": "6ca109c39e",
+    "date": "2020-04-30",
+    "pr": 1452,
+    "summary": "feature(lwt): conditional delete by range - tests for conditional DELETE by range, plain and in batch"
+   },
+   "commits": {
+    "55c4c0f738": "re-enable on tablets: skip_if -> @pytest.mark.lwt",
+    "98d0b4c5e0": "revert of cace024081 (skip_if back)",
+    "cace024081": "skip_if replaced with @pytest.mark.lwt (LWT over tablets)",
+    "516fc69e26": "skip_if tablets & scylladb/scylladb#18068 (LWT not supported on tablets)",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "21e4ed6449": "expected batch result changed to one row per statement (scylla change: conditional batch returns a row for every statement)",
+    "6ca109c39e": "origin: test added"
+   },
+   "relevance": "Live: range DELETE allowed in LWT batch (test/cql/lwt_batch_test.cql:131-132 comment 'batch + lwt + range DELETE ... ok'); LWT over tablets enabled (55c4c0f738); per-statement batch result rows are scylla behavior.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction",
+     "coverage": "partial",
+     "note": "cmd5/cmd8: prefix range DELETE (id=?, clustering1=?) in batch with conditional UPDATE/DELETE, checks data; single node, tier2; does not check result rows or slice (< / >=) deletes"
+    },
+    {
+     "path": "test/cql/lwt_batch_test.cql",
+     "coverage": "partial",
+     "note": "comment at :132 claims range DELETE in LWT batch is tested, but only a failing 'IF EXISTS' slice delete is (result :295-299)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Partial overlap with cqlpy batch_test.py::testBatchTTLConditionalInteraction (prefix range delete in conditional batch, single node); no scylla test found checking slice delete + IF NOT EXISTS result rows on multi-node/tablets LWT. Note: no negative case (condition false -> range delete must not apply), despite docstring claiming 'whole batch is conditional'."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_conditional_batch_update": {
+   "description": "3 nodes RF=3. Batch: unconditional range DELETE (ck in [d1,d3)) + UPDATE ... IF v1 = old for rows 3-4. Asserts the result rows (True + None row for the DELETE, True + old row values for each UPDATE) and that rows 1-2 are deleted and rows 3-4 updated. Guards range delete + conditional updates applied atomically in an LWT batch.",
+   "origin": {
+    "sha": "6ca109c39e",
+    "date": "2020-04-30",
+    "pr": 1452,
+    "summary": "feature(lwt): conditional delete by range - tests for conditional DELETE by range, plain and in batch"
+   },
+   "commits": {
+    "55c4c0f738": "re-enable on tablets: skip_if -> @pytest.mark.lwt",
+    "98d0b4c5e0": "revert of cace024081 (skip_if back)",
+    "cace024081": "skip_if replaced with @pytest.mark.lwt (LWT over tablets)",
+    "516fc69e26": "skip_if tablets & scylladb/scylladb#18068 (LWT not supported on tablets)",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "21e4ed6449": "expected batch result changed to one row per statement (scylla change: conditional batch returns a row for every statement)",
+    "6ca109c39e": "origin: test added"
+   },
+   "relevance": "Live: as conditional_batch; scylla returns a row per batch statement (21e4ed6449 adapted to it).",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction",
+     "coverage": "partial",
+     "note": "cmd5: prefix range DELETE + conditional UPDATE in one batch, data checked; single node, no result-row check"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_by_1ck_range_conditional_batch",
+     "coverage": "partial",
+     "note": "same setup with IF NOT EXISTS inserts instead of IF updates"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "cqlpy batch_test.py::testBatchTTLConditionalInteraction (cmd5) covers range delete + conditional update in a batch on one node; this adds multi-node LWT/tablets and scylla result-row format. Note: dead duplicate `lower_index/upper_index` assignments (deletion_test.py:612-613 vs 621-622); no negative case where IF fails and delete must not apply."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_in": {
+   "description": "3 nodes RF=3, 2 partitions x 10 rows. `DELETE ... WHERE pk IN (1,2) AND ck IN (d4,d2)` (cartesian point deletes, not a real range), flush, asserts count 16 and remaining rows at CL=ALL. Part of the scylla#432 range-deletion suite.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE) to fix flakiness",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)"
+   },
+   "relevance": "Live: multi-partition/multi-row DELETE with IN is standard CQL.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithOneClusteringColumns",
+     "coverage": "partial",
+     "note": "pk IN + ck =, and (ck) IN ((?),(?)); not pk IN x ck IN"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithTwoClusteringColumns",
+     "coverage": "partial",
+     "note": "pk IN + ck eq, ck2 IN; xfail #4244"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_by_2ck_range_in",
+     "coverage": "partial",
+     "note": "ck IN deletes on 2-CK table"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Not a range deletion; IN deletes partially covered by cqlpy delete_test.py::testDeleteWithOneClusteringColumns (pk IN + ck =, (ck) IN), no exact pk IN x ck IN found. Slow for what it checks (~19s x 3 params). Note: DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; compaction param is a no-op (only 2 flushes, no compaction triggered)."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_less": {
+   "description": "3 nodes RF=3, 2 partitions x 10 rows (date CK). `DELETE ... WHERE pk=1 AND ck < d4`, flush, asserts count 16 and remaining rows at CL=ALL. Guards basic range tombstone (scylla#432).",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE) to fix flakiness",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)"
+   },
+   "relevance": "Live: range deletes (scylla#432, long done).",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndOneClusteringColumn",
+     "coverage": "full",
+     "note": "ck <, <=, >, >=, and >= AND < slices on 1 CK, with/without flush (forceFlush param), checks remaining rows"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_multiple_ranges_by_2ck / test_delete_when_node_stopped",
+     "coverage": "partial",
+     "note": "multi-node range tombstones incl. repair/hints, compaction - the distributed aspect this test only touches lightly"
+    }
+   ],
+   "decision": "RED",
+   "reason": "cqlpy delete_test.py::testDeleteWithRangeAndOneClusteringColumn asserts `clustering < ?` (and <=, >, >=) range deletes with/without flush; dtest only adds RF=3 + CL=ALL read, which test_delete_multiple_ranges_by_2ck/test_delete_when_node_stopped cover better. Slow + redundant (~17s x 3 params). Note: DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; compaction param is a no-op (only 2 flushes, no compaction triggered)."
+  },
+  "TestRangeDeletion::test_delete_by_1ck_range_less_more": {
+   "description": "3 nodes RF=3, 2 partitions x 10 rows. `DELETE ... WHERE pk=1 AND ck < d6 AND ck >= d4`, flush, asserts count 18 and remaining rows at CL=ALL. Guards bounded range tombstone.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE) to fix flakiness",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)"
+   },
+   "relevance": "Live: bounded range deletes.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndOneClusteringColumn",
+     "coverage": "full",
+     "note": "`clustering >= ? AND clustering < ?` (pk 2) and `> AND <=`, with/without flush"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_multiple_ranges_by_2ck / test_delete_when_node_stopped",
+     "coverage": "partial",
+     "note": "multi-node range tombstones incl. repair/hints, compaction - the distributed aspect this test only touches lightly"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Same bounded slice (`clustering >= ? AND clustering < ?`) asserted in cqlpy delete_test.py::testDeleteWithRangeAndOneClusteringColumn (forceFlush param); multi-node aspect covered by other tests in this file. Slow + redundant (~17s x 3 params). Note: DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; compaction param is a no-op (only 2 flushes, no compaction triggered)."
+  },
+  "TestRangeDeletion::test_delete_by_2ck_range_equal_and_not_equal": {
+   "description": "3 nodes RF=3, table (pk1, ck1 int, ck2 varchar). `DELETE ... WHERE pk1=0 AND ck1=0 AND ck2 >= 'ck4'`, flush, asserts count 14 and remaining rows at CL=ALL. Guards range delete with EQ on first CK and slice on second.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "43b0f857ae": "file-level: insert_data_cf_2ck writes at QUORUM (was CL=ONE) to fix flakiness",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)"
+   },
+   "relevance": "Live: EQ-prefix + slice range deletes.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndTwoClusteringColumns",
+     "coverage": "full",
+     "note": "`clustering_1 = ? AND clustering_2 <, <=, >, >=, > AND <` with/without flush (lines 702-745); test is xfail #13250 but that failure is later (mixed multi-column restrictions, ~line 838), so these asserts run"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_multiple_ranges_by_2ck / test_delete_when_node_stopped",
+     "coverage": "partial",
+     "note": "multi-node range tombstones incl. repair/hints, compaction - the distributed aspect this test only touches lightly"
+    }
+   ],
+   "decision": "RED",
+   "reason": "EQ-on-ck1 + slice-on-ck2 range deletes asserted in cqlpy delete_test.py::testDeleteWithRangeAndTwoClusteringColumns:702-745 (runs before the #13250 xfail point); dtest adds only RF=3/CL=ALL. Slow + redundant (~21s x 3 params). Note: DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; compaction param is a no-op (only 2 flushes, no compaction triggered)."
+  },
+  "TestRangeDeletion::test_delete_by_2ck_range_failure": {
+   "description": "Single node, 2-CK table. Asserts 4 invalid DELETEs: ck1 > 3 AND ck2 = .. / ck2 > .. / ck2 IN (..) -> 'preceding column \"ck1\" is restricted by a non-EQ relation'; ck2 > .. without ck1 -> 'cannot be restricted as preceding column \"ck1\" is not restricted'. Guards CK-prefix validation for range deletes.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "eccda80e42": "formatting (ruff 0.9.4: joined implicit string concatenations in assert messages)",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)",
+    "2d8cd93fdd": "misattributed by git log -L (2011 'Add test for range slices'); real origin 07eaaff1"
+   },
+   "relevance": "Live: messages from cql3/restrictions/statement_restrictions.cc:1329-1335 (shared by SELECT/UPDATE/DELETE).",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/select_test.py (e.g. :1500, :1698)",
+     "coverage": "partial",
+     "note": "same 'preceding column ... is restricted by a non-EQ relation' message for SELECT (shared code)"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithTwoClusteringColumns",
+     "coverage": "partial",
+     "note": "DELETE 'cannot be restricted as preceding column ... is not restricted' at :506, but test is xfail #4244 (open) and fails at :494 before reaching it"
+    },
+    {
+     "path": "test/cqlpy/test_null.py::test_delete_with_list_column_and_missing_clustering_key_part",
+     "coverage": "partial",
+     "note": "DELETE c ... b=1 without a -> 'not restricted' message (alternative)"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Restriction validation is shared code covered for SELECT in cqlpy select_test.py; DELETE-specific message assertion in delete_test.py:506 is never reached (xfail #4244 fails at :494). Cheap test (5s) but likely redundant. Note: class autouse fixture runs it 3x (LCS/STCS/TWCS) though the compaction strategy is irrelevant to a CQL validation error (deletion_test.py:23-25)."
+  },
+  "TestRangeDeletion::test_delete_by_2ck_range_in": {
+   "description": "3 nodes RF=3, table (pk1, ck1 int, ck2 varchar), 2 partitions x 10 rows. `DELETE ... WHERE pk1=0 AND ck1 IN (0,0,0) AND ck2 IN ('ck4','ck6','ck8')` (cartesian point deletes, not a range), flush, asserts count 17 and remaining rows at CL=ALL.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)",
+    "43b0f857ae": "file-level: insert_data_cf_2ck writes at QUORUM (was CL=ONE) to fix flakiness",
+    "2213392261": "misattributed by git log -L (2015 memtable tombstone test); real origin 07eaaff1"
+   },
+   "relevance": "Live: multi-column IN deletes are standard CQL.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithTwoClusteringColumns",
+     "coverage": "partial",
+     "note": "ck1 = + ck2 IN (:478), (ck1,ck2) IN ((..),(..)) (:486); xfail #4244 fails at :494, after these asserts. No ck1 IN x ck2 IN found"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndTwoClusteringColumns",
+     "coverage": "partial",
+     "note": "ck1 IN + (ck2) >= (:847) - after #13250 xfail point, not reached"
+    },
+    {
+     "path": "deletion_test.py::TestRangeDeletion::test_delete_by_1ck_range_in",
+     "coverage": "partial",
+     "note": "pk IN x ck IN cartesian deletes"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Not a range deletion despite the name; IN deletes on 2-CK table partially covered by cqlpy delete_test.py::testDeleteWithTwoClusteringColumns:478-486 (ck2 IN, tuple IN), no exact ck1 IN x ck2 IN found. Slow for a CQL semantics check (~20s x 3 params). Note: ck1 IN list is (0,0,0) - duplicates, effectively ck1=0; DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25), compaction param is a no-op (2 flushes, no compaction)."
+  },
+  "TestRangeDeletion::test_delete_by_2ck_range_one_non_equal": {
+   "description": "3 nodes RF=3, table (pk1, ck1 int, ck2 varchar). `DELETE ... WHERE pk1=0 AND ck1 >= 0` (slice on first CK, deletes whole partition 0), flush, asserts count 10 and remaining rows at CL=ALL.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)",
+    "43b0f857ae": "file-level: insert_data_cf_2ck writes at QUORUM (was CL=ONE) to fix flakiness"
+   },
+   "relevance": "Live: slice on first CK range deletes.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndTwoClusteringColumns",
+     "coverage": "full",
+     "note": "'test slices on the first clustering column': clustering_1 >= ?, > ?, >= AND <, > AND <= with/without flush (:755-805); xfail #13250 failure point is later (~:838)"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndOneClusteringColumn",
+     "coverage": "partial",
+     "note": "slices on single CK"
+    }
+   ],
+   "decision": "RED",
+   "reason": "ck1 slice range deletes on a 2-CK table asserted in cqlpy delete_test.py::testDeleteWithRangeAndTwoClusteringColumns:755-805 (before the #13250 xfail point); dtest adds only RF=3/CL=ALL. Slow + redundant (~20s x 3 params). Note: DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25), compaction param is a no-op."
+  },
+  "TestRangeDeletion::test_update_by_1ck_range": {
+   "description": "3 nodes RF=3, table (pk, ck date, v1). Asserts `UPDATE ... SET v1=100 WHERE pk=1 AND ck < d4` is rejected with 'Invalid operator in where clause'. Guards that UPDATE by CK range is refused.",
+   "origin": {
+    "sha": "07eaaff1",
+    "date": "2019-11-14",
+    "pr": 1135,
+    "summary": "'Support range deletions in CQL' (scylla#432 / CASSANDRA-6237) added RangeDeletionTester in cql_tests.py; moved to deletion_test.py by 95b748594d (PR 1290) which added compaction-strategy params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare() builds rack layout via generate_rack_topology_based_rf; test back to prepare(nodes=3, rf=3)",
+    "4e91d4abe1": "RF-rack validity: nodes=4,rf=3 -> 3 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "95b748594d": "moved from cql_tests.py RangeDeletionTester; parametrized over LCS/STCS/TWCS (PR 1290)",
+    "a58b293f8a": "expected message relaxed to 'Invalid operator in where clause' (dropped ' Restrictions' suffix) after scylla error text change",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE)"
+   },
+   "relevance": "Live: message from cql3/restrictions/statement_restrictions.cc:1034.",
+   "duplicates": [
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/update_test.py::testUpdate",
+     "coverage": "full",
+     "note": "`UPDATE ... WHERE partitionKey = ? AND clustering_1 > ?` assertInvalid (:158); comment notes Scylla's 'Invalid operator in where clause' message, message not matched"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/update_test.py::testUpdateWithTwoClusteringColumns",
+     "coverage": "full",
+     "note": "same slice UPDATE assertInvalid (:340)"
+    }
+   ],
+   "decision": "RED",
+   "reason": "Same rejection asserted in cqlpy update_test.py::testUpdate:158 and testUpdateWithTwoClusteringColumns:340 (without message match - only gap). Boots 3 nodes and inserts 20 rows for a pure CQL validation error (~14s x 3 params). Note: class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25) - compaction strategy irrelevant to a validation error."
+  },
+  "TestRangeDeletion::test_delete_multiple_ranges_by_2ck": {
+   "description": "2 nodes RF=2, node2 stopped. On node1: 2 pk x 4 x 4 rows, flush per pk; overlapping ck2 range deletes per (pk, even ck1), then ck1 >= 2 per pk, then whole pk0 via ck1 >= 0, flushing between (overlapping range tombstones across sstables); count after each step. Then start node2 + repair, read node2 alone; then node1 alone after major compaction (bypass cache). Guards overlapping range tombstone merging on read, repair and compaction.",
+   "origin": {
+    "sha": "12a6079107",
+    "date": "2022-03-16",
+    "pr": 2663,
+    "summary": "Added test to test overlap of range tombstones on simple read, after repair and after major compaction (Trello wiNhJcZO)"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: prepare(nodes=2, rf=2) with auto rack layout",
+    "4e91d4abe1": "RF-rack validity: 2 racks x 1 node",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "fb3dfc9ea9": "formatting/lint (ruff pylint checks, noqa)",
+    "12a6079107": "origin: test added with create_cf_2ck_int and insert_data_cf_2ck_matrix helpers"
+   },
+   "relevance": "Live: range tombstones, row-level repair, major compaction.",
+   "duplicates": [
+    {
+     "path": "test/boost/range_tombstone_list_test.cc, test/boost/sstable_compaction_test.cc, test/boost/mutation_reader_test.cc",
+     "coverage": "partial",
+     "note": "overlapping range tombstone merging and compaction at unit level"
+    },
+    {
+     "path": "test/boost/repair_test.cc",
+     "coverage": "partial",
+     "note": "repair row encoding/reader with random_mutation_generator (includes range tombstones); not an end-to-end repair of overlapping RTs"
+    },
+    {
+     "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithRangeAndTwoClusteringColumns",
+     "coverage": "partial",
+     "note": "overlapping range deletes on 2-CK table, single node"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Would be GREEN: end-to-end repair + major compaction of overlapping multi-sstable range tombstones, only unit-level coverage in scylla (boost repair_test.cc, range_tombstone_list_test.cc). Bug: hinted handoff is on (default) while node2 is down, so on node2 restart hints race with repair - the post-repair check passes even if repair fails to ship RTs (deletion_test.py:197-274; repair_additional_test.py disables hints for this reason). Note: node1.nodetool('disableautocompaction') runs before the table exists (likely no-op) and node1 restart resets it anyway; row counts are floats (`/` at :236, :259) - works but fragile; class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25) - here the param is meaningful (major compaction)."
+  },
+  "TestRangeDeletion::test_delete_when_node_stopped": {
+   "description": "3 nodes RF=3, 2 partitions x 10 rows (QUORUM). Stop node2, open range delete `pk=2 AND ck > d6` (CL=ONE), flush; count 17. Start node2, sleep 15s for hints, stop others, read node2 alone at CL=ONE: expects range tombstone delivered (via hinted handoff).",
+   "origin": {
+    "sha": "95b748594d",
+    "date": "2020-02-04",
+    "pr": 1290,
+    "summary": "'Deletion tests: support different compactions and node operations' - added node-stopped/decommission range-tombstone tests (Trello 1583 open range tombstones) + LCS/STCS/TWCS params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: back to prepare(nodes=3, rf=3) with auto rack layout",
+    "4e91d4abe1": "RF-rack validity: 3 racks x 1 node",
+    "0f8c404929": "removed no_boot_speedups mark; added time.sleep(15) wait for hinted handoff before isolating node2",
+    "0f5cfea953": "docstring: added no_boot_speedups / hinted-handoff notes (code move commit)",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "aedaa57c4e": "formatting (ruff pyupgrade/isort)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE)",
+    "95b748594d": "origin: test added (PR 1290)"
+   },
+   "relevance": "Live: hinted handoff of range tombstones; runs on vnodes and tablets.",
+   "duplicates": [
+    {
+     "path": "test/cluster/test_hints.py",
+     "coverage": "partial",
+     "note": "hint replay tested with inserts / partition delete (:1168); no range tombstone hints"
+    },
+    {
+     "path": "dtest hintedhandoff tests (test_hintedhandoff_basic_check, per docstring)",
+     "coverage": "partial",
+     "note": "same flow with writes instead of range deletes"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Would be GREEN: only test of range-tombstone delivery via hinted handoff; scylla test/cluster/test_hints.py has no range deletes. Note: fixed time.sleep(15) for hint replay instead of waiting on hint metrics (deletion_test.py:486); docstring itself says it belongs in the hinted-handoff suite; DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25), compaction param is a no-op."
+  },
+  "TestRangeDeletion::test_delete_when_decommission_node": {
+   "description": "Vnodes only. 3 nodes in one rack RF=3, insert, decommission node2 (cluster below RF), open range delete `pk=2 AND ck > d6`, flush, count 17. Bootstrap a new node, stop the others, read new node alone at CL=ONE: expects the range tombstone streamed to the bootstrapping node.",
+   "origin": {
+    "sha": "95b748594d",
+    "date": "2020-02-04",
+    "pr": 1290,
+    "summary": "'Deletion tests: support different compactions and node operations' - added node-stopped/decommission range-tombstone tests (Trello 1583 open range tombstones) + LCS/STCS/TWCS params"
+   },
+   "commits": {
+    "5512040525": "RF-rack validity: nodes={'rack1': 3} (single rack, vnodes exempt from rf-rack-valid)",
+    "6f40178ab2": "added required_features('!tablets'): shrinking below RF doesn't work with tablets",
+    "9ffd273f04": "formatting (ruff format, tree-wide)",
+    "2980e37e1b": "formatting (ruff 0.0.282, tree-wide)",
+    "aedaa57c4e": "formatting (ruff pyupgrade/isort)",
+    "180dff1d14": "port to pytest: RangeDeletionTester -> TestRangeDeletion, compaction_strategy autouse fixture param",
+    "c3471a97e4": "formatting (autopep8)",
+    "3d1e9883a8": "nodetool('decommission') -> node.decommission(); new node start wait_other_notice=True",
+    "8b32a0af41": "file-level: insert_data_cf_1pk_1ck writes at QUORUM (was default CL=ONE)",
+    "95b748594d": "origin: test added (PR 1290)"
+   },
+   "relevance": "Live but vnodes-only (skipped with tablets; runs only in next-dtest-consistent-topology). Exercises bootstrap streaming (RBNO) of range tombstones.",
+   "duplicates": [
+    {
+     "path": "test/cluster (bootstrap/decommission tests)",
+     "coverage": "partial",
+     "note": "no range-delete data in topology tests found (grep DELETE in test/cluster topology tests)"
+    },
+    {
+     "path": "dtest compaction_additional_test.py::test_streaming_decommission, update_cluster_layout_tests.py",
+     "coverage": "partial",
+     "note": "streaming during topology changes with regular data"
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Range tombstone streaming on bootstrap after shrinking below RF; no scylla test with range deletes in topology flows found. Vnodes-only (required_features('!tablets'), 6f40178ab2) - shrinking relevance as tablets become default. Note: decommission is incidental (delete happens after it; nothing checks the decommissioned node); DELETE and `select count(*)` run at session default CL=ONE (dtest_class.py:94) on RF=3 - same flakiness class fixed for inserts in 43b0f857ae/8b32a0af41; class autouse fixture runs it 3x (LCS/STCS/TWCS) (deletion_test.py:23-25), compaction param is a no-op."
+  }
+ },
+ "analyzed_at": "2026-10-20",
+ "scylla_rev": "814c05a00f"
+}
