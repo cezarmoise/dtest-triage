@@ -1,0 +1,74 @@
+{
+  "file": "simple_driver_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestSimpleDriver::test_simple_create_insert_select": {
+      "description": "2015 smoke test: boots a 1-node cluster with --smp 1 or --smp 2 (autouse fixture params SMP=1/SMP=2), creates ks RF=1 and table (k int PRIMARY KEY, c int), inserts one row and checks SELECT k=1 returns 1 row and k=2 returns 0 rows. Only row counts asserted, not values. No specific bug guarded; general boot+CQL sanity, part of next_gating.",
+      "origin": {"sha": "c9ceda97ae26ab160afb80cb28b8c628c9687ab5", "date": "2015-06-22", "pr": 2, "summary": "add simple_driver_test (Shlomi Livne), first scylla-dtest smoke test"},
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "9c624f9e2d4c0411fb9411675c3c046e0c600e93": "migrate to pytest: rename to test_*, create_ks helper; no behavior change",
+        "17e5d67cf63a5a6fef700355c6b4077e4c9c8ad4": "len(res) -> len(list(res)) for newer driver ResultSet",
+        "cd199a765603933dc3bae0b2341e2a5418d0d283": "rename urchin -> scylla (ScyllaCluster type check)",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting (PEP8)",
+        "2f16c43d0deed1659a146e2d907793cef7a2fbe3": "pass --smp args only when cluster is ScyllaCluster (not JVM)",
+        "d539f8faa3c20c021e5c2e0b8c4b78ab17470559": "move populate/start into test, pass __jvm_args__ for single/smp variants; added trailing sleep(10)",
+        "5fedf1804b868ad23382e765f1b85f29e60240b7": "drop useless trailing time.sleep(10) (PR 7536)",
+        "3b551745f63466bac640395bb1015412034fa9cf": "replace generated SimpleDriverTest_with_{Single,SMP} subclasses with SMP=1/SMP=2 pytest fixture params",
+        "ff03d4c1fc62061a9cb905df3eaecddabef195c3": "class marked next_gating",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "class marked single_node"
+      },
+      "relevance": "Live: basic single-partition INSERT/SELECT on a 1-node cluster. --smp honored via ccm scylla_node.start jvm_args -> cmd_args (scylla-ccm/ccmlib/scylla_node.py:780-813).",
+      "duplicates": [
+        {"path": "test/cqlpy (whole suite, e.g. test/cqlpy/cassandra_tests/validation/operations/insert_test.py, select_test.py)", "coverage": "full", "note": "cqlpy runs single-node scylla with --smp 2 (test/pylib/scylla_server.py:153) and checks INSERT/SELECT with value assertions in hundreds of tests"},
+        {"path": "scylla-dtest simple_cluster_driver_test.py::TestSimpleCluster::test_simple_create_insert_select", "coverage": "partial", "note": "same schema/queries on 3-node RF=3 at QUORUM from 3 coordinators, also next_gating"},
+        {"path": "scylla-dtest simple_no_driver_test.py::test_simple_single_node_write_read", "coverage": "partial", "note": "single-node write/read via cassandra-stress"}
+      ],
+      "decision": "YELLOW",
+      "reason": "CQL semantics fully covered by cqlpy (smp 2) and 3-node twin in simple_cluster_driver_test; only remaining value is a ~5s gating smoke of dtest/ccm boot path incl. SMP=1. Keep one such smoke or drop. Note: asserts only row counts (len(list(res))), not values; prepare() (simple_driver_test.py:18) is a no-op wrapper; only seen in next-dtest-* jobs."
+    },
+    "TestSimpleDriver::test_simple_composite_partition_key_create_insert_select": {
+      "description": "Single-node (SMP=1/2) table with composite partition key PRIMARY KEY ((k1,k2)); inserts (1,1) and (1,2), asserts SELECT on each full key returns 1 row and on missing keys (2,1),(1,3) returns 0 rows. Only row counts asserted. Generic CQL sanity, no bug guarded.",
+      "origin": {"sha": "ece0e1a3d5a034dc2589243f00cab5dc1a40cd32", "date": "2015-07-26", "pr": 15, "summary": "Add simple tests for compound primary key and composite partition key"},
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "9c624f9e2d4c0411fb9411675c3c046e0c600e93": "migrate to pytest: rename to test_*; no behavior change",
+        "17e5d67cf63a5a6fef700355c6b4077e4c9c8ad4": "len(res) -> len(list(res))",
+        "cd199a765603933dc3bae0b2341e2a5418d0d283": "rename urchin -> scylla",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting (PEP8)",
+        "3b551745f63466bac640395bb1015412034fa9cf": "SMP=1/SMP=2 via pytest fixture params instead of generated subclasses",
+        "ff03d4c1fc62061a9cb905df3eaecddabef195c3": "class marked next_gating",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "class marked single_node"
+      },
+      "relevance": "Live: composite partition key lookup.",
+      "duplicates": [
+        {"path": "test/cqlpy/cassandra_tests/validation/operations/select_test.py::testCompositeRowKey", "coverage": "full", "note": "PRIMARY KEY ((k1,k2),c), full-key/IN/token selects with value assertions"},
+        {"path": "test/cqlpy/cassandra_tests/validation/operations/select_single_column_relation_test.py::testPartitionKeyColumnRelations", "coverage": "full", "note": "((a,b),c) equality/IN on both pk columns, row values asserted"}
+      ],
+      "decision": "RED",
+      "reason": "Composite-partition-key lookups fully covered (with stronger value assertions) by cqlpy select_test.py::testCompositeRowKey and select_single_column_relation_test.py::testPartitionKeyColumnRelations, run at smp 2; boot smoke already provided by test_simple_create_insert_select. Note: useless trailing time.sleep(1) (simple_driver_test.py:124); only row counts asserted."
+    },
+    "TestSimpleDriver::test_simple_compound_primary_key_create_insert_select": {
+      "description": "Single-node (SMP=1/2) table PRIMARY KEY (k1,c1,c2); inserts 2 rows in partition 1, asserts partition select returns 2 rows, full-key select 1 row, non-existent c2=3 returns 0. Only row counts asserted. Generic clustering-key sanity, no bug guarded.",
+      "origin": {"sha": "ece0e1a3d5a034dc2589243f00cab5dc1a40cd32", "date": "2015-07-26", "pr": 15, "summary": "Add simple tests for compound primary key and composite partition key"},
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "9c624f9e2d4c0411fb9411675c3c046e0c600e93": "migrate to pytest: rename to test_*; no behavior change",
+        "17e5d67cf63a5a6fef700355c6b4077e4c9c8ad4": "len(res) -> len(list(res))",
+        "cd199a765603933dc3bae0b2341e2a5418d0d283": "rename urchin -> scylla",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting (PEP8)",
+        "3b551745f63466bac640395bb1015412034fa9cf": "SMP=1/SMP=2 via pytest fixture params instead of generated subclasses",
+        "ff03d4c1fc62061a9cb905df3eaecddabef195c3": "class marked next_gating",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "class marked single_node"
+      },
+      "relevance": "Live: clustering-key prefix/full-key selects.",
+      "duplicates": [
+        {"path": "test/cqlpy/cassandra_tests/validation/operations/select_single_column_relation_test.py::testClusteringColumnRelations", "coverage": "full", "note": "clustering-column equality/prefix/IN relations with value assertions"},
+        {"path": "test/cqlpy/cassandra_tests/validation/operations/select_test.py::testSelectSliceFromComposite", "coverage": "partial", "note": "compound clustering key (status, ctime, key) slices"}
+      ],
+      "decision": "RED",
+      "reason": "Clustering-key selects fully covered with value assertions by cqlpy select_single_column_relation_test.py::testClusteringColumnRelations (smp 2). Bug: SELECT ... WHERE k1=1 and c1=2 (simple_driver_test.py:169-174) result never asserted (dead query). Note: useless trailing time.sleep(1) (line 184); only row counts asserted."
+    }
+  }
+}
