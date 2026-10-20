@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from pathlib import Path
 
-DTEST = Path("~/github/worktrees/scylla-dtest/test-triage").expanduser()
+DTEST = Path("~/github/scylla-dtest").expanduser()
 ROOT = Path(__file__).resolve().parent.parent
 REV = "upstream/next"
 REPO = "scylladb/scylla-dtest"

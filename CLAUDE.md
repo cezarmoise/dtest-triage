@@ -5,8 +5,7 @@ Repo: https://github.com/cezarmoise/dtest-triage (this repo, `~/github/dtest-tri
 
 ## Paths
 
-- dtest: `~/github/worktrees/scylla-dtest/test-triage` (worktree; read code at `upstream/next`, `git fetch upstream next` first).
-  Main checkout: `~/github/scylla-dtest`.
+- dtest: `~/github/scylla-dtest` (main checkout; read code at `upstream/next`, `git fetch upstream next` first).
 - scylla: `~/github/scylladb` (read-only; unit/cluster tests under `test/`).
 
 ## Layout
@@ -32,7 +31,7 @@ for j in dtest-release dtest-release-with-raft; do
 python3 scripts/test_results.py --job scylla-master/next -n 20 --stage 'dtest with tablets' -o jenkins/next-dtest-tablets
 python3 scripts/test_results.py --job scylla-master/next -n 20 \
   --stage 'dtest with consistent topology changes' -o jenkins/next-dtest-consistent-topology
-git -C ~/github/worktrees/scylla-dtest/test-triage fetch upstream next
+git -C ~/github/scylla-dtest fetch upstream next
 python3 scripts/gen_data.py [module ...]     # default: all modules in jenkins/*_long.csv
 ```
 
