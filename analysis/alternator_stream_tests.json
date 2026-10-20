@@ -1,0 +1,62 @@
+{
+  "file": "alternator_stream_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestAlternatorStreams::test_added_node_gets_closed_shards": {
+      "description": "3-node Alternator cluster (cdc + alternator-streams), KEYS_ONLY stream table prefilled, background write stress; bootstraps node4 and, via DescribeStream on node4, asserts that some shards are closed (have EndingSequenceNumber). Guards that a topology change creates a new CDC generation and that the new node's Streams API exposes the previous generation as closed shards (scylladb/scylla#8012 KCL stuck after decommission/add, regression fixed in scylladb/scylla#8209 / #8210). Vnodes: bootstrap commits a new generation immediately; tablets: node4 raises tablet-count floor -> split -> new per-table generation, polled up to 180s.",
+      "origin": {"sha": "c4a3c00e", "date": "2021-02-21", "pr": 1977, "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"},
+      "commits": {
+        "215b97c6d6": "tablets: poll (90x2s) for closed shards since generation is committed only after async tablet split (SCYLLADB-3911)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "8b272dfdec": "removed from next_gating (unmark) due to flakiness scylladb/scylladb#15260",
+        "620138288d": "added to next_gating",
+        "57707b883c": "port to pytest (test moved here from old nose file)",
+        "5e4b1ec9f8": "class skip on tablets narrowed to issue_open(#23838) -> test runs with tablets again",
+        "c6f8340937": "class skipped unconditionally with tablets",
+        "27607dc355": "whole class skipped with tablets (#16317)",
+        "23c130820e": "populate default rack_per_node=True -> cluster now rack-per-node (RF-rack-valid)"
+      },
+      "relevance": "Live. Alternator Streams over CDC generations for both vnodes and tablets (alternator/streams.cc; tablets streams d5df3ec07c, generation change on split/merge 98de3f0e86). Test only uses public DynamoDB Streams API + bootstrap; no removed options.",
+      "duplicates": [
+        {"path": "test/alternator/test_streams_tablets.py::test_parent_children_split", "coverage": "partial", "note": "single-node; forces tablet split via tablet count and checks parent/child shards (closed parents). No node bootstrap, no vnodes path."},
+        {"path": "test/cluster/test_cdc_generation_publishing.py", "coverage": "partial", "note": "verifies new CDC generation per bootstrap at CQL/system-table level, not via Alternator DescribeStream."}
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking that a bootstrap-triggered generation change surfaces as closed Alternator Streams shards on the new node (vnodes and tablet-split-after-bootstrap paths); scylla tests cover tablet split only on single node. Cheap (~22s) and 100% pass in 19 runs; scylladb#15260 (reason for unmark.next_gating) is closed, so could return to gating."
+    },
+    "TestAlternatorStreams::test_updated_shards_during_add_decommission_node": {
+      "description": "4-node cluster (racks 1/1/2), stream table prefilled, write stress, and a background thread repeatedly decommissioning/wiping/re-bootstrapping the last node. After each observed add-node + decommission cycle (detected via raft_topology log lines) it re-reads DescribeStream and asserts open shards always exist. Vnodes: open shards must change (new generation per topology change, up to 7 cycles); tablets: open shards must stay unchanged for 3 cycles (same rack re-bootstrap restores the tablet floor and merges are blocked with Streams). Origin reproducer attempt for scylladb/scylla#8012.",
+      "origin": {"sha": "c4a3c00e", "date": "2021-02-21", "pr": 1977, "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"},
+      "commits": {
+        "23e128c942": "seed decommission log marks before churn thread starts (hardening)",
+        "6dde94d3f7": "branch assertion: tablets expect unchanged open shards, vnodes expect change; removed #7189 skip (SCYLLADB-4024)",
+        "ad5dfc7f27": "wait_for_running_add_node detects raft_topology 'bootstrap: accept node' log line, seeded log marks (SCYLLADB-4023)",
+        "c5899d0e13": "use RF-rack-valid topology rack1:1,rack2:1,rack3:2 (SCYLLADB-3812)",
+        "e5be575605": "skip with tablets while scylla-dtest#7189 open",
+        "af978cd85a": "wait_for_running_decommission detects raft_topology 'start decommission' log line instead of UL polling (DTEST-186)",
+        "98c026adad": "ignore mutation_write_timeout_exception log (scylladb#25515)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "8b272dfdec": "removed from next_gating due to flakiness scylladb/scylladb#15260",
+        "620138288d": "added to next_gating",
+        "57707b883c": "port to pytest",
+        "5e4b1ec9f8": "class skip on tablets narrowed to issue_open(#23838)",
+        "c6f8340937": "class skipped unconditionally with tablets",
+        "27607dc355": "whole class skipped with tablets (#16317)",
+        "a8e81add52": "wait_for_running_decommission timeout raised to 1800s for debug",
+        "86e0de7469": "wait_for_running* retries increased for debug mode",
+        "23c130820e": "populate default rack_per_node=True"
+      },
+      "relevance": "Live. Relies on raft_topology log 'updating topology state: start decommission' / 'bootstrap: accept node' (service/topology_coordinator.cc:416,4715,4752), Streams on vnodes and tablets, and tablet-merge blocking with Alternator Streams (4b6937b570, ca87e4734b).",
+      "duplicates": [
+        {"path": "alternator_stream_tests.py::TestAlternatorStreams::test_sequence_numbers_during_add_decommission_node", "coverage": "partial", "note": "same churn setup, asserts start sequence numbers change after topology change; currently skipped (jira:DTEST-200)."},
+        {"path": "test/alternator/test_streams_tablets.py::test_parent_children_merge", "coverage": "partial", "note": "single-node, merge-related streams behavior; no decommission/bootstrap churn."},
+        {"path": "test/cluster/test_cdc_generation_publishing.py", "coverage": "partial", "note": "CDC generation per topology change at CQL level, not through Alternator Streams API under churn."}
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test exercises Alternator Streams shards under repeated decommission/bootstrap churn on a multi-node cluster; recently reworked for raft and tablets (PRs 7226, 7230, 7235) and 100% pass in 19 runs. Slow (~219s) but unique; sibling test_sequence_numbers_during_add_decommission_node is the more redundant one."
+    }
+  }
+}
