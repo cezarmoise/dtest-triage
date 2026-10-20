@@ -1,0 +1,74 @@
+{
+  "file": "replication_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestRFAutoExpand::test_rf_expand": {
+      "description": "3 DCs x 1 node (vnodes). CREATE KEYSPACE NTS with 'replication_factor':1 must expand to dc1/dc2/dc3=1; with 'replication_factor':1,'dc3':3 must expand others but keep dc3=3; ALTER with 'replication_factor':2 must not change existing per-DC RFs. Checks system_schema.keyspaces.replication. Guards scylla #4210 (CASSANDRA-14303) RF auto-expansion.",
+      "origin": {
+        "sha": "a125612c300e4672096ddeb8b538cf964f0957aa",
+        "date": "2019-10-14",
+        "pr": 1120,
+        "summary": "replication_test: test RF auto-expansion for NTS (scylla #4210, scylla PR #4667)"
+      },
+      "commits": {
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "0c7e6137f92d7e8a23241e1d91ab711525c649ff": "add required_features('!tablets'): ALTER with replication_factor rejected with tablets (scylla b875151405)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "c10f073601ed7b92325e9d62205e759d207a87a0": "formatting (port to pytest)",
+        "29646f195624980c81c821eb902eb3b9f7f41070": "formatting (python3 port)",
+        "a125612c300e4672096ddeb8b538cf964f0957aa": "origin: test added"
+      },
+      "relevance": "Live: expansion in cql3/statements/ks_prop_defs.cc:156-180 ('For users' convenience, expand the replication_factor option'). Vnodes-only for ALTER (tablets reject 'replication_factor' tag on ALTER, ks_prop_defs.cc:180); test only runs in next-dtest-consistent-topology (deselected in tablets runs). 16 runs, 100% pass, ~16s.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_rf_expand",
+          "coverage": "partial",
+          "note": "same scenarios (NTS replication_factor expansion, manual DC respected, ALTER RF doesn't change existing, SimpleStrategy->NTS expansion) but single DC only; ported from boost cql_query_test (scylla 9bf4fe669f, 1fbf0e37b0)"
+        },
+        {
+          "path": "test/cluster/test_multidc.py::test_create_and_alter_keyspace_with_altering_rf_and_racks",
+          "coverage": "partial",
+          "note": "CREATE with integer 'replication_factor' across multiple DCs (tablets, RF-rack checks), not asserting the expanded map"
+        },
+        {
+          "path": "test/cluster/test_keyspace_rf.py::test_create_keyspace_with_default_replication_factor",
+          "coverage": "partial",
+          "note": "multi-DC replication expansion for default RF, vnodes+tablets"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "All three sub-scenarios covered by test/cqlpy/test_cql_query.py::test_rf_expand in a single DC; only multi-DC expansion of CREATE is extra, and multi-DC CREATE with replication_factor is exercised by test/cluster/test_multidc.py. Cheap and stable, so removal low-gain; candidate RED if single-DC cqlpy deemed enough."
+    },
+    "TestRFAutoExpand::test_rf_expand_on_switch": {
+      "description": "3 DCs x 1 rack x 1 node (vnodes). SimpleStrategy RF=3 -> ALTER to NTS without options must expand to dc1/dc2/dc3=3; SimpleStrategy RF=3 -> ALTER NTS {'dc1':2} must not expand; then ALTER NTS {'replication_factor':3} expands only unspecified DCs (dc1=2,dc2=3,dc3=3); NTS {'dc1':1} + ALTER replication_factor:3 -> dc1=1,dc2=3,dc3=3. Guards scylla #4210 expansion on ALTER / strategy switch.",
+      "origin": {
+        "sha": "a125612c300e4672096ddeb8b538cf964f0957aa",
+        "date": "2019-10-14",
+        "pr": 1120,
+        "summary": "replication_test: test RF auto-expansion for NTS (scylla #4210, scylla PR #4667)"
+      },
+      "commits": {
+        "78574afcfb5727330b6a40ee97a1302dda19417d": "re-add required_features('!tablets'); create test_switch_2 with tablets=0",
+        "e7e90bd9cb0a23f6422c0949a8a08ef5619d2abc": "use generate_cluster_topology (1 rack/DC) and dc1 RF 2->1 for RF==#racks",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "936b62122123f9fb0d3ef9db846870cb74ffd20e": "drop !tablets mark, explicit SimpleStrategy in create_ks, add test_switch_3 NTS case with tablets branch expecting rejection",
+        "8e595b3faded6c4408b599a50e51fc38c1b889a7": "split switch cases out of test_rf_expand into this test, mark !tablets",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "c10f073601ed7b92325e9d62205e759d207a87a0": "formatting (port to pytest)",
+        "29646f195624980c81c821eb902eb3b9f7f41070": "formatting (python3 port)",
+        "a125612c300e4672096ddeb8b538cf964f0957aa": "origin: switch cases added as part of test_rf_expand"
+      },
+      "relevance": "Live: ks_prop_defs.cc:156-180 handles expansion when switching from a strategy that had 'replication_factor' and partial expansion on ALTER. Vnodes-only (SimpleStrategy has no tablets; ALTER with replication_factor rejected with tablets). Runs only in next-dtest-consistent-topology, 16 runs, 100% pass, ~20s.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_rf_expand",
+          "coverage": "partial",
+          "note": "covers SimpleStrategy->NTS expansion in single DC only; no multi-DC partial expansion (unspecified DCs only) on ALTER"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Multi-DC ALTER expansion of only unspecified DCs (dc1 kept, dc2/dc3 expanded) not covered by scylla tests; single-DC switch case is covered by test/cqlpy/test_cql_query.py::test_rf_expand. Would be GREEN, but Bug: replication_test.py:85 `if \"tablets\" in self.scylla_features` branch is dead (test is required_features('!tablets'), conftest.py:741 adds 'tablets' only with --tablets). Note: tablets=0 at :70 redundant for SimpleStrategy."
+    }
+  }
+}
