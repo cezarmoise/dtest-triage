@@ -1,0 +1,95 @@
+{
+  "file": "paxos_tests.py",
+  "tests": {
+    "TestPaxos::test_replica_availability": {
+      "description": "3-node RF=3 cluster (one node per rack). LWT INSERT IF NOT EXISTS with all up; stop node3 -> LWT succeeds (quorum); stop node2 -> LWT raises Unavailable; restart node2 -> LWT succeeds; restart node3 -> LWT succeeds. Ported Cassandra regression for CASSANDRA-8640 (LWT required all replicas instead of quorum). No read-back of written values; only that statements don't error / raise Unavailable.",
+      "origin": {
+        "sha": "79c54e0c56f9440f2e00aaad7d709cf8d23bf6cd",
+        "date": "2015-01-22",
+        "pr": null,
+        "summary": "Testing for CASSANDRA-8640 (Cassandra dtest era, no scylla PR; data's pr=52 is an upstream merge)."
+      },
+      "commits": {
+        "1a5eda3b4f9e12caf61333012481d12b0dc3dc7e": "pytest port (rename replica_availability_test -> test_replica_availability); formatting",
+        "bcb2efb94eae8e06bbae46c7e40e14fc0fbb6c06": "docstring describing CASSANDRA-8640 purpose; formatting",
+        "e062d0326333bae2a402c50b5968fff1a27a97a6": "docstring cleanup; formatting",
+        "6e04058338adf8d2a765ce4dc31711f41f673651": "whitespace; formatting",
+        "c8e5b96078ab01f48faf3ebbda1b4d7ba5d426b2": "wait_other_notice on node restart before querying",
+        "715947234934f087163948409a7e53cc8a8e5bd2": "wait_for_binary_proto on node start",
+        "79c54e0c56f9440f2e00aaad7d709cf8d23bf6cd": "origin: test added for CASSANDRA-8640",
+        "c0d5d543": "(file) skip test with tablets until scylladb#18068 (LWT on tablets)",
+        "09a89c2c": "(file) moved tablets skip to class level",
+        "55c4c0f7": "(file) LWT over tablets enabled: class skip removed, @lwt mark added",
+        "7d22e780": "(file) prepare() uses rack topology based on RF (RF-rack-validity)",
+        "5fd51f26": "(file) class added to next_gating"
+      },
+      "relevance": "Live: LWT quorum availability semantics (paxos at QUORUM/SERIAL) unchanged; runs in both gating jobs (tablets, consistent-topology), 32/32 pass, ~23s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest lwt_test.py::TestLwt::test_basic_distributed",
+          "coverage": "full",
+          "note": "Steps 3.2/3.3: same 3-node RF=3 one-per-rack setup, LWT succeeds with one node down, raises Unavailable with two down, succeeds after restarting one; plus read-back via SERIAL/ONE (stronger assertions)."
+        },
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_timeout_while_creating_paxos_state_table",
+          "coverage": "partial",
+          "note": "LWT with 2/3 nodes down fails (raft quorum timeout path, tablets only)."
+        },
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild",
+          "coverage": "partial",
+          "note": "LWT/SERIAL read with a replica lost."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully subsumed by lwt_test.py::TestLwt::test_basic_distributed steps 3.2-3.3 (same topology, same up/down sequence, plus read-back asserts); this test only checks no-error/Unavailable. Removal depends on keeping test_basic_distributed (currently YELLOW for its 3.4 tablets bug, not for 3.2/3.3). Note: test is cheap (~23s) and stable, so low priority either way."
+    },
+    "TestPaxos::test_topology_change_in_presence_of_down_node": {
+      "description": "6 nodes in 3 racks, RF=3. Starts one LoadThread per node doing LWT UPDATE ... IF EXISTS (plus plain INSERTs) in a loop; after 10s keeps one node per rack and stops the other 3 at once, then removenode's them one by one from a surviving node, passing --ignore-dead-nodes with the still-dead ones. Only implicit assertion: every nodetool removenode succeeds (NodetoolError otherwise). LoadThread results/errors are never checked. Originally (2020) a random add/remove-node soak under LWT load for scylla#7087 seedless-cluster issues; rewritten 2026-08 for DTEST-21 after scylladb#13914 forbade bootstrap with a down node.",
+      "origin": {
+        "sha": "c4a1b8e7e3caa08451cdfcf2678b177f75660ff3",
+        "date": "2020-02-07",
+        "pr": 1292,
+        "summary": "Add LWT load + random node add/remove soak test."
+      },
+      "commits": {
+        "4c1d34ba532ffe04ded3991abf9c49af0e1a3e0f": "rewrite: drop add-node path, remove 1-per-rack-reserved nodes via removenode --ignore-dead-nodes, RF 4->3, actually start LoadThreads (never started before), _results list->dict, drop require(DTEST-21) skip",
+        "c4a1b8e7e3caa08451cdfcf2678b177f75660ff3": "origin",
+        "f32aef3e": "(file) @require('#7087') -> test skipped from 2020-09",
+        "2ead3f0b": "(file) require changed to scylla-dtest#3170 (still skipped)",
+        "de42ad62": "(file) require changed to jira:DTEST-21 (still skipped)",
+        "1a5eda3b": "(file) pytest port; formatting",
+        "7d22e780": "(file) prepare() rack topology based on RF",
+        "55c4c0f7": "(file) LWT over tablets enabled, tablets skip removed",
+        "5fd51f26": "(file) class added to next_gating"
+      },
+      "relevance": "Live: nodetool removenode --ignore-dead-nodes and LWT under topology change exist; test effectively ran for the first time after 4c1d34ba (2026-08) since it was require-skipped 2020-09..2026-08 and LoadThread never started before. 32/32 pass, ~157s avg.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes",
+          "coverage": "partial",
+          "note": "removenode with multiple dead nodes in ignore list, no LWT load."
+        },
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode_with_ignored_node",
+          "coverage": "partial",
+          "note": "tablets removenode with ignored dead node, verifies data; no LWT."
+        },
+        {
+          "path": "scylla-dtest update_cluster_layout_tests.py (removenode --ignore-dead-nodes helper ~l.1589)",
+          "coverage": "partial",
+          "note": "removenode with ignored dead nodes, no LWT."
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py",
+          "coverage": "partial",
+          "note": "LWT correctness during tablet migrations (not removenode)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only real check is that sequential removenode --ignore-dead-nodes succeeds, which scylla test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes / test_tablets_removenode.py::test_removenode_with_ignored_node cover; the LWT load is noise because LoadThread swallows all errors and results are never asserted (paxos_tests.py:48,54 bare excepts). Note: insert failure stores None then `None += 1` TypeError silently swallowed; LoadThread._current unused. Note: commit 4c1d34ba claims LWT QUORUM stays reachable, but with 3 racks x 2 nodes, RF=3 and 3 nodes (one per rack) killed, some token ranges/tablets lose 2-3 replicas -> no quorum (and possibly all replicas lost before removenode); unobservable since errors are swallowed. Candidate for RED unless LWT results get asserted."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
