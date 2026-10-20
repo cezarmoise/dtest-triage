@@ -1,0 +1,357 @@
+{
+  "file": "lwt_test.py",
+  "tests": {
+    "TestLWTPaxos::test_paxos_grace_seconds_basic": {
+      "description": "3-node RF=3 cluster (auth on with tablets for $paxos access). Creates a table with short paxos_grace_seconds (cql_timeout(10)) and one with default, does 10 LWT inserts in each, asserts paxos state for every key exists on a quorum of nodes (system.paxos by cf_id or <tbl>$paxos), sleeps past grace, then asserts default-table paxos state still on quorum, short-table paxos state gone on all nodes, and user data intact.",
+      "origin": {
+        "sha": "983db84329",
+        "date": "2021-01-11",
+        "pr": 2323,
+        "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
+      },
+      "commits": {
+        "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
+        "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
+        "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
+        "9ffd273f04": "formatting",
+        "65e624598b": "per-node sessions switched from patient_cql_connection to exclusive_cql_connection (real per-node reads)",
+        "f22c34dfed": "dropped is_tablets_enabled param from helpers",
+        "dfb0d586df": "checks made quorum-aware (per-key presence on >=2 nodes) instead of all nodes",
+        "5c34007a26": "read keys from all nodes + wait function to deflake",
+        "5bfc0579f8": "tablets-aware refactor ($paxos table, superuser sessions), helpers moved to module level",
+        "131deb915a": "grace seconds scaled by build mode via cql_timeout(10)",
+        "983db84329": "origin",
+        "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
+        "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
+      },
+      "relevance": "Live: paxos_grace_seconds schema extension (db/paxos_grace_seconds_extension.hh), TTL applied in service/paxos/paxos_state.cc:322 and prepare_summary.cc:41; per-table $paxos for tablets (docs/features/lwt.rst#paxos-state-tables). Runs in both gating jobs, 32/32 pass, 28s.",
+      "duplicates": [
+        {
+          "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
+          "coverage": "partial",
+          "note": "single node, vnodes; checks TTL(promise)<=grace on system.paxos, no actual expiry, no multi-node, no $paxos"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test verifying real paxos-state expiry by paxos_grace_seconds across replicas, on both vnodes (system.paxos) and tablets ($paxos); boost test only checks TTL value on one node. Note: per-node $paxos reads are CL=ONE scans, node-local only because RF=3 on 3 nodes."
+    },
+    "TestLWTPaxos::test_paxos_grace_seconds_alter": {
+      "description": "Despite the name, no ALTER is executed: creates a table with short paxos_grace_seconds (cql_timeout(3)), 2 LWT inserts at CL=ALL, asserts paxos state on quorum, sleeps past grace, asserts paxos state absent on all nodes and user rows intact. Originally (983db84329) created with default grace, inserted, ALTERed to 10s, updated 5 rows and checked only those expired.",
+      "origin": {
+        "sha": "983db84329",
+        "date": "2021-01-11",
+        "pr": 2323,
+        "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
+      },
+      "commits": {
+        "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
+        "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
+        "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
+        "9ffd273f04": "formatting",
+        "5192ef4b2d": "quorum-based per-key checks filtered by cf_id instead of row counts",
+        "f3bfd1e21d": "hardcoded 3s grace replaced by cql_timeout(3) (scylladb#27884)",
+        "11bd98321e": "tablets-aware: $paxos table, superuser sessions, setup_cluster fixture",
+        "506fb80098": "complete rework (dtest#5450): REMOVED the ALTER TABLE ... paxos_grace_seconds step; now just create-short-grace/insert/expire",
+        "983db84329": "origin (with ALTER)",
+        "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
+        "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
+      },
+      "relevance": "paxos_grace_seconds live, but ALTER path no longer exercised by this test.",
+      "duplicates": [
+        {
+          "path": "lwt_test.py::TestLWTPaxos::test_paxos_grace_seconds_basic",
+          "coverage": "full",
+          "note": "basic does the same short-grace table create/insert/quorum-check/expire-everywhere plus a default-grace control table"
+        },
+        {
+          "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
+          "coverage": "partial",
+          "note": "TTL value on system.paxos, single node"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Since 506fb80098 (PR #5816) the ALTER step was removed; remaining scenario is a strict subset of test_paxos_grace_seconds_basic (same helpers, same asserts). Bug: name/docstring 'Alter' is stale (lwt_test.py:632); ALTER TABLE ... WITH paxos_grace_seconds is now untested anywhere - if wanted, add an ALTER step to basic rather than keep this."
+    },
+    "TestLWTPaxos::test_paxos_grace_seconds_interrupt": {
+      "description": "Short-grace table (cql_timeout(3)), 2 LWT inserts at CL=ALL, assert paxos state on quorum; kill node2, sleep past grace, assert paxos state absent on node1/node3, restart node2, assert paxos state absent on all nodes. Guards that a node down during paxos grace expiry doesn't bring back paxos state.",
+      "origin": {
+        "sha": "983db84329",
+        "date": "2021-01-11",
+        "pr": 2323,
+        "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
+      },
+      "commits": {
+        "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
+        "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
+        "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
+        "9ffd273f04": "formatting",
+        "65e624598b": "initial per-node sessions switched to exclusive_cql_connection",
+        "1d2a09232a": "rewritten to per-key quorum presence/absence checks",
+        "f3bfd1e21d": "grace seconds via cql_timeout",
+        "ee5c00c930": "helpers moved/removed (refactor, no behavior change here)",
+        "3bc80626ae": "tablets-aware: resolve $paxos table, superuser sessions",
+        "015362ebc1": "neighbor test removed; no change to this test",
+        "20bf4b2356": "complete rework (scylladb#23681): fewer rows, short grace, stop node2 only",
+        "eccda80e42": "formatting",
+        "914129181e": "formatting",
+        "fb3dfc9ea9": "formatting",
+        "131deb915a": "grace scaled by build mode (cql_timeout)",
+        "71e91847f9": "line attribution only (adjacent test added)",
+        "213b628439": "pytest port",
+        "983db84329": "origin",
+        "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
+        "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
+      },
+      "relevance": "Live: paxos TTL expiry (service/paxos/paxos_state.cc:322 comment explicitly covers participants down longer than paxos_grace_seconds).",
+      "duplicates": [
+        {
+          "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
+          "coverage": "partial",
+          "note": "TTL value only"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique node-down-during-expiry scenario, 44s, stable. Bug: after restart node2 session is re-created with patient_cql_connection (non-exclusive, lwt_test.py:753), so the final 'expired on all nodes' CL=ONE read is not pinned to node2 and may be served by node1/node3; also nothing triggers paxos repair after restart, so the post-restart check is near-trivially true (local TTL)."
+    },
+    "TestLWTPaxos::test_paxos_grace_seconds_negative": {
+      "description": "Creates a table WITH paxos_grace_seconds=-1 and asserts ConfigurationException 'paxos_grace_seconds cannot be smaller than 0, (default 864000)'. Pure CQL validation on a 3-node cluster.",
+      "origin": {
+        "sha": "983db84329",
+        "date": "2021-01-11",
+        "pr": 2323,
+        "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
+      },
+      "commits": {
+        "ee5c00c930": "moved from TestLwt to TestLWTPaxos (now uses setup_cluster fixture, auth when tablets)",
+        "983db84329": "origin (paxos_grace_seconds_negative_test)",
+        "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
+        "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
+      },
+      "relevance": "Live: cql3/statements/cf_prop_defs.cc:179 validate_minimum_int(KW_PAXOSGRACESECONDS, 0, ...), message at :456.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index_properties.py",
+          "coverage": "partial",
+          "note": "same validate_minimum_int path but for default_time_to_live only; no cqlpy test for negative paxos_grace_seconds"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of negative paxos_grace_seconds validation (grep of scylla test/ finds none). Cheap (15s). Would fit better as a cqlpy test; port then remove."
+    },
+    "TestLwt::test_basic_distributed": {
+      "description": "3-node RF=3 LWT test plan 3.1-3.4: (3.1) LWT insert then SERIAL read from another node; (3.2) LWT while node2 down, CL=ONE read from node2 alone sees nothing, SERIAL read repairs and subsequent ONE read sees the row; (3.3) with 2 nodes down LWT raises Unavailable, after one restart LWT succeeds and SERIAL read from another node sees it; (3.4) delete paxos state, compact, restart down node, SERIAL read returns latest.",
+      "origin": {
+        "sha": "aa0e4b5219",
+        "date": "2020-02-14",
+        "pr": 1363,
+        "summary": "Konstantin Osipov: LWT distributed functional tests from LWT test plan ch. 2-4"
+      },
+      "commits": {
+        "f90dec8f39": "3.1 read at SERIAL instead of ONE (QUORUM write doesn't guarantee learn on all; SCYLLADB-679)",
+        "0258e2bee0": "3 racks x 1 node topology for RF-rack-validity",
+        "914129181e": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "fb3dfc9ea9": "formatting",
+        "c3471a97e4": "formatting",
+        "213b628439": "pytest port (assertRaises -> pytest.raises etc.)",
+        "d6b8192a2f": "pytest conversion",
+        "77c52abacc": "removed experimental lwt flag",
+        "aa0e4b5219": "origin",
+        "55c4c0f738": "class-level tablets skip (scylladb#18068) removed"
+      },
+      "relevance": "Live LWT/Paxos repair-on-read behavior. Runs in both gating jobs, 32/32 pass, 54s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py",
+          "coverage": "partial",
+          "note": "LWT basic/migration/rebuild on tablets; no node-down paxos read-repair scenarios"
+        },
+        {
+          "path": "test/cluster/lwt/",
+          "coverage": "partial",
+          "note": "contention/resize/migration workloads, not down-node repair"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique node-down Paxos repair coverage. Bug: step 3.4 deletes rows from system.paxos (lwt_test.py:333), but with tablets (create_ks defaults to tablets; next-dtest-tablets job) paxos state is in lwt.\"t$paxos\", so the delete is a no-op and 3.4 doesn't test repair after paxos-state loss there."
+    },
+    "TestLwt::test_metrics": {
+      "description": "Single node, --smp 1. Checks deltas of LWT-related metrics per statement: cas_write_condition_not_met (0 then 1 on repeated IF NOT EXISTS), cql_batches and statements_in_batches for conditional batches, cql_{deletes,inserts,updates}{conditional=\"yes\"}.",
+      "origin": {
+        "sha": "aa0e4b5219",
+        "date": "2020-02-14",
+        "pr": 1363,
+        "summary": "Konstantin Osipov: LWT distributed functional tests from LWT test plan ch. 2-4"
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "c3471a97e4": "formatting",
+        "bdeb616407": "missing metrics treated as 0 (metrics now optional, dtest#2815)",
+        "d6b8192a2f": "pytest conversion",
+        "031d4898f4": "use --smp 1 to avoid double-count on bounce (scylladb#5860)",
+        "aa0e4b5219": "origin",
+        "55c4c0f738": "class-level tablets skip removed"
+      },
+      "relevance": "Metrics live (service/storage_proxy.cc:3183 cas_write_condition_not_met; cql conditional counters). smp=1 workaround for scylladb#5860 (still OPEN: CQL metrics double-counted on bounce). Cheap: 8s, 32/32 pass.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No scylla test checks these LWT/conditional CQL metrics (grep of test/ for cas_write_condition_not_met/conditional counters empty). Cheap and stable. Context: runs smp=1 to dodge open scylladb#5860; TODO list of untested cas timeout/unavailable metrics."
+    },
+    "TestLwt::test_multi_dc": {
+      "description": "2 DCs x 3 nodes, RF 3+3. (4.1) LOCAL_SERIAL LWT works with the other DC down, SERIAL raises Unavailable; (4.2) LOCAL_SERIAL in dc2 with 2 dc1 nodes down, SERIAL Unavailable, then SERIAL read; (4.3) with dc1 at 2/3 down... LOCAL_SERIAL Unavailable while SERIAL succeeds.",
+      "origin": {
+        "sha": "aa0e4b5219",
+        "date": "2020-02-14",
+        "pr": 1363,
+        "summary": "Konstantin Osipov: LWT distributed functional tests from LWT test plan ch. 2-4"
+      },
+      "commits": {
+        "0258e2bee0": "rack-aware 2DCx3 racks topology (RF-rack-validity)",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "72809f2380": "formatting",
+        "c3471a97e4": "formatting",
+        "213b628439": "pytest port",
+        "d6b8192a2f": "pytest conversion",
+        "77c52abacc": "removed experimental lwt flag",
+        "aa0e4b5219": "origin",
+        "55c4c0f738": "class-level tablets skip removed"
+      },
+      "relevance": "Live: LOCAL_SERIAL vs SERIAL availability across DCs. 63s, 32/32 pass.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestAvailability::test_network_topology_strategy",
+          "coverage": "partial",
+          "note": "multi-DC (3x3) serial/local_serial CL combos with nodes down"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with consistency_test availability tests. Bug: 4.2 'SELECT * FROM t WHERE a = 4' at SERIAL (lwt_test.py:388) result is never asserted, and the 'two writes in parallel at different DCs' from the comment are sequential, so 'latest write wins' is not verified."
+    },
+    "TestLwt::test_no_cross_shard_ops": {
+      "description": "Single node --smp 4, vnodes only. 16 prepared then 16 unprepared INSERT IF NOT EXISTS; asserts scylla_storage_proxy_replica_cross_shard_ops in user scheduling group (sl:default|statement) grows <=16 per batch, i.e. paxos table is sharded like base table and bounce-to-shard avoids cross-shard paxos ops.",
+      "origin": {
+        "sha": "aa0e4b5219",
+        "date": "2020-02-14",
+        "pr": 1363,
+        "summary": "Konstantin Osipov: LWT distributed functional tests from LWT test plan ch. 2-4"
+      },
+      "commits": {
+        "e5de30a0ab": "metric regex changed to scheduling_group (sl:default|statement); old (statement|main) didn't match user LWT group, only background (PR #7560)",
+        "334aaaed46": "disabled with tablets (required_features !tablets, dtest#3879)",
+        "aedaa57c4e": "formatting",
+        "bdeb616407": "missing metric treated as 0",
+        "801b2d873b": "restrict to (statement|main) groups to avoid compaction noise",
+        "d6b8192a2f": "pytest conversion",
+        "94618e3a32": "account for all 16 queries in threshold",
+        "aa0e4b5219": "origin",
+        "55c4c0f738": "class-level tablets skip removed"
+      },
+      "relevance": "Live: replica_cross_shard_ops (service/storage_proxy.cc:777, 3253). Vnodes-only; runs only in next-dtest-consistent-topology (16 runs, 100%). Tablets variant tracked in DTEST-50 (dtest#3879 closed NOT_PLANNED, moved to Jira).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_coordinator_shard",
+          "coverage": "partial",
+          "note": "tablets: LWT coordinator runs on replica shard (log-based)"
+        },
+        {
+          "path": "test/cqlpy/test_non_deterministic_functions.py",
+          "coverage": "partial",
+          "note": "bounce_to_shard correctness, not metric"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique vnodes cross-shard check, but: Bug: until e5de30a0ab (2026-10-12) the regex didn't match the user scheduling group, so the LWT path was not measured (test was effectively no-op); threshold <=16 for 16 queries is loose; tablets disabled via required_features referencing closed dtest#3879 (now DTEST-50)."
+    },
+    "TestLwt::test_not_deterministic_function_in_pk": {
+      "description": "Single node, table with pk (uuid, timestamp), ck date. 1000 unprepared then 1000 prepared INSERT ... VALUES (uuid(), currentTimestamp(), currentDate()) IF NOT EXISTS; asserts row count 1000 then 2000. Guards scylladb#8604 (sporadic LWT failure / bounce_to_shard with non-deterministic functions in pk).",
+      "origin": {
+        "sha": "71e91847f9",
+        "date": "2021-12-20",
+        "pr": 2463,
+        "summary": "julia.yakovlev: test for non-deterministic functions in LWT partition keys (scylladb#8604, fix 0876248c2b)"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: node -> _node)",
+        "5bfc0579f8": "line attribution only (module helpers added above; class skip mark removed)",
+        "9ffd273f04": "formatting",
+        "131deb915a": "line attribution only (adjacent grace test)",
+        "983db84329": "line attribution only",
+        "71e91847f9": "origin",
+        "55c4c0f738": "class-level tablets skip removed"
+      },
+      "relevance": "Behavior live; scylladb#8604 closed.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_non_deterministic_functions.py::test_lwt_uuid_fn_pk_insert",
+          "coverage": "full",
+          "note": "same #8604 regression: unprepared+prepared INSERT IF NOT EXISTS with uuid()/currenttimestamp()/currenttime()/currenttimeuuid()/now() in pk, row count check, parametrized tablets+vnodes"
+        },
+        {
+          "path": "test/cqlpy/test_non_deterministic_functions.py::test_lwt_currenttimestamp_fn_pk_insert",
+          "coverage": "full",
+          "note": "currentTimestamp variant"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_non_deterministic_functions.py (written for the same scylladb#8604, both prepared/unprepared, tablets+vnodes). dtest only adds composite pk + currentDate() in ck, no extra Paxos/multi-node coverage."
+    },
+    "TestLwt::test_read_round_optimization": {
+      "description": "3-node RF=3. (3.5) 10000 (1000 debug) chained LWT UPDATE IF b=? at QUORUM; asserts cas_failed_read_round_optimization grew by < 50% of runs. (3.6) 100 keys written at ALL, node1 down, non-LWT QUORUM update, node2 down & node1 up, LWT update IF b=2 for each key; asserts failed_read_round_optimization incremented exactly 100 times.",
+      "origin": {
+        "sha": "aa0e4b5219",
+        "date": "2020-02-14",
+        "pr": 1363,
+        "summary": "Konstantin Osipov: LWT distributed functional tests from LWT test plan ch. 2-4"
+      },
+      "commits": {
+        "0258e2bee0": "3 racks x 1 node topology (RF-rack-validity)",
+        "33f2eb98f5": "allowed failure probability raised to 0.5 (optimization is opportunistic, dtest#5241)",
+        "9ffd273f04": "formatting",
+        "b00995112b": "3.5 changed to 10000 updates with 0.1 failure probability (scylladb#15055)",
+        "403f063126": "unmarked from next_gating (failing in raft mode)",
+        "bdeb616407": "missing metrics treated as 0",
+        "213b628439": "pytest port",
+        "d6b8192a2f": "pytest conversion",
+        "c3471a97e4": "formatting",
+        "77c52abacc": "removed experimental lwt flag",
+        "031d4898f4": "rewrite to deflake: 100 keys, QUORUM non-paxos writes, no tracing",
+        "aa0e4b5219": "origin",
+        "55c4c0f738": "class-level tablets skip removed"
+      },
+      "relevance": "Live metric cas_failed_read_round_optimization (service/storage_proxy.cc:3191). Not gating since 2023; runs only in dtest-release(-with-raft): 38/38 pass, 24s.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "No scylla test of the read-round optimization metric, but: 3.5 assertion weakened twice (b00995112b, 33f2eb98f5) to '<50% of 10000 updates failed the optimization' - low value; docstring (expects ~30 roundtrips for 10 updates) is stale; ungated since 403f063126. 3.6 (exact 100 failures after divergent replicas) is the valuable part."
+    },
+    "TestPaxosBug::test_synced_most_recent_commit_in_cas_should_not_cause_timeouts": {
+      "description": "Regression for CASSANDRA-12043 (expired most-recent-commit causing endless paxos repair / CAS timeouts). 3 nodes in 3 racks, RF=3, table with paxos_grace_seconds=120. Node C stopped, LWT INSERT IF NOT EXISTS at QUORUM on A+B; after 60s B stopped, C started and a SERIAL read via A (A+C quorum, C missing MRC -> paxos repair); after another 60s (MRC now older than the 120s TTL on A) a second SERIAL read must not time out. Only asserts no exception; returned row not checked.",
+      "origin": {
+        "sha": "192fc4a191d65a11eea8dfbf5e04fb4bf570926e",
+        "date": "2021-10-13",
+        "pr": 2323,
+        "summary": "Lukasz Sojka: cover case from CASSANDRA-12043 (merged as part of PR #2323 'Convert to Pytest')."
+      },
+      "commits": {
+        "0258e2bee09c114ed8fcfc3bd34b7cc64c158b34": "populate 3 nodes in 3 racks via generate_cluster_topology (RF-rack-valid).",
+        "213b6284393b683372eae4084db2d5e3ddcb3805": "pytest port: class renamed PaxosBugTest->TestPaxosBug, helper names snake_case, create_cf as function, drop useless f-strings (formatting).",
+        "192fc4a191d65a11eea8dfbf5e04fb4bf570926e": "origin: test + helpers added.",
+        "17b53eebc47e62a55885c7334ed6215f8f081e5f": "not this test (git log -L picked up lines of TestLwtReadLinearizability that predate it)."
+      },
+      "relevance": "Live: scylla implements the CASSANDRA-12043 mitigation since initial LWT (b3e01a45d7, d1774693bf): service/paxos/prepare_summary.cc:30-45 replicas_missing_most_recent_commit ignores MRC older than paxos_grace_seconds; service/paxos/paxos_state.cc:134-140 uses ballot time as 'now' for expiry. Paxos state TTL = paxos_grace_seconds (paxos_state.cc:321). Applies to both vnodes (system.paxos) and tablets (<table>$paxos); runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "lwt_test.py::TestLWTPaxos::test_paxos_grace_seconds_interrupt",
+          "coverage": "partial",
+          "note": "dtest: paxos state expiry with a node down, but no SERIAL read / MRC repair path."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of the expired-MRC paxos repair path (no scylla test exercises replicas_missing_most_recent_commit / paxos_grace_seconds expiry; grep test/cluster, test/boost). But weak: Note: only asserts no exception, never checks the read returns (1,1) (lwt_test.py:800,834). Note: timing-based (2x fixed 60s sleeps, 144s avg) and whether the 2nd read lands past the 120s MRC TTL depends on node C start time; node_a/node_b.flush() (lwt_test.py:821-822) irrelevant to paxos state. Could be shortened via smaller paxos_grace_seconds."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
