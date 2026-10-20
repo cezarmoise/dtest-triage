@@ -1,0 +1,1395 @@
+{
+  "file": "ldap_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestLdap::test_simple_ldap_connection": {
+      "description": "Baseline: LDAP user scylla-qa is uniqueMember of LDAP group cn=cassandra; LDAPRoleManager maps it to the superuser role 'cassandra', so the user must be able to CREATE KS/TABLE, INSERT/UPDATE/DELETE and SELECT. Guards LDAP group -> scylla role mapping and its effect on authorization end-to-end.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique e2e coverage: LDAP group membership granting permissions over CQL; scylla only tests role mapping at API level (role_manager_test.cc) and service levels (test_ldap_service_levels.py)."
+    },
+    "TestLdap::test_user_login_only": {
+      "description": "Role login_user exists in scylla but is in no LDAP group; it can log in but every CREATE/MODIFY/SELECT must fail with Unauthorized.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_no_roles",
+          "coverage": "partial",
+          "note": "no LDAP roles at API level"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_remove_user_from_ldap",
+          "coverage": "partial",
+          "note": "e2e no roles -> Unauthorized"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Overlaps role_manager_test.cc::ldap_no_roles (user gets no LDAP roles) and in-file test_remove_user_from_ldap (e2e no-roles -> Unauthorized). Note: 'role': 'empty_role' and 'resource': None in permission dict are unused."
+    },
+    "TestLdap::test_wrong_user": {
+      "description": "Connecting as non-existent user 'abcd' must fail. With PasswordAuthenticator this is plain password auth; LDAP role manager is not involved.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "82495723": "formatting (noqa BLE001 on blind except)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_test.py::TestAuth::test_login",
+          "coverage": "full",
+          "note": "bad user/password -> AuthenticationFailed"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Nothing LDAP-specific: unknown-user login rejection by PasswordAuthenticator is covered by scylla test/cluster/dtest/auth_test.py::TestAuth::test_login. Bug: blind `except Exception` (ldap_test.py:264) with no message check - any connection error passes the test."
+    },
+    "TestLdap::test_partial_permissions": {
+      "description": "For 6 permission sets (create, select, modify and combinations) creates a scylla role with those GRANTs, a login user that is only an LDAP member of that role's group, and verifies exactly the granted actions succeed and others raise Unauthorized.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Core coverage of permissions inherited through LDAP-granted non-superuser roles; no scylla test enforces CQL permissions via LDAP groups."
+    },
+    "TestLdap::test_hard_restart_scylla": {
+      "description": "LDAP user in superuser group has full permissions; node is killed (stop gently=False) and restarted; permissions via LDAP must still work (role manager reconnects to LDAP on boot).",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "52c82fbe": "added @pytest.mark.no_boot_speedups",
+        "b2ad65fd": "class added to next_gating; this test @unmark.next_gating (deemed unstable in 2023)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_soft_restart_scylla",
+          "coverage": "partial",
+          "note": "same check around graceful restart"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Overlaps test_soft_restart_scylla (only restart type differs; LDAP role state lives in LDAP, not in scylla). Note: @pytest.mark.no_boot_speedups is a no-op here - class @single_node (3b00f9a8, added after 52c82fbe) re-enables speedups (conftest.py:439); 'empty_role' in dict unused. @unmark.next_gating (b2ad65fd, 2023 instability) but 38/38 pass now -> candidate to re-gate."
+    },
+    "TestLdap::test_soft_restart_scylla": {
+      "description": "As test_hard_restart_scylla but with a graceful node stop/start: LDAP-granted superuser permissions survive restart.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_reconnect",
+          "coverage": "partial",
+          "note": "connection reconnect, no restart"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique e2e check that LDAPRoleManager works after restart (LDAP reconnect at boot); role_manager_test.cc::ldap_reconnect only covers connection-level reconnect."
+    },
+    "TestLdap::test_multiple_roles_superuser": {
+      "description": "User scylla-qa is added to LDAP groups r1..r5 (each with all permissions on ALL KEYSPACES) and finally the 'cassandra' superuser group; full permissions are checked after each addition.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_roles_permissions_combination",
+          "coverage": "partial",
+          "note": "multiple LDAP groups, per-group distinct permission"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_two_roles",
+          "coverage": "partial",
+          "note": "multiple groups -> roles at API level"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Each step grants all permissions, so it never distinguishes per-role contribution; redundant with test_simple_ldap_connection + test_multiple_roles_permissions_combination; multi-group mapping covered by role_manager_test.cc::ldap_two_roles."
+    },
+    "TestLdap::test_multiple_roles_single_permission": {
+      "description": "User added to LDAP groups r1..r5, each granted the same single randomly-chosen permission; after each addition only that permission must work.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_partial_permissions",
+          "coverage": "partial",
+          "note": "single-permission LDAP roles"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with test_partial_permissions (single-permission roles) and test_multiple_roles_permissions_combination. Note: random.choice (ldap_test.py:329) makes coverage non-deterministic - each run tests only one of create/modify/select."
+    },
+    "TestLdap::test_multiple_roles_permissions_combination": {
+      "description": "User is LDAP member of 6 roles, each granted one distinct permission (create/modify/select x2); verifies the user gets the union of all permissions.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique: union of permissions across several LDAP-granted roles end-to-end."
+    },
+    "TestLdap::test_add_ldap_after_regular_work": {
+      "description": "Cluster starts with PasswordAuthenticator and the default role manager; a role with select/modify is granted to scylla-qa and 100 rows inserted. Then LDAPRoleManager config is applied and node restarted; user, now in LDAP group 'cassandra', must have full permissions.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "b2ad65fd": "class added to next_gating; this test @unmark.next_gating (deemed unstable in 2023)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (switch to LDAPRoleManager on a live cluster) but weak assertions: the 100 inserted rows are never read back and the fate of the pre-existing CQL grant 'select_modify' is not checked (superuser group masks it). Note: @unmark.next_gating since b2ad65fd (2023 instability) but 38/38 pass now -> candidate to re-gate."
+    },
+    "TestLdap::test_multiple_users_superuser_role": {
+      "description": "10 users are LDAP members of the 'cassandra' superuser group; each is created in scylla and checked for full permissions.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_simple_ldap_connection",
+          "coverage": "full",
+          "note": "same check, one user"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same assertion as test_simple_ldap_connection repeated for 10 users; multi-member group adds little (LDAP filter returns per-user)."
+    },
+    "TestLdap::test_multiple_users_with_modify_role": {
+      "description": "10 users are LDAP members of 'modify_role' (MODIFY on ALL KEYSPACES); each must be able to INSERT/UPDATE/DELETE but not CREATE/SELECT.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_partial_permissions",
+          "coverage": "partial",
+          "note": "modify-only LDAP role"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with test_partial_permissions ('modify' case) repeated for 10 users."
+    },
+    "TestLdap::test_grant_role_permissions": {
+      "description": "LDAP-granted role test_role starts with CREATE; then MODIFY and SELECT are GRANTed on it via CQL; after each grant the user's effective permissions must update.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique: CQL GRANT on a role obtained through LDAP takes effect (permissions cache refresh with LDAP role manager, see 4d35e718/39027e9a cache work)."
+    },
+    "TestLdap::test_revoke_role_permissions": {
+      "description": "LDAP-granted role with create/modify/select; REVOKE select then modify via CQL; user's permissions must shrink accordingly.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique: REVOKE on LDAP-granted role propagates to the user (auth-cache with LDAP)."
+    },
+    "TestLdap::test_remove_user_from_ldap": {
+      "description": "User in LDAP superuser group has full permissions; its uniqueMember entry is deleted in LDAP; all actions must then raise Unauthorized (LDAP-side change picked up by scylla).",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_autocreate_user",
+          "coverage": "partial",
+          "note": "revocation simulated by dropping role"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e coverage of LDAP-side membership removal (scylla role_manager_test.cc::ldap_autocreate_user only simulates revocation via drop). Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdap::test_modify_username_on_ldap": {
+      "description": "Group 'cassandra' uniqueMember is replaced (scylla-qa -> qa-user) in LDAP; old user must lose permissions, new user (created in scylla) gets full permissions.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_remove_user_from_ldap",
+          "coverage": "partial",
+          "note": "membership removal"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_add_user_to_ldap",
+          "coverage": "partial",
+          "note": "membership addition"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly remove+add membership, overlapping test_remove_user_from_ldap and test_add_user_to_ldap. Bug: try/except Unauthorized (ldap_test.py:449-452) is dead since 39027e9a - check_user_permissions uses assert_eventually_raises and never propagates Unauthorized. Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdap::test_add_user_to_ldap": {
+      "description": "New uniqueMember qa-superuser is added to LDAP group 'cassandra'; existing user still works, and once qa-superuser is created in scylla it gets full permissions.",
+      "origin": {
+        "sha": "f3abf2ef",
+        "date": "2020-07-13",
+        "pr": 2529,
+        "summary": "Fabio Gelcer: 'adding LDAP authorization tests' (PasswordAuthenticator + LDAPRoleManager). Written in scylla-enterprise-dtest; #2529 (pytest migration, merged 2022-01) is only the carrier PR of the history."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla.",
+      "duplicates": [
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e coverage of LDAP-side membership addition. Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdapSaslAuth::test_add_ldap_after_regular_work": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: Cluster starts with PasswordAuthenticator and the default role manager; a role with select/modify is granted to scylla-qa and 100 rows inserted. Then LDAPRoleManager config is applied and node restarted; user, now in LDAP group 'cassandra', must have full permissions.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "b2ad65fd": "class added to next_gating; this test @unmark.next_gating (deemed unstable in 2023)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_add_ldap_after_regular_work",
+          "coverage": "full",
+          "note": "same test, PasswordAuthenticator"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Exact duplicate of TestLdap copy: prepare(configure_ldap=False) selects PasswordAuthenticator (ldap_test.py:130-135) and the test never switches to SaslauthdAuthenticator (line 366 only sets role-manager options), so use_saslauth=True changes nothing scylla-side; add_role_to_ldap's person objects are added without ou=Person parent and add_ldap_object silently ignores the failure (tools/ldap_docker.py:202). Also @unmark.next_gating inherited."
+    },
+    "TestLdapSaslAuth::test_add_user_to_ldap": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: New uniqueMember qa-superuser is added to LDAP group 'cassandra'; existing user still works, and once qa-superuser is created in scylla it gets full permissions.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_add_user_to_ldap",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_add_user_to_ldap: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Unique e2e coverage of LDAP-side membership addition. Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdapSaslAuth::test_grant_role_permissions": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: LDAP-granted role test_role starts with CREATE; then MODIFY and SELECT are GRANTed on it via CQL; after each grant the user's effective permissions must update.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_grant_role_permissions",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_grant_role_permissions: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: none"
+    },
+    "TestLdapSaslAuth::test_hard_restart_scylla": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: LDAP user in superuser group has full permissions; node is killed (stop gently=False) and restarted; permissions via LDAP must still work (role manager reconnects to LDAP on boot).",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "52c82fbe": "added @pytest.mark.no_boot_speedups",
+        "b2ad65fd": "class added to next_gating; this test @unmark.next_gating (deemed unstable in 2023)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_hard_restart_scylla",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_soft_restart_scylla",
+          "coverage": "partial",
+          "note": "same check around graceful restart"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_hard_restart_scylla and TestLdapSaslAuth::test_soft_restart_scylla. Note: inherited @unmark.next_gating (38/38 pass now -> candidate to re-gate); inherited @no_boot_speedups is a no-op as TestLdapSaslAuth inherits class @single_node via MRO (pytest 9) and conftest.py:439 enables speedups when single_node is set."
+    },
+    "TestLdapSaslAuth::test_modify_username_on_ldap": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: Group 'cassandra' uniqueMember is replaced (scylla-qa -> qa-user) in LDAP; old user must lose permissions, new user (created in scylla) gets full permissions.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_modify_username_on_ldap",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_remove_user_from_ldap",
+          "coverage": "partial",
+          "note": "membership removal"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_add_user_to_ldap",
+          "coverage": "partial",
+          "note": "membership addition"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_modify_username_on_ldap: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Mostly remove+add membership, overlapping test_remove_user_from_ldap and test_add_user_to_ldap. Bug: try/except Unauthorized (ldap_test.py:449-452) is dead since 39027e9a - check_user_permissions uses assert_eventually_raises and never propagates Unauthorized. Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdapSaslAuth::test_multiple_roles_permissions_combination": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: User is LDAP member of 6 roles, each granted one distinct permission (create/modify/select x2); verifies the user gets the union of all permissions.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_roles_permissions_combination",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_multiple_roles_permissions_combination: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: none"
+    },
+    "TestLdapSaslAuth::test_multiple_roles_single_permission": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: User added to LDAP groups r1..r5, each granted the same single randomly-chosen permission; after each addition only that permission must work.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_roles_single_permission",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_partial_permissions",
+          "coverage": "partial",
+          "note": "single-permission LDAP roles"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_multiple_roles_single_permission: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Redundant with test_partial_permissions (single-permission roles) and test_multiple_roles_permissions_combination. Note: random.choice (ldap_test.py:329) makes coverage non-deterministic - each run tests only one of create/modify/select."
+    },
+    "TestLdapSaslAuth::test_multiple_roles_superuser": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: User scylla-qa is added to LDAP groups r1..r5 (each with all permissions on ALL KEYSPACES) and finally the 'cassandra' superuser group; full permissions are checked after each addition.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_roles_superuser",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_roles_permissions_combination",
+          "coverage": "partial",
+          "note": "multiple LDAP groups, per-group distinct permission"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_two_roles",
+          "coverage": "partial",
+          "note": "multiple groups -> roles at API level"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_multiple_roles_superuser: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Each step grants all permissions, so it never distinguishes per-role contribution; redundant with test_simple_ldap_connection + test_multiple_roles_permissions_combination; multi-group mapping covered by role_manager_test.cc::ldap_two_roles."
+    },
+    "TestLdapSaslAuth::test_multiple_users_superuser_role": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: 10 users are LDAP members of the 'cassandra' superuser group; each is created in scylla and checked for full permissions.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_users_superuser_role",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_simple_ldap_connection",
+          "coverage": "full",
+          "note": "same check, one user"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_multiple_users_superuser_role: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Same assertion as test_simple_ldap_connection repeated for 10 users; multi-member group adds little (LDAP filter returns per-user)."
+    },
+    "TestLdapSaslAuth::test_multiple_users_with_modify_role": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: 10 users are LDAP members of 'modify_role' (MODIFY on ALL KEYSPACES); each must be able to INSERT/UPDATE/DELETE but not CREATE/SELECT.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_multiple_users_with_modify_role",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_partial_permissions",
+          "coverage": "partial",
+          "note": "modify-only LDAP role"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_multiple_users_with_modify_role: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Redundant with test_partial_permissions ('modify' case) repeated for 10 users."
+    },
+    "TestLdapSaslAuth::test_partial_permissions": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: For 6 permission sets (create, select, modify and combinations) creates a scylla role with those GRANTs, a login user that is only an LDAP member of that role's group, and verifies exactly the granted actions succeed and others raise Unauthorized.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_partial_permissions",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_partial_permissions: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: none"
+    },
+    "TestLdapSaslAuth::test_remove_user_from_ldap": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: User in LDAP superuser group has full permissions; its uniqueMember entry is deleted in LDAP; all actions must then raise Unauthorized (LDAP-side change picked up by scylla).",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_remove_user_from_ldap",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_autocreate_user",
+          "coverage": "partial",
+          "note": "revocation simulated by dropping role"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_remove_user_from_ldap: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Unique e2e coverage of LDAP-side membership removal (scylla role_manager_test.cc::ldap_autocreate_user only simulates revocation via drop). Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    },
+    "TestLdapSaslAuth::test_revoke_role_permissions": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: LDAP-granted role with create/modify/select; REVOKE select then modify via CQL; user's permissions must shrink accordingly.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "eccda80e": "formatting (ruff 0.9.4)",
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_revoke_role_permissions",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_revoke_role_permissions: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: none"
+    },
+    "TestLdapSaslAuth::test_simple_ldap_connection": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: Baseline: LDAP user scylla-qa is uniqueMember of LDAP group cn=cassandra; LDAPRoleManager maps it to the superuser role 'cassandra', so the user must be able to CREATE KS/TABLE, INSERT/UPDATE/DELETE and SELECT. Guards LDAP group -> scylla role mapping and its effect on authorization end-to-end.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_simple_ldap_connection",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_single_role / ldap_two_roles",
+          "coverage": "partial",
+          "note": "LDAP group -> granted roles at role_manager API level, no CQL permission enforcement"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_granted_role_service_level",
+          "coverage": "partial",
+          "note": "only e2e LDAP cluster test in scylla; checks service levels via LDAP-granted role, not permissions"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Baseline e2e check of SaslauthdAuthenticator + LDAPRoleManager together (both auth and roles from LDAP); keep one combined baseline."
+    },
+    "TestLdapSaslAuth::test_soft_restart_scylla": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: As test_hard_restart_scylla but with a graceful node stop/start: LDAP-granted superuser permissions survive restart.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_soft_restart_scylla",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_reconnect",
+          "coverage": "partial",
+          "note": "connection reconnect, no restart"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Restart with saslauthd adds only 'saslauthd login works after restart', also covered by test_switch_with_password_auth (restarts with saslauthd)."
+    },
+    "TestLdapSaslAuth::test_user_login_only": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: Role login_user exists in scylla but is in no LDAP group; it can log in but every CREATE/MODIFY/SELECT must fail with Unauthorized.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdap::test_user_login_only",
+          "coverage": "partial",
+          "note": "same test, PasswordAuthenticator"
+        },
+        {
+          "path": "test/ldap/role_manager_test.cc::ldap_no_roles",
+          "coverage": "partial",
+          "note": "no LDAP roles at API level"
+        },
+        {
+          "path": "ldap_test.py::TestLdap::test_remove_user_from_ldap",
+          "coverage": "partial",
+          "note": "e2e no roles -> Unauthorized"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with TestLdap::test_user_login_only: authorization path is authenticator-independent; doubles runtime (~23s) for no new scylla-side assertion. Inherited issues: Overlaps role_manager_test.cc::ldap_no_roles (user gets no LDAP roles) and in-file test_remove_user_from_ldap (e2e no-roles -> Unauthorized). Note: 'role': 'empty_role' and 'resource': None in permission dict are unused."
+    },
+    "TestLdapSaslAuth::test_wrong_user": {
+      "description": "Inherited from TestLdap (TestLdapSaslAuth subclass, use_saslauth=True): same scenario but SaslauthdAuthenticator (user has no scylla password, person object in LDAP). Authorization path (CassandraAuthorizer + LDAPRoleManager) is identical; the extra 'login via saslauthd' is already asserted by TestLdapSaslAuth::test_authentication / test_switch_with_password_auth. Scenario: Connecting as non-existent user 'abcd' must fail. With PasswordAuthenticator this is plain password auth; LDAP role manager is not involved.",
+      "origin": {
+        "sha": "439f1528",
+        "date": "2020-12-08",
+        "pr": 2529,
+        "summary": "Amos Kong: 'extend ldap role test to use SaslauthdAuthenticator' - duplicated all TestLdap tests via subclass TestLdapSaslAuth(use_saslauth=True). Carrier PR #2529."
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "82495723": "formatting (noqa BLE001 on blind except)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "f9f05881": "call renamed prepare_ldap_server -> add_role_to_ldap",
+        "29924d20": "removed per-test create_ldap_container() call (moved to setUp)",
+        "f3abf2ef": "origin: test added (TestLdap, PasswordAuthenticator + LDAPRoleManager)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "39027e9a": "file: check_user_permissions retries Unauthorized checks via assert_eventually_raises (auth-cache eventual consistency); replaced racy wait_until_auth_cache_reloaded",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdapSaslAuth::test_authentication",
+          "coverage": "full",
+          "note": "saslauthd rejects unknown/incorrect credentials"
+        },
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::simple_password_checking",
+          "coverage": "partial",
+          "note": "saslauthd rejects wrong password"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Unknown-user rejection via saslauthd is covered by TestLdapSaslAuth::test_authentication (wrong password, user absent from LDAP) and scylla test/ldap/saslauthd_authenticator_test.cc::simple_password_checking/authenticate. Bug: blind `except Exception` (ldap_test.py:264), no message check."
+    },
+    "TestLdapSaslAuth::test_authentication": {
+      "description": "SaslauthdAuthenticator with LDAP backend: superuser 'cassandra' absent from LDAP -> first login fails 'Bad credentials'; after adding the LDAP person, login succeeds; wrong password fails.",
+      "origin": {
+        "sha": "81ba2efd",
+        "date": "2020-10-11",
+        "pr": 2529,
+        "summary": "Dejan Mircevski: 'ldap: Add authentication test' (with saslauthd startup 9869694f). Carrier PR #2529."
+      },
+      "commits": {
+        "234a6181": "expected login failures use non-retrying cql_connection / prepare(patient=False) (saves 30s per rejection)",
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "439f1528": "SaslAuth variant: role creation via create_role() (no scylla password, person added to LDAP); test inherited by TestLdapSaslAuth",
+        "ffccf3ef": "formatting (+ class _multiprocess_can_split_=False)",
+        "81ba2efd": "origin: test added (saslauthd checks LDAP passwords)",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::authenticate",
+          "coverage": "partial",
+          "note": "authenticator API, correct/incorrect password"
+        },
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::sasl_challenge",
+          "coverage": "partial",
+          "note": "SASL PLAIN challenge"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique e2e CQL login through saslauthd->LDAP; scylla saslauthd_authenticator_test.cc::authenticate/sasl_challenge cover the authenticator API with a real saslauthd but not the CQL/driver login of the default superuser."
+    },
+    "TestLdapSaslAuth::test_switch_with_password_auth": {
+      "description": "2-node cluster with SaslauthdAuthenticator: ALTER ROLE ... WITH PASSWORD must fail 'Cannot modify passwords with SaslauthdAuthenticator'; switch to PasswordAuthenticator + restart: LDAP-only user can't log in until a scylla password is set; switch back: login with LDAP password works again.",
+      "origin": {
+        "sha": "82a96de3",
+        "date": "2021-01-07",
+        "pr": 2529,
+        "summary": "Amos Kong: 'add two SaslauthdAuth tests' (switch authenticator, invalid socket). Carrier PR #2529."
+      },
+      "commits": {
+        "273625cb": "extend tablets audit ignore pattern with 'abort requested' / audit_log timeout",
+        "234a6181": "file: prepare(patient=...) option; expected login failures use non-retrying cql_connection",
+        "2316bca3": "ignore audit login-write CL ONE failures on tablets (single audit replica down during restarts)",
+        "82c464f4": "start all nodes before waiting for CQL after authenticator switch (needed after scylladb#20566)",
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "82a96de3": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::alter",
+          "coverage": "partial",
+          "note": "Cannot modify passwords"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique: authenticator switching across restarts with LDAP-only users; only the 'Cannot modify passwords' message is unit-covered (saslauthd_authenticator_test.cc::alter). Note (downgrade): inherits class @single_node via MRO although it runs 2 nodes - effect harmless (only boot speedups, conftest.py:439) but the mark is wrong."
+    },
+    "TestLdapSaslAuth::test_invalid_saslauthd_socket": {
+      "description": "Intended: for 5 invalid saslauthd_socket_path values (root-owned real socket, directory, missing path, /dev/zero, journal socket) restart the cluster and check LDAP user login fails 'Bad credentials'.",
+      "origin": {
+        "sha": "82a96de3",
+        "date": "2021-01-07",
+        "pr": 2529,
+        "summary": "Amos Kong: 'add two SaslauthdAuth tests'. Carrier PR #2529."
+      },
+      "commits": {
+        "234a6181": "file: prepare(patient=...) option; expected login failures use non-retrying cql_connection",
+        "9ffd273f": "formatting (ruff format)",
+        "d0cd9edc": "pytest port (mechanical: asserts/fixtures)",
+        "82a96de3": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::simple_password_checking",
+          "coverage": "partial",
+          "note": "nonexistent socket path -> authentication_exception"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug (since origin 82a96de3): loop var sock_path is never used - ldap_test.py:556 always sets saslauthd_socket_path='/tmp/', so 5 identical restarts (185s avg, slowest test in file) and the `sudo chown root:root` of the real socket (line 552) is pointless (also needs passwordless sudo, result ignored by getoutput). Effective check (directory as socket -> login rejected) partially covered by saslauthd_authenticator_test.cc::simple_password_checking (nonexistent path -> 'socket connection error'). Fix to use sock_path or reduce to one iteration."
+    },
+    "TestLdapSaslAuth::test_drop_cassandra_role": {
+      "description": "Create new superuser (LDAP person + scylla role), log in as it, delete 'cassandra' from LDAP -> 'cassandra' login fails 'Incorrect credentials', then DROP ROLE 'cassandra' succeeds under SaslauthdAuthenticator.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "234a6181": "file: prepare(patient=...) option; expected login failures use non-retrying cql_connection",
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::drop",
+          "coverage": "partial",
+          "note": "authenticator drop() succeeds"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e: dropping the default superuser with SaslauthdAuthenticator (regression for scylladb#25571; unit saslauthd_authenticator_test.cc::drop only checks drop() returns). Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it. Note: unused variable session2 (ldap_test.py:585)."
+    },
+    "TestLdapSaslAuth::test_drop_role_from_ldap_twice": {
+      "description": "Create role (scylla + LDAP person), DROP ROLE, delete LDAP object, delete it again expecting LDAP 'noSuchObject'.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "ldap_test.py::TestLdapSaslAuth::test_recreate_role_after_drop",
+          "coverage": "full",
+          "note": "same create/drop/LDAP-delete steps plus recreate"
+        },
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::drop",
+          "coverage": "partial",
+          "note": "authenticator drop() succeeds"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scylla-side part (DROP ROLE succeeds with saslauthd) is a strict subset of TestLdapSaslAuth::test_recreate_role_after_drop and covered by saslauthd_authenticator_test.cc::drop; the second delete asserts only OpenLDAP behaviour, not scylla. Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it."
+    },
+    "TestLdapSaslAuth::test_recreate_role_after_drop": {
+      "description": "Create role, DROP ROLE, delete from LDAP, recreate it; also CREATE/DROP a role that never existed in LDAP - all must succeed with SaslauthdAuthenticator.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/ldap/saslauthd_authenticator_test.cc::drop",
+          "coverage": "partial",
+          "note": "authenticator drop() succeeds"
+        },
+        {
+          "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_create_drop_role",
+          "coverage": "partial",
+          "note": "create/drop with PasswordAuthenticator"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e drop/recreate lifecycle with saslauthd (scylladb#25571 regression). Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it."
+    },
+    "TestLdapSaslAuth::test_block_current_role_drop": {
+      "description": "Logged-in superuser tries DROP ROLE of itself -> InvalidRequest 'Cannot DROP primary role for current login'.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_test.py::TestAuth::test_user_cant_drop_themselves",
+          "coverage": "full",
+          "note": "same error message, PasswordAuthenticator"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Authenticator-independent: the check is in drop_role_statement::validate() (scylla cql3/statements/role-management-statements.cc:296-299), which runs before auth::drop_role reaches the saslauthd authenticator; covered by scylla test/cluster/dtest/auth_test.py::TestAuth::test_user_cant_drop_themselves (line 186 matches the same message). Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it."
+    },
+    "TestLdapSaslAuth::test_block_not_existing_drop": {
+      "description": "DROP ROLE of a non-existent role -> InvalidRequest 'Role not_existing_role doesn't exist.' under SaslauthdAuthenticator.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_create_drop_role_validation",
+          "coverage": "partial",
+          "note": "same message, PasswordAuthenticator"
+        },
+        {
+          "path": "test/cluster/dtest/auth_test.py::TestAuth::test_dropping_nonexistent_user_throws_exception",
+          "coverage": "partial",
+          "note": "PasswordAuthenticator"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Generic message covered by scylla test/cluster/dtest/auth_roles_test.py::test_create_drop_role_validation (line 77) and auth_test.py::test_dropping_nonexistent_user_throws_exception, but auth::drop_role (auth/service.cc:655-661) calls authenticator.drop() before role_manager.drop() raises nonexistant_role, so this is the only check that saslauthd drop() doesn't mask the error (pre-#25571 it threw 'Cannot delete passwords'). Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it."
+    },
+    "TestLdapSaslAuth::test_existing_session_after_drop": {
+      "description": "User session stays usable after its LDAP person is deleted (no re-auth), but after DROP ROLE the session's LIST ROLES fails 'Role test_user doesn't exist.'.",
+      "origin": {
+        "sha": "74b85a3d",
+        "date": "2025-08-19",
+        "pr": 6149,
+        "summary": "Andrzej Jackowski: 'ldap_test: add tests for dropping role' - DROP ROLE cases with SaslauthdAuthenticator, requires scylladb/scylladb#25571 (Refs scylla-enterprise#2641). PR says not ported to test.py for lack of ldap3/Docker; stale now that scylla has test/pylib/ldap_server.py."
+      },
+      "commits": {
+        "74b85a3d": "origin: test added",
+        "3b00f9a8": "file: class @single_node mark + stop cluster before removing LDAP container in teardown (avoids reconnect errors); single_node makes later no_boot_speedups a no-op for TestLdap (conftest.py:439)",
+        "6320a5e4": "file: saslauthd started with -l (no accept lock)"
+      },
+      "relevance": "LDAPRoleManager (auth/ldap_role_manager.cc), ldap_url_template/ldap_attr_role/ldap_bind_* options and CassandraAuthorizer all live in scylla. SaslauthdAuthenticator (auth/saslauthd_authenticator.cc, saslauthd_socket_path) live.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique e2e: existing-session behaviour on LDAP deletion and role drop with saslauthd. Note: @pytest.mark.require('scylladb/scylladb#25571') is stale - issue closed 2025-08-22 (fix scylla 86fc513bd9 'auth: allow dropping roles in saslauthd_authenticator'); mark is a no-op, remove it. Note: hard-coded 'dc=scylladb,dc=com' instead of ldap_base_object (ldap_test.py:430/446/465/574)."
+    }
+  }
+}
