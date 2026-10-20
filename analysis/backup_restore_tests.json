@@ -1,0 +1,392 @@
+{
+  "file": "backup_restore_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestBackupRestore::test_clearsnapshot_options": {
+      "description": "Single node, ks0.cf and ks1.cf, 3 rounds of insert + 'nodetool snapshot -t snapshotN ks0 ks1'. Then 'clearsnapshot -t snapshot0' must remove snapshot0 in both keyspaces and leave snapshot1/2 file sets untouched; 'clearsnapshot -t snapshot1 -- ks1' must remove only ks1's snapshot1; plain 'clearsnapshot' must remove everything. Guards nodetool clearsnapshot tag/keyspace filtering end-to-end.",
+      "origin": {
+        "sha": "f41d16f086",
+        "date": "2016-02-07",
+        "pr": null,
+        "summary": "Vlad Zolotarov: added clearsnapshot_options test"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "fb3dfc9ea9": "formatting (pylint checks)",
+        "c3471a97e4": "formatting (autopep8)",
+        "60fdd2b6c5": "added single_node attr",
+        "f41d16f086": "origin",
+        "73c19ce11e": "attributed by history only (adjacent test added); no change to this test",
+        "57ce14f523": "attributed by history only; no change to this test",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Live: nodetool clearsnapshot (-t, keyspace list) -> DELETE /storage_service/snapshots; replica::database::clear_snapshot(tag, {ks}, table). Works for vnodes and tablets (100% pass on both jobs, 32 runs, ~18s).",
+      "duplicates": [
+        {
+          "path": "test/boost/database_test.cc::clear_multiple_snapshots",
+          "coverage": "partial",
+          "note": "single tag clear keeps other tags, clear-all, bogus tag; single keyspace only, no cross-keyspace isolation"
+        },
+        {
+          "path": "test/boost/database_test.cc::clear_snapshot",
+          "coverage": "partial",
+          "note": "clear tag in ks"
+        },
+        {
+          "path": "test/nodetool/test_snapshot.py::test_clearnapshot_tag_and_keyspace / test_clearnapshot_tag / test_clearnapshot",
+          "coverage": "partial",
+          "note": "mock REST: verifies CLI args -> API params only"
+        },
+        {
+          "path": "dtest snapshot_test.py::TestSnapshot::test_cleaning_snapshot_created_by_ks",
+          "coverage": "partial",
+          "note": "per-table clear via REST, other table kept"
+        },
+        {
+          "path": "dtest snapshot_test.py::TestParallelSnapshotOperations::*",
+          "coverage": "partial",
+          "note": "clearsnapshot per-ks and all, in parallel"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Logic mostly covered by boost database_test::clear_multiple_snapshots + nodetool/test_snapshot.py arg mapping + snapshot_test.py clears; only gap is cross-keyspace isolation of 'clearsnapshot -t X -- ks1' end-to-end. Cheap and stable; candidate for merge into snapshot_test.py."
+    },
+    "TestBackupRestore::test_failure_durring_restore_no_corrupt_data": {
+      "description": "Single node: insert data, snapshot ks.cf, drop ks, recreate with swapped values, drain, delete live sstables, copy snapshot into upload/, start 'nodetool refresh' and kill -9 the node a random 0-1s after 'Loading new SSTables' log line. Delete commitlogs, restart, refresh again and assert all original rows/values present. Guards crash-safety of refresh (upload dir processing) - no corruption, restore can be resumed.",
+      "origin": {
+        "sha": "63ceed8819",
+        "date": "2016-01-17",
+        "pr": null,
+        "summary": "Vlad Zolotarov: failure_durring_restore_no_corrupt_data"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "fb3dfc9ea9": "formatting (pylint checks)",
+        "60fdd2b6c5": "added single_node attr",
+        "63ceed8819": "origin",
+        "dee048a514": "moved get_cf_dir helper out of test",
+        "5247c05961": "use get_snapshot_dir helper",
+        "f260311f3c": "use get_non_snapshot_cf_dir helper",
+        "0fda669144": "use delete_cf_sstables helper",
+        "79a422239a": "formatting",
+        "d8e135b21b": "copy snapshot sstables into upload/ instead of main dir",
+        "376f010e7f": "deflake: wait for 'Loading new SSTables' log before kill; run refresh again after restart (PR 1456)",
+        "6a251f4a03": "use commitlog.cleanup() (schema commitlog subdir)",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Live: refresh path sstables_loader.cc logs 'Loading new SSTables for keyspace=..., table=...' (regex in test still matches); upload dir processing in distributed_loader::process_upload_dir. With tablets refresh is auto-promoted to load-and-stream (sstables_loader.cc:690) - test passes on both jobs (32 runs, 100%, ~22s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_tablets_abort / test_abort_restore_with_rpc_error",
+          "coverage": "partial",
+          "note": "abort/failure of object-store restore, not node crash during local refresh"
+        },
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_does_not_claim_sstables_created_by_another_shard",
+          "coverage": "partial",
+          "note": "refresh race via error injection, no crash/restart"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla or other dtest covers a node crash mid-refresh followed by restart + re-refresh; behavior (upload dir / refresh) is live on vnodes and tablets. Stable since 2020 deflake (376f010e7f)."
+    },
+    "TestBackupRestore::test_failure_durring_snapshot_no_corrupt_data": {
+      "description": "Single node: insert 1000 rows, run 'nodetool snapshot' in a thread and kill -9 the node after a random 0-1s sleep (no log sync), restart, assert all rows/values readable. Intended to check a crash during snapshot does not corrupt live data. Snapshot directory itself is not checked.",
+      "origin": {
+        "sha": "575d1285e4",
+        "date": "2016-01-13",
+        "pr": null,
+        "summary": "Vlad Zolotarov: failure_durring_snapshot_no_corrupt_data test (Fixes dtest #113)"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "60fdd2b6c5": "added single_node attr",
+        "575d1285e4": "origin",
+        "998ca122c0": "use start_nodetool_and_kill_node() helper",
+        "79a422239a": "formatting",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Snapshot (flush + hardlinks) is live. But kill timing is random with no sync point, so with 1000 rows the snapshot usually completes (or hasn't started) before kill; data survival is effectively verified by commitlog replay (batch commitlog) which is generic.",
+      "duplicates": [
+        {
+          "path": "test/boost/database_test.cc::table_snapshot_works / snapshot_with_quarantine_works",
+          "coverage": "partial",
+          "note": "snapshot correctness, no crash"
+        },
+        {
+          "path": "dtest snapshot_test.py::TestSnapshot::test_nodetool_snapshot_race_condition_with_compaction_*",
+          "coverage": "partial",
+          "note": "snapshot vs concurrent activity"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No direct duplicate, but assertion is weak: random 0-1s kill without sync (start_nodetool_and_kill_node with message=None) means the crash window is rarely hit, and only live data (not snapshot) is checked - mostly a commitlog-replay check. Keep only if strengthened (error injection mid-snapshot)."
+    },
+    "TestBackupRestore::test_incremental_backup": {
+      "description": "Single node smp=1, 'nodetool enablebackup', insert + flush; assert cf/backups/ contains exactly the flushed sstables; major compact; assert backups/ unchanged (compaction outputs not backed up). Guards incremental_backups semantics (scylla#1308: compacted sstables must not land in backups).",
+      "origin": {
+        "sha": "b89f0a0cd8",
+        "date": "2016-01-19",
+        "pr": null,
+        "summary": "Vlad Zolotarov: incremental_backup initial version (Fixes dtest #108)"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "60fdd2b6c5": "added single_node attr",
+        "b89f0a0cd8": "origin",
+        "79a422239a": "formatting",
+        "a7518d568f": "use 'nodetool enablebackup' instead of config",
+        "cf10419552": "assert backups unchanged after compaction (scylla#1308)",
+        "c364f2de75": "use shared tools get_sstables_files()",
+        "5996eba912": "added next-gating attr",
+        "6b5a3275e4": "added dtest-debug attr",
+        "fe34e16e2a": "use get_node_cf_dir()",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Live: incremental_backups config (replica/database.cc:476), REST set_incremental_backups_enabled (api/column_family.cc:1207), table.cc:2276 cfg.backup = incremental_backups_enabled(). Passes on vnodes+tablets (32 runs, 100%, ~16s).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_backup.py::test_enablebackup",
+          "coverage": "partial",
+          "note": "mock REST only, no on-disk check"
+        },
+        {
+          "path": "dtest system_tables_test.py (incremental_backup_enabled toggle)",
+          "coverage": "partial",
+          "note": "only checks the flag value in system table"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only functional test of incremental backups found: no scylla test checks the backups/ dir (grep of test/ for incremental_backups/backups dir only hits config_test, mutation_test cfg=false, nodetool mock). Feature live, fast and stable."
+    },
+    "TestBackupRestore::test_no_data_resurrection_or_loss_after_restore": {
+      "description": "Single node: insert 10 rows, flush, ALTER DROP c2 + ADD c2, insert 10 more rows, flush. Stop node, copy sstables, save 'DESC KEYSPACE ks WITH INTERNALS'; drop ks, rmtree data, recreate schema from the description, assert re-described schema equals the original, copy sstables back offline and restart. Assert old rows have c2=null (no resurrection) and new rows keep c2 (no loss). Guards the documented backup procedure (DESC SCHEMA WITH INTERNALS emitting 'ALTER TABLE ... DROP c2 USING TIMESTAMP'), scylladb PR 18115.",
+      "origin": {
+        "sha": "ba6f026eaa",
+        "date": "2024-03-31",
+        "pr": 4122,
+        "summary": "Michał Jadwiszczak: add test for restoring schema from DESC SCHEMA (needs scylladb#18115)"
+      },
+      "commits": {
+        "ba6f026eaa": "origin",
+        "a5daff440d": "compare with DESC KEYSPACE ks instead of DESC SCHEMA (enterprise system_replicated_keys)",
+        "e759a5b1b1": "deflake: disable autocompaction while listing/copying sstables",
+        "5f7daec098": "use shared create_data() helper",
+        "7ead1f2a50": "copy all sstable components (missing Digest.crc32 broke compaction)",
+        "416c8fe170": "disable_sstable_modifications (also tablet balancing) instead of disable_autocompaction",
+        "056f5dc7a8": "ruff: rename unused vars",
+        "78e82c5302": "deflake (DTEST-213): stop node while copying sstables instead of copying live dir"
+      },
+      "relevance": "Live: DESC ... WITH INTERNALS with drop/re-add column records; documented in docs/operating-scylla/procedures/backup-restore/backup.rst. Passes on vnodes+tablets (32 runs, 100%, ~28s). Had 3 deflake fixes (e759a5b1b1, 7ead1f2a50, 78e82c5302) all in test copy mechanics, not scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table_with_dropped_and_readded_column[refresh|restore]",
+          "coverage": "partial",
+          "note": "same drop+re-add scenario and null/non-null assertions, but schema restored from snapshot schema.cql (same describe code, replica/table.cc write_schema_as_cql) and data via refresh/restore; does not exercise CQL 'DESC KEYSPACE WITH INTERNALS' round-trip; added 2026-07-29 (1c173d1295)"
+        },
+        {
+          "path": "test/cqlpy/test_describe.py::test_desc_table_internals",
+          "coverage": "partial",
+          "note": "asserts DESC WITH INTERNALS contains ALTER DROP/ADD; no data restore"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-full overlap with new scylla test_auto_snapshot_restore_table_with_dropped_and_readded_column + cqlpy test_desc_table_internals; remaining unique bit is the CQL DESC WITH INTERNALS -> re-execute round-trip of the documented backup procedure. Candidate RED if that is deemed covered by test_desc_table_internals."
+    },
+    "TestBackupRestore::test_replay_restore_no_additional_data": {
+      "description": "Single node: insert 1000 rows, snapshot, drop ks, recreate ks/cf (new table id), flush, copy snapshot to upload/, refresh, verify rows; refresh again and verify rows again. Intends to check a repeated refresh adds no extra data.",
+      "origin": {
+        "sha": "8fa52a2f0a",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Vlad Zolotarov: replay_restore_no_additional_data initial commit"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "60fdd2b6c5": "added single_node attr",
+        "8fa52a2f0a": "origin",
+        "0fda669144": "use delete_cf_sstables helper",
+        "79a422239a": "formatting",
+        "d8e135b21b": "copy into upload/ instead of main dir",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Refresh is live. Second refresh is a no-op since refresh empties upload/ (test_refresh_deletes_uploaded_sstables). Assertion is COUNT(*)+values of same keys, which would pass even if sstables were loaded twice (same keys/timestamps), so 'no additional data' is not really detectable.",
+      "duplicates": [
+        {
+          "path": "dtest snapshot_test.py::TestSnapshot::test_basic_snapshot_and_restore_with_refresh",
+          "coverage": "full",
+          "note": "snapshot -> drop ks -> recreate -> copy to upload -> refresh -> count; also checks post-snapshot data discarded; runs on same next-dtest-consistent-topology/tablets jobs (32 runs, 100%)"
+        },
+        {
+          "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh]",
+          "coverage": "partial",
+          "note": "snapshot -> drop -> recreate -> refresh -> verify"
+        },
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables",
+          "coverage": "partial",
+          "note": "upload dir emptied after refresh (makes 2nd refresh a no-op)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Core flow (snapshot->drop->recreate->upload->refresh->verify) covered by scylla test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh] and dtest snapshot_test.py::test_basic_snapshot_and_restore_with_refresh (same next-dtest jobs); the 'second refresh adds nothing' check cannot fail by construction (same keys/timestamps, upload dir emptied per test_refresh_deletes_uploaded_sstables)."
+    },
+    "TestBackupRestore::test_restore_snapshot_from_cassandra": {
+      "description": "Single node smp=1: create ks.cf (key, c1 text, c2 text), copy pre-generated Cassandra 2.1 'ka' sstables (cassandra-sstables/restore-snapshot-from-cassandra, 1000 rows) into upload/, refresh, assert all 1000 rows/values. Guards loading Cassandra-format sstables via refresh.",
+      "origin": {
+        "sha": "73c19ce11e",
+        "date": "2016-01-21",
+        "pr": null,
+        "summary": "Vlad Zolotarov: restore_snapshot_from_cassandra initial commit (Fixes dtest #112)"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "c3471a97e4": "formatting (autopep8)",
+        "60fdd2b6c5": "added single_node attr",
+        "73c19ce11e": "origin",
+        "79a422239a": "formatting",
+        "8f31589531": "added next-gating attr",
+        "6b5a3275e4": "added dtest-debug attr",
+        "d8e135b21b": "copy into upload/ instead of main dir",
+        "fe34e16e2a": "use get_node_cf_dir()",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "ka format still readable (sstables/version.hh lists ka, la). Live, passes on both jobs (~17s).",
+      "duplicates": [
+        {
+          "path": "dtest migration_test.py::TestMigration::test_migrate_sstable_without_compression[2_1_x]",
+          "coverage": "full",
+          "note": "same: ka sstables from Cassandra 2.1, same (key,c1 text,c2 text) schema, copied to upload/ + nodetool refresh, rows verified; verified running: [2_1_x] 38 runs 100% on dtest-release + dtest-release-with-raft"
+        },
+        {
+          "path": "dtest migration_test.py::TestMigration::* [2_1_x, 2_2_x, 3_0_mc, 3_0_md] and TestMigrationUpgradeSSTables",
+          "coverage": "full",
+          "note": "much broader Cassandra sstable import via refresh (compression, tombstones, collections, counters, ...)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by migration_test.py::TestMigration/TestMigrationUpgradeSSTables (Cassandra 2.1 ka sstables into same c1/c2 schema via upload/ + refresh, plus 2.2/3.0 and many data variants; 100% pass). Only adds row count (1000 vs 1). Note: coverage moves from next_gating to dtest_full-only jobs; no scylla in-tree test loads ka via refresh."
+    },
+    "TestBackupRestore::test_restore_snapshot_using_different_smp_setting": {
+      "description": "Single node with smp=1: insert, snapshot, drop ks; restart with smp=2, recreate ks/cf, copy snapshot to upload/, refresh, assert all rows/values. Guards refresh of sstables produced under a different shard count (resharding/shard distribution on load).",
+      "origin": {
+        "sha": "57ce14f523",
+        "date": "2016-01-19",
+        "pr": null,
+        "summary": "Vlad Zolotarov: restore_snapshot_using_different_smp_setting initial commit (Fixes dtest #111)"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "60fdd2b6c5": "added single_node attr",
+        "57ce14f523": "origin",
+        "79a422239a": "formatting",
+        "d8e135b21b": "copy into upload/ instead of main dir",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "Live: upload dir processing reshards shared sstables (distributed_loader::process_upload_dir); with tablets refresh -> load-and-stream. Passes on both jobs (~22s).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly (+ _with_owned_ranges, _distributes_well_*)",
+          "coverage": "partial",
+          "note": "resharding of shared sstables at unit level"
+        },
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_does_not_claim_sstables_created_by_another_shard",
+          "coverage": "partial",
+          "note": "refresh on smp=2 node (vnodes)"
+        },
+        {
+          "path": "dtest resharding_test.py::test_resharding_by_smp_increase/decrease",
+          "coverage": "partial",
+          "note": "smp change on restart, not via refresh"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Resharding and multi-shard refresh are covered piecemeal (boost sstable_directory_test reshard tests, test_refresh.py smp=2 test, dtest resharding_test.py), but no single test does snapshot at smp=1 -> refresh at smp=2 end-to-end. Cheap and stable."
+    },
+    "TestBackupRestore::test_restore_snapshot_using_old_token_ownership": {
+      "description": "Single node: insert, snapshot; add node2 (token ownership changes), drop ks, recreate, copy node1's snapshot to upload/ and plain refresh on node1; only asserts 'SELECT COUNT(*) FROM ks.cf' executes (result not checked). Intends to check refresh of sstables containing ranges no longer owned by the node.",
+      "origin": {
+        "sha": "ed96a49dd8",
+        "date": "2016-01-19",
+        "pr": null,
+        "summary": "Vlad Zolotarov: restore_snapshot_using_old_token_ownership initial commit (Fixes dtest #110)"
+      },
+      "commits": {
+        "5f7daec098": "refactor: shared prepare()/create_data() helpers replace copy/paste setup",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "9a35b79b0b": "migrated nose->pytest (asserts, marks)",
+        "29646f1956": "python3 port (tree-wide)",
+        "fe8165c12e": "renamed to *_test (tree-wide)",
+        "ed96a49dd8": "origin",
+        "79a422239a": "formatting",
+        "5996eba912": "added next-gating attr",
+        "6b5a3275e4": "added dtest-debug attr",
+        "d8e135b21b": "copy into upload/ instead of main dir",
+        "45967b0cde": "skip when tablets enabled (PR 5882, dtest#5881: test not designed for tablets)",
+        "5a79419bc7": "file-level: class-wide next_gating mark (all tests gating)",
+        "9232912f8f": "file-level: single_node marks"
+      },
+      "relevance": "vnodes-only (skip_if tablets); runs only on next-dtest-consistent-topology (16 runs, 100%). Plain refresh with unowned ranges is the legacy path; proper multi-node restore is load-and-stream, now default for tablets.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "refresh with load-and-stream across topologies with full data verification"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "restore into multi-node topologies, data verified"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Asserts nothing meaningful: only that SELECT COUNT(*) does not throw (result unchecked), so removal loses no real coverage. Also vnodes-only (skipped under tablets since 45967b0cde, dtest#5881). Proper multi-node restore with data checks lives in scylla test_refresh.py::test_refresh_with_streaming_scopes (load-and-stream, partial)."
+    }
+  }
+}
