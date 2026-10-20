@@ -1,0 +1,887 @@
+{
+  "file": "consistency_test.py",
+  "tests": {
+    "TestAccuracy::test_simple_strategy_users": {
+      "description": "Single DC, 5 nodes, RF=3 (NetworkTopologyStrategy despite name; create_ks default), users table: insert/update(LWT IF when serial_cl)/delete, 17 CL combos incl. SERIAL/LOCAL_SERIAL. Shared Validation helper: for each key, write via each node's session at write_cl and read back from all sessions at read_cl; when R+W>RF every session must see the latest value, else at least W nodes must. Combinations run as parallel workers. Since dd66074cdb no validation actually executes (see reason).",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102 'Consistency levels such as non-local quorum need better tests' (ancestors 61f3f1d9d8/452be35cef, 2014). Data JSON PRs 1911/2026 are the pytest port."
+      },
+      "commits": {
+        "98d0b4c5e0": "revert of cace024081: 18068 skip mark back",
+        "cace024081": "replaced 18068 skip with lwt mark (enable LWT on tablets)",
+        "30d9d86f55": "added skip_if(tablets & issue_open(scylladb#18068)) (LWT on tablets)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "dac87ed7c6": "pytest port: create_ks call signature (pylint fix)",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "5e5913ebfb": "re-enabled SERIAL/LOCAL_SERIAL combinations (LWT)",
+        "03befb0043": "formatting (PEP8)",
+        "4dc14d5799": "merge upstream: EACH_QUORUM/LOCAL_QUORUM combos, SERIAL combos left commented",
+        "630ed600f8": "split EACH_QUORUM reads into separate *_each_quorum tests",
+        "a492c2436b": "added EACH_QUORUM/LOCAL_QUORUM combinations",
+        "20bde04dc1": "Scylla: disabled counters table, added 30s sleep after node stop, commented SERIAL combos",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "dd66074cdb": "file-level: ThreadPoolExecutor -> ProcessPoolExecutor; made test vacuous (see reason)",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)"
+      },
+      "relevance": "CL semantics (ONE/TWO/THREE/QUORUM/LOCAL_QUORUM/EACH_QUORUM/ALL/SERIAL/LOCAL_SERIAL, LWT IF NOT EXISTS / IF age=) are core, live scylla behavior; runs in next gating (pytestmark next_gating) with both tablets and consistent-topology jobs, 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "writes/reads at ONE/TWO/QUORUM/ALL/LOCAL_ONE and checks read-your-write; no R+W>N matrix, no per-node session checks"
+        },
+        {
+          "path": "test/cluster/test_multidc.py::test_putget_2dc_with_rf",
+          "coverage": "partial",
+          "note": "QUORUM put/get across 2 DCs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (R+W>N accuracy matrix, incl. LWT), only partial overlap in scylla test/cluster, but Bug: test is vacuous since dd66074cdb (PR 6178, 2025-08-28): _run_test_function_in_parallel (consistency_test.py:537-582) submits local closure `run` to ProcessPoolExecutor (line 565) -> PicklingError in every future (verified locally), futures never .result()-ed, wait loop exits when no future is running, thread-local queue.Queue `exceptions_queue` stays empty -> pytest.fail never fires; no validation runs. PR 6178 even reports 291s->103s for the 4 tests; Jenkins avg 13-30s = cluster boot only. Fix: revert to ThreadPoolExecutor (processes cannot share queue/sessions). Note: skip_if refs closed scylladb/scylladb#18068 (closed 2026-06-07; consistency_test.py:584) - dead mark. Note: docstring copy-pasted ('only the each quorum reads', :587); validate_users reuses stale session_idx after delete via sessions[0] (:488); 'simple strategy' actually uses NetworkTopologyStrategy."
+    },
+    "TestAccuracy::test_network_topology_strategy_users": {
+      "description": "Two DCs x 3 nodes, RF dc1=3/dc2=3, users table, 19 CL combos incl. EACH_QUORUM, LOCAL_QUORUM, QUORUM/SERIAL; LOCAL_SERIAL combos commented out. Shared Validation helper: for each key, write via each node's session at write_cl and read back from all sessions at read_cl; when R+W>RF every session must see the latest value, else at least W nodes must. Combinations run as parallel workers. Since dd66074cdb no validation actually executes (see reason).",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102 'Consistency levels such as non-local quorum need better tests' (ancestors 61f3f1d9d8/452be35cef, 2014). Data JSON PRs 1911/2026 are the pytest port."
+      },
+      "commits": {
+        "98d0b4c5e0": "revert of cace024081: 18068 skip mark back",
+        "cace024081": "replaced 18068 skip with lwt mark (enable LWT on tablets)",
+        "30d9d86f55": "added skip_if(tablets & issue_open(scylladb#18068)) (LWT on tablets)",
+        "9ffd273f04": "formatting (ruff format)",
+        "6fda87783b": "query_counter returns message; get_num_nodes dc index bug fixed (dc_value = +1 -> += 1); clearer failure output",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "dac87ed7c6": "pytest port: create_ks call signature (pylint fix)",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "5e5913ebfb": "re-enabled SERIAL/LOCAL_SERIAL combinations (LWT)",
+        "03befb0043": "formatting (PEP8)",
+        "4dc14d5799": "merge upstream: EACH_QUORUM/LOCAL_QUORUM combos, SERIAL combos left commented",
+        "630ed600f8": "split EACH_QUORUM reads into separate *_each_quorum tests",
+        "a492c2436b": "added EACH_QUORUM/LOCAL_QUORUM combinations",
+        "36c6f05350": "Scylla: enabled network topology tests, commented out SERIAL combos",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "dd66074cdb": "file-level: ThreadPoolExecutor -> ProcessPoolExecutor; made test vacuous (see reason)",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)"
+      },
+      "relevance": "CL semantics (ONE/TWO/THREE/QUORUM/LOCAL_QUORUM/EACH_QUORUM/ALL/SERIAL, multi-DC) are core, live scylla behavior; runs in next gating (pytestmark next_gating) with both tablets and consistent-topology jobs, 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "writes/reads at ONE/TWO/QUORUM/ALL/LOCAL_ONE and checks read-your-write; no R+W>N matrix, no per-node session checks"
+        },
+        {
+          "path": "test/cluster/test_multidc.py::test_putget_2dc_with_rf",
+          "coverage": "partial",
+          "note": "QUORUM put/get across 2 DCs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (R+W>N accuracy matrix, multi-DC with LWT), only partial overlap in scylla test/cluster, but Bug: test is vacuous since dd66074cdb (PR 6178, 2025-08-28): _run_test_function_in_parallel (consistency_test.py:537-582) submits local closure `run` to ProcessPoolExecutor (line 565) -> PicklingError in every future (verified locally), futures never .result()-ed, wait loop exits when no future is running, thread-local queue.Queue `exceptions_queue` stays empty -> pytest.fail never fires; no validation runs. PR 6178 even reports 291s->103s for the 4 tests; Jenkins avg 13-30s = cluster boot only. Fix: revert to ThreadPoolExecutor (processes cannot share queue/sessions). Note: skip_if refs closed scylladb/scylladb#18068 (closed 2026-06-07; :634) - dead mark. Note: 3 LOCAL_SERIAL combos commented out (:662-664); validate_users stale session_idx (:488)."
+    },
+    "TestAccuracy::test_simple_strategy_counters": {
+      "description": "Single DC, 3 nodes, RF=3, counters table: increment via each session at write_cl, check counter value from all sessions, waiting for background_writes metric to reach 0 between updates (scylladb#10479). 14 CL combos. Shared Validation helper: for each key, write via each node's session at write_cl and read back from all sessions at read_cl; when R+W>RF every session must see the latest value, else at least W nodes must. Combinations run as parallel workers. Since dd66074cdb no validation actually executes (see reason).",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102 'Consistency levels such as non-local quorum need better tests' (ancestors 61f3f1d9d8/452be35cef, 2014). Data JSON PRs 1911/2026 are the pytest port."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "dac87ed7c6": "pytest port: create_ks call signature (pylint fix)",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "03befb0043": "formatting (PEP8)",
+        "630ed600f8": "split EACH_QUORUM reads into separate *_each_quorum tests",
+        "a492c2436b": "added EACH_QUORUM/LOCAL_QUORUM combinations",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "dd66074cdb": "file-level: ThreadPoolExecutor -> ProcessPoolExecutor; made test vacuous (see reason)",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)",
+        "8b1222b5bf": "file-level: background_writes metric name fix in wait_for_bg_writes_to_complete",
+        "03b8bd4b09": "file-level: bg-writes poll sleep 0.01 -> 0.1",
+        "a490439227": "added skip_if(tablets & issue_open(#18180)) (counters on tablets)",
+        "47efc21a9e": "moved dtest-full attr to class level",
+        "498e4ea793": "added dtest-full attr",
+        "6b5a3275e4": "added dtest-debug attr",
+        "5799a46692": "added next-gating attr"
+      },
+      "relevance": "CL semantics (ONE/TWO/THREE/QUORUM/LOCAL_QUORUM/EACH_QUORUM/ALL, counters) are core, live scylla behavior; runs in next gating (pytestmark next_gating) with both tablets and consistent-topology jobs, 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "writes/reads at ONE/TWO/QUORUM/ALL/LOCAL_ONE and checks read-your-write; no R+W>N matrix, no per-node session checks"
+        },
+        {
+          "path": "test/cluster/test_multidc.py::test_putget_2dc_with_rf",
+          "coverage": "partial",
+          "note": "QUORUM put/get across 2 DCs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (R+W>N accuracy matrix for counters), only partial overlap in scylla test/cluster, but Bug: test is vacuous since dd66074cdb (PR 6178, 2025-08-28): _run_test_function_in_parallel (consistency_test.py:537-582) submits local closure `run` to ProcessPoolExecutor (line 565) -> PicklingError in every future (verified locally), futures never .result()-ed, wait loop exits when no future is running, thread-local queue.Queue `exceptions_queue` stays empty -> pytest.fail never fires; no validation runs. PR 6178 even reports 291s->103s for the 4 tests; Jenkins avg 13-30s = cluster boot only. Fix: revert to ThreadPoolExecutor (processes cannot share queue/sessions). Note: skip_if refs closed scylladb/scylladb#18180 (Tablets: support counters, closed 2025-11-04; :688) - dead mark. Note: wait comment refs closed scylladb/scylladb#10479 (closed 2023-05-22; :534)."
+    },
+    "TestAccuracy::test_network_topology_strategy_counters": {
+      "description": "Two DCs x 3 nodes, RF 3/3, counters table, 17 CL combos incl. EACH_QUORUM/LOCAL_QUORUM; waits for background_writes=0 between increments (scylladb#10479, originally filed for this exact test). Shared Validation helper: for each key, write via each node's session at write_cl and read back from all sessions at read_cl; when R+W>RF every session must see the latest value, else at least W nodes must. Combinations run as parallel workers. Since dd66074cdb no validation actually executes (see reason).",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102 'Consistency levels such as non-local quorum need better tests' (ancestors 61f3f1d9d8/452be35cef, 2014). Data JSON PRs 1911/2026 are the pytest port."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6fda87783b": "query_counter returns message; get_num_nodes dc index bug fixed (dc_value = +1 -> += 1); clearer failure output",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "dac87ed7c6": "pytest port: create_ks call signature (pylint fix)",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "03befb0043": "formatting (PEP8)",
+        "630ed600f8": "split EACH_QUORUM reads into separate *_each_quorum tests",
+        "a492c2436b": "added EACH_QUORUM/LOCAL_QUORUM combinations",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "dd66074cdb": "file-level: ThreadPoolExecutor -> ProcessPoolExecutor; made test vacuous (see reason)",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)",
+        "8b1222b5bf": "file-level: background_writes metric name fix in wait_for_bg_writes_to_complete",
+        "03b8bd4b09": "file-level: bg-writes poll sleep 0.01 -> 0.1",
+        "2fb588840d": "added skip_if(tablets & issue_open(#18180)) (counters on tablets)"
+      },
+      "relevance": "CL semantics (ONE/TWO/THREE/QUORUM/LOCAL_QUORUM/EACH_QUORUM/ALL, counters multi-DC) are core, live scylla behavior; runs in next gating (pytestmark next_gating) with both tablets and consistent-topology jobs, 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "writes/reads at ONE/TWO/QUORUM/ALL/LOCAL_ONE and checks read-your-write; no R+W>N matrix, no per-node session checks"
+        },
+        {
+          "path": "test/cluster/test_multidc.py::test_putget_2dc_with_rf",
+          "coverage": "partial",
+          "note": "QUORUM put/get across 2 DCs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (R+W>N accuracy matrix for counters multi-DC), only partial overlap in scylla test/cluster, but Bug: test is vacuous since dd66074cdb (PR 6178, 2025-08-28): _run_test_function_in_parallel (consistency_test.py:537-582) submits local closure `run` to ProcessPoolExecutor (line 565) -> PicklingError in every future (verified locally), futures never .result()-ed, wait loop exits when no future is running, thread-local queue.Queue `exceptions_queue` stays empty -> pytest.fail never fires; no validation runs. PR 6178 even reports 291s->103s for the 4 tests; Jenkins avg 13-30s = cluster boot only. Fix: revert to ThreadPoolExecutor (processes cannot share queue/sessions). Note: skip_if refs closed scylladb/scylladb#18180 (closed 2025-11-04; :737) - dead mark. Note: refs closed scylladb/scylladb#10479 (:534)."
+    },
+    "TestAvailability::test_simple_strategy": {
+      "description": "Single DC, 3 nodes, RF=3 (NetworkTopologyStrategy via create_ks despite the name), HH disabled. For each node: connect, run 17 write/read CL combos (100 inserts + 100 reads, LWT IF NOT EXISTS for SERIAL combos) asserting success when enough replicas are alive or Unavailable otherwise (_should_succeed), then stop that node; repeats with 3,2,1 nodes alive.",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102 (TestAvailability class); ancestors 61f3f1d9d8/452be35cef. Data JSON PRs 1911/2026 are the pytest port."
+      },
+      "commits": {
+        "98d0b4c5e0": "revert of cace024081: 18068 skip mark back",
+        "cace024081": "replaced 18068 skip with lwt mark (enable LWT on tablets)",
+        "30d9d86f55": "added skip_if(tablets & issue_open(scylladb#18068)) (LWT on tablets)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "5e5913ebfb": "re-enabled SERIAL/LOCAL_SERIAL combinations (LWT)",
+        "03befb0043": "formatting (PEP8)",
+        "20bde04dc1": "Scylla: disabled counters table, added 30s sleep after node stop, commented SERIAL combos",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "e726472787": "file-level: removed 30s sleep, stop(wait=True, wait_other_notice=True) in _test_simple_strategy",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)"
+      },
+      "relevance": "Coordinator Unavailable computation per CL (incl. LOCAL_*, EACH_QUORUM, SERIAL/LOCAL_SERIAL with LWT) is core live behavior (service/storage_proxy.cc unavailable_exception). Runs in next gating (tablets + consistent-topology), 32/32 passed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_multidc.py::test_read_or_write_to_dc_with_rf_0_fails",
+          "coverage": "partial",
+          "note": "asserts Unavailable for LOCAL_* CLs in a DC with RF=0; no progressive node-down matrix"
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "CL matrix (ONE/TWO/QUORUM/EACH_QUORUM/ALL) succeeds with all nodes up; no Unavailable checks"
+        },
+        {
+          "path": "dtest paxos_tests.py / batch_test.py (assert_unavailable)",
+          "coverage": "partial",
+          "note": "Unavailable for LWT/batches with nodes down, single CL each"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique progressive node-down CL availability matrix (only partial overlap in test/cluster), cheap (27s). Note: skip_if refs closed scylladb/scylladb#18068 (closed 2026-06-07; consistency_test.py:297) - dead mark. Note: test name says simple strategy but create_ks uses NetworkTopologyStrategy (dtest_class.py:184)."
+    },
+    "TestAvailability::test_network_topology_strategy": {
+      "description": "Three DCs x 3 nodes, RF 3/3/3, HH disabled. For every node in every DC: run 17 CL combos (incl. LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE, SERIAL/LOCAL_SERIAL LWT) asserting success or Unavailable based on per-DC alive counts, then stop that node, until all 9 are down. Ignores a raft_topology stream_ranges 'node state is bootstrapping' error.",
+      "origin": {
+        "sha": "bbd2cc1feb",
+        "date": "2015-06-08",
+        "pr": null,
+        "summary": "Cassandra dtest CASSANDRA-9102; enabled for Scylla in 36c6f05350 (2015-10-20)."
+      },
+      "commits": {
+        "98d0b4c5e0": "revert of cace024081: 18068 skip mark back",
+        "cace024081": "replaced 18068 skip with lwt mark (enable LWT on tablets)",
+        "30d9d86f55": "added skip_if(tablets & issue_open(scylladb#18068)) (LWT on tablets)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "387698ba2a": "re-enabled LOCAL_SERIAL combos (LWT experimental)",
+        "5e5913ebfb": "re-enabled SERIAL/LOCAL_SERIAL combinations (LWT)",
+        "03befb0043": "formatting (PEP8)",
+        "36c6f05350": "Scylla: enabled network topology tests, commented out SERIAL combos",
+        "bbd2cc1feb": "origin of TestAccuracy class / Validation helper (Cassandra CASSANDRA-9102)",
+        "452be35cef": "Cassandra ancestor: helper for basic CL tests (pre-class)",
+        "61f3f1d9d8": "Cassandra ancestor: first quorum/CL consistency tests",
+        "c51ea03f58": "file-level: ignore raft_topology stream_ranges bootstrapping error (scylladb#22680)",
+        "921be1d2c0": "file-level: ignore pattern accepts both exception formats",
+        "efd75aba69": "file-level: _start_cluster uses rf-rack-valid topology (generate_cluster_topology_based_rf)"
+      },
+      "relevance": "Coordinator Unavailable computation per CL (incl. LOCAL_*, EACH_QUORUM, SERIAL/LOCAL_SERIAL with LWT) is core live behavior (service/storage_proxy.cc unavailable_exception). Runs in next gating (tablets + consistent-topology), 32/32 passed. Multi-DC LOCAL_*/EACH_QUORUM availability is only partially covered elsewhere.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_multidc.py::test_read_or_write_to_dc_with_rf_0_fails",
+          "coverage": "partial",
+          "note": "asserts Unavailable for LOCAL_* CLs in a DC with RF=0; no progressive node-down matrix"
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "CL matrix (ONE/TWO/QUORUM/EACH_QUORUM/ALL) succeeds with all nodes up; no Unavailable checks"
+        },
+        {
+          "path": "dtest paxos_tests.py / batch_test.py (assert_unavailable)",
+          "coverage": "partial",
+          "note": "Unavailable for LWT/batches with nodes down, single CL each"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique multi-DC availability matrix but slow (~152s, 9 nodes, 9x17x200 ops). Note: skip_if refs closed scylladb/scylladb#18068 (closed 2026-06-07; :348) - dead mark. Note: ignore_log_patterns for raft_topology stream_ranges bootstrapping error (:246, c51ea03f58) was a workaround for scylladb/scylladb#22680 (closed 2025-04-18) - no bootstrap happens in this test, may now mask a real error; re-check if still needed."
+    },
+    "TestConsistency::test_data_query_digest": {
+      "description": "2 nodes/2 racks RF=2, HH off. Rows (0,1),(0,2) written at ALL; node2 down -> delete (0,1) at ONE on node1; node1 down -> update (0,2) r=2 at ONE on node2. Query 'select r ... where p=0 limit 1' at ALL must return r=2: each replica's single row is stale, coordinator must detect incomplete information after reconciliation and retry. Guards scylla 77dbe3c12f 'storage_proxy: fix reconciliation with limits'.",
+      "origin": {
+        "sha": "a5ffef7f0d",
+        "date": "2016-03-08",
+        "pr": null,
+        "summary": "Pawel Dziepak: add data query digest test, companion of scylla 77dbe3c12f."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "5a5f8c528e": "rename typo test_data_query_diges -> test_data_query_digest",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=2)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "f066efa2e4": "parallel execution support (no hardcoded IPs, wait for node start)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "4db09d0724": "fix node2 start while seed node1 down (wait_for_binary_proto)",
+        "a5ffef7f0d": "origin: data query digest test (thrift-free CQL, row limit)"
+      },
+      "relevance": "Coordinator reconciliation with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read retry, service/storage_proxy.cc ~5214-5457) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~16s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent row/partition tombstones written per node with the other down, CL=ALL paged read checks reconciled result; exercises tombstone-limit short pages, not LIMIT/partition-limit retry"
+        },
+        {
+          "path": "test/boost/mutation_query_test.cc::test_result_row_count",
+          "coverage": "partial",
+          "note": "single-node row limit semantics only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique regression guard for coordinator retry when row LIMIT is reached with stale replicas (scylla 77dbe3c12f); cheap, stable, no overlap beyond tombstone-paging read repair test. No issues found in test body."
+    },
+    "TestConsistency::test_incomplete_result_test_partition_limit": {
+      "description": "2 nodes RF=2. Partitions p=1 r='0', p=2 r='1' at ALL; node2 down -> delete p=1 at ONE on node1; node1 down -> update p=2 r='2' at ONE on node2. 'select r from ks.cf1 limit 1' at ALL must return '2': each replica returns a different (stale) first partition, coordinator must notice partition-limit incomplete info and retry. Guards scylla dd67de7218/2ff5308d8e (partition limit in reconciliation). Originally a thrift get_range_slices test; converted to CQL LIMIT in e659c9c95a.",
+      "origin": {
+        "sha": "95c872609a",
+        "date": "2016-11-29",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests' (per-partition/partition limit coordinator fixes)."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=2)",
+        "9ffd273f04": "formatting (ruff format)",
+        "dc2566427d": "dropped WITH COMPACT STORAGE",
+        "e659c9c95a": "thrift removal: renamed to test_* so it runs; thrift get_range_slices replaced by CQL (partition_limit); assertEqual -> assert",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "2b776bb71d": "ByteOrderedPartitioner -> Murmur3Partitioner, full token range",
+        "be7333ddf4": "un-skipped; enable_deprecated_partitioners; bytes assert",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "1e3ddde279": "fixed ConsistencyLevel import clash with thrift bindings",
+        "95c872609a": "origin: partition-limit incomplete-result test (thrift get_range_slices, ByteOrderedPartitioner)"
+      },
+      "relevance": "Coordinator reconciliation with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read retry, service/storage_proxy.cc ~5214-5457) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~16s. Thrift path removed; after e659c9c95a the CQL 'LIMIT 1' over two partitions is the same partition-limit reconciliation path.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent row/partition tombstones written per node with the other down, CL=ALL paged read checks reconciled result; exercises tombstone-limit short pages, not LIMIT/partition-limit retry"
+        },
+        {
+          "path": "test/boost/mutation_query_test.cc::test_partition_limit",
+          "coverage": "partial",
+          "note": "single-node partition limit only"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_short_read_partitions",
+          "coverage": "partial",
+          "note": "sibling dtest, similar setup with LIMIT 2"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coordinator partition-limit retry scenario, but config is partly dead: Bug: hinted_handoff_enabled=False set AFTER cluster start (consistency_test.py:1085), contrary to a9153641f0 ('setting it after start has no effect') - node1 keeps hints for the delete and may replay them to node2, weakening the disagreement. Note: start_rpc=True (:1082) is UNUSED in scylla (db/config.cc:1288, thrift removed); set_partitioner(Murmur3) (:1081) is the default."
+    },
+    "TestConsistency::test_empty_reconciled_result": {
+      "description": "2 nodes RF=2, HH off. Partitions p=1..3 written at ALL; node2 down -> delete p=1 at ONE on node1; node1 down, node2 up -> delete p=2 at ONE on node2. 'select r from ks.cf1 limit 1' at ALL (fetch_size=0, no paging) must return exactly r=3. Each replica's first live rows are deleted on the other one, so reconciliation yields an empty/short page and the coordinator must retry rather than return an empty result.",
+      "origin": {
+        "sha": "402d94e28a",
+        "date": "2016-11-30",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests': tests for empty reconciled result, companion of scylla Dec-2016 storage_proxy series (3c173d87b5 'handle intentional short reads', dd67de7218)."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=2)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e659c9c95a": "renamed to test_* so pytest collects it (was not run under pytest before); assertEqual -> assert",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "b2b2aa9972": "safe start/stop of nodes (wait_other_notice / wait_for_binary_proto)",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "402d94e28a": "origin: empty reconciled result tests"
+      },
+      "relevance": "Coordinator reconciliation with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read retry, service/storage_proxy.cc ~5214-5457) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~16s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent row/partition tombstones written per node with the other down, CL=ALL paged read checks reconciled result; exercises tombstone-limit short pages, not LIMIT/partition-limit retry"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique guard for empty reconciled result retry with LIMIT and no paging (PR 416, scylla 3c173d87b5/dd67de7218); test_incremental_read_repair covers only tombstone-driven paging. Cheap and stable; no issues found."
+    },
+    "TestConsistency::test_empty_reconciled_result_with_paging": {
+      "description": "2 nodes RF=2, HH off. Partitions p=1..4 written at ALL; node2 down -> delete p=1 at ONE on node1; node1 down, node2 up -> delete p=2 at ONE on node2. 'select r ... limit 2' at ALL with fetch_size=1 via PageFetcher must yield 2 pages of 1 row each (sum 2). Each replica's first live rows are deleted on the other one, so reconciliation yields an empty/short page and the coordinator must retry rather than return an empty result.",
+      "origin": {
+        "sha": "402d94e28a",
+        "date": "2016-11-30",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests': tests for empty reconciled result, companion of scylla Dec-2016 storage_proxy series (3c173d87b5 'handle intentional short reads', dd67de7218)."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=2)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e659c9c95a": "renamed to test_* so pytest collects it (was not run under pytest before); assertEqual -> assert",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "b2b2aa9972": "safe start/stop of nodes (wait_other_notice / wait_for_binary_proto)",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "402d94e28a": "origin: empty reconciled result tests"
+      },
+      "relevance": "Coordinator reconciliation with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read retry, service/storage_proxy.cc ~5214-5457) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~16s. Paging state handling across short reconciled pages also live.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "paged CL=ALL read over divergent tombstones; checks rows but not page boundaries with LIMIT"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique guard for empty reconciled page + LIMIT + paging (PR 416); partial overlap only with test_incremental_read_repair. Cheap and stable; no issues found (asserts only counts, not values - weak but valid)."
+    },
+    "TestConsistency::test_incomplete_result_test_per_partition_row_limit": {
+      "description": "2 nodes/2 racks RF=2, HH off. Rows (1,'1',r='0'),(1,'2',r='1') at ALL; node2 down -> delete (1,'1') at ONE on node1; node1 down -> update (1,'2') r='2' at ONE on node2. 'select c from ks.cf1 limit 1' at ALL (range scan) must return c='2'. Originally thrift get_range_slices with SliceRange count=1 (per-partition row limit) guarding scylla dd67de7218 'storage_proxy: make sure coordinator has complete data'; since e659c9c95a it is a plain total-row LIMIT.",
+      "origin": {
+        "sha": "95c872609a",
+        "date": "2016-11-29",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests': per-partition row limit / partition limit incomplete-result tests (thrift, ByteOrderedPartitioner)."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "dc2566427d": "dropped WITH COMPACT STORAGE",
+        "e659c9c95a": "thrift removal: renamed to test_* so it runs; thrift get_range_slices replaced by CQL select",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "1ebd4d9960": "ByteOrderedPartitioner -> Murmur3Partitioner, full token range",
+        "b1a6503d06": "un-skipped; enable_deprecated_partitioners; bytes assert",
+        "1e3ddde279": "fixed ConsistencyLevel import clash with thrift bindings",
+        "95c872609a": "origin: per-partition row limit incomplete-result test (thrift)"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Per-partition limit (PER PARTITION LIMIT) still supported in CQL. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~16s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_data_query_digest",
+          "coverage": "partial",
+          "note": "near-identical data/steps with single-partition 'where p=0 limit 1'; this test only differs by being a range scan"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_incomplete_result_test_partition_limit",
+          "coverage": "partial",
+          "note": "sibling, same setup over two partitions"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: thrift->CQL conversion (e659c9c95a) replaced per-partition row limit (SliceRange count=1) with plain 'limit 1' (consistency_test.py:1152), so per-partition limit path (dd67de7218) is no longer tested; test is now a range-scan variant of test_data_query_digest. Should use PER PARTITION LIMIT 1 or be dropped. Note: start_rpc=True (:1123) UNUSED in scylla (db/config.cc:1288); set_partitioner(Murmur3) (:1122) is the default. HH is set before start here (ok)."
+    },
+    "TestConsistency::test_quorum_available_during_failure": {
+      "description": "3 nodes/3 racks RF=3 (balanced tokens if vnodes). Writes 100 c1c2 rows at QUORUM via node2, stops node1, reads all 100 back at QUORUM. Asserts QUORUM reads stay available and correct with one replica down. Old Cassandra 'read_when_down' test.",
+      "origin": {
+        "sha": "4f1599a3ab",
+        "date": "2012-02-28",
+        "pr": null,
+        "summary": "Cassandra dtest: moved read_when_down into consistency_test."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "1f58eb82d1": "pytest import fixes (DISABLE_VNODES class fixture)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "b68f954a85": "helpers called without self",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "54df4845a1": "insert_c1c2 via execute_concurrent",
+        "1761f6fac2": "rename cursor -> session",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "11f3825a5d": "port to new python driver",
+        "31b8d240f7": "vnodes enabled by default (balanced tokens)",
+        "97fc1f7cb1": "use patient connections",
+        "054e581ce8": "vnode handling",
+        "7286a60656": "balanced_tokens usage",
+        "d88ce6a041": "m3 partitioner tokens",
+        "1de0399a8f": "old Cassandra-era refactor",
+        "47efc21a9e": "marks only (dtest-full class attr)",
+        "bf378f5dfe": "marks only",
+        "498e4ea793": "marks only (dtest-full)",
+        "2e9dc9d0ba": "re-added dtest-debug attr with comment ref scylla#4384",
+        "56e559aa53": "marks only (dtest-debug commented out)",
+        "6b5a3275e4": "dtest-debug attr commented out, ref scylla#4384",
+        "8f31589531": "next-gating attr",
+        "627a6058ec": "removed unneeded drain",
+        "4f1599a3ab": "origin: read_when_down moved into consistency_test"
+      },
+      "relevance": "Basic QUORUM availability with one replica down - core live behavior. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~15s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestAvailability::test_simple_strategy",
+          "coverage": "full",
+          "note": "3 nodes RF=3, progressively stops nodes and checks QUORUM/QUORUM (and many other CLs) write+read of 100 rows with 2 nodes alive; runs in same gating jobs 32/32"
+        },
+        {
+          "path": "consistency_test.py::TestAccuracy::test_simple_strategy_users",
+          "coverage": "partial",
+          "note": "QUORUM read/write accuracy with nodes down"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by sibling TestAvailability::test_simple_strategy (QUORUM write/read with 1 of 3 replicas down, same jobs), which is a strict superset. Note: @pytest.mark.dtest_debug comment refs scylladb/scylla#4384 (consistency_test.py:992), closed 2023-08-06."
+    },
+    "TestConsistency::test_reaching_end_after_retry": {
+      "description": "2 nodes/2 racks RF=2, HH off. Partitions 0..3 at ALL; node1 down -> on node2 delete p=0,1,2 and insert p=4,5 at ONE. 'select r from ks.cf1 limit 3' at ALL must return 5,4,3 (token order). Coordinator retries with larger limits; guards scylla 7bed7aa7de 'storage_proxy: use cmd limits to determine that replica reached end' (livelock / wrong end-of-data detection on retried queries).",
+      "origin": {
+        "sha": "5b62edd4a6",
+        "date": "2016-12-01",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests': replica reaching end after retry."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "b7ba6f3196": "ByteOrderedPartitioner -> Murmur3Partitioner; expected order changed to 5,4,3 (assert messages not updated)",
+        "df6fd63c92": "un-skipped; enable_deprecated_partitioners",
+        "5b62edd4a6": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~13s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_short_read_partitions",
+          "coverage": "partial",
+          "note": "similar range-scan LIMIT retry with deleted partitions"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique regression guard for scylla 7bed7aa7de (retry end-of-data detection); cheap. Bug: assertion messages wrong since b7ba6f3196 - consistency_test.py:1326 says 'Expecting value 3' for 5, :1328 says 'Expecting value 5' for 3, and :1327/:1328 print res[0] instead of res[1]/res[2]. Note: set_partitioner(Murmur3) (:1291) is the default."
+    },
+    "TestConsistency::test_readrepair": {
+      "description": "2 nodes/2 racks RF=2, HH off. node2 down, insert 10000 c1c2 rows at ONE via node1; node2 up, read every key at QUORUM (=ALL for RF=2) to trigger digest-mismatch read repair; node1 down, read all 10000 keys at ONE from node2 and assert present. Basic foreground read repair test from Cassandra dtest.",
+      "origin": {
+        "sha": "7a32c80eba",
+        "date": "2012-02-28",
+        "pr": null,
+        "summary": "Cassandra dtest: 'Add basic hh and rr tests'."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff update)",
+        "1f58eb82d1": "pytest import fixes (DISABLE_VNODES class fixture)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "b68f954a85": "helpers called without self",
+        "dac87ed7c6": "pylint cleanup (logging), no behavior change",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "03befb0043": "formatting (PEP8)",
+        "54df4845a1": "insert_c1c2 via execute_concurrent",
+        "98e5ce22be": "formatting (isort/PEP8)",
+        "1761f6fac2": "rename cursor -> session",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "8594c7292f": "replace sleeps with wait_other_notice",
+        "11f3825a5d": "port to new python driver",
+        "31b8d240f7": "vnodes enabled by default (balanced tokens)",
+        "97fc1f7cb1": "use patient connections",
+        "054e581ce8": "vnode handling",
+        "7286a60656": "balanced_tokens usage",
+        "d88ce6a041": "m3 partitioner tokens",
+        "1de0399a8f": "old Cassandra-era refactor",
+        "47efc21a9e": "marks only",
+        "498e4ea793": "marks only (dtest-full)",
+        "6b5a3275e4": "dtest-debug attr",
+        "5799a46692": "next-gating attr",
+        "2d543ecdef": "sleep for schema propagation",
+        "3a319fcb68": "formatting",
+        "7a32c80eba": "origin"
+      },
+      "relevance": "Digest-mismatch foreground read repair (service/storage_proxy.cc, data_read_resolver) live. read_repair_chance=1.0 is dead (obsolete, scylla c323c93fa4); repair happens only because QUORUM with RF=2 reads both replicas. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~34s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "CL=ALL read repairs divergent live rows/tombstones; checks both replicas via MUTATION_FRAGMENTS afterwards (range scan vs single-partition here)"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_read_repair_with_trace_logging",
+          "coverage": "partial",
+          "note": "node1 misses 100 rows (injected write failure), CL=ALL read asserts 'digest mismatch, starting read repair' trace; does not verify replica data afterwards"
+        },
+        {
+          "path": "read_repair_test.py::TestReadRepair::test_alter_rf_and_run_read_repair",
+          "coverage": "partial",
+          "note": "dtest: single-partition CL=ALL read repairs missing replica, verified at CL=ONE on each node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly covered: scylla test_incremental_read_repair verifies replicas converge after CL=ALL read, read_repair_test.py verifies single-partition RR at CL=ONE; this one only adds 10000 single-partition reads (~34s). Note: read_repair_chance is obsolete in scylla (removed by c323c93fa4, kept as obsolete keyword in cql3/statements/cf_prop_defs.cc:125) - read_repair=1.0 at consistency_test.py:930 is dead."
+    },
+    "TestConsistency::test_short_read": {
+      "description": "3 nodes/3 racks RF=3, HH off, batch commitlog. Inserts 9 cells c000000..c000008 in partition k0; deletes c0,c1,c2 each at QUORUM with a different node down (each tombstone on 2 of 3 replicas). 'SELECT c,v ... LIMIT 3' at QUORUM must return value3..value5: each replica pair lacks a tombstone, so coordinator gets short result after reconciliation and must retry. Repeated 3x with TRUNCATE (originally to hit CASSANDRA-9460 NPE race).",
+      "origin": {
+        "sha": "0c370f3a24",
+        "date": "2011-09-29",
+        "pr": null,
+        "summary": "Cassandra dtest initial commit (short read tests); later CASSANDRA-9460 loop (2c19c920d3)."
+      },
+      "commits": {
+        "0ab2f81e6f": "loop iterations 10 -> 3 (runtime)",
+        "b1de331d02": "refactor: cluster_topology variable",
+        "0a84c26262": "rf-rack-valid: populate(3) -> generate_cluster_topology(rack_num=3)",
+        "9ffd273f04": "formatting (ruff format)",
+        "c36e0422c5": "insert_columns called without self",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "b68f954a85": "helpers called without self",
+        "dac87ed7c6": "pylint cleanup (logging), no behavior change",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "03befb0043": "formatting (PEP8)",
+        "cddbe40790": "list(session.execute()) after driver upgrade",
+        "8c6e2c528a": "docstring: @jira_ticket tag",
+        "cfadc7cda2": "formatting (autopep8)",
+        "98e5ce22be": "formatting (isort/PEP8)",
+        "1761f6fac2": "rename cursor -> session",
+        "2c19c920d3": "loop 10x to reproduce CASSANDRA-9460 race",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "8594c7292f": "replace sleeps with wait_other_notice",
+        "11f3825a5d": "port to new python driver",
+        "97fc1f7cb1": "use patient connections",
+        "1c9c02fa06": "CQL3 consistency syntax fix for short read tests",
+        "1de0399a8f": "old Cassandra-era refactor",
+        "142e415661": "Cassandra-era: enabled tests",
+        "155dd00dae": "Cassandra-era new tests",
+        "6ffa61116c": "Cassandra-era new tests",
+        "0c370f3a24": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~59s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_data_query_digest",
+          "coverage": "partial",
+          "note": "row LIMIT retry within a partition, 2 nodes, single stale row"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_short_read_quorum_delete",
+          "coverage": "partial",
+          "note": "QUORUM LIMIT 1 with tombstones split across replicas"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Useful QUORUM short-read retry scenario (3 replicas, tombstones split) with no scylla test equivalent, but slow (~59s) and overlapping siblings. Bug: stop_delete_and_restart batch also deletes c='c2' (consistency_test.py:1031), which never matches inserted keys (format c%06d) - no-op inherited from Cassandra. Note: 3x loop exists for Cassandra-only NPE race CASSANDRA-9460. Note: read_repair_chance is obsolete in scylla (removed by c323c93fa4, kept as obsolete keyword in cql3/statements/cf_prop_defs.cc:125) - read_repair=0.0 at :806 is dead."
+    },
+    "TestConsistency::test_short_read_reversed": {
+      "description": "Same as test_short_read but deletes the last 3 cells (c6..c8) with a different node down each and reads 'ORDER BY c DESC LIMIT 3' at QUORUM, expecting value5..value3. Exercises short-read retry on reversed queries. Repeated 3x with TRUNCATE.",
+      "origin": {
+        "sha": "0c370f3a24",
+        "date": "2011-09-29",
+        "pr": null,
+        "summary": "Cassandra dtest initial commit (reversed short read); fixed in e7ecb3f925."
+      },
+      "commits": {
+        "0ab2f81e6f": "loop iterations 10 -> 3 (runtime)",
+        "b1de331d02": "refactor: cluster_topology variable",
+        "0a84c26262": "rf-rack-valid: populate(3) -> generate_cluster_topology(rack_num=3)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff update)",
+        "c36e0422c5": "insert_columns called without self",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "b68f954a85": "helpers called without self",
+        "dac87ed7c6": "pylint cleanup (logging), no behavior change",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "03befb0043": "formatting (PEP8)",
+        "cddbe40790": "list(session.execute()) after driver upgrade",
+        "8c6e2c528a": "docstring: @jira_ticket tag",
+        "cfadc7cda2": "formatting (autopep8)",
+        "98e5ce22be": "formatting (isort/PEP8)",
+        "1761f6fac2": "rename cursor -> session",
+        "2c19c920d3": "loop 10x to reproduce CASSANDRA-9460 race",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "8594c7292f": "replace sleeps with wait_other_notice",
+        "11f3825a5d": "port to new python driver",
+        "97fc1f7cb1": "use patient connections",
+        "1c9c02fa06": "CQL3 consistency syntax fix for short read tests",
+        "1de0399a8f": "old Cassandra-era refactor",
+        "142e415661": "Cassandra-era: enabled tests",
+        "e7ecb3f925": "fixed reversed expected order",
+        "155dd00dae": "Cassandra-era new tests",
+        "6ffa61116c": "Cassandra-era new tests",
+        "0c370f3a24": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Reversed reads have separate scylla code paths (native reversed format). Runs in next gating (tablets + consistent-topology), 32/32 passed, ~60s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_reversed_queries_during_simulated_upgrade_process.py::test_reversed_queries_during_upgrade",
+          "coverage": "partial",
+          "note": "reversed CL=ALL reads with one replica wiped (reconciliation), no LIMIT/short-read retry"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_short_read",
+          "coverage": "partial",
+          "note": "forward variant"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of reversed short-read retry, but slow (~60s). Bug: shared helper stop_delete_and_restart deletes c='c2' (consistency_test.py:1031) - never matches (keys are c%06d), no-op. Note: 3x loop exists for Cassandra-only race CASSANDRA-9460. Note: read_repair_chance is obsolete in scylla (removed by c323c93fa4, kept as obsolete keyword in cql3/statements/cf_prop_defs.cc:125) - read_repair=0.0 at :966 is dead."
+    },
+    "TestConsistency::test_short_read_delete": {
+      "description": "3 nodes/3 racks RF=3, HH off. Insert 2 cells in k0 at QUORUM; node1 down, delete whole row k0 at ONE via node2; node1 up; 'SELECT ... LIMIT 1' at QUORUM via node1 must return nothing. Short read where reconciliation leaves no live rows (Cassandra #4000 div-by-zero; in scylla 8c1e4a707c/6db262446f no-live-rows handling).",
+      "origin": {
+        "sha": "b2f0e2f3f3",
+        "date": "2012-03-06",
+        "pr": null,
+        "summary": "Cassandra dtest: test for CASSANDRA-4000 (div by 0 during short reads)."
+      },
+      "commits": {
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "c36e0422c5": "insert_columns called without self",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "b68f954a85": "helpers called without self",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "03befb0043": "formatting (PEP8)",
+        "e6d7c85ce4": "list(session.execute()) after driver upgrade",
+        "98e5ce22be": "formatting (isort/PEP8)",
+        "1761f6fac2": "rename cursor -> session",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "8594c7292f": "replace sleeps with wait_other_notice",
+        "11f3825a5d": "port to new python driver",
+        "97fc1f7cb1": "use patient connections",
+        "1c9c02fa06": "CQL3 consistency syntax fix for short read tests",
+        "1de0399a8f": "old Cassandra-era refactor",
+        "dfee73a778": "always populate rf racks (dropped tablets-only branch)",
+        "9d42f6b57a": "cluster size = rf (3) on tablets; was 2 nodes with RF=3",
+        "96280922c6": "fix previous commit",
+        "b2f0e2f3f3": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~18s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_empty_reconciled_result",
+          "coverage": "partial",
+          "note": "sibling: reconciled result empty after retry"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_short_read_quorum_delete",
+          "coverage": "partial",
+          "note": "LIMIT 1 at QUORUM returning nothing after tombstones"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap, live coordinator path, but overlaps test_empty_reconciled_result / test_short_read_quorum_delete. Note: read_repair_chance is obsolete in scylla (removed by c323c93fa4, kept as obsolete keyword in cql3/statements/cf_prop_defs.cc:125) - read_repair=0.0 at consistency_test.py:848 is dead."
+    },
+    "TestConsistency::test_short_read_quorum_delete": {
+      "description": "3 nodes/3 racks RF=3, HH off. Rows (0,1),(0,2) at ALL; delete v=1 at QUORUM with node2 down (A,C); delete v=2 at QUORUM with node1 down (B,C); node3 down; 'SELECT * ... LIMIT 1' at QUORUM must return nothing. A and B each hold one stale row; coordinator must retry after reconciliation. CASSANDRA-8933 scenario.",
+      "origin": {
+        "sha": "40f92f4120",
+        "date": "2015-03-20",
+        "pr": null,
+        "summary": "Cassandra dtest: test for CASSANDRA-8933 (short read with QUORUM deletes)."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "03befb0043": "formatting (PEP8)",
+        "8c6e2c528a": "docstring: @jira_ticket tag",
+        "98e5ce22be": "formatting (isort/PEP8)",
+        "4aa94e53bb": "flush+wait_other_notice when stopping node3 (CASSANDRA-9903)",
+        "bbd2cc1feb": "file-level CASSANDRA-9102 refactor (imports), no change to test logic",
+        "40f92f4120": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~27s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_data_query_digest",
+          "coverage": "partial",
+          "note": "same limit-retry with 2 stale replicas, at ALL with RF=2"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_empty_reconciled_result",
+          "coverage": "partial",
+          "note": "empty result after reconciliation"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Distinct 3-replica QUORUM variant of the limit-retry scenario, no scylla test equivalent; overlaps test_data_query_digest. Note: table created 'WITH read_repair_chance = 0.0' (consistency_test.py:889) - obsolete in scylla (c323c93fa4, cf_prop_defs.cc:125), dead option."
+    },
+    "TestConsistency::test_short_read_partitions": {
+      "description": "2 nodes/2 racks RF=2. 4 partitions at ALL; node2 down -> delete p=1 at ONE on node1; node1 down -> delete p=2 at ONE on node2; 'select r from ks.cf1 limit 2' at ALL must return '4','3' (token order). After reconciliation the coordinator has fewer partitions than requested and must retry. Originally thrift get_range_slices with KeyRange count=2 (partition count) guarding scylla 2ff5308d8e 'storage_proxy: honour partition limit'.",
+      "origin": {
+        "sha": "61516b0e8d",
+        "date": "2016-11-30",
+        "pr": 416,
+        "summary": "Pawel Dziepak, PR 416 '[V2] Short queries tests': short partition read."
+      },
+      "commits": {
+        "b1de331d02": "refactor: cluster_topology variable",
+        "161579d533": "rf-rack-valid: populate with generate_cluster_topology(rack_num=N)",
+        "9ffd273f04": "formatting (ruff format)",
+        "dc2566427d": "dropped WITH COMPACT STORAGE",
+        "e659c9c95a": "thrift removal: renamed to test_* so it runs; thrift get_range_slices replaced by CQL select",
+        "cfff9c04bb": "pytest port follow-up (PR 2026): marks/fixtures",
+        "2ca751b73f": "pytest port (PR 1911): renamed to test_*, asserts converted",
+        "c3471a97e4": "formatting (autopep8)",
+        "8238a54340": "start cluster with wait_for_binary_proto=True",
+        "29646f1956": "python3 port",
+        "a9153641f0": "disable cache_hit_rate_read_balancing; move hinted_handoff_enabled=False before start",
+        "0cbef06d08": "ByteOrderedPartitioner -> Murmur3Partitioner; expected order 4,3",
+        "31474cfc66": "un-skipped; enable_deprecated_partitioners; bytes asserts",
+        "b2b2aa9972": "safe start/stop (wait_other_notice/wait_for_binary_proto)",
+        "1e3ddde279": "fixed ConsistencyLevel import clash with thrift bindings",
+        "61516b0e8d": "origin"
+      },
+      "relevance": "Coordinator reconciliation/short-read retry with limits (storage_proxy got_incomplete_information*, _increase_per_partition_limit, short_read handling in service/storage_proxy.cc) still live. Runs in next gating (tablets + consistent-topology), 32/32 passed, ~18s.",
+      "duplicates": [
+        {
+          "path": "consistency_test.py::TestConsistency::test_reaching_end_after_retry",
+          "coverage": "partial",
+          "note": "range-scan LIMIT retry with deleted partitions"
+        },
+        {
+          "path": "consistency_test.py::TestConsistency::test_incomplete_result_test_partition_limit",
+          "coverage": "partial",
+          "note": "same setup family, LIMIT 1 over two partitions"
+        },
+        {
+          "path": "test/cluster/test_read_repair.py::test_incremental_read_repair",
+          "coverage": "partial",
+          "note": "2 nodes, divergent rows/tombstones per node, CL=ALL paged range read verifies reconciled result; tombstone-page short reads, not LIMIT retry"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Live range-scan retry path, cheap. Bug: hinted_handoff_enabled=False set AFTER cluster start (consistency_test.py:1248), contrary to a9153641f0 - hints for the two ONE deletes may replay on restart and erase the replica disagreement (same bug as test_incomplete_result_test_partition_limit). Note: since e659c9c95a CQL 'limit 2' is a row limit, not a partition limit (thrift KeyRange count=2). Note: start_rpc=True (:1245) UNUSED in scylla (db/config.cc:1288); set_partitioner(Murmur3) (:1244) is the default."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
