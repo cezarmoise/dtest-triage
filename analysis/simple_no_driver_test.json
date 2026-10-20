@@ -1,0 +1,43 @@
+{
+  "file": "simple_no_driver_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestSimple::test_simple_single_node_write_read": {
+      "description": "Smoke test: start a 1-node cluster with --smp 1 / --smp 2 (params), write 100k rows with cassandra-stress (native cql3, seq=1..100000, 1 thread), read them back with c-s and assert the output has no 'Data returned was not validated' and no 'Exception' (validate_stress_output, simple_no_driver_test.py:47-67). c-s non-zero exit also fails via ccm ToolError (scylla-ccm/ccmlib/node.py:2179). Guards basic single-node write/read path and c-s/java-driver compatibility; no specific scylla bug. One of the first Scylla dtests ('Enable urchin').",
+      "origin": {
+        "sha": "594900daa90032e48ea0709970cee23f90c65e80",
+        "date": "2015-06-21",
+        "pr": 1,
+        "summary": "Shlomi Livne: simple tests to validate single node/cluster is working (500k rows, 10 threads)"
+      },
+      "commits": {
+        "d0fd675415e2083820bd72c71ede5350347f8a5f": "pytest port: dynamic Single/SMP subclasses -> parametrize smp_options + fixture setting self.scylla_args",
+        "cd199a765603933dc3bae0b2341e2a5418d0d283": "formatting (rename urchin -> scylla)",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "2f16c43d0deed1659a146e2d907793cef7a2fbe3": "pass smp args only when cluster is Urchin/Scylla (Cassandra JVM rejects them)",
+        "d539f8faa3c20c021e5c2e0b8c4b78ab17470559": "add Single (--smp 1) / SMP (--smp 2) variants",
+        "d0329c5b99faca3245f1b84737bc9db60f54128d": "stress_read returns c-s result instead of temp file; validate_stress_output reads stdout+stderr (same asserts)",
+        "73444cf8692b4503db9c3f5f08b72f410ab1c5ba": "write switched from thrift-ish simplenative to '-mode native cql3' (thrift removal, scylladb#3811/#18416); read still uses 'cql3 simplenative'",
+        "2a6ee70f8a37a67674b9554778a85240446597b8": "set cluster option start_rpc=true (enable thrift server) in fixture",
+        "26b853d027150957ed721992f06669b2d99815b4": "module marked next_gating",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "class marked use_cassandra_stress"
+      },
+      "relevance": "Basic CQL write/read + smp 1/2 is live behavior. Thrift dropped in scylla ad649be1bf (2024-04-28, 'treewide: drop thrift support'); start_rpc is now value_status::Unused (scylladb db/config.cc:1288), so the fixture's start_rpc=true is dead config. Mainly a c-s/scylla smoke test in next_gating (~61-73 s per param, 100% pass in 64 runs).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_cassandra_stress_like_write_and_read",
+          "coverage": "partial",
+          "note": "same c-s-shaped schema write+read, 10 keys, no c-s tool, no smp variation"
+        },
+        {
+          "path": "persistence_test.py, compaction_additional_test.py (dtest)",
+          "coverage": "partial",
+          "note": "many dtests run c-s write/read on small clusters; implicitly cover the same smoke path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Pure smoke test (1 node, c-s write+read, smp 1/2); scenario implicitly exercised by cqlpy (test_cql_query.py::test_cassandra_stress_like_write_and_read) and by many c-s-using dtests, but it is a cheap explicit c-s compatibility gate - keep vs remove is a gating-policy call. Bug: start_rpc=true (simple_no_driver_test.py:22) is dead since thrift removal (scylladb ad649be1bf, start_rpc Unused). Note: read uses '-mode cql3 simplenative' while write uses 'native cql3' (73444cf8 only changed write); prepare() docstring says '3 CCM Nodes' but test uses 1; `type(cluster) is ScyllaCluster` branch always true."
+    }
+  }
+}
