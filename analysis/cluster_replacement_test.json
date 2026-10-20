@@ -1,0 +1,275 @@
+{
+  "file": "cluster_replacement_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_live_nodes": {
+      "description": "3-node single-DC cluster, RF=1, 10000 rows written at CL=ALL. Every original node is replaced one by one by bootstrapping a new node then decommissioning the old one (cleanup on remaining nodes after each step). Finally all rows are read at CL=ONE from the newest node. Guards that rolling 'field' replacement (add+decommission) with RF=1 loses no data.",
+      "origin": {
+        "sha": "80b46781a9bb4354dfb8ba6bc4041734b4053bfe",
+        "date": "2023-10-04",
+        "pr": 3615,
+        "summary": "Add rolling cluster replacement tests (qa-tasks#1164): live (add+decommission) and dead (RBNO replace) variants, single and multi-DC."
+      },
+      "commits": {
+        "9a8d36e10a": "Reduce keys 100000 -> class num_keys=10000.",
+        "80b46781a9": "Origin: test added.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "0eb1906efd": "File-level: skip cleanup on decommissioned nodes in replace_node_by_add_and_decommission.",
+        "3164d3e6e3": "File-level: scoped CQL sessions in _insert_data/_verify_data_integrity."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs. nodetool cleanup still exists (no-op for tablet keyspaces).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "single bootstrap/decommission/replace/removenode with background writes, vnodes+tablets; no full rolling replacement, single DC"
+        },
+        {
+          "path": "test/cluster/test_decommission.py",
+          "coverage": "partial",
+          "note": "decommission scenarios, not rolling full replacement with data check"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique end-to-end check that a full rolling add+decommission replacement of every node keeps RF=1 data; scylla test/cluster only covers single ops (test_topology_ops). Cheap (~57s), 100% pass in both gating jobs."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_live_nodes_multi_dc": {
+      "description": "2 DCs x 3 nodes (no explicit racks), RF dc1:1 dc2:1, 10000 rows. All nodes replaced in reverse order (dc2 first, then dc1) by add-new-node-in-same-DC + decommission old, then all rows verified at CL=ONE. Guards multi-DC rolling replacement with RF=1 per DC.",
+      "origin": {
+        "sha": "80b46781a9bb4354dfb8ba6bc4041734b4053bfe",
+        "date": "2023-10-04",
+        "pr": 3615,
+        "summary": "Add rolling cluster replacement tests (qa-tasks#1164): live (add+decommission) and dead (RBNO replace) variants, single and multi-DC."
+      },
+      "commits": {
+        "41029e33fd": "populate([3,3]) -> class attr cluster_topology.",
+        "9a8d36e10a": "Reduce keys 100000 -> class num_keys=10000.",
+        "2000a73588": "New node inherits dc from replaced node instead of manual dc counter.",
+        "9ffd273f04": "formatting (ruff format).",
+        "80b46781a9": "Origin: test added.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "0eb1906efd": "File-level: skip cleanup on decommissioned nodes in replace_node_by_add_and_decommission.",
+        "3164d3e6e3": "File-level: scoped CQL sessions in _insert_data/_verify_data_integrity.",
+        "c18ac398ef": "File-level: drop !consistent-topology-changes marks; add !tablets on dead-node tests (scylladb/scylladb#16128).",
+        "02daf19c87": "File-level: temporarily mark test !consistent-topology-changes for new raft-topology gating job (later reverted in c18ac398ef)."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "single bootstrap/decommission/replace/removenode with background writes, vnodes+tablets; no full rolling replacement, single DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Multi-DC rolling add+decommission with RF=1 per DC and data verification has no scylla test/cluster equivalent (test_topology_ops is single DC, single op). ~110s, 100% pass."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes": {
+      "description": "Single DC, racks r1 (2 nodes) and r2 (1 node), RF=2, 10000 rows. Each original node is stopped and replaced (replace by host id, repair-based / tablet rebuild) via RepairBasedNodeOperationsScenarios.replace_node, the new node added as seed; finally all rows verified at CL=ONE. Guards rolling dead-node replacement of the whole cluster without data loss.",
+      "origin": {
+        "sha": "80b46781a9bb4354dfb8ba6bc4041734b4053bfe",
+        "date": "2023-10-04",
+        "pr": 3615,
+        "summary": "Add rolling cluster replacement tests (qa-tasks#1164): live (add+decommission) and dead (RBNO replace) variants, single and multi-DC."
+      },
+      "commits": {
+        "8b4d3a9b70": "rf-rack-valid fix: rack-aware topology via generate_cluster_topology, new node inherits rack; fixed copy-pasted docstrings.",
+        "9a8d36e10a": "Reduce keys 100000 -> class num_keys=10000.",
+        "c45b6eb2a1": "Add each replacing node as seed (all original nodes get replaced).",
+        "712336757c": "Pass replaced_node to rbnos.replace_node so every node is replaced, not the last one repeatedly.",
+        "80b46781a9": "Origin: test added.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "8f802565d7": "Drop required_features('!tablets') (tablets support replace/removenode now).",
+        "c18ac398ef": "File-level: drop !consistent-topology-changes marks; add !tablets on dead-node tests (scylladb/scylladb#16128).",
+        "02daf19c87": "File-level: temporarily mark test !consistent-topology-changes for new raft-topology gating job (later reverted in c18ac398ef)."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs. Replace path differs between vnodes (RBNO) and tablets (rebuild); both jobs run it.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_replace",
+          "coverage": "partial",
+          "note": "single tablet replace with data check (QUORUM), single DC"
+        },
+        {
+          "path": "test/cluster/test_replace.py::test_replace_different_ip",
+          "coverage": "partial",
+          "note": "single replace, checks peers/gossip only, no data verification"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "single bootstrap/decommission/replace/removenode with background writes, vnodes+tablets; no full rolling replacement, single DC"
+        },
+        {
+          "path": "repair_based_node_operations_test.py (dtest) replace scenarios",
+          "coverage": "partial",
+          "note": "single-node replace variants (ignore_dead_nodes, multi-dc/rack); not rolling replacement of all nodes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Live, mostly unique coverage (rolling replace of all nodes incl. seeds, data verified) - otherwise keep. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_multi_dc": {
+      "description": "2 DCs x 2 racks x 1 node, RF dc1:2 dc2:2, 10000 rows. All nodes replaced in reverse order (dc2 first) via rbnos.replace_node with new nodes as seeds; rows verified at CL=ONE. Guards multi-DC rolling dead-node replace; was blocked on tablets by scylladb/scylladb#16527.",
+      "origin": {
+        "sha": "80b46781a9bb4354dfb8ba6bc4041734b4053bfe",
+        "date": "2023-10-04",
+        "pr": 3615,
+        "summary": "Add rolling cluster replacement tests (qa-tasks#1164): live (add+decommission) and dead (RBNO replace) variants, single and multi-DC."
+      },
+      "commits": {
+        "8b4d3a9b70": "rf-rack-valid fix: rack-aware topology via generate_cluster_topology, new node inherits rack; fixed copy-pasted docstrings.",
+        "4181eaf0d9": "RF per DC 3 -> 2.",
+        "41029e33fd": "populate([3,3]) -> class attr cluster_topology.",
+        "9a8d36e10a": "Reduce keys 100000 -> class num_keys=10000.",
+        "c45b6eb2a1": "Add each replacing node as seed (all original nodes get replaced).",
+        "712336757c": "Pass replaced_node to rbnos.replace_node so every node is replaced, not the last one repeatedly.",
+        "18584c7c07": "replace_node dc argument as string ('dc2'/'dc1') instead of int.",
+        "9ffd273f04": "formatting (ruff format).",
+        "80b46781a9": "Origin: test added.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "7f06182f73": "File-level: remove !tablets marks on multi-DC dead-node tests after scylladb/scylladb#16527 fix.",
+        "c18ac398ef": "File-level: drop !consistent-topology-changes marks; add !tablets on dead-node tests (scylladb/scylladb#16128).",
+        "02daf19c87": "File-level: temporarily mark test !consistent-topology-changes for new raft-topology gating job (later reverted in c18ac398ef)."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_replace",
+          "coverage": "partial",
+          "note": "single tablet replace with data check (QUORUM), single DC"
+        },
+        {
+          "path": "repair_based_node_operations_test.py (dtest) replace scenarios",
+          "coverage": "partial",
+          "note": "single-node replace variants (ignore_dead_nodes, multi-dc/rack); not rolling replacement of all nodes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Multi-DC rolling replace with data check is not covered in scylla test/cluster - otherwise keep. Note: ignore_log_patterns 'Could not retrieve CDC streams with timestamp' (cluster_replacement_test.py:134, from origin) is dead - message removed from scylla in 6a7e850161 (cdc: remove legacy code, 2026-02-12). Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_multi_dc_rf_1": {
+      "description": "2 DCs x 2 nodes, RF dc1:1 dc2:1, 10000 rows. Each node is stopped and replaced (reverse order), with full CL=ONE data verification after every replacement. Reproducer for scylladb/scylladb#16826: RBNO replace used only the local DC as source, losing data when the DC has RF=1 (fixed by scylladb 5f655e41e3 'use source_dc only when safe').",
+      "origin": {
+        "sha": "871df849a7f29b836b1e92cb10dad5f93b957bde",
+        "date": "2024-01-17",
+        "pr": 3865,
+        "summary": "Reproducer for scylladb/scylladb#16826 (data loss in repair-based replace with RF=1 in DC)."
+      },
+      "commits": {
+        "8f802565d7": "Drop required_features('!tablets') (tablets support replace/removenode now).",
+        "871df849a7": "Origin: reproducer for scylladb/scylladb#16826.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754)."
+      },
+      "relevance": "Fix 5f655e41e3 (repair: do_rebuild_replace_with_repair source_dc) is live code for vnode keyspaces; tablets job exercises tablet rebuild with RF=1/DC.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_replace",
+          "coverage": "partial",
+          "note": "single tablet replace with data check (QUORUM), single DC"
+        },
+        {
+          "path": "repair_based_node_operations_test.py (dtest) replace scenarios",
+          "coverage": "partial",
+          "note": "single-node replace variants (ignore_dead_nodes, multi-dc/rack); not rolling replacement of all nodes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only regression test for scylladb/scylladb#16826 (grep of scylla test/ finds none) - otherwise keep. Note: @pytest.mark.require('scylladb/scylladb#16826') (cluster_replacement_test.py:147) is stale, issue closed 2024-09-04. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_remove_and_add": {
+      "description": "Single DC, 2 racks x 2 nodes, RF=2, 10000 rows. Each original node is killed, removed via nodetool removenode from another live node, then a new node is bootstrapped in the same dc/rack; finally rows verified at CL=ONE. Guards the remove-then-add replacement procedure across the whole cluster.",
+      "origin": {
+        "sha": "4506b0030b4035bc1f7db6a509d20c79d4ba6f69",
+        "date": "2024-01-16",
+        "pr": 3840,
+        "summary": "Add remove-and-add replacement tests (initially !tablets, scylladb/scylladb#16128)."
+      },
+      "commits": {
+        "8b4d3a9b70": "rf-rack-valid fix: rack-aware topology via generate_cluster_topology, new node inherits rack; fixed copy-pasted docstrings.",
+        "4506b0030b": "Origin of remove-and-add tests + replace_dead_node_by_remove_and_add helper (initially !tablets).",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "8f802565d7": "Drop required_features('!tablets') (tablets support replace/removenode now)."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode",
+          "coverage": "partial",
+          "note": "single tablet removenode with data check, single DC; no re-add"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "single bootstrap/decommission/replace/removenode with background writes, vnodes+tablets; no full rolling replacement, single DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Rolling removenode+bootstrap of every node with data verification is not covered by scylla tests (test_tablets_removenode::test_removenode / test_topology_ops do a single removenode). ~260s, 100% pass."
+    },
+    "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_remove_and_add_multi_dc": {
+      "description": "2 DCs x 2 racks x 2 nodes, RF dc1:2 dc2:2, 10000 rows. All 8 nodes, dc2 first, are killed, removenode'd and replaced by a newly bootstrapped node in the same dc/rack; rows verified at CL=ONE. Multi-DC variant of the remove-and-add procedure.",
+      "origin": {
+        "sha": "4506b0030b4035bc1f7db6a509d20c79d4ba6f69",
+        "date": "2024-01-16",
+        "pr": 3840,
+        "summary": "Add remove-and-add replacement tests (initially !tablets, scylladb/scylladb#16128)."
+      },
+      "commits": {
+        "f06daf9294": "Adds test_rack_loss_recovery and _verify_data_integrity(node=) param; for other tests only a line shift.",
+        "8b4d3a9b70": "rf-rack-valid fix: rack-aware topology via generate_cluster_topology, new node inherits rack; fixed copy-pasted docstrings.",
+        "4506b0030b": "Origin of remove-and-add tests + replace_dead_node_by_remove_and_add helper (initially !tablets).",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754).",
+        "7f06182f73": "File-level: remove !tablets marks on multi-DC dead-node tests after scylladb/scylladb#16527 fix.",
+        "8f802565d7": "Drop required_features('!tablets') (tablets support replace/removenode now)."
+      },
+      "relevance": "Bootstrap/decommission/replace/removenode are core live topology ops (raft topology coordinator), for both vnodes and tablets; runs in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode",
+          "coverage": "partial",
+          "note": "single tablet removenode with data check, single DC; no re-add"
+        },
+        {
+          "path": "cluster_replacement_test.py::TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_remove_and_add",
+          "coverage": "partial",
+          "note": "same procedure, single DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only multi-DC rolling removenode+add test with data check; no scylla equivalent. Slowest in module (~490s) but 100% pass in both gating jobs."
+    },
+    "TestClusterReplacement::test_rack_loss_recovery": {
+      "description": "Tablets only. 1 DC, 3 racks x 2 nodes, keyspace with rack-list RF ['rack1','rack2','rack3'], 10000 rows. Both rack3 nodes are killed and marked excluded via /storage_service/exclude_node, ALTER drops rack3 from RF, removenode both, bootstrap 2 nodes in new rack4, ALTER adds rack4, then all rows verified from a live node. Guards recovery from total rack loss without replace (scylla rack-list RF + excludenode, scylladb/scylladb#21281).",
+      "origin": {
+        "sha": "f06daf9294723d4f3e3d606700b58a6dd33c6eef",
+        "date": "2025-10-20",
+        "pr": 6303,
+        "summary": "Test recovery from total rack loss by moving RF to a new rack."
+      },
+      "commits": {
+        "ee9745f6a9": "Replace failing-removenode workaround with /storage_service/exclude_node REST API (scylladb/scylladb#21281); ALTER now synchronous.",
+        "e16217711d": "First ALTER timeout 120s -> 300s (scylladb/scylladb#28219, debug-mode timeouts).",
+        "f06daf9294": "Origin: test added (removenode-failure workaround to exclude nodes); also added unused 'from tools.marks import with_feature'.",
+        "4506b0030b": "git log -L artifact (overlapping line range); did not touch this test.",
+        "9e207aa28c": "File-level: _verify_data_integrity waits for all live nodes UN, 120s request timeout, retries OperationTimedOut/NoHostAvailable (SCYLLADB-2754)."
+      },
+      "relevance": "exclude_node REST API, rack-list RF and tablet rebuild on ALTER are live (scylla test/cluster/test_tablets.py uses manager.api.exclude_node). Runs only in next-dtest-tablets (required_features('tablets')).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_excludenode",
+          "coverage": "partial",
+          "note": "excludes one down node in rack2, ALTER adds rack3, removenode; no whole-rack loss, no new rack replacing the lost one, no data verification"
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_excludenode_shrink_rf",
+          "coverage": "partial",
+          "note": "exclude + ALTER shrink RF when only DC node down"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario mostly unique (scylla test_tablets.py::test_excludenode is partial, no data check) - otherwise keep. Note: docstring step 4/6 stale - says nodes are marked down via failing removenode, code uses exclude_node since ee9745f6a9 (cluster_replacement_test.py:195). Note: 'from tools.marks import with_feature' (line 14, added by f06daf9294) unused; session at line 227 never closed."
+    }
+  }
+}
