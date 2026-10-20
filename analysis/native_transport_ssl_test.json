@@ -1,0 +1,282 @@
+{
+  "file": "native_transport_ssl_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestNativeTransportSSL::test_connect_to_ssl": {
+      "description": "Single node with client_encryption_options enabled on the default CQL port 9042. Asserts a non-SSL driver connection fails (NoHostAvailable) and the server logs a TLS handshake error ('An unexpected TLS packet was received' / 'session has been invalidated'), then an SSL client (no server-cert verification) connects and does putget. Guards that enabling client encryption actually encrypts the plain native port.",
+      "origin": {
+        "sha": "a638791e29",
+        "date": "2015-08-28",
+        "pr": null,
+        "summary": "Cassandra upstream dtest for CASSANDRA-9590 (Stefan Podkowinski); merged into scylla-dtest via 'Merge upstream' PR #52; adapted to scylla in 4b6541d0a1 (2016)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "5ee019fb2b": "re-applied: wait for the TLS error with watch_log_for(timeout=10) instead of grep_log",
+        "6b870358a2": "revert of 5dca94c1a6 (back to grep_log)",
+        "5dca94c1a6": "grep_log -> watch_log_for(timeout=10) for the handshake error (race fix)",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "replaced patient_cql_connection with _create_cluster_session (explicit driver Cluster with ssl_context)",
+        "c3471a97e4": "formatting (autopep8)",
+        "6b5a3275e4": "added dtest-debug attr",
+        "b95360ef88": "added next-gating attr",
+        "0947feff5f": "added 'The specified session has been invalidated' alternative to the expected log regex",
+        "48f33d6bc3": "start with --logger-log-level cql_server=debug so the TLS error is logged",
+        "4b6541d0a1": "scylla adaptation: added 'An unexpected TLS packet was received' (GnuTLS) to log regex; PEM certificate/keyfile options",
+        "429a4c085c": "cleanup: cluster.start() moved out of try, assert False -> self.fail",
+        "a638791e29": "origin (Cassandra CASSANDRA-9590 dtest)",
+        "a5209f6807": "helper: PROTOCOL_TLSv1_2 -> PROTOCOL_TLS_CLIENT, certs generated with node IPs",
+        "49927a4ba7": "helpers moved to BaseSslTester base class"
+      },
+      "relevance": "Live: client_encryption_options / transport/controller.cc applies cred to native_transport_port when native_transport_port_ssl not set (controller.cc:131-133). Log text is GnuTLS error emitted by cql_server at debug.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_ssl.py::test_non_tls_on_tls",
+          "coverage": "partial",
+          "note": "Same assertion (plain CQL to TLS port fails), but only runs with '--ssl' (skip_env otherwise); not part of default CI run."
+        },
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_cql_optional_client_cert",
+          "coverage": "partial",
+          "note": "TLS CQL connections on a TLS port, but different authenticator / require_client_auth=optional; no non-TLS-on-TLS check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~25s), stable, gating; the plain-to-TLS-port rejection is only covered in scylla by cqlpy test_non_tls_on_tls which needs '--ssl'. Would be GREEN but: Note: log regex keeps a dead Cassandra alternative '^io.netty.handler.ssl.NotSslRecordException' (native_transport_ssl_test.py:118). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestNativeTransportSSL::test_connect_to_ssl_client_auth": {
+      "description": "Single node, client encryption with truststore, require_client_auth=True and certficate_revocation_list (scylla's own misspelled option name, db/config.cc:2288). Asserts a non-SSL client fails + TLS error logged, a client with cert connects and does putget; then revokes the cert at runtime (openssl ca -revoke/-gencrl), waits for 'cql_server ... Reloaded ccm_node.crl' and asserts the same cert can no longer connect. Guards CRL support (scylla#9630) and live CRL reload.",
+      "origin": {
+        "sha": "e1e468f8b5",
+        "date": "2017-01-03",
+        "pr": null,
+        "summary": "Calle Wilund: 'Add case for require_client_auth' (direct push, no PR). Revocation added in c976f66ba1 (PR #2336, refs scylladb/scylla#9630), runtime revocation merged into this test in acb420c24f (PR #2733)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "a5209f6807": "helper rewrite: SSLContext only built when use_ssl=True, so the 'without auth cert' call (use_ssl=False, ca_certs_required=True) became a plain non-SSL connect (see Bug)",
+        "acb420c24f": "folded separate revocation test into this one: start with CRL option, revoke cert at runtime, wait for CRL reload, expect connection failure",
+        "c976f66ba1": "added use_revocation option to helper (certficate_revocation_list) and a separate revocation-list test",
+        "5ee019fb2b": "re-applied watch_log_for(timeout=10) for TLS error",
+        "6b870358a2": "revert of 5dca94c1a6",
+        "5dca94c1a6": "grep_log -> watch_log_for for TLS error",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "patient_cql_connection -> _create_cluster_session; 'without auth cert' became SSL context with CA verify only (no client cert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "0947feff5f": "added 'session has been invalidated' to log regex",
+        "48f33d6bc3": "start with cql_server=debug",
+        "5e13f4d4b4": "removed @since('3.0')",
+        "e1e468f8b5": "origin"
+      },
+      "relevance": "Live: require_client_auth, truststore and certficate_revocation_list parsed in db/config.cc:2288-2289; CQL server reloads changed cred files ('Reloaded {}' transport/generic_server.cc:338).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_cql_optional_client_cert",
+          "coverage": "partial",
+          "note": "Client-cert TLS on CQL port incl. untrusted-cert rejection, but require_client_auth=optional and no CRL."
+        },
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_audit_login_without_certificate",
+          "coverage": "partial",
+          "note": "CertificateAuthenticator refuses a client presenting no cert (auth-layer, not TLS require_client_auth=True)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of CRL (incl. live CRL reload) on CQL; no scylla test uses certficate_revocation_list. Bug: since a5209f6807 the 'without auth cert' check (native_transport_ssl_test.py:144-147) passes use_ssl=False so ca_certs_required is ignored; it just repeats the non-SSL check and 'TLS client without client cert is rejected under require_client_auth=True' is no longer tested. Bug: self.fail (line 160) does not exist on Tester (not unittest) - a wrongly accepted revoked cert raises AttributeError instead of a clear failure; use pytest.raises. Note: dead netty regex alternative (line 141). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestNativeTransportSSL::test_use_custom_port": {
+      "description": "Single node with native_transport_port=9567 (no SSL). Asserts connecting on 9042 fails and on 9567 works (putget). Guards the native_transport_port config option.",
+      "origin": {
+        "sha": "a638791e29",
+        "date": "2015-08-28",
+        "pr": null,
+        "summary": "Cassandra upstream dtest (CASSANDRA-9590 file), merged via 'Merge upstream' PR #52."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "replaced patient_cql_connection with _create_cluster_session (explicit driver Cluster with ssl_context)",
+        "429a4c085c": "cleanup: assert False -> self.fail; start moved out of try",
+        "a638791e29": "origin"
+      },
+      "relevance": "Live: native_transport_port (db/config.cc:1243, transport/controller.cc:105-108).",
+      "duplicates": [
+        {
+          "path": "native_transport_ssl_test.py::TestNativeTransportSSL::test_listen_ports_conf",
+          "coverage": "partial",
+          "note": "Covers port combinations but is skipped (issue_open scylladb#7500, still OPEN)."
+        },
+        {
+          "path": "test/cluster/test_uninitialized_conns_semaphore.py::test_uninitialized_conns_sempahore_one",
+          "coverage": "partial",
+          "note": "Sets native_transport_port explicitly but to default 9042."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~18s), basic config check with no scylla equivalent using a non-default CQL port, but low value. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestNativeTransportSSL::test_use_custom_ssl_port": {
+      "description": "Single node with client encryption and native_transport_port_ssl=9666. Asserts plain CQL works on 9042 and TLS CQL works on 9666 (putget on both). Guards the dedicated SSL port (CASSANDRA-9590) keeping the plain port unencrypted.",
+      "origin": {
+        "sha": "a638791e29",
+        "date": "2015-08-28",
+        "pr": null,
+        "summary": "Cassandra upstream dtest for CASSANDRA-9590, merged via 'Merge upstream' PR #52 (322b392687 disabled it pre-3.0 for Cassandra)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "replaced patient_cql_connection with _create_cluster_session (explicit driver Cluster with ssl_context)",
+        "c3471a97e4": "formatting (autopep8)",
+        "a638791e29": "origin"
+      },
+      "relevance": "Live: native_transport_port_ssl (db/config.cc:1255, transport/controller.cc:126-130).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_cql_optional_client_cert",
+          "coverage": "partial",
+          "note": "Node with plain 9042 + native_transport_port_ssl=9143; TLS connections on 9143 (with CertificateOrPassword auth)."
+        },
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_cql_plain_port",
+          "coverage": "partial",
+          "note": "Same config, plain port 9042 works alongside the TLS port."
+        },
+        {
+          "path": "test/cluster/test_proxy_protocol.py::test_proxy_protocol_ssl_basic",
+          "coverage": "partial",
+          "note": "Config with plain 9042 + native_transport_port_ssl=9142 and client encryption."
+        },
+        {
+          "path": "cql_system_clients_test.py::TestSystemClients::test_system_client_ssl",
+          "coverage": "partial",
+          "note": "dtest also running native_transport_port_ssl=9142 with TLS clients."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario (plain + separate TLS port on one node) is exercised by scylla test/cluster/test_auth_certificate_or_password.py (9042 + 9143) and test_proxy_protocol.py configs, though no single scylla test asserts both ports with putget; RED candidate. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestNativeTransportSSL::test_reload_certificates": {
+      "description": "Single node with client encryption on 9042. Generates new certs in tmp_path, asserts a client trusting only the new CA fails to connect (server still serves old cert), copies new cert/key over the old files, waits for 'cql_server ... Reloaded ccm_node.pem/ccm_node.key' and connects with SSL + putget. Guards live TLS certificate reload for CQL (scylla PR #6152).",
+      "origin": {
+        "sha": "24fb652b33",
+        "date": "2020-04-07",
+        "pr": 1415,
+        "summary": "Calle Wilund: 'Add certificate reloading test' (PR #1415, needed scylla#6152); skipped in 5bdc762950, re-done as v2 in 664518bb22 (PR #1437) with local wait_for_cert_reload helper."
+      },
+      "commits": {
+        "ca23b8771e": "mismatched-truststore check uses cql_connection (single attempt) instead of patient_cql_connection (30s retries)",
+        "105cf6921f": "safe_mkdtemp/try-finally replaced with pytest tmp_path",
+        "b4928fd409": "distutils.dir_util.copy_tree -> shutil.copytree(dirs_exist_ok=True) (py3.12)",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "a5209f6807": "new certs generated with node IPs",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "final connection via _create_cluster_session(use_ssl=True)",
+        "c3471a97e4": "formatting (autopep8)",
+        "438f99b687": "formatting (trailing whitespace)",
+        "664518bb22": "v2: re-enabled, uses tools.sslkeygen.wait_for_cert_reload on 'Reloaded' log lines",
+        "5bdc762950": "skipped ('fails in next')",
+        "24fb652b33": "origin",
+        "6847841336": "removed from next-gating (later re-added class-wide in 78a2dcd7f7)"
+      },
+      "relevance": "Live: CQL server watches cred files and logs 'Reloaded {}' (transport/generic_server.cc:338).",
+      "duplicates": [
+        {
+          "path": "seastar/tests/unit/tls_test.cc::test_reload_certificates",
+          "coverage": "partial",
+          "note": "Seastar reloadable credentials mechanism, not scylla's cql_server wiring."
+        },
+        {
+          "path": "internode_ssl_test.py::TestInternodeSSL::test_putget_with_reloaded_certificates",
+          "coverage": "partial",
+          "note": "Same reload mechanism for messaging_service (internode), not CQL."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only scylla-level test of CQL cert reload. Bug: final connection (native_transport_ssl_test.py:226) uses ca_certs_required=False -> verify_mode CERT_NONE, so it does not check the server now serves the new cert; the only real reload assertion is the 'Reloaded' log line. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestNativeTransportSSL::test_disable_regular_port_while_encryption_enabled": {
+      "description": "Single node with client encryption, native_transport_port_ssl=9142 and native_transport_port=0. Asserts TLS CQL on 9142 works (create keyspace) and nothing listens on 9042. Guards disabling the unencrypted CQL port while keeping the TLS port.",
+      "origin": {
+        "sha": "36f4dedfe6",
+        "date": "2020-11-20",
+        "pr": 1779,
+        "summary": "Shlomi Balalis: test that disables native_transport_port (trello card: 'possible to disable unencrypted port 9042 while still allowing 9142')."
+      },
+      "commits": {
+        "ca23b8771e": "port-closed probe timeout 20s -> 1s (node already up)",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "0b81ee5809": "sessions wrapped in `with` blocks (scoped sessions, close connections)",
+        "561a15eda6": "port to pytest (pytest.raises, class marks); no logic change",
+        "9a730f52de": "replaced patient_cql_connection with _create_cluster_session (explicit driver Cluster with ssl_context)",
+        "36f4dedfe6": "origin"
+      },
+      "relevance": "Live: native_transport_port / native_transport_port_ssl handling in transport/controller.cc:105-130.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::_certificate_authenticator_node (test_audit_login_without_certificate etc.)",
+          "coverage": "partial",
+          "note": "Runs a node with only the TLS port (plain ports unset, not 0); does not assert 9042 is closed."
+        },
+        {
+          "path": "native_transport_ssl_test.py::TestNativeTransportSSL::test_listen_ports_conf_by_zero",
+          "coverage": "partial",
+          "note": "Covers port=0 combos but skipped (issue_open scylladb#7500, OPEN)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts the plain port is closed when set to 0 with TLS port enabled; avg 52s is mostly cluster start. Note: only checks 9042; plain shard-aware port 19042 left at default (gets TLS creds via controller.cc:140-142, not verified). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+    },
+    "TestServerEncryption::test_server_encryption_and_restart_node": {
+      "description": "2-node cluster with server_encryption_options internode_encryption=all (no client auth). putget, then stop/start node1 twice and putget again. Reproducer for scylladb#14299: segfault on boot (null TLS credentials) when failure detector sent to TLS endpoints before messaging_service start_listen; fixed by e1a52af69e 'messaging_service: Do TLS init early'.",
+      "origin": {
+        "sha": "9b8bd45e5e",
+        "date": "2023-06-29",
+        "pr": 3280,
+        "summary": "Israel Fruchter: dtest reproducer for scylladb#14299 (no dtest enabled server encryption with restarts)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "72809f2380": "formatting (ruff pep8-naming: camelCase helper args renamed)",
+        "1c72d49d1f": "dropped explicit consistent_cluster_management=True (now mandatory)",
+        "0b81ee5809": "session wrapped in `with` block",
+        "a5209f6807": "certs generated with both node IPs",
+        "52c82fbe62": "second putget call uses tools.data.putget directly (no ks/cf re-creation)",
+        "9b8bd45e5e": "origin",
+        "78a2dcd7f7": "class added to next_gating; removed commented require(scylladb#14299)"
+      },
+      "relevance": "Live: internode_encryption, TLS init in messaging_service (message/messaging_service.cc). Bug #14299 closed 2023-07-12.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tls.py::test_upgrade_to_ssl",
+          "coverage": "partial",
+          "note": "3-node cluster, each node restarted with internode_encryption transitional/all while peers are encrypted, with writes; would exercise the #14299 boot path (added 2024-09, after the fix)."
+        },
+        {
+          "path": "internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl",
+          "coverage": "partial",
+          "note": "Internode encryption=all multi-node putget, no restart."
+        },
+        {
+          "path": "internode_ssl_test.py::TestInternodeSSL::test_listen_ports_conf",
+          "coverage": "partial",
+          "note": "Restarts with encryption=all but single node (no peers, would not hit #14299)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Regression test for closed scylladb#14299 (fix e1a52af69e); scylla test/cluster/test_tls.py::test_upgrade_to_ssl restarts nodes with internode_encryption=all among encrypted peers, which covers the same boot path; RED candidate if that is deemed sufficient. Note: putget with RF=1 on 2 nodes; second putget only checks data survived restarts. Note: uses BaseSslTester._populate_cluster with enable_ssl=False, so its dead Cassandra branches are not reached here."
+    }
+  }
+}
