@@ -1,0 +1,396 @@
+{
+  "file": "batch_test.py",
+  "tests": {
+    "TestBatch::test_empty_batch_throws_no_error": {
+      "description": "Single node: executes an empty logged batch (BEGIN BATCH APPLY BATCH) and expects no error. Guards CASSANDRA-10711 (empty batch caused exception).",
+      "origin": {
+        "sha": "f87ba0d3",
+        "date": "2015-11-16",
+        "pr": 52,
+        "summary": "added test for CASSANDRA-10711 (cassandra-dtest)"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "9540c152": "added @next_gating mark",
+        "f87ba0d3": "created test",
+        "798d2114": "re-enabled test (file-level)",
+        "f7240f83": "dropped explicit error checks (file-level)"
+      },
+      "relevance": "Live: empty batches are accepted by scylla CQL.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testEmptyBatch",
+          "coverage": "full",
+          "note": "BEGIN BATCH APPLY BATCH + unlogged variant"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchEmpty",
+          "coverage": "full",
+          "note": ""
+        },
+        {
+          "path": "test/cql/cassandra_batch_test.cql (testBatchEmpty)",
+          "coverage": "full",
+          "note": ""
+        }
+      ],
+      "decision": "RED",
+      "reason": "Single-node CQL behaviour fully covered by cqlpy testEmptyBatch / testBatchEmpty. scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it. Note: still in next_gating; ~16s per run for a 1-statement check."
+    },
+    "TestBatch::test_counter_batch_accepts_counter_mutations": {
+      "description": "Single node: COUNTER BATCH with 3 counter increments on table clicks, then SELECT asserts all 3 totals are 1. Basic counter-batch acceptance (CASSANDRA-4636 era test).",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "03befb00": "formatting (PEP8)",
+        "76faf112": "port from thrift/cql cursor to python driver session",
+        "9540c152": "added @next_gating mark",
+        "85c91680": "created test"
+      },
+      "relevance": "Live: COUNTER batches supported (cql3/statements/eventual_consistency/batch_executor.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testCounterInCounterBatch",
+          "coverage": "full",
+          "note": "counter batch accepted; no value readback"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testCounterInUnLoggedBatch",
+          "coverage": "partial",
+          "note": ""
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy testCounterInCounterBatch (single-node CQL); only the trivial readback (totals == 1) is extra. scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it. Note: still in next_gating."
+    },
+    "TestBatch::test_counter_batch_rejects_regular_mutations": {
+      "description": "Single node: COUNTER BATCH mixing counter updates with a regular INSERT must fail with InvalidRequest 'Cannot include non-counter statement in a counter batch'.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "0311d61f": "removed pre-2.1 error message branch",
+        "8594c729": "removed sleeps in prepare",
+        "ef7603f0": "updated expected error message for C* 2.1",
+        "85c91680": "created test"
+      },
+      "relevance": "Live: error thrown at cql3/statements/eventual_consistency/batch_executor.cc:205.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testMixedInCounterBatch",
+          "coverage": "full",
+          "note": "asserts InvalidRequest (no message match)"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testNonCounterInCounterBatch",
+          "coverage": "full",
+          "note": ""
+        },
+        {
+          "path": "test/cql/lwt_batch_test.cql",
+          "coverage": "partial",
+          "note": "result file pins exact message 'Cannot include non-counter statement in a counter batch'"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy testMixedInCounterBatch/testNonCounterInCounterBatch; exact message pinned in test/cql/lwt_batch_test.result:33. scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it."
+    },
+    "TestBatch::test_logged_batch_accepts_regular_mutations": {
+      "description": "Single node: logged batch with 2 INSERTs into users, then SELECT asserts both rows present.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "aedaa57c": "formatting (ruff pyupgrade/isort)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "03befb00": "formatting (PEP8)",
+        "76faf112": "port from thrift/cql cursor to python driver session",
+        "9540c152": "added @next_gating mark",
+        "85c91680": "created test"
+      },
+      "relevance": "Live: basic logged batch.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testNonCounterInLoggedBatch",
+          "coverage": "full",
+          "note": ""
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatch",
+          "coverage": "full",
+          "note": "logged batch + readback"
+        },
+        {
+          "path": "test/cluster/dtest/batch_test.py::TestBatch::test_single_node_batch_group",
+          "coverage": "partial",
+          "note": "ported checks also run logged batches with readback"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy testNonCounterInLoggedBatch and validation/operations/batch_test.py::testBatch (with readback). scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it. Note: still in next_gating."
+    },
+    "TestBatch::test_logged_batch_rejects_counter_mutations": {
+      "description": "Single node: logged batch mixing INSERTs with a counter UPDATE must fail with InvalidRequest 'Cannot include a counter statement in a logged batch'.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "9540c152": "added @next_gating mark",
+        "0311d61f": "removed pre-2.1 error message branch",
+        "ef7603f0": "updated expected error message for C* 2.1",
+        "85c91680": "created test"
+      },
+      "relevance": "Live: error thrown at cql3/statements/eventual_consistency/batch_executor.cc:208.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testMixedInLoggedBatch",
+          "coverage": "full",
+          "note": "InvalidRequest, no message match"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testCounterInLoggedBatch",
+          "coverage": "full",
+          "note": ""
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy testMixedInLoggedBatch/testCounterInLoggedBatch. scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it. Note: still in next_gating."
+    },
+    "TestBatch::test_unlogged_batch_accepts_regular_mutations": {
+      "description": "Single node: UNLOGGED batch with 2 INSERTs, SELECT asserts both rows present.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "aedaa57c": "formatting (ruff pyupgrade/isort)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "60fdd2b6": "added @single_node mark",
+        "03befb00": "formatting (PEP8)",
+        "76faf112": "port from thrift/cql cursor to python driver session",
+        "9540c152": "added @next_gating mark",
+        "85c91680": "created test"
+      },
+      "relevance": "Live: unlogged batches.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testNonCounterInUnLoggedBatch",
+          "coverage": "full",
+          "note": ""
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/batch_test.py::testTableWithClusteringInUnLoggedBatch",
+          "coverage": "partial",
+          "note": ""
+        },
+        {
+          "path": "test/cluster/dtest/batch_test.py::TestBatch::test_single_node_batch_group",
+          "coverage": "partial",
+          "note": "unlogged gcgs check runs an UNLOGGED batch"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Covered by cqlpy testNonCounterInUnLoggedBatch. scylla 9f479f391a ('test: removing tests from port') lists this test as 'Covered in test/cqlpy/cassandra_tests/batch_test.py' and dropped it from the scylla port of batch_test.py; dtest 967eecb4 kept it. Note: still in next_gating. Note: the sibling negative test def_unlogged_batch_rejects_counter_mutations (batch_test.py:216) has a 'def_' prefix and never runs."
+    },
+    "TestBatch::test_logged_batch_throws_uae": {
+      "description": "3 nodes (1 rack each), RF=3; stops nodes 2 and 3 (wait_other_notice) then runs a logged batch at CL=ONE from node1 and expects an unavailable-type error. Scylla-relevant: storage_proxy picks batchlog endpoints among *other* live local-DC nodes and throws unavailable_exception(ONE,1,0) when none exist, even though CL=ONE on the data replicas could be met.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "03befb00": "formatting (PEP8)",
+        "76faf112": "port from thrift/cql cursor to python driver session",
+        "7ae49cd5": "formatting (list comprehension spacing)",
+        "aca888b8": "CL ANY -> ONE (with ANY the coordinator writes batchlog locally, no UAE)",
+        "85c91680": "created test",
+        "8594c729": "file-level: prepare() waits for other nodes instead of sleep"
+      },
+      "relevance": "Live: service/storage_proxy.cc:4518-4524 (mutate_atomically context, empty endpoint_filter -> unavailable_exception unless CL=ANY).",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/batch_test.py::TestBatch::test_multi_node_batch_group (check_logged_batch_doesnt_throw_uae)",
+          "coverage": "partial",
+          "note": "complementary case only (1 node down -> no UAE at CL ANY)"
+        },
+        {
+          "path": "test/cluster/test_batchlog_manager.py",
+          "coverage": "partial",
+          "note": "batchlog with node down, but via injections/replay, not batchlog-endpoint UAE"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test found for the batchlog-endpoint Unavailable path (storage_proxy.cc:4523); scylla 9f479f391a deliberately did not port it ('Not gating tests'). Note: assert_unavailable (tools/assertions.py:96) also accepts WriteTimeout/WriteFailure/Read*, so a timeout instead of UAE would pass; no check of alive_replicas/CL. Note: prepare() 'compression' param is unused (batch_test.py:321)."
+    },
+    "TestBatch::test_acknowledged_by_batchlog_not_set_when_batchlog_write_fails": {
+      "description": "3 nodes, RF=3; hard-kills nodes 2 and 3 (no wait for notice), logged batch at CL=ONE must raise Timeout with received_responses=0 or Unavailable with alive_replicas=0. Originally asserted the Thrift TimedOutException.acknowledged_by_batchlog=False; that check was dropped in the 2014 driver port, so it now just checks that the batch fails when no batchlog endpoint is reachable.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest; asserted thrift acknowledged_by_batchlog"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "76faf112": "driver port: acknowledged_by_batchlog=False assertion replaced by received_responses=0",
+        "967eecb4": "no change to this test (removed adjacent ported tests)",
+        "9540c152": "no change to this test (removed @next_gating from the sibling set_when_succeeds)",
+        "7ae49cd5": "formatting / assertEqual in assert_timedout helper",
+        "2a3d26c5": "removed @since decorator",
+        "84f8f510": "node.stop() -> stop(gently=False)",
+        "85c91680": "created test"
+      },
+      "relevance": "acknowledged_by_batchlog was a Thrift/C* concept, not asserted anymore. With stop(gently=False) and no wait_other_notice, node1 still sees nodes 2/3 alive, so batchlog endpoints are chosen and the batchlog write times out with 0 responses (runtime ~39s vs ~17s for throws_uae suggests the timeout path). Live: storage_proxy.cc sync_write_to_batchlog (~4537).",
+      "duplicates": [
+        {
+          "path": "batch_test.py::TestBatch::test_logged_batch_throws_uae",
+          "coverage": "partial",
+          "note": "same topology but nodes known-dead -> UAE path (storage_proxy.cc:4523); this test hits the batchlog-write-timeout path. The pair covers both."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Name/docstring claim an acknowledged_by_batchlog check removed in 76faf112 (Thrift-only); what remains is 'batchlog write to dead-but-not-yet-detected endpoints times out with 0 responses', paired with test_logged_batch_throws_uae (UAE path). Also accepts Unavailable(alive=0), so path is timing-dependent. Not ported to scylla (9f479f391a 'Not gating tests'). Bug: assert_timedout's acknowledged_by param is dead (batch_test.py:308); Note: misleading test name; prepare() 'compression' unused (batch_test.py:321)."
+    },
+    "TestBatch::test_acknowledged_by_batchlog_set_when_batchlog_write_succeeds": {
+      "description": "3 nodes, RF=3; hard-kills node3, logged batch at CL=THREE must fail with Timeout received_responses=2 or Unavailable alive_replicas=2. Originally asserted acknowledged_by_batchlog=True (batchlog written, data write failed); now only checks the CL=THREE failure counts.",
+      "origin": {
+        "sha": "85c91680",
+        "date": "2012-10-22",
+        "pr": null,
+        "summary": "Add batch tests (CASSANDRA-4636), cassandra-dtest; asserted thrift acknowledged_by_batchlog"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "03befb00": "formatting (PEP8)",
+        "76faf112": "driver port: acknowledged_by_batchlog=True assertion replaced by received_responses=2",
+        "6b5a3275": "added @attr('dtest-debug')",
+        "8f315895": "added @attr('next-gating')",
+        "9540c152": "file-level: removed @next_gating from this test",
+        "40299098": "node.stop() -> stop(gently=False)",
+        "85c91680": "created test"
+      },
+      "relevance": "acknowledged_by_batchlog no longer checked. With hard kill and no wait, node3 is most likely still seen alive, so the batchlog write succeeds (node2) and the CL=THREE data write times out with 2 responses (~35s runtime fits). If node3 were already detected dead, mutate_prepare would raise Unavailable(alive=2) before the batchlog write (storage_proxy.cc:4563-4564) and the test would still pass.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_batchlog_manager.py::test_batchlog_replay_while_a_node_is_down",
+          "coverage": "partial",
+          "note": "batchlog written but batch not completed (injection), node down, replay verified"
+        },
+        {
+          "path": "consistency_test.py",
+          "coverage": "partial",
+          "note": "generic CL vs dead replicas"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario (batchlog written, data write times out) is reached in practice but not asserted: only CL=THREE failure counts are checked (acknowledged_by_batchlog check removed in 76faf112). Partial overlap with test_batchlog_replay_while_a_node_is_down. Not ported to scylla (9f479f391a 'Not gating tests'). Bug: assert_timedout's acknowledged_by param is dead (batch_test.py:308); Note: prepare() 'compression' unused (batch_test.py:321)."
+    },
+    "TestBatch::test_batchlog_manager_issue": {
+      "description": "Reproducer for scylladb/scylladb#3229: 4 nodes with GossipingPropertyFileSnitch and 4 racks (3 rack-name parametrizations to vary hash bucketing), 5s cassandra-stress user profile with LOGGED batches, RF=4, CL=ALL; after stop greps all logs for 'unknown endpoint' and 'fail to connect: connect: Invalid argument'. Bug was out-of-bounds index in batchlog endpoint_filter (bucket_size of unordered_multimap) producing garbage IPs.",
+      "origin": {
+        "sha": "24690fdf",
+        "date": "2019-05-20",
+        "pr": 981,
+        "summary": "add a reproducer for batchlog manager issue (scylla#3229, fixed by scylla 95c6d19f6c)"
+      },
+      "commits": {
+        "9ffd273f": "formatting (ruff format)",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, nose attrs -> marks)",
+        "6f303700": "added @use_cassandra_stress mark",
+        "26094d60": "rackdc written via tools.rackdc.update_properties",
+        "f20d3393": "re-enabled as parametrized test after pytest migration",
+        "2a994e0a": "use self.cluster, drop require mark / cleanup hack",
+        "377c008e": "pylint fix (getattr)",
+        "b8305409": "_get_cluster -> get_cluster rename",
+        "c3471a97": "formatting (autopep8)",
+        "b8b80640": "write rackdc before cluster start; add log verification",
+        "e20a564b": "added cassandra-stress profile test_data/batch-test/complex_schema.yaml",
+        "24690fdf": "created test"
+      },
+      "relevance": "Fixed code path no longer exists: endpoint_filter now uses unordered_map<rack, unordered_set<host_id>> and picks via vector copy (service/storage_proxy.cc:4390-4456); IP-based garbage addresses impossible with host_ids. The grepped messages are not emitted at default log level: seastar 'fail to connect' is debug (seastar/src/rpc/rpc.cc:1058), 'unknown endpoint' only in a debug log (service/storage_service.cc:1876) / REST response (api/failure_detector.cc:103).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_batchlog_manager.py",
+          "coverage": "partial",
+          "note": "batchlog tests use 2-3 nodes (nr_validated<=2 early-return), not the >2-rack random pick branch"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Regression guard for 2019 bug (scylla#3229, fix 95c6d19f6c) in code since rewritten; log assertions effectively dead (messages debug-level), so only stress exit status catches anything. Still the only test hitting endpoint_filter's >2-rack branch; not ported to scylla (dropped in 9f479f391a). Bug: missing f-prefix in assert message (batch_test.py:452); Note: stress runs from leaked loop var `node` = last node (batch_test.py:425); grep strings dead (see relevance)."
+    },
+    "TestBatch::test_unlogged_batch_gcgs_below_threshold_should_not_print_warning": {
+      "description": "Single node: sets gc_grace_seconds=0 on users, runs an UNLOGGED batch of 2 inserts, then greps node log for 'setting a too low gc_grace_seconds on tables involved in an atomic batch' and asserts 0 matches. Negative counterpart of the logged-batch gc_grace warning tests (Cassandra CASSANDRA-9878-era warning); in scylla the warning itself is unimplemented (scylladb/scylladb#2483, open).",
+      "origin": {
+        "sha": "346c5c59",
+        "date": "2015-08-13",
+        "pr": 52,
+        "summary": "tests for checking warning message on logged batches on tables with gc_grace_seconds = 0 (cassandra-dtest)"
+      },
+      "commits": {
+        "a4904392": "added skip_if(tablets & issue_open #18180) mark (tree-wide)",
+        "9ffd273f": "formatting (ruff format)",
+        "9540c152": "added @next_gating mark",
+        "b36c57b1": "migrate to pytest (rename *_test -> test_*, assertEquals -> assert)",
+        "60fdd2b6": "added @single_node mark",
+        "03befb00": "formatting (PEP8)",
+        "346c5c59": "created test"
+      },
+      "relevance": "Scylla never emits any gc_grace_seconds batchlog warning (no such message in scylla source; scylladb/scylladb#2483 'Logged batch statements should validate gc grace seconds' still OPEN; sibling logged tests are @require('#2483')). So the absence check passes trivially for any batch type.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/batch_test.py::TestBatch::test_single_node_batch_group (check_unlogged_batch_gcgs_below_threshold_should_not_print_warning)",
+          "coverage": "full",
+          "note": "verbatim scylla port (kept by 9f479f391a, regrouped in 0338dc9cbb), same grep string and same wrong assert message"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Vacuous assertion: scylla never logs a gc_grace batch warning (#2483 open), so asserting 0 matches tests nothing; also fully duplicated verbatim in scylla test/cluster/dtest/batch_test.py. Bug: grep string at batch_test.py:170 ('setting a too low gc_grace_seconds ...') doesn't match the Cassandra warning text used by sibling tests ('setting gc_grace_seconds too low on tables ...'), so it would pass even if the warning were printed (since origin 346c5c59). Bug: assert message at batch_test.py:172 'Cannot find the gc_grace_seconds warning message.' is inverted (test asserts absence). Note: in next_gating, ~17s/run."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
