@@ -1,0 +1,595 @@
+{
+  "file": "alternator_tests.py",
+  "tests": {
+    "TestAlternatorBackwardsCompatibility::test_lsi_gsi_regular_column_upgrades": {
+      "description": "Single-node upgrade test across upgrade_matrix_for_alternator: creates a table with GSI+LSI on the oldest version, writes one item per upgrade step, then after each node upgrade reads the old item, overwrites it with only keys (must vanish from LSI and GSI), sets new LSI/GSI/data attrs via UpdateItem and verifies the full table scan. Guards the on-disk format change where LSI/GSI non-key attributes moved from top-level regular columns to ':attrs' (GSIs in 2025.2, scylladb#21989; LSIs in 2025.4, scylladb#25796).",
+      "origin": {
+        "sha": "48c5114ae3eaff0154490d3c663ac3a227365148",
+        "date": "2025-09-04",
+        "pr": 6189,
+        "summary": "alternator_tests: Add LSI's base table format compatibility test (with backbone 6164924f in same PR)"
+      },
+      "commits": {
+        "b2ea2e7cf089c4b25916406783b0827256888030": "full_query helper: apply ConsistentRead=True also on first page; affects LSI query here (GSI query passes consistent_read=False)",
+        "48c5114ae3eaff0154490d3c663ac3a227365148": "added the test",
+        "6164924ff8af1e19be62c8ba78f80700ad49fbe4": "added TestAlternatorBackwardsCompatibility class / upgrade backbone"
+      },
+      "relevance": "Live: GSI/LSI attrs in ':attrs' is current format; clusters upgraded from <2025.4 still carry old-format tables. test/alternator/test_lsi.py:582 references ':attrs' filtering.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_lsi.py, test/alternator/test_gsi.py",
+          "coverage": "partial",
+          "note": "cover LSI/GSI semantics on current version only; scylla test.py has no cross-version upgrade framework for Alternator"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Alternator backwards compatibility across real version upgrades (PR #6189); scylla repo cannot run older binaries. 100% pass, 45s."
+    },
+    "TesterAlternator::test_alternator_enforce_authorization": {
+      "description": "Starts 3-node (4 with tablets) cluster with alternator_enforce_authorization=true + PasswordAuthenticator/CassandraAuthorizer. Asserts CreateTable fails with UnrecognizedClientException without valid creds; creates superuser role 'alternator' via CQL on node1, reads its salted_hash and uses it as secret key to CreateTable on the last node (retry for propagation); finally asserts a wrong secret key is rejected. Added after system_auth_v2 migration revealed no coverage (SCT#7405).",
+      "origin": {
+        "sha": "beb95376bbb1f93c5a310c61b616e1f2b1f0bb0f",
+        "date": "2024-06-03",
+        "pr": 4255,
+        "summary": "alternator_tests: add test to cover alternator_enforce_authorization"
+      },
+      "commits": {
+        "2a927253f76db9f71502b2ddc7163ecbdad6b888": "use exclusive CQL connection to node1 for CREATE ROLE + salted_hash read; retry CreateTable on other node (fixes flakiness scylladb#25038)",
+        "f9eadd390772018ed5dbd3191a65f12ee6fcac23": "CREATE ROLE with login=true and superuser=true",
+        "6ae7cf97d504b940b1fbc4d04d918bc3eda90dde": "look up salted_hash in system_auth_v2/system_auth too (gossip-mode support)",
+        "beb95376bbb1f93c5a310c61b616e1f2b1f0bb0f": "added the test",
+        "72809f23801a6ef309e1a3e9f2d38fe93fef484a": "formatting",
+        "f5fd3c2953ae62401e4811d0c8fc8c7e19cdce85": "adjacent-code change; no effect on this test (pytest migration predates test)"
+      },
+      "relevance": "Live: alternator_enforce_authorization still in db/config.cc (LiveUpdate, Used); salted_hash-as-secret-key auth still used.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_alternator.py::test_alternator_enforce_authorization_true",
+          "coverage": "partial",
+          "note": "same config, bad creds rejected, salted_hash secret key works, new role permissions - but single node, no cross-node role propagation"
+        },
+        {
+          "path": "test/alternator/test_authorization.py::test_wrong_password",
+          "coverage": "partial",
+          "note": "wrong secret key rejected"
+        },
+        {
+          "path": "test/alternator/test_cql_rbac.py",
+          "coverage": "partial",
+          "note": "RBAC functional tests on one node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Core assertions fully covered by test/cluster/test_alternator.py::test_alternator_enforce_authorization_true; only unique bit is role created on node1 being usable on another node (multi-node auth propagation). Owner should decide if that is worth a dtest or a small extension of the scylla cluster test."
+    },
+    "TesterAlternator::test_check_comparison_query_key_condition_options": {
+      "description": "3-node cluster, hash+numeric range table with random items; for a random (hash, range) pair runs Query with legacy KeyConditions EQ/LE/LT/GE/GT on the range key (ScanIndexForward=True) and compares to expected ascending list. Feature coverage test for Query KeyConditions, nothing cluster-specific.",
+      "origin": {
+        "sha": "6456318c7546f2258aa5a2e3b9cb930841eca822",
+        "date": "2020-05-24",
+        "pr": 1510,
+        "summary": "test (alternator_tests): Creating new tests for query's KeyConditions (+ScanIndexForward)"
+      },
+      "commits": {
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "added the test"
+      },
+      "relevance": "Live: Query KeyConditions supported in alternator.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_key_conditions.py::test_key_conditions_num_eq/num_lt/num_le/num_gt/num_ge",
+          "coverage": "full",
+          "note": "same operators on numeric sort key"
+        },
+        {
+          "path": "test/alternator/test_key_condition_expression.py",
+          "coverage": "partial",
+          "note": "same ops via KeyConditionExpression"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Single-coordinator functional check fully covered by test/alternator/test_key_conditions.py num_* tests; 3-node cluster adds nothing asserted."
+    },
+    "TesterAlternator::test_check_comparison_query_key_condition_options_without_scan_index_forward": {
+      "description": "Same as test_check_comparison_query_key_condition_options but with ScanIndexForward=False, expecting descending order for EQ/LE/LT/GE/GT on numeric range key.",
+      "origin": {
+        "sha": "6456318c7546f2258aa5a2e3b9cb930841eca822",
+        "date": "2020-05-24",
+        "pr": 1510,
+        "summary": "test (alternator_tests): Creating new tests for query's KeyConditions (+ScanIndexForward)"
+      },
+      "commits": {
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "added the test"
+      },
+      "relevance": "Live: reverse queries (native reversed format, scylladb#20191) supported.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_query.py::test_query_reverse[LT/LE/GT/GE]",
+          "coverage": "full",
+          "note": "reverse Query with numeric sort-key bounds, explicitly added (a11d19f321) to catch #20191 before dtests"
+        },
+        {
+          "path": "test/alternator/test_query.py::test_query_reverse_paging",
+          "coverage": "full",
+          "note": "reverse + paging"
+        },
+        {
+          "path": "test/alternator/test_key_condition_expression.py::test_key_condition_expression_num_eq_reverse/num_lt_reverse",
+          "coverage": "partial",
+          "note": "reverse via KeyConditionExpression"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/alternator/test_query.py::test_query_reverse parametrized on LT/LE/GT/GE (+paging variant); scylla commit a11d19f321 added it precisely to replace dtest-level detection."
+    },
+    "TesterAlternator::test_check_string_and_binary_query_key_condition_options": {
+      "description": "3-node cluster; for string then binary sort key (values chr(0..255)), runs Query KeyConditions BEGINS_WITH and BETWEEN (ascending) on a random partition and compares to Python-computed expected list.",
+      "origin": {
+        "sha": "6456318c7546f2258aa5a2e3b9cb930841eca822",
+        "date": "2020-05-24",
+        "pr": 1510,
+        "summary": "test (alternator_tests): Creating new tests for query's KeyConditions (+ScanIndexForward)"
+      },
+      "commits": {
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "added the test"
+      },
+      "relevance": "Live: BEGINS_WITH/BETWEEN on S and B sort keys supported.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_key_conditions.py::test_key_conditions_str_between/str_begins_with/bytes_between/bytes_begins_with/bytes_begins_with_ff",
+          "coverage": "full",
+          "note": "same operators on string and bytes sort keys, incl. 0xFF edge"
+        },
+        {
+          "path": "test/alternator/test_key_condition_expression.py::test_key_condition_expression_str_between/str_begins/bytes_between/bytes_begins*",
+          "coverage": "full",
+          "note": "expression variant"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/alternator/test_key_conditions.py str_/bytes_ between and begins_with tests (incl. 0xFF prefix edge case); nothing cluster-specific."
+    },
+    "TesterAlternator::test_check_string_and_binary_query_key_condition_options_without_scan_index_forward": {
+      "description": "Same as test_check_string_and_binary_query_key_condition_options but with ScanIndexForward=False (descending results) for BEGINS_WITH/BETWEEN on string and binary sort keys.",
+      "origin": {
+        "sha": "6456318c7546f2258aa5a2e3b9cb930841eca822",
+        "date": "2020-05-24",
+        "pr": 1510,
+        "summary": "test (alternator_tests): Creating new tests for query's KeyConditions (+ScanIndexForward)"
+      },
+      "commits": {
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "added the test"
+      },
+      "relevance": "Live: reverse queries with string/bytes bounds supported.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_query.py::test_query_reverse",
+          "coverage": "partial",
+          "note": "reverse with range bounds, numeric keys only, no BETWEEN/BEGINS_WITH"
+        },
+        {
+          "path": "test/alternator/test_key_conditions.py::test_key_conditions_str_*/bytes_*",
+          "coverage": "partial",
+          "note": "BETWEEN/BEGINS_WITH on S/B keys, forward only"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test combines ScanIndexForward=False with BETWEEN/BEGINS_WITH on string/bytes sort keys (grep ScanIndexForward=False in test/alternator only hits test_query.py numeric). Reverse logic is type-agnostic so likely redundant; cheap to port as a parametrization of test_query_reverse instead."
+    },
+    "TesterAlternator::test_cluster_traces": {
+      "description": "3-node cluster, trace probability 1.0; for 10 mixed-type items does PutItem/GetItem(consistent)/UpdateItem/DeleteItem round-robin across coordinators, then reads system_traces and asserts per-op ordered trace events: op name, Paxos 'prepare_ballot: sending prepare'/'accept_proposal: send accept'/'prune: send prune of' to the N-1 other replicas, 'CAS successful', and for GetItem 'Creating read executor for token' listing all node ids + 'Querying is done'.",
+      "origin": {
+        "sha": "d479ee9d919ec6d3ab1e05f228326e0ae179cf14",
+        "date": "2020-11-25",
+        "pr": 1778,
+        "summary": "test(alternator_tests.py): Creating test to checking Alternator traces"
+      },
+      "commits": {
+        "5b35d80f58d9f963a3eb04ad43fb2c24e9f15205": "sort sessions by session_id, ignore non-Alternator sessions (fix flakiness scylladb#25491)",
+        "507de7cdb4f1b802d70ffe97230fab8898e748a0": "refactor event names (Alternator <Op> request strings)",
+        "94848a9962ac0397cb8738fe94dcedb860f98b15": "retry 20x to allow hinted handoff of traces",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "8ac4fb83419400fe444f8977b61f948856151217": "accept host id instead of IP in trace messages",
+        "86939d213d616cd6feec6f151b4c0524f5566411": "update expected trace text after scylla message change",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "fb3dfc9ea9d303dbe5bcf521b54dc1f0b57bb1bc": "formatting",
+        "0fc9049c2e3b5ec202a5343977f2b50330d1bb86": "handle missing methods in traces",
+        "4fb0301ba110ca2ba7a44315cd970a39ad2a8cce": "better retry for trace checking",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format",
+        "d479ee9d919ec6d3ab1e05f228326e0ae179cf14": "added the test",
+        "cf4cea3cb557b5c754c8578e9797d079a701939c": "adjacent-code change; no effect on this test"
+      },
+      "relevance": "Live: all trace strings exist in service/storage_proxy.cc (lines ~446 prepare_ballot, ~454 accept_proposal, ~2760 prune, ~6234 read executor, ~6322 Querying is done, ~7150 CAS successful).",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_tracing.py::test_tracing_all",
+          "coverage": "partial",
+          "note": "single node; checks PutItem/GetItem/UpdateItem/DeleteItem/Batch*/Query produce op + 'CAS successful'/'Querying is done' events (scylladb#6891)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Basic Alternator tracing covered by test/alternator/test_tracing.py::test_tracing_all; unique part is multi-node Paxos trace content (prepare/accept/prune to N-1 replicas), which is brittle internal-string matching with a long flakiness history (#2899, #5386, #4215, scylladb#25491). Owner should judge if multi-node Paxos tracing is worth keeping."
+    },
+    "TesterAlternator::test_dynamo_types": {
+      "description": "3-node cluster, single hash-key table; for each TypeMode (NUMBER, BOOL, NONE, STRING, BINARY, LIST, DICT, MIXED) batch-writes 1-10 random items and asserts a full scan equals all items written so far. Basic round-trip of every DynamoDB attribute type.",
+      "origin": {
+        "sha": "7ed4e35ed61d11547160dfe6ec9da1ef5e0c923a",
+        "date": "2020-05-13",
+        "pr": 1477,
+        "summary": "test(alternator_tests): Adding Alternator types test"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format",
+        "d479ee9d919ec6d3ab1e05f228326e0ae179cf14": "data generator changes (MIXED mode, item counter reset) used by this test",
+        "8ed61a4e428e7d68f93033e8e7ecea14afb91830": "removed wait_table_exists call",
+        "f552937a2d2f7a010c2c1a58142dffceb58a7e9b": "fix pk overwrite between items",
+        "7ed4e35ed61d11547160dfe6ec9da1ef5e0c923a": "added the test"
+      },
+      "relevance": "Live: basic Alternator type support.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_item.py::test_put_and_get_attribute_types",
+          "coverage": "full",
+          "note": "N, BOOL, B, NULL, L, M (nested), SS/NS/BS round-trip"
+        },
+        {
+          "path": "test/alternator/test_batch.py",
+          "coverage": "partial",
+          "note": "BatchWriteItem path"
+        },
+        {
+          "path": "test/alternator/test_number.py",
+          "coverage": "partial",
+          "note": "number precision edge cases"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/alternator/test_item.py::test_put_and_get_attribute_types (+test_batch.py); nothing multi-node asserted."
+    },
+    "TesterAlternator::test_exception_error_for_update_item_with_add_action": {
+      "description": "Single node, parametrized on value type (str, list, set, Decimal). Puts item with that type, then for each other type does UpdateItem AttributeUpdates ADD and asserts ValidationException matching 'operand type' (type mismatch). Added for scylla commit f36bbe05 (AttributeUpdates ADD support).",
+      "origin": {
+        "sha": "56207182acc0417beb13c815723ec8ac2b35df82",
+        "date": "2021-12-13",
+        "pr": 2435,
+        "summary": "test(alternator_tests.py): Creating a new tests for update item with ADD"
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "raw-string regex in pytest.raises (formatting)",
+        "38cdb96d37b50b08508a01dc4b542619b969085d": "adjacent-code change; no effect on this test (removed ported tests around it)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "f6f975fe678206fbd8eb18dac1f6ab7becc90421": "adjacent-code change; no effect on this test",
+        "67b4589948e47362bf45172d84584051718e25cc": "adjacent-code change; no effect on this test",
+        "01e82323a0ec9e3eeece9b2176f5f058e67d9a40": "adjacent-code change; no effect on this test",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "72809f23801a6ef309e1a3e9f2d38fe93fef484a": "formatting",
+        "620138288d7626be7d722dac114eccb4c8400823": "added next_gating mark",
+        "56207182acc0417beb13c815723ec8ac2b35df82": "added the test",
+        "f5fd3c2953ae62401e4811d0c8fc8c7e19cdce85": "pytest migration / single_node mark"
+      },
+      "relevance": "Live: alternator/executor.cc:5311 'Operand type mismatch in AttributeUpdates ADD'.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_item.py::test_update_item_add",
+          "coverage": "full",
+          "note": "asserts ValidationException for ADD on string, map, set+string, and number/set/list mismatches in all directions"
+        },
+        {
+          "path": "test/alternator/test_update_expression.py::test_update_expression_add_*",
+          "coverage": "partial",
+          "note": "UpdateExpression ADD variant"
+        }
+      ],
+      "decision": "RED",
+      "reason": "test/alternator/test_item.py::test_update_item_add covers every mismatch combination (number/set/list/string) with ValidationException on a single node, same as this single_node dtest."
+    },
+    "TesterAlternator::test_filter_expression": {
+      "description": "2 DCs x 3 nodes; writes 100 items (hash+numeric range) via DC1 node1, waits for schema sync, stops node1, then scans from a DC2 node with FilterExpression range >= random value and compares results. Added for scylla FilterExpression support (scylla commit 23c63ec1).",
+      "origin": {
+        "sha": "2741a7bb8af010c57b9617e34bcfa2144e4fc4b7",
+        "date": "2020-08-04",
+        "pr": 1625,
+        "summary": "improvement(alternator_tests.py): Added test_filter_expression"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format",
+        "d479ee9d919ec6d3ab1e05f228326e0ae179cf14": "adjacent-code change; no effect on this test",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "2741a7bb8af010c57b9617e34bcfa2144e4fc4b7": "added the test"
+      },
+      "relevance": "Live: FilterExpression supported; filtering is coordinator-side post-processing independent of topology.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_filter_expression.py",
+          "coverage": "full",
+          "note": "extensive FilterExpression operator coverage incl. comparisons on numbers"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_dynamo_queries_on_multi_dc",
+          "coverage": "partial",
+          "note": "write in DC1, read all items from DC2 (ported dtest)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Filter semantics fully covered by test/alternator/test_filter_expression.py; multi-DC read path covered by scylla's ported test_dynamo_queries_on_multi_dc. Combination asserts nothing extra; 32s with 6 nodes."
+    },
+    "TesterAlternator::test_full_scan_table_while_restart_each_nodes": {
+      "description": "3-node cluster, prefill 100 items, start a background (non-parallel) full Scan loop with ConsistentRead against node1, then stop/start node2 and node3 one at a time. Intended to verify Scan correctness while replicas restart. Scan stress errors are never surfaced: run_scan_stress registers only scan_thread.stop() in clear_resources and the test never joins it, so the future's exception is never read. Moreover full_scan calls self.compare_table_items_data, which has never existed in the dtest repo (git log -S'compare_table_items_data' only hits origin e035960f), so with is_compare_scan_result=True the thread dies with AttributeError after the first scan. Effective checks: nodes restart cleanly and no errors in node logs.",
+      "origin": {
+        "sha": "e035960f90b4ba4182d25bc942addf8de07ee67e",
+        "date": "2020-05-13",
+        "pr": 1459,
+        "summary": "test(alternator_tests): Adding new Alternator scan tests"
+      },
+      "commits": {
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "e035960f90b4ba4182d25bc942addf8de07ee67e": "added the test (call to non-existent compare_table_items_data introduced here)"
+      },
+      "relevance": "Live: Scan with ConsistentRead (alternator/executor_read.cc). Node stop/start is generic.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_scan.py::test_scan_basic",
+          "coverage": "partial",
+          "note": "scan correctness on a healthy cluster"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_decommission_during_dynamo_load",
+          "coverage": "partial",
+          "note": "Alternator consistent reads during topology change, with real assertions (ported dtest)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Test asserts nothing about Scan: background thread result never checked and the compare helper doesn't exist (AttributeError swallowed since origin e035960f, 2020). Only node restart is exercised, which is covered by many dtests. Remove, or rewrite with a joined thread + real comparison if restart-scan coverage is wanted."
+    },
+    "TesterAlternator::test_full_parallel_scan_table_while_restart_each_nodes": {
+      "description": "Same as test_full_scan_table_while_restart_each_nodes but the background Scan is a parallel scan with TotalSegments=4. Scan stress errors are never surfaced: run_scan_stress registers only scan_thread.stop() in clear_resources and the test never joins it, so the future's exception is never read. Moreover full_scan calls self.compare_table_items_data, which has never existed in the dtest repo (git log -S'compare_table_items_data' only hits origin e035960f), so with is_compare_scan_result=True the thread dies with AttributeError after the first scan.",
+      "origin": {
+        "sha": "e035960f90b4ba4182d25bc942addf8de07ee67e",
+        "date": "2020-05-13",
+        "pr": 1459,
+        "summary": "test(alternator_tests): Adding new Alternator scan tests"
+      },
+      "commits": {
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "e035960f90b4ba4182d25bc942addf8de07ee67e": "added the test"
+      },
+      "relevance": "Live: parallel scan Segment/TotalSegments in alternator/executor_read.cc:769.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_scan.py::test_scan_parallel",
+          "coverage": "partial",
+          "note": "parallel scan correctness (all segments union == table) on healthy cluster"
+        },
+        {
+          "path": "test/alternator/test_scan.py::test_scan_parallel_incorrect",
+          "coverage": "partial",
+          "note": "invalid Segment/TotalSegments"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same defect as the non-parallel variant: scan thread exceptions never collected and compare_table_items_data never existed, so nothing is asserted. Parallel scan semantics covered by test/alternator/test_scan.py::test_scan_parallel."
+    },
+    "TesterAlternator::test_full_parallel_scan_table_while_insert_update_delete_items": {
+      "description": "3-node cluster, prefill 100 items and update them, start a background parallel Scan loop (TotalSegments=4, no result comparison) plus a background insert/update/delete batch-write thread, then stop/start node2 and node3. Intended to check scans under concurrent writes and restarts. Neither background thread is ever joined (clear_resources only calls stop()), so any ClientError from scans or writes is silently dropped.",
+      "origin": {
+        "sha": "e035960f90b4ba4182d25bc942addf8de07ee67e",
+        "date": "2020-05-13",
+        "pr": 1459,
+        "summary": "test(alternator_tests): Adding new Alternator scan tests"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "e035960f90b4ba4182d25bc942addf8de07ee67e": "added the test"
+      },
+      "relevance": "Live: parallel Scan, BatchWriteItem, UpdateItem.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_scan.py::test_scan_parallel",
+          "coverage": "partial",
+          "note": "parallel scan semantics"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_drain_during_dynamo_load",
+          "coverage": "partial",
+          "note": "Alternator read/update load during node operation, thread joined so errors surface"
+        }
+      ],
+      "decision": "RED",
+      "reason": "is_compare_scan_result=False and background threads never joined (run_scan_stress / run_delete_insert_update_item_stress only register stop()), so the test asserts nothing beyond node restart and log-error scan. Low value as written; remove or rewrite with joined threads."
+    },
+    "TesterAlternator::test_nested_attributes": {
+      "description": "4-node cluster (3 racks), table filled with 8000 items having 10-level nested maps. Runs background write stress, consistent-read stress and a decommission/re-bootstrap loop, while the main loop does 4000 UpdateItem 'SET x.levelN...a = :v' on random nested levels and reads the item back (ConsistentRead) asserting the full expected nested document. Guards attribute-path updates (scylla#5024) and read-your-write of nested updates during topology churn.",
+      "origin": {
+        "sha": "16b62a79924ca55f14d9449b54345cea25ff11b7",
+        "date": "2021-07-19",
+        "pr": 2231,
+        "summary": "test(alternator_tests.py): Added test_nested_attributes - verifies scylla#5024 nested attribute updates under stress (landed on next via squash in pytest migration f5fd3c29)"
+      },
+      "commits": {
+        "5180beb74cfadbef19edd0ab97f394c8fdc51e23": "use 3-rack topo (1,1,2) so decommission works with tablets RF-rack constraints (flaky fix)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "f5fd3c2953ae62401e4811d0c8fc8c7e19cdce85": "pytest migration; brought test + nested-item helpers onto next"
+      },
+      "relevance": "Live: attribute paths in UpdateExpression (scylla#5024 closed/implemented); decommission + tablets live.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_update_expression.py::test_update_expression_nested_deep",
+          "coverage": "partial",
+          "note": "nested-path SET semantics (plus ~20 other nested_* tests) on single node"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_decommission_during_dynamo_load",
+          "coverage": "partial",
+          "note": "Alternator consistent reads during decommission"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_ttl_with_load_and_decommission",
+          "coverage": "partial",
+          "note": "Alternator load during decommission loop"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Nested-path semantics fully covered by test/alternator/test_update_expression.py nested tests; unique bit is read-after-write verification of nested updates during decommission/bootstrap churn. Slow (143s avg) and had tablets flakiness (PR 6417); owner should judge whether the churn+consistency check is worth keeping."
+    },
+    "TesterAlternator::test_read_key_condition_expression": {
+      "description": "3-node cluster, writes 12 items in one partition (pk,c) plus one item in another partition, stops node2, then Query with KeyConditionExpression 'pk=:pk' (ConsistentRead) and asserts exactly the 12 items are returned.",
+      "origin": {
+        "sha": "c8d98bebbe676c44748d7c9b8ba47c4d957de78c",
+        "date": "2020-05-10",
+        "pr": 1464,
+        "summary": "Added: test_update_condition_expression, test_read_key_condition_expression"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "26d7c81edf7c41417bcdd4aa5248dd49689f2322": "switched back to CONDITION_EXPRESSION_SCHEMA with pk/c keys",
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "switched to HASH_AND_NUM_RANGE_SCHEMA key names (reverted by 26d7c81e)",
+        "e035960f90b4ba4182d25bc942addf8de07ee67e": "adjacent helper changes; no behavioral change in this test"
+      },
+      "relevance": "Live: Query KeyConditionExpression.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_key_condition_expression.py",
+          "coverage": "full",
+          "note": "extensive KeyConditionExpression equality/range tests"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_update_condition_unused_entries_short_circuit",
+          "coverage": "partial",
+          "note": "consistent read with one node down (ported dtest)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Query semantics fully covered by test/alternator/test_key_condition_expression.py; one-node-down quorum read is generic and covered by other dtests. Consistent with test_filter_expression RED."
+    },
+    "TesterAlternator::test_update_condition_expression_and_write_isolation": {
+      "description": "2 DCs x 3 nodes; prefill, stop a DC1 node, then: conditional UpdateItem from DC2 must fail with 'Read-modify-write operations are disabled' under forbid_rmw, succeed under always_use_lwt; from DC1 fail under forbid_rmw, succeed under only_rmw_uses_lwt (asserts c==3), and a failing condition raises ConditionalCheckFailedException. Checks write-isolation tag enforcement and its runtime switching across DCs.",
+      "origin": {
+        "sha": "c8d98bebbe676c44748d7c9b8ba47c4d957de78c",
+        "date": "2020-05-10",
+        "pr": 1464,
+        "summary": "Added test_update_condition_expression (renamed/extended with write isolation in 26d7c81e, PR 1512)"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "b1354041f0c3ed149ceee26bc34391817ddefb6f": "reverted the variable rename of 1cd1b603 (no net change)",
+        "1cd1b60390e71634ba5bdd211c61dbcbad621df2": "renamed conditional_update_c_2 variable (cosmetic)",
+        "5a3b3f3edad0965a0787ccda8e3fd771209d69f7": "updated expected error to 'Read-modify-write operations are disabled' (scylla 5ef9854e) + schema sync wait",
+        "26d7c81edf7c41417bcdd4aa5248dd49689f2322": "renamed to ..._and_write_isolation; added forbid_rmw/always_use_lwt/only_rmw_uses_lwt switching assertions",
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "key name refactor (hash_key_name)",
+        "c8d98bebbe676c44748d7c9b8ba47c4d957de78c": "added the test"
+      },
+      "relevance": "Live: write isolation tags and forbid_rmw message in alternator/executor.cc:4003.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_write_isolation.py::test_isolation_updateitem_conditionexpression",
+          "coverage": "full",
+          "note": "conditional UpdateItem allowed in all permit modes, rejected with RMW-forbidden error in forbid_rmw"
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_streams_multiple_items_one_partition",
+          "coverage": "partial",
+          "note": "switches write isolation at runtime via TagResource"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_modified_tag_is_propagated_to_other_dc",
+          "coverage": "partial",
+          "note": "write-isolation tag propagation to other DC (ported)"
+        },
+        {
+          "path": "test/cluster/dtest/alternator_tests.py::TesterAlternator::test_update_condition_unused_entries_short_circuit",
+          "coverage": "partial",
+          "note": "multi-DC conditional (LWT) update from DC2 with a DC1 node down (ported)"
+        },
+        {
+          "path": "test/alternator/test_condition_expression.py",
+          "coverage": "full",
+          "note": "ConditionalCheckFailedException semantics"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Mode semantics fully covered by test/alternator/test_write_isolation.py; tag propagation and multi-DC LWT-with-node-down covered by tests scylla already ported from this dtest file (test_modified_tag_is_propagated_to_other_dc, test_update_condition_unused_entries_short_circuit)."
+    },
+    "TesterAlternator::test_update_items_from_multiple_threads": {
+      "description": "Single node, table with always_use_lwt; 3 threads concurrently apply 10000 (3000 in debug) UpdateItem ADD actions to the same item (number, number set, or list param), then asserts the final value equals the sum/union of all additions, i.e. no lost updates. Guards LWT isolation of concurrent read-modify-write ADD (feature scylla f36bbe05).",
+      "origin": {
+        "sha": "56207182acc0417beb13c815723ec8ac2b35df82",
+        "date": "2021-12-13",
+        "pr": 2435,
+        "summary": "test(alternator_tests.py): Creating a new tests for update item with ADD"
+      },
+      "commits": {
+        "178921d0a5e3424ac4721ffb50aae6d139b3fb56": "thread result timeout 60s -> 180s (scylladb#26274 flakiness)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "59ab99c4af7827faa8fa1755409ec838e3ec7686": "dropped UNSAFE_RMW parametrization (expected-mismatch assertion was flaky)",
+        "a0bbb494c4c4b14819ed4206c41fb36f1f0b102f": "num_of_items 3000 in debug mode",
+        "bde586cfb994bb3f0df3d91ac7ae8737fa35de36": "longer timeout in debug mode",
+        "56207182acc0417beb13c815723ec8ac2b35df82": "added the test"
+      },
+      "relevance": "Live: UpdateItem ADD (alternator/executor.cc:4935,5290) and always_use_lwt isolation.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_write_isolation.py",
+          "coverage": "partial",
+          "note": "only checks which ops are allowed per mode; header explicitly says concurrent isolation is NOT tested"
+        },
+        {
+          "path": "test/cluster/test_alternator.py::test_alternator_concurrent_rmw_same_partition_different_server",
+          "coverage": "partial",
+          "note": "xfail reproducer for #16261, different items in same partition, checks no errors not final value"
+        },
+        {
+          "path": "test/alternator/test_item.py::test_update_item_add",
+          "coverage": "partial",
+          "note": "ADD semantics single-threaded"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test verifying no lost updates for concurrent RMW under LWT isolation; scylla's test_write_isolation.py states concurrency is untested there. Single node, ~16s, 100% pass after timeout fix."
+    },
+    "TesterAlternator::test_write_isolation_during_stress": {
+      "description": "3 nodes; one table per write-isolation mode, each with background BatchWriteItem write stress and consistent GetItem read stress; 3 cycles randomly re-tagging each table's write isolation, then joins threads (errors surface). Checks that switching isolation mode at runtime under plain-write/read load causes no errors. No RMW ops in the workload, so forbid_rmw never rejects anything; only LWT vs non-LWT write path toggles.",
+      "origin": {
+        "sha": "26d7c81edf7c41417bcdd4aa5248dd49689f2322",
+        "date": "2020-05-25",
+        "pr": 1512,
+        "summary": "alternator: add write-isolation test"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1fc8fcf5c74f7a35261612e32d18ea88054672b3": "converted to pytest format (assertRaises->pytest.raises, debug->logger)",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "26d7c81edf7c41417bcdd4aa5248dd49689f2322": "added the test",
+        "6456318c7546f2258aa5a2e3b9cb930841eca822": "adjacent change; no effect",
+        "c8d98bebbe676c44748d7c9b8ba47c4d957de78c": "adjacent change; no effect"
+      },
+      "relevance": "Live: system:write_isolation tag; BatchWriteItem uses LWT in always_use_lwt.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_write_isolation.py::test_isolation_batchwriteitem",
+          "coverage": "partial",
+          "note": "BatchWriteItem works in all four modes (static, no switching)"
+        },
+        {
+          "path": "test/cluster/test_alternator.py::test_concurrent_modify_tags",
+          "coverage": "partial",
+          "note": "concurrent TagResource on multi-node cluster (#13152)"
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_streams_multiple_items_one_partition",
+          "coverage": "partial",
+          "note": "runtime TagResource of write isolation then batch writes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Weak assertion (only 'no errors'); per-mode behavior and tag changes covered by scylla tests. Unique bit is switching LWT/non-LWT write path on a live table under concurrent load, which none of the scylla tests do. 40s, never failed."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
