@@ -1,0 +1,153 @@
+{
+  "file": "cql_tracing_test.py",
+  "tests": {
+    "TestCqlTracing::test_tracing_simple": {
+      "description": "3-node cluster (3 racks), RF=3. Creates ks.users, then via cqlsh with TRACING ON runs SELECT, INSERT (CL=ALL) and SELECT by key (CL=ALL); asserts cqlsh prints 'Tracing session:' and 'Request complete', and that the final SELECT trace lists events from all 3 node IPs and returns the inserted row. Guards basic CQL tracing (session/events written to system_traces and fetched by cqlsh) including replica-side events from remote nodes.",
+      "origin": {
+        "sha": "ed6025b309",
+        "date": "2016-06-09",
+        "pr": 348,
+        "summary": "Initial commit (Vlad Zolotarov), port of Cassandra's cql_tracing_test: common tracing output + SELECT tracing comes from all replicas."
+      },
+      "commits": {
+        "d26a91ee36": "Use generate_cluster_topology (3 racks) so RF=3 is RF-rack-valid.",
+        "43e78371c7": "pytest port; introduced PrepareClusterHelper fixture with allow_log_errors=True.",
+        "f60bb0ce48": "Removed per-test attrs (moved to class).",
+        "6b5a3275e4": "Added dtest-debug attr.",
+        "8f31589531": "Added next-gating attr.",
+        "f066efa2e4": "Replaced hardcoded 127.0.0.x with cluster.get_node_ip() for parallel runs.",
+        "73c963bc10": "File-level: force --no-color cqlsh output in trace().",
+        "048eefc04c": "File-level: adapted to new tracing record format (affects shared helpers).",
+        "19376e4905": "File-level: prepare() default protocol_version 3 -> 4."
+      },
+      "relevance": "Live: cqlsh TRACING and system_traces sessions/events are core scylla features (tracing/, test/boost/tracing_test.cc).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py, test_materialized_view.py, test_tombstone_limit.py (trace=True + get_query_trace)",
+          "coverage": "partial",
+          "note": "Use CQL tracing via driver on single node; don't check multi-replica events or cqlsh output."
+        },
+        {
+          "path": "test/boost/tracing_test.cc::tracing_respect_events",
+          "coverage": "partial",
+          "note": "Unit-level trace event recording."
+        },
+        {
+          "path": "dtest cql_tracing_addition_test.py::TestTracingReadAccess::test_tracing_info_from_remote_sstables",
+          "coverage": "partial",
+          "note": "Checks trace content from remote replicas via driver."
+        },
+        {
+          "path": "dtest cdc_tracing_info_test.py",
+          "coverage": "partial",
+          "note": "Uses cqlsh TRACING ON and parses output."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (17s), 100% pass, cqlsh TRACING + multi-replica trace events only partially covered elsewhere (cqlpy trace=True tests, cql_tracing_addition_test). Bug: PrepareClusterHelper fixture (cql_tracing_test.py:34-37, added by pytest port 43e78371c7) sets allow_log_errors=True for every test, so conftest.py:483 teardown never runs check_errors_all_nodes; log errors/assertion failures are not detected (e4b866cc73 had removed explicit end-of-test Assertion greps relying on that default check). Note: first run_cqlsh('TRACING ON') is a separate cqlsh session (no effect); assert messages wrong/truncated ('Node1 IP is not in the ', 'SELECT query...' for INSERT) at cql_tracing_test.py:91-105."
+    },
+    "TestCqlTracing::test_tracing_shutdown": {
+      "description": "2-node cluster (2 racks), RF=2, trace probability 1.0 on both. Inserts 500 keys, flushes and stops node1; asserts no 'Assertion .* failed' in node1 log and that system_traces.sessions contains exactly 500 INSERT sessions (all traces flushed before shutdown). Then restarts node1, starts background inserts (1000/15000 keys), stops node2 mid-load after random <1s. Guards shutdown ordering: CQL server stopped before tracing, tracing RPC from remote node during shutdown, pending traces flushed.",
+      "origin": {
+        "sha": "87f5664a60",
+        "date": "2016-06-15",
+        "pr": 352,
+        "summary": "Vlad tracing shutdown testing v1: verify tracing service shuts down as expected."
+      },
+      "commits": {
+        "757b9cc5f4": "Added executor.shutdown(wait=True) after insert thread.",
+        "d26a91ee36": "Use 2-rack topology for RF-rack-valid keyspaces.",
+        "64dc038222": "threading.Thread -> ThreadPoolExecutor.",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "fb3dfc9ea9": "formatting (ruff/pylint fixes)",
+        "12ebad8037": "ignore_log_patterns '=' -> '+='.",
+        "4e553afb65": "ignore_log_patterns tuple -> list.",
+        "43e78371c7": "pytest port; allow_log_errors=True fixture; broke the #5697 regex with a backslash-newline inside a raw string.",
+        "375ab7e54b": "nodetool settraceprobability -> set_trace_probability helper.",
+        "c3471a97e4": "formatting",
+        "adf07f971b": "Ignore #5697 double_registration error.",
+        "6788242e75": "Debug mode: 2x instead of 30x additional keys.",
+        "3fc966b10a": "Flush node1 before stopping (fix dtest#1127 flakiness).",
+        "048eefc04c": "Adapted session query check to new 'parameters' format.",
+        "e4b866cc73": "File-level: removed end-of-test node2 Assertion grep, relying on default teardown log check (later disabled by allow_log_errors=True)."
+      },
+      "relevance": "Live: tracing service start/stop ordering and trace flushing on drain still exist in scylla (tracing/, main.cc).",
+      "duplicates": [
+        {
+          "path": "none",
+          "coverage": "none",
+          "note": "No scylla test/ or other dtest exercises tracing during node shutdown (grep trace_probability/system_traces in test/cluster)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (no scylla test covers tracing during shutdown), but the second phase (node2 stop under traced load) asserts nothing: run() swallows all exceptions with bare except (cql_tracing_test.py:177-183) and there is no post-check. Bug: PrepareClusterHelper fixture (cql_tracing_test.py:34-37, added by pytest port 43e78371c7) sets allow_log_errors=True for every test, so conftest.py:483 teardown never runs check_errors_all_nodes; log errors/assertion failures are not detected (e4b866cc73 had removed explicit end-of-test Assertion greps relying on that default check). Bug: #5697 regex at :140-143 contains a backslash-newline + indentation inside a raw string, so it can never match. Note: FIXME ignore_log_patterns for scylladb/scylladb#5697 is dead (issue closed 2023-04-11; patterns unused since allow_log_errors=True)."
+    },
+    "TestCqlTracing::test_tracing_startup": {
+      "description": "2-node cluster, RF=2, trace probability 1.0 on node1. Stops node2, greps node2 log for 'Assertion .* failed', then runs 15000 traced inserts from node1 in background and restarts node2 mid-load (random <1s). Intended to reproduce scylladb/scylladb#1939 (assert when a node starts while peers send tracing RPCs).",
+      "origin": {
+        "sha": "b0db65b64f",
+        "date": "2016-12-15",
+        "pr": 420,
+        "summary": "Bugfix + extra tracing test; reproduces scylladb/scylladb#1939 (closed 2016-12-26)."
+      },
+      "commits": {
+        "757b9cc5f4": "Added executor.shutdown(wait=True).",
+        "d26a91ee36": "Use 2-rack topology for RF-rack-valid keyspaces.",
+        "64dc038222": "threading.Thread -> ThreadPoolExecutor.",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "43e78371c7": "pytest port; allow_log_errors=True fixture.",
+        "375ab7e54b": "nodetool settraceprobability -> set_trace_probability helper.",
+        "c3471a97e4": "formatting",
+        "adf07f971b": "Ignore #5697 double_registration error.",
+        "e4b866cc73": "File-level: removed end-of-test node2 Assertion grep (relied on default teardown check, later disabled by allow_log_errors=True)."
+      },
+      "relevance": "Live: tracing service and its startup ordering vs CQL/RPC exist; #1939 fixed 2016.",
+      "duplicates": [
+        {
+          "path": "none",
+          "coverage": "none",
+          "note": "No scylla test/ or other dtest covers tracing RPCs during node startup."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Regression test for #1939 (fixed 2016) that effectively asserts nothing about startup: the only Assertion grep runs after stopping node2, before restart (cql_tracing_test.py:233-235); run() swallows exceptions (:237-245); teardown log check disabled. Only implicit check is node2 reaching binary proto. Bug: PrepareClusterHelper fixture (cql_tracing_test.py:34-37, added by pytest port 43e78371c7) sets allow_log_errors=True for every test, so conftest.py:483 teardown never runs check_errors_all_nodes; log errors/assertion failures are not detected (e4b866cc73 had removed explicit end-of-test Assertion greps relying on that default check). Note: FIXME ignore_log_patterns for scylladb/scylladb#5697 is dead (issue closed 2023-04-11; patterns unused since allow_log_errors=True). Fix by grepping node2 log after restart or dropping allow_log_errors, else candidate RED."
+    },
+    "TestSlowQueryTracing::test_fast_slow_query_tracing": {
+      "description": "Single node; enables slow query logging via REST /storage_service/slow_query with threshold 500us and fast=true/false ([enabled]/[disabled]), validates via GET, runs c-s write n=10000. Asserts node_slow_log and sessions non-empty; with fast mode system_traces.events must be empty, without fast mode non-empty. Guards 'fast slow query tracing' (scylladb/scylladb PR #8314: omit trace events unless full_tracing).",
+      "origin": {
+        "sha": "5a0a7af857",
+        "date": "2021-09-14",
+        "pr": 2362,
+        "summary": "julia.yakovlev: test cases for fast slow query tracing feature (scylladb/scylladb#8314, merged 2021-03-21)."
+      },
+      "commits": {
+        "d26a91ee36": "Use generate_cluster_topology(1 rack, 1 node).",
+        "33563d1fe7": "c-s success check -> assert_cs_success.",
+        "6f303700c6": "Added use_cassandra_stress marker.",
+        "d0329c5b99": "Removed capture_output from stress call.",
+        "9ffd273f04": "formatting",
+        "8977a323ba": "Adapted to node.stress() returning namedtuple.",
+        "59299f0e1a": "Moved enable/validate slow query helpers to tools/queries.py."
+      },
+      "relevance": "Live: REST slow_query with 'fast' param (api/api-doc/storage_service.json:2473-2509), tracing::set_ignore_trace_events (tracing/tracing.hh:577).",
+      "duplicates": [
+        {
+          "path": "test/boost/tracing_test.cc::tracing_slow_query_fast_mode",
+          "coverage": "partial",
+          "note": "Unit-level: with ignore_trace_events, slow-query session records 0 events; no REST API or system_traces tables."
+        },
+        {
+          "path": "test/alternator/test_tracing.py::test_slow_query_log",
+          "coverage": "partial",
+          "note": "End-to-end slow query log for Alternator, not fast mode."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only end-to-end check of fast slow-query mode via REST + system_traces tables; boost tracing_test.cc::tracing_slow_query_fast_mode covers the core logic at unit level. Uses c-s for 10k writes where a small CQL loop would do. Bug: PrepareClusterHelper fixture (cql_tracing_test.py:34-37, added by pytest port 43e78371c7) sets allow_log_errors=True for every test (class-level, applies here too), so conftest.py:483 teardown never runs check_errors_all_nodes; log errors/assertion failures are not detected (e4b866cc73 had removed explicit end-of-test Assertion greps relying on that default check). Note: validate_slow_query_tracing_is_enabled (tools/queries.py:16) tolerates missing 'fast' key for disabled case (legacy compat)."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
