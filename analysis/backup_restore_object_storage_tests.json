@@ -1,0 +1,174 @@
+{
+  "file": "backup_restore_object_storage_tests.py",
+  "tests": {
+    "TestBackupRestoreObjectStorage::test_backup_restore_with_nodetool": {
+      "description": "2-node (2 racks, RF=2) cluster, insert rows 1..20 into ks.cf1, nodetool snapshot, then `nodetool backup` to S3 (minio) / GCS (fake-gcs) bucket, assert bucket prefix non-empty, truncate table, `nodetool restore` with the snapshot TOC list, verify all rows are back. Basic end-to-end sanity of native (scylla-side) backup/restore through the nodetool CLI.",
+      "origin": {
+        "sha": "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1",
+        "date": "2024-10-15",
+        "pr": 5231,
+        "summary": "Cezar Moise: new nodetool backup/restore object-storage tests as sanity on top of scylla unit tests and manager tests; refs scylladb/scylladb#18391"
+      },
+      "commits": {
+        "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1": "origin: test added",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "add GCS backend param (s3/gcs) + backend-agnostic bucket helpers; per-backend error regex",
+        "d78e11ed751540e884ded6abc8fe0f4b917aa9cd": "fixture: object storage endpoints via scylla.yaml (setup_object_storage) instead of object_storage.yaml/env creds",
+        "4fdd2393c3f271d5716906f74b577686a73bef2e": "fixture: creds via SCYLLA_EXT_ENV env vars (object_storage.yaml removal, scylladb#22951)",
+        "ab0d59b9b049546f8da988d741c80579ad93680e": "fixture: 1 DC x 2 racks topology, rf=2",
+        "da55093d9453ad4f444fd5044f0c8afab2e4921d": "task_ttl_in_seconds=60 so failed tasks remain queryable; updated error regexes, added ignore patterns (scylladb#21054)"
+      },
+      "relevance": "Live: /storage_service/backup and /storage_service/restore REST + native `scylla nodetool backup/restore` (tools/scylla-nodetool.cc, test/nodetool/test_backup.py, test_restore.py). Actively developed in scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore",
+          "coverage": "full",
+          "note": "same backup->truncate->restore->verify flow on s3 and gs via REST API (plus abort/encrypt/view flavors); 1 node RF1"
+        },
+        {
+          "path": "test/nodetool/test_backup.py::test_backup, test/nodetool/test_restore.py::test_restore",
+          "coverage": "partial",
+          "note": "nodetool CLI -> REST mapping and task wait/error output, against mocked API"
+        },
+        {
+          "path": "scylla-dtest manager_backup_tests.py / manager_restore_tests.py (native method)",
+          "coverage": "partial",
+          "note": "native backup/restore end-to-end via scylla-manager"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Server side fully covered by test_simple_backup_and_restore (s3+gs) and CLI mapping by test/nodetool mocks; only thing unique is real nodetool->real server e2e in one run. Cheap (35s, 100% pass), so keep as a single nodetool smoke test or drop; second opinion."
+    },
+    "TestBackupRestoreObjectStorage::test_restore_into_different_table": {
+      "description": "Back up ks.cf1 (rows 1..20), truncate it, create ks.cf2 with rows 1..9, `nodetool restore --table cf2` with cf1's TOCs, verify cf2 now holds the cf1 rows. Guards restoring a backup into a differently named (non-empty) table.",
+      "origin": {
+        "sha": "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1",
+        "date": "2024-10-15",
+        "pr": 5231,
+        "summary": "Cezar Moise: new nodetool backup/restore object-storage tests as sanity on top of scylla unit tests and manager tests; refs scylladb/scylladb#18391"
+      },
+      "commits": {
+        "ab0d59b9b049546f8da988d741c80579ad93680e": "pass rf=self.rf instead of num_nodes when creating cf2",
+        "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1": "origin: test added",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "add GCS backend param (s3/gcs) + backend-agnostic bucket helpers; per-backend error regex",
+        "d78e11ed751540e884ded6abc8fe0f4b917aa9cd": "fixture: object storage endpoints via scylla.yaml (setup_object_storage) instead of object_storage.yaml/env creds"
+      },
+      "relevance": "Live: restore takes arbitrary keyspace/table and streams sstables through write path (sstables_loader.cc).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_into_renamed_target",
+          "coverage": "full",
+          "note": "restore ks1.cf1 backup into ks2.cf2 (different ks AND table), 4 variants incl. extra column, tablets<->vnodes, s3+gs, verifies data and that source untouched; dtest only adds pre-existing overlapping rows in target"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scylla test_restore_into_renamed_target (s3+gs, 4 schema/topology variants) covers restoring into a differently named table more thoroughly; nodetool path is same as test_backup_restore_with_nodetool."
+    },
+    "TestBackupRestoreObjectStorage::test_restore_after_emptying_bucket": {
+      "description": "Back up, truncate, delete all backed-up objects from bucket, then `nodetool restore` with the TOC list; assert NodetoolError with storage_io_error 404 (S3 'Code: 117 ... 404 Not Found' / GCP 'object doesn't exist (404)'), and table stays empty. Guards proper failure when backup objects are missing.",
+      "origin": {
+        "sha": "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1",
+        "date": "2024-10-15",
+        "pr": 5231,
+        "summary": "Cezar Moise: new nodetool backup/restore object-storage tests as sanity on top of scylla unit tests and manager tests; refs scylladb/scylladb#18391"
+      },
+      "commits": {
+        "6bdb656bf8daab4e79741bc5c2daf7ad12294596": "S3 404 regex: 'Reason:\\s+' to tolerate scylladb#31465 whitespace fix",
+        "c3d9db24d65f04dea899b24c3c5d94a50de2ecd5": "formatting: regex accepts both 'TYPE (msg)' and 'TYPE: msg' exception formats",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "per-backend (s3/gcs) 404 error regex, use backend-agnostic clean_bucket",
+        "da55093d9453ad4f444fd5044f0c8afab2e4921d": "accept new 'S3 request failed. Code: 117' 404 message, ignore retry_strategy log",
+        "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1": "origin: test added"
+      },
+      "relevance": "Live: S3/GCS clients raise storage_io_error on 404 during restore download.",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_with_non_existing_sstable",
+          "coverage": "full",
+          "note": "restore from 'no_such_prefix' (objects absent), asserts task failed with 'Not Found', s3+gs"
+        },
+        {
+          "path": "backup_restore_object_storage_tests.py::TestBackupRestoreObjectStorage::test_restore_nonexistent_argument[prefix]",
+          "coverage": "full",
+          "note": "same dtest file: restore from nonexistent prefix -> same storage_io_error 404, table stays empty"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Missing objects at restore time is the same scenario as test_restore_nonexistent_argument[prefix] in this file and scylla test_restore_with_non_existing_sstable (s3+gs, asserts 'Not Found'). Exact-error-string regex has needed 3 maintenance fixes (da55093d94, c3d9db24d6, 6bdb656bf8)."
+    },
+    "TestBackupRestoreObjectStorage::test_backup_nonexistent_argument": {
+      "description": "Parametrized (endpoint, bucket, keyspace, table, snapshot) x (s3, gcs): `nodetool backup` with one nonexistent argument must fail with the specific error (endpoint not found / storage_io_error / snapshot ... not found for table / no_such_column_family) and nothing must be uploaded. Guards backup argument validation and error propagation through nodetool.",
+      "origin": {
+        "sha": "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1",
+        "date": "2024-10-15",
+        "pr": 5231,
+        "summary": "Cezar Moise: new nodetool backup/restore object-storage tests as sanity on top of scylla unit tests and manager tests; refs scylladb/scylladb#18391"
+      },
+      "commits": {
+        "c3d9db24d65f04dea899b24c3c5d94a50de2ecd5": "formatting: regex accepts both 'TYPE (msg)' and 'TYPE: msg' exception formats",
+        "ef4f6a21638746134a85a159508120fc2d6e7b7f": "keyspace/table/snapshot params accept new 'snapshot ... not found for table' error after scylladb#30838 (backup no longer resolves live schema)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "bucket param: accept GCP error, add GCS ignore pattern; drop dtest_config arg",
+        "2ec63959097e6ed73520c4945d76040543e4df21": "remove enterprise xfail for bucket param",
+        "da55093d9453ad4f444fd5044f0c8afab2e4921d": "update bucket/snapshot error regexes (snapshot: 'task not found' -> 'snapshot does not exist'), add ignore patterns; task_ttl fixture",
+        "8b8679036d439e0ac405e0f75edf067ca98fd95a": "xfail bucket param on enterprise (dtest#5257)",
+        "734e1c9facb0f188714b1c299218a57760d5a1a1": "move enterprise unmark_if(next_gating) from restore to backup bucket param",
+        "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1": "origin: test added"
+      },
+      "relevance": "Live. Since scylladb#30838 (merged, 3f489173c1) ks/table/snapshot nonexistence all fail the same way ('snapshot X not found for table'), so old no_such_column_family alternatives in the regex are now dead and can be dropped. Note: check_bucket_empty asserts `\"\" not in endpoint_objects` on a list of dicts/Blobs -> always true since 6f075a3194; the 'nothing uploaded' check is a no-op.",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_backup_with_non_existing_parameters",
+          "coverage": "partial",
+          "note": "endpoint, bucket, snapshot params, s3+gs, via REST; asserts task failed / synchronous 'not found'. keyspace/table not covered"
+        },
+        {
+          "path": "test/nodetool/test_backup.py::test_backup",
+          "coverage": "partial",
+          "note": "nodetool error output on failed task (mocked API)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "3 of 5 params (endpoint/bucket/snapshot) duplicated by scylla test_backup_with_non_existing_parameters on s3+gs; keyspace/table go through the same 'snapshot not found' path post-#30838 but aren't explicitly tested in scylla. Costs 10 x ~33s; post-check is a no-op (check_bucket_empty bug). Trim to ks/table or port those to scylla."
+    },
+    "TestBackupRestoreObjectStorage::test_restore_nonexistent_argument": {
+      "description": "Parametrized (endpoint, bucket, keyspace, table, prefix, tocs) x (s3, gcs): back up, truncate, then `nodetool restore` with one nonexistent argument; must fail with specific error (endpoint not found / storage_io_error 404 / no_such_column_family / malformed_sstable_exception for bad TOC names) and table must remain empty. Guards restore argument validation and that failed restore doesn't partially load data.",
+      "origin": {
+        "sha": "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1",
+        "date": "2024-10-15",
+        "pr": 5231,
+        "summary": "Cezar Moise: new nodetool backup/restore object-storage tests as sanity on top of scylla unit tests and manager tests; refs scylladb/scylladb#18391"
+      },
+      "commits": {
+        "6bdb656bf8daab4e79741bc5c2daf7ad12294596": "prefix ignore pattern: 'Reason:\\s+' for scylladb#31465",
+        "c3d9db24d65f04dea899b24c3c5d94a50de2ecd5": "formatting: regex accepts both 'TYPE (msg)' and 'TYPE: msg' exception formats",
+        "cf40c15bd6867f6138155b17ebad40070c7f3867": "add cluster_options(abort_on_malformed_sstable_error=False) so tocs param throws instead of aborting (DTEST-223)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "bucket/prefix regexes accept GCP errors",
+        "2ec63959097e6ed73520c4945d76040543e4df21": "formatting/cleanup (enterprise marker import removal)",
+        "da55093d9453ad4f444fd5044f0c8afab2e4921d": "add ignore column; ks/table expect no_such_column_family instead of 'task not found'; prefix/bucket regex updates",
+        "734e1c9facb0f188714b1c299218a57760d5a1a1": "revert enterprise unmark on bucket param",
+        "9b556513bb82698c45484e727da2c8e3bf163627": "(mistakenly) unmark next_gating for bucket param on enterprise",
+        "2adf8dbe51aff86a9dfd85067ccedd48c70c31c1": "origin: test added"
+      },
+      "relevance": "Live: restore validates endpoint, resolves table via find_column_family (sstables_loader.cc), downloads objects (404 -> storage_io_error), parses TOC names (malformed_sstable_exception).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_with_non_existing_sstable",
+          "coverage": "partial",
+          "note": "covers prefix param only (no_such_prefix -> failed, 'Not Found'), s3+gs"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_into_incompatible_schema",
+          "coverage": "partial",
+          "note": "malformed_sstable_exception on restore, but via schema mismatch not bad TOC names"
+        },
+        {
+          "path": "test/nodetool/test_restore.py::test_restore",
+          "coverage": "partial",
+          "note": "nodetool failed-task output, mocked API"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only prefix param is duplicated (scylla test_restore_with_non_existing_sstable); nonexistent endpoint/bucket/keyspace/table and bogus TOC names on restore have no scylla coverage found (grep of test/ for api.restore with bad args). Stable 100%; consider dropping [prefix] param (~12 x 34s total)."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
