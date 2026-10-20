@@ -28,6 +28,9 @@ For EACH of those tests:
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
    Every YELLOW/RED needs concrete evidence (paths, shas, issue links). Don't guess — if unsure, YELLOW.
+   Issues/bugs found in the test or its helpers (no-op asserts, dead code/regexes, disabled checks, never-run, etc.):
+   always add them to `reason` ("Bug: ..." / "Note: ...", with file:line or sha). Downgrade GREEN to YELLOW;
+   YELLOW and RED keep their decision.
 
 Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if needed), schema:
 ```json
@@ -43,7 +46,7 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if need
       "relevance": "...",
       "duplicates": [{"path": "test/cluster/test_x.py::test_y", "coverage": "full|partial", "note": "..."}],
       "decision": "GREEN|YELLOW|RED",
-      "reason": "1-3 sentences, cite evidence"
+      "reason": "1-3 sentences, cite evidence; + found issues/bugs"
     }
   }
 }
