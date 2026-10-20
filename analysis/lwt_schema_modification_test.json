@@ -1,0 +1,200 @@
+{
+  "file": "lwt_schema_modification_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestLWTSchemaModification::test_index_drop_add": {
+      "description": "4-node RF=3 cluster, table1 with secondary index on v, 10000 rows. Concurrently runs LWTLoad (INSERT IF NOT EXISTS / UPDATE IF on pk 1001-9999), ReadRows (CL=ALL range read pk 0..1000 asserting rows unchanged) and IndexDropAdd (DROP INDEX, sleep 0.5, CREATE INDEX) for 10s, repeated 4 loops (2 in debug). Asserts no exceptions from any action and all nodes alive. Guards LWT/reads racing a schema change that drops/recreates the index view; caught scylladb/scylladb#11169 (missing partition-end) and timeouts SCYLLADB-4784.",
+      "origin": {
+        "sha": "aa1f952f78",
+        "date": "2020-04-06",
+        "pr": 1431,
+        "summary": "lwt: test schema modification under LWT load (Alejo Sanchez) - action framework (LWTLoad, ReadRows, IndexDropAdd, MaterializedView, BatchInserts, LWTLoadCheck...) combined in threads"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "c3471a97e4": "formatting (autopep8, tree-wide)",
+        "2f6188184c": "formatting/port: nose -> pytest, renamed *_test -> test_*",
+        "aba0e035f8": "loops=2 in debug mode",
+        "9da329b5cb": "added @next_gating (canary for scylladb/scylladb#11169)",
+        "2449e69531": "loops 20 -> 4",
+        "cd091e9fba": "actions switched from start_delay sleeps to wait_for/Event dependencies",
+        "f4b0cae995": "run_s 3 -> 10",
+        "540fa9fd80": "Thread -> ThreadPoolExecutor; table1 gets clustering key ck, all statements adapted",
+        "86dd85fbb8": "_setup: write_request_timeout/cas_contention_timeout 30s (SCYLLADB-4784, index drop vs LWT timeout)",
+        "8aa14b4ba8": "_setup: rack topology for RF-rack-validity",
+        "55c4c0f738": "tablets skip removed, class marked @lwt (LWT on tablets enabled)",
+        "3065c00b9f": "_test_combine: prologue executed once instead of per loop"
+      },
+      "relevance": "Live: LWT (Paxos) on vnodes and tablets, secondary indexes (backed by views), concurrent schema changes. Recently hit SCYLLADB-4784 (LWT write timeout while index dropped) fixed in dtest by 86dd85fbb8.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation",
+          "coverage": "partial",
+          "note": "LWT racing a schema change (table drop/recreate) via injection; no index drop"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py",
+          "coverage": "partial",
+          "note": "index create/drop semantics, no concurrent LWT load"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (DROP/CREATE INDEX under LWT+read load) with real bug catches (scylladb/scylladb#11169, SCYLLADB-4784), but the load is mostly ineffective. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs."
+    },
+    "TestLWTSchemaModification::test_lwt_batch_insert": {
+      "description": "8-node RF=3 cluster, 1000 rows. LWTLoad on pk 0-10 for 1s concurrently with BatchInserts on node 2, intended to test batched inserts under LWT load. Only asserts no exceptions and nodes alive. No schema modification involved.",
+      "origin": {
+        "sha": "aa1f952f78",
+        "date": "2020-04-06",
+        "pr": 1431,
+        "summary": "lwt: test schema modification under LWT load (Alejo Sanchez) - action framework (LWTLoad, ReadRows, IndexDropAdd, MaterializedView, BatchInserts, LWTLoadCheck...) combined in threads"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "c3471a97e4": "formatting (autopep8, tree-wide)",
+        "2f6188184c": "formatting/port: nose -> pytest, renamed *_test -> test_*",
+        "2672f8f93d": "rename node -> node_idx (BatchInserts(node_idx=1)); actions get node arg; rest of PR #4808 is MV stability",
+        "7799f9654a": "skipped in debug (@scylla_mode('!debug'), dtest#3275 timeouts)",
+        "aba0e035f8": "smp/nodes 4 in debug",
+        "cd091e9fba": "actions switched from start_delay sleeps to wait_for/Event dependencies",
+        "f4b0cae995": "run_s 3 -> 10",
+        "540fa9fd80": "Thread -> ThreadPoolExecutor; table1 gets clustering key ck, all statements adapted",
+        "86dd85fbb8": "_setup: write_request_timeout/cas_contention_timeout 30s (SCYLLADB-4784, index drop vs LWT timeout)",
+        "55c4c0f738": "tablets skip removed, class marked @lwt (LWT on tablets enabled)"
+      },
+      "relevance": "LWT and batches are live, but the test does not actually exercise LWT batches or any schema change.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_lwt.py::test_lwt_with_batch_conflict_1..5",
+          "coverage": "partial",
+          "note": "LWT batch semantics"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_contention.py::test_lwt_contention_many_workers",
+          "coverage": "partial",
+          "note": "conditional batch LWT under concurrent load with result verification"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Test does essentially nothing: BatchInserts (lwt_schema_modification_test.py:350-366) never adds statements to the BatchStatement (executes plain inserts, then an empty batch), ignores its lwt param, and `if stop:` is always truthy (Event object) so it breaks after 1 iteration; LWTLoad(end=1) on pk 0-10 with existing rows v<=10 never applies (INSERT IF NOT EXISTS on existing rows, UPDATE IF v>50 false). No assertion beyond no-exception, 8-node cluster ~78s. LWT batches better covered by test/cqlpy/test_lwt.py and test/cluster/lwt/test_lwt_contention.py. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+    },
+    "TestLWTSchemaModification::test_lwt_load": {
+      "description": "8-node RF=3 cluster (smp 8), 10000 rows; ReadRows (CL=ALL read of pk 0..1000 asserting unchanged) concurrently with LWTLoad on pk 1001-9999, 30s per loop, 4 loops. Asserts no exceptions and nodes alive. No schema change despite class name; baseline LWT load + reads.",
+      "origin": {
+        "sha": "aa1f952f78",
+        "date": "2020-04-06",
+        "pr": 1431,
+        "summary": "lwt: test schema modification under LWT load (Alejo Sanchez) - action framework (LWTLoad, ReadRows, IndexDropAdd, MaterializedView, BatchInserts, LWTLoadCheck...) combined in threads"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "c3471a97e4": "formatting (autopep8, tree-wide)",
+        "2f6188184c": "formatting/port: nose -> pytest, renamed *_test -> test_*",
+        "be52175114": "no change to this test; removed sibling test_lwt_truncate as incorrect",
+        "7799f9654a": "skipped in debug (dtest#3275 timeouts)",
+        "aba0e035f8": "smp/nodes/loops scaled down in debug",
+        "2449e69531": "loops 8 -> 4 (never passed before, PR #1710)",
+        "cd091e9fba": "actions switched from start_delay sleeps to wait_for/Event dependencies",
+        "f4b0cae995": "run_s raised for debug",
+        "540fa9fd80": "Thread -> ThreadPoolExecutor; table1 gets clustering key ck, all statements adapted",
+        "86dd85fbb8": "_setup: write_request_timeout/cas_contention_timeout 30s (SCYLLADB-4784, index drop vs LWT timeout)",
+        "3065c00b9f": "_test_combine: prologue executed once instead of per loop",
+        "f50f1aba15": "_test_combine: smp limited to cpu_count"
+      },
+      "relevance": "LWT live, but the test applies no LWT writes and has no schema modification.",
+      "duplicates": [
+        {
+          "path": "test/cluster/lwt/test_lwt_contention.py::test_lwt_contention_many_workers",
+          "coverage": "partial",
+          "note": "LWT load with verified results"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py::test_multi_column_lwt_during_migration",
+          "coverage": "partial",
+          "note": "applied LWT load with verification"
+        },
+        {
+          "path": "lwt_test.py::TestLwt::test_basic_distributed",
+          "coverage": "partial",
+          "note": "dtest LWT on multi-node cluster"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slowest test of module (~203s, 8 nodes) yet asserts nothing meaningful. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). LWT load with real verification exists in test/cluster/lwt/*. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+    },
+    "TestLWTSchemaModification::test_lwt_load_check": {
+      "description": "8-node RF=3 empty table; LWTLoad (real inserts/updates on pk 1-99) concurrently with LWTLoadCheck which does INSERT IF NOT EXISTS (LOCAL_QUORUM/LOCAL_SERIAL) for pk 100.. sequentially for 30s, retrying non-applied, then asserts SELECT sum(v) (LOCAL_QUORUM) equals the arithmetic sum of inserted keys. Checks LWT inserts are durable/visible under concurrent LWT load (on tablets: during migrations). No schema change.",
+      "origin": {
+        "sha": "aa1f952f78",
+        "date": "2020-04-06",
+        "pr": 1431,
+        "summary": "lwt: test schema modification under LWT load (Alejo Sanchez) - action framework (LWTLoad, ReadRows, IndexDropAdd, MaterializedView, BatchInserts, LWTLoadCheck...) combined in threads"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "c3471a97e4": "formatting (autopep8, tree-wide)",
+        "2f6188184c": "formatting/port: nose -> pytest, renamed *_test -> test_*",
+        "7799f9654a": "skipped in debug (dtest#3275 timeouts)",
+        "aba0e035f8": "smp/nodes 4 in debug",
+        "540fa9fd80": "Thread -> ThreadPoolExecutor; table1 gets clustering key ck, all statements adapted",
+        "d1674ca54c": "LWTLoadCheck insert + verification read at LOCAL_QUORUM (was default CL; flaky on tablets)",
+        "86dd85fbb8": "_setup: write_request_timeout/cas_contention_timeout 30s (SCYLLADB-4784, index drop vs LWT timeout)",
+        "770761460e": "count retried insert returning applied=False with own row (v==pk) as success (SCYLLADB-5039)",
+        "55c4c0f738": "tablets skip removed, class marked @lwt (LWT on tablets enabled)"
+      },
+      "relevance": "Live: LWT inserts/reads on vnodes and tablets (tablet migrations observed during run per PR #7201).",
+      "duplicates": [
+        {
+          "path": "test/cluster/lwt/test_lwt_contention.py::test_lwt_contention_many_workers",
+          "coverage": "partial",
+          "note": "LWT linearizability check of final value under contention"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py::test_multi_column_lwt_during_migration",
+          "coverage": "partial",
+          "note": "applied LWT load verified during tablet migrations"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Real result assertion (sum of applied LWT inserts) but no schema modification, LWTLoad and LWTLoadCheck use disjoint keys (no contention), and similar verified LWT load exists in test/cluster/lwt/*. Repeatedly needed test-side fixes (d1674ca54c, 770761460e SCYLLADB-5039). Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+    },
+    "TestLWTSchemaModification::test_materialized_view": {
+      "description": "4-node RF=3, 10000 rows; LWTLoad on pk 1001-9999 concurrently with MaterializedView action: creates synchronous_updates MV on table1, waits for nodetool viewbuildstatus finished and LIMIT 1000 rows, then repeatedly reads the view (CL=ALL) asserting rows unchanged for 10s. Guards MV creation/build under LWT load.",
+      "origin": {
+        "sha": "aa1f952f78",
+        "date": "2020-04-06",
+        "pr": 1431,
+        "summary": "lwt: test schema modification under LWT load (Alejo Sanchez) - action framework (LWTLoad, ReadRows, IndexDropAdd, MaterializedView, BatchInserts, LWTLoadCheck...) combined in threads"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "c3471a97e4": "formatting (autopep8, tree-wide)",
+        "2f6188184c": "formatting/port: nose -> pytest, renamed *_test -> test_*",
+        "cd091e9fba": "actions switched from start_delay sleeps to wait_for/Event dependencies",
+        "f4b0cae995": "run_s 3 -> 10",
+        "fa0fddbed5": "stopped dropping MV/table at end (concurrency issues, scylladb/scylladb#6738)",
+        "540fa9fd80": "view redefined as (pk, ck) PK with ck clustering; table gets ck",
+        "2672f8f93d": "synchronous_updates=true, wait for viewbuildstatus and for row_max rows (scylladb/scylladb#19476)",
+        "104a09dec2": "_setup: ignore 'Error applying view update ... no_such_column_family' log",
+        "86dd85fbb8": "_setup: write_request_timeout/cas_contention_timeout 30s (SCYLLADB-4784, index drop vs LWT timeout)",
+        "55c4c0f738": "tablets skip removed, class marked @lwt (LWT on tablets enabled)"
+      },
+      "relevance": "Live: MVs (incl. synchronous_updates, nodetool viewbuildstatus) and LWT on base tables.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwts_for_special_tables",
+          "coverage": "partial",
+          "note": "LWT vs MV interaction (LWT on view rejected), no concurrent build"
+        },
+        {
+          "path": "test/cluster/mv/",
+          "coverage": "partial",
+          "note": "MV build/consistency tests without LWT load"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario (MV build concurrent with LWT on base) not found in scylla tests, but the LWT load never changes data so no view updates are generated. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Note: comment 'Create view ascending so top rows are untouched' (:412) is wrong - LIMIT 1000 is token-ordered by pk, so rows come from the whole range; only stable because LWTLoad is a no-op. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs."
+    }
+  }
+}
