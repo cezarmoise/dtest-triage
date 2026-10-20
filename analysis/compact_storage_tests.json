@@ -1,0 +1,130 @@
+{
+  "file": "compact_storage_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestCompactStorage::test_read_old_format_wide_row_data": {
+      "description": "Single node; creates ks.tb (key1,key2,val blob) WITH COMPACT STORAGE, stops node, copies pre-generated Scylla 'ka' sstables (test_data/scylla_compact_storage_wide_partition_old_format, one ~1000-row wide partition with deletions, written by pre-2.1 Scylla with the old/incorrect non-compound promoted index & range tombstone encoding) into the table dir, restarts, and asserts a full scan returns 800 rows. Guards backward-compat reading of old Scylla-written compact-storage sstables after the non-compound serialization fixes (scylladb/scylladb#2986, #2992, #2993).",
+      "origin": {
+        "sha": "aad5dc6f2acfcb852ea6dbeb2a4e0991711c35d7",
+        "date": "2017-11-29",
+        "pr": 547,
+        "summary": "Shlomi Livne 'add simple compact_storage tests': read old Scylla-format / Cassandra ka wide compact-storage sstables, write/read wide row. Same period as scylla merge bd1efbc25c 'Fixes to sstable files for non-compound schemas' (scylladb/scylladb#2986, #2992, #2993, #2995; all closed)."
+      },
+      "commits": {
+        "aad5dc6f2a": "origin: test added",
+        "c3471a97e4": "formatting (autopep8)",
+        "f1dc3a3720": "port to pytest: nose attrs -> pytest marks, assertEqual -> assert, rename *_test -> test_*",
+        "fe34e16e2a": "file-level: helper get_cf_dir replaced by scylla_tools.get_node_cf_dir (used by load_and_read_from_sstables)",
+        "76c4424d7a": "file-level: import get_node_cf_dir from tools.files",
+        "60fdd2b6c5": "file-level: class marked single_node",
+        "498e4ea793": "file-level: class marked dtest-full",
+        "ddff319b52": "file-level: class mark cluster_options(enable_create_table_with_compact_storage=True) (compact storage deprecation prep, PR 3789)",
+        "27e0a19847": "file-level: next_gating moved to class level (all 3 tests in gating, PR 3452)",
+        "2ca7d04066": "file-level: keyspace SimpleStrategy -> NetworkTopologyStrategy in load_and_read_from_sstables"
+      },
+      "relevance": "Live: Scylla still reads ka sstables (sstables/version.hh lists sstable_version_types::ka; sstables.cc:287) and still supports COMPACT STORAGE behind enable_create_table_with_compact_storage (deprecated). Only runs in gating stages (next-dtest-tablets / consistent-topology, 32/32 pass, ~8s); 0 runs in dtest-release jobs in the last 20 builds.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_datafile_test.cc::test_old_format_non_compound_range_tombstone_is_read",
+          "coverage": "partial",
+          "note": "reads old Scylla ka compact-storage sstable with incorrectly written non-compound range tombstone (resource broken_non_compound_pi_and_range_tombstone), checks exact mutation"
+        },
+        {
+          "path": "test/boost/sstable_datafile_test.cc::test_broken_promoted_index_is_skipped",
+          "coverage": "partial",
+          "note": "same old-format sstable; verifies broken promoted index is ignored"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Old-format compat for non-compound schemas is covered at unit level by boost sstable_datafile_test (test_old_format_non_compound_range_tombstone_is_read, test_broken_promoted_index_is_skipped, from scylla bd1efbc25c), but on a 3-row partition; the dtest adds an end-to-end boot-time load of a real wide partition. Note: only asserts row count of a full-table scan (`SELECT key2 FROM ks.tb`, compact_storage_tests.py:35-37); no value check and no clustering slice, so the promoted index of the wide partition is never actually used for lookup."
+    },
+    "TestCompactStorage::test_read_cassandra_wide_row_data": {
+      "description": "Same flow as test_read_old_format_wide_row_data but with Cassandra-written 'ka' sstables (test_data/cassandra_compact_storage_wide_partition, 2 generations: wide partition + deletions) and asserts a full scan returns 900 rows. Guards reading Cassandra 2.1 wide compact-storage partitions (promoted index, tombstones in a second sstable).",
+      "origin": {
+        "sha": "aad5dc6f2acfcb852ea6dbeb2a4e0991711c35d7",
+        "date": "2017-11-29",
+        "pr": 547,
+        "summary": "Shlomi Livne 'add simple compact_storage tests': read old Scylla-format / Cassandra ka wide compact-storage sstables, write/read wide row. Same period as scylla merge bd1efbc25c 'Fixes to sstable files for non-compound schemas' (scylladb/scylladb#2986, #2992, #2993, #2995; all closed)."
+      },
+      "commits": {
+        "aad5dc6f2a": "origin: test added",
+        "c3471a97e4": "formatting (autopep8)",
+        "f1dc3a3720": "port to pytest: nose attrs -> pytest marks, assertEqual -> assert, rename *_test -> test_*",
+        "fe34e16e2a": "file-level: helper get_cf_dir replaced by scylla_tools.get_node_cf_dir (used by load_and_read_from_sstables)",
+        "76c4424d7a": "file-level: import get_node_cf_dir from tools.files",
+        "60fdd2b6c5": "file-level: class marked single_node",
+        "498e4ea793": "file-level: class marked dtest-full",
+        "ddff319b52": "file-level: class mark cluster_options(enable_create_table_with_compact_storage=True) (compact storage deprecation prep, PR 3789)",
+        "27e0a19847": "file-level: next_gating moved to class level (all 3 tests in gating, PR 3452)",
+        "6b5a3275e4": "added dtest-debug attr",
+        "57eba886ca": "added next-gating attr",
+        "2ca7d04066": "file-level: keyspace SimpleStrategy -> NetworkTopologyStrategy in load_and_read_from_sstables"
+      },
+      "relevance": "Live: ka read path still in scylla (sstables/version.hh); COMPACT STORAGE deprecated but supported via enable_create_table_with_compact_storage. Gating only (32/32 pass, ~8s); not in dtest-release runs.",
+      "duplicates": [
+        {
+          "path": "migration_test.py::TestMigration::test_migrate_sstable_with_compact_storage_and_composite_key[2_1_x]",
+          "coverage": "partial",
+          "note": "dtest: loads Cassandra 2.1 ka compact-storage sstable with clustering key via nodetool refresh, checks values; single row, not wide"
+        },
+        {
+          "path": "test/boost/sstable_datafile_test.cc (compact_dense / compact_simple_dense / compact_sparse, ~l.315-362)",
+          "coverage": "partial",
+          "note": "reads small Cassandra la compact-storage sstables"
+        },
+        {
+          "path": "test/boost/sstable_test.cc::promoted_index_read",
+          "coverage": "partial",
+          "note": "Cassandra sstable with promoted index, but non-compact schema and only parses the index"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cassandra compact-storage sstable reading is covered piecemeal (migration_test compact_storage[2_1_x] dtest, boost compact_* and promoted_index_read) but none with a wide partition plus tombstones in a separate sstable. Note: only asserts row count of a full-table scan (`SELECT key2 FROM ks.tb`, compact_storage_tests.py:35-37); no value check and no clustering slice, so the promoted index of the wide partition is never actually used for lookup."
+    },
+    "TestCompactStorage::test_wide_row": {
+      "description": "Single node; creates COMPACT STORAGE table (key1,key2,val blob), inserts one partition of 1000 rows x 10KB blobs (~10MB), flushes, deletes every 10th row (100 deletes), asserts 900 rows, flushes, restarts, asserts 900 rows again. Exercises writing/reading a wide non-compound (single clustering column) partition with promoted index and row tombstones.",
+      "origin": {
+        "sha": "aad5dc6f2acfcb852ea6dbeb2a4e0991711c35d7",
+        "date": "2017-11-29",
+        "pr": 547,
+        "summary": "Shlomi Livne 'add simple compact_storage tests': read old Scylla-format / Cassandra ka wide compact-storage sstables, write/read wide row. Same period as scylla merge bd1efbc25c 'Fixes to sstable files for non-compound schemas' (scylladb/scylladb#2986, #2992, #2993, #2995; all closed)."
+      },
+      "commits": {
+        "aad5dc6f2a": "origin: test added",
+        "c3471a97e4": "formatting (autopep8)",
+        "f1dc3a3720": "port to pytest: nose attrs -> pytest marks, assertEqual -> assert, rename *_test -> test_*",
+        "60fdd2b6c5": "file-level: class marked single_node",
+        "498e4ea793": "file-level: class marked dtest-full",
+        "ddff319b52": "file-level: class mark cluster_options(enable_create_table_with_compact_storage=True) (compact storage deprecation prep, PR 3789)",
+        "27e0a19847": "file-level: next_gating moved to class level (all 3 tests in gating, PR 3452)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "2ca7d04066": "keyspace SimpleStrategy -> NetworkTopologyStrategy",
+        "438f99b687": "formatting (trailing whitespace)",
+        "6b5a3275e4": "added dtest-debug attr",
+        "8f31589531": "added next-gating attr"
+      },
+      "relevance": "Live but deprecated feature (COMPACT STORAGE requires enable_create_table_with_compact_storage). Gating only (32/32 pass, ~10.6s); not in dtest-release runs.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/compact_storage_test.py::testDeleteWithOneClusteringColumns",
+          "coverage": "partial",
+          "note": "compact storage, one clustering column, deletes, with/without flush; small partitions"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc::test_promoted_index_blocks_are_monotonic_non_compound_dense",
+          "coverage": "partial",
+          "note": "writes non-compound dense (compact) partitions large enough for promoted index"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc::test_promoted_index_repeats_open_tombstones",
+          "coverage": "partial",
+          "note": "promoted index + tombstones, compact and non-compact"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-full combined coverage by cqlpy compact_storage_test.py (deletes + forceFlush) and boost promoted-index tests for non-compound dense schemas; dtest only adds a 10MB partition and a restart. Candidate for RED if those are judged sufficient. Note: restart step adds little \u2014 data is flushed before stop (compact_storage_tests.py:69-70), so no commitlog replay is exercised; assertions are row counts only."
+    }
+  }
+}
