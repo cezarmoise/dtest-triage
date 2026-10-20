@@ -1,0 +1,417 @@
+{
+  "file": "resharding_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestReshardingTombstonesSingleNode::test_disable_tombstone_removal_during_reshard": {
+      "description": "Single node smp=2, table with gc_grace=10s and tombstone_gc immediate; inserts 100 keys, flushes, deletes all, flushes, sleeps past grace and forces a compaction on one shard (repeated insert+flush). Stops node, asserts some partition tombstones remain (dump_sstables, 'tombstone' key per partition), restarts with smp=4 and waits for 'Resharded.*ks1/cf1', asserts tombstones still present (resharding must not purge, scylla 8e47f61df7 / #6600), no key resurrected (assert_none per key, tools/assertions.py:153), then major compaction leaves 0 tombstones. Parametrized over 4 compaction strategies.",
+      "origin": {
+        "sha": "789da3801d",
+        "date": "2020-12-31",
+        "pr": 1847,
+        "summary": "test(resharding): tombstone are not removed during resharding - test for scylla 8e47f61 (Fixes scylladb#6600). Landed in upstream/next via 51c415b0b8 (PR #2328 rebase-conflict resolution)."
+      },
+      "commits": {
+        "068022d716": "Pins tombstone_gc={'mode':'immediate'} on the table.",
+        "b3ee27d789": "Adds fixture setting compaction logger to debug so 'Resharded' log is seen regardless of default log level.",
+        "b4e0c01e3f": "dump_sstables disables autocompaction of system_schema.",
+        "ba465787b6": "Disable autocompaction while dumping sstables.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "aedaa57c4e": "formatting",
+        "29430c1ec4": "Explicitly enable compaction during setup and disable it before restart; flush only test table; wait for 'Resharded' instead of 'Resharding'.",
+        "718c559604": "Count tombstones via scylla-sstable dump (dump_sstables) instead of sstable2json 'marked_deleted'; drop uuid_sstable_identifiers_enabled=False.",
+        "819c43000b": "Class added to dtest-full.",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "b200f37397": "Parametrized over compaction strategies.",
+        "51c415b0b8": "Brings test into upstream/next (rebase conflict resolution of PR #1847)."
+      },
+      "relevance": "Live: resharding still cannot expire tombstones safely (8e47f61df7, compaction/compaction.cc resharding_compaction); 'Resharded' compaction log and scylla-sstable dump-data JSON 'tombstone' key exist. Vnodes only (!tablets).",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_compaction_delete_with_smp_change",
+          "coverage": "partial",
+          "note": "Shared sstables + tombstones + smp change (scylladb#1181); already triaged RED in favor of this test."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc",
+          "coverage": "partial",
+          "note": "No unit test found for scylladb#6600 (no tombstone/purge checks in resharding boost tests)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep: only e2e guard for scylladb#6600 (resharding must not purge tombstones / resurrect data), stable 76/76, ~22s; assertions are strong (numfound via dump_sstables partition 'tombstone' key, assert_none per key). Note: params node_count/murmur3 unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac so one param is a duplicate; gc_grace sleep is pointless with tombstone_gc immediate (068022d716; open PR scylladb/scylla-dtest#7534); docstring step 8 says 'check that data was resurected' but test asserts the opposite (resharding_test.py:257)."
+    },
+    "TestReshardingVariants::test_resharding_by_murmur3_increase": {
+      "description": "Starts 1 or 4 nodes with smp=auto (min(cpu//2+1,5)), murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with same smp and ignore_msb_bits 15->17. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log (_wait_for_resharding greps 'Reshard'), no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when only the sharder's ignore_msb changes.",
+      "origin": {
+        "sha": "bed4d9fce6",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests for 1- and 4-node clusters; adds resharding on murmur3 increase."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "99fa45c4e0": "Copied as gating variant resharding_by_murmur3_gating_test (later dropped).",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "c9f826d880": "Constants renamed (MURMUR3_PARTITIONER_FOR_INCREASE=17).",
+        "bed4d9fce6": "Origin.",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "f43c59cbff": "Auto-select smp from cpu count (smp, SMP_FOR_INCREASE/DECREASE).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e coverage of resharding triggered by murmur3_partitioner_ignore_msb_bits change on a real node; only unit-level overlap in test/boost (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_by_murmur3_decrease": {
+      "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with same smp and ignore_msb_bits 15->10. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when ignore_msb decreases.",
+      "origin": {
+        "sha": "fe28202e98",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests: SMP and murmur3 increase/decrease variants (PR #581 'Resharding tests')."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "c9f826d880": "Constants renamed; TWCS added.",
+        "fe28202e98": "Origin (@require #3273, STCS skip for #3302).",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "f43c59cbff": "Auto-select smp from cpu count (smp, SMP_FOR_INCREASE/DECREASE).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e coverage of ignore_msb decrease resharding (same code path as increase, different shard overlap). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_by_smp_increase": {
+      "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 10000 rows with c-s (compaction disabled), restarts node1 with smp+1 (SMP_FOR_INCREASE), same ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding on shard-count increase (scylladb#3302 file-count blowup).",
+      "origin": {
+        "sha": "fe28202e98",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests: SMP and murmur3 increase/decrease variants (PR #581 'Resharding tests')."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "c9f826d880": "SMP_FOR_INCREASE constant.",
+        "fe28202e98": "Origin.",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "f43c59cbff": "Auto-select smp from cpu count (smp, SMP_FOR_INCREASE/DECREASE).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Core e2e smp-increase resharding scenario on vnodes; test/boost covers resharding mechanics only (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_by_smp_decrease": {
+      "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 100000 rows with c-s (compaction disabled), restarts node1 with smp -> max(2, smp//2), same ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding on shard-count decrease (scylladb#3273 'SSTable write failed due to existence of TOC file' 7->2 CPUs).",
+      "origin": {
+        "sha": "fe28202e98",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests: SMP and murmur3 increase/decrease variants (PR #581 'Resharding tests')."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "93271aae91": "SMP_FOR_DECREASE = max(2, smp//2) (was min(1,..)).",
+        "c9f826d880": "SMP_FOR_DECREASE constant; #3273 fixed.",
+        "fe28202e98": "Origin.",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        },
+        {
+          "path": "test/cluster/test_tablets2.py::test_tablet_resharding",
+          "coverage": "partial",
+          "note": "Tablets only; smp decrease expected to fail. Not vnodes resharding."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e smp-decrease resharding on vnodes (regression scylladb#3273); slowest variant (~51s, 100k rows). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_by_same_smp": {
+      "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with unchanged smp and ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): NO 'Reshard' line in the log (expects _wait_for_resharding False), no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards scylladb#3303 (unexpected resharding with non-default murmur3).",
+      "origin": {
+        "sha": "fe28202e98",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests: SMP and murmur3 increase/decrease variants (PR #581 'Resharding tests')."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "fe28202e98": "Origin.",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "f43c59cbff": "Auto-select smp from cpu count (smp, SMP_FOR_INCREASE/DECREASE).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Negative check (no spurious resharding on restart, scylladb#3303) not covered elsewhere. Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_by_murmur3_smp": {
+      "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with smp+1 and ignore_msb 15->17. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when both smp and ignore_msb change.",
+      "origin": {
+        "sha": "fe28202e98",
+        "date": "2018-03-20",
+        "pr": 581,
+        "summary": "Resharding tests: SMP and murmur3 increase/decrease variants (PR #581 'Resharding tests')."
+      },
+      "commits": {
+        "b200f37397": "Parametrize by node_count/compaction_strategy/murmur3 (pytest_generate_tests).",
+        "1ebfd12e88": "Port to pytest.",
+        "38c2e1e45a": "_verify_number_of_data_files: bound = files_before * reshard_to (upper bound only), adds 'during' count.",
+        "c9f826d880": "Constants renamed.",
+        "fe28202e98": "Origin.",
+        "94fa69d030": "Cluster created with non-default murmur3 (fix for scylladb#3303 unexpected resharding).",
+        "b85fd28550": "_resharding_basic: c-s write with compaction enabled=false.",
+        "6aa8fdc242": "_resharding_basic read: pin -rate threads=200 (c-s OOM).",
+        "446a31124a": "_verify_row_number default CL=ONE.",
+        "15056bc533": "_verify_row_number timeout = count_request_timeout; range_request_timeout config.",
+        "d95f1d9d3d": "Log error check -> check_errors_all_nodes.",
+        "f43c59cbff": "Auto-select smp from cpu count (smp, SMP_FOR_INCREASE/DECREASE).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Resharding compaction correctness with sharder(shard_count, ignore_msb) at unit level."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change",
+          "coverage": "partial",
+          "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
+        },
+        {
+          "path": "resharding_test.py::TestReshardingVariants::test_resharding_counter / test_resharding_mv",
+          "coverage": "partial",
+          "note": "Both also change smp (+1) and ignore_msb (15->12, via _reload_with_resharding default murmur3=12, resharding_test.py:63)."
+        },
+        {
+          "path": "resharding_test.py::TestReshardingVariants::test_resharding_by_smp_increase + test_resharding_by_murmur3_increase",
+          "coverage": "partial",
+          "note": "Same sharder-change path, one dimension each."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant: same resharding path (sstable shared under new sharder) as smp_increase + murmur3_increase, and counter/mv tests already change both smp and ignore_msb; candidate to drop (~34s x 8 params). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_counter": {
+      "description": "Creates keyspace1 (NTS RF=1) and a 5-column counter table counter1 by hand, runs c-s counter_write n=10000, checks count(*)==10000, restarts node1 with smp+1 (and, via _reload_with_resharding default arg, ignore_msb 15->12), asserts sstable count <= before*smp (twice), resharding seen in log, no log errors, c-s counter_read with 0 errors and count(*)==10000. Guards counter-cell correctness across resharding.",
+      "origin": {
+        "sha": "60c5b07048",
+        "date": "2017-04-09",
+        "pr": 474,
+        "summary": "Initial resharding test (counter workload, c-s counter_write/read across smp change)."
+      },
+      "commits": {
+        "59a6e06c05": "counter_read pinned to -rate threads=200 (c-s OOM).",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "ade88403d8": "counter1 table no longer WITH COMPACT STORAGE.",
+        "ffaa655dcd": "Keyspace SimpleStrategy -> NetworkTopologyStrategy RF=1.",
+        "15056bc533": "count(*) timeout via count_request_timeout; range_request_timeout config.",
+        "17856fb0e5": "Drop -rate threads=16 from counter_write/read.",
+        "b200f37397": "Parametrized.",
+        "1ebfd12e88": "Port to pytest.",
+        "d95f1d9d3d": "Error check -> check_errors_all_nodes.",
+        "5c3b9efdc0": "Drop/recreate keyspace1 before run (for @flaky reruns).",
+        "38c2e1e45a": "File-count bound before*reshard_to.",
+        "c9f826d880": "Uses SMP_FOR_INCREASE constant.",
+        "37dd1c0fac": "op_cnt 1M->10000; reshard to smp_for_increase; file-count *3 bound.",
+        "bed4d9fce6": "1/4-node support, resharding detection.",
+        "e12ac2ec7c": "_wait_for_resharding checks RESHARD in compactionstats.",
+        "60c5b07048": "Origin.",
+        "f536aa78e0": "Removed @flaky decorators (makes _remove_existent_ks rerun guard dead).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/cluster/test_counters_with_tablets.py",
+          "coverage": "partial",
+          "note": "Counters under tablets topology ops; not vnodes resharding."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only e2e check of counters across resharding. Bug: compaction_strategy param is dead - table/keyspace are pre-created (resharding_test.py:395-425) and c-s uses CREATE TABLE IF NOT EXISTS (cassandra-stress SettingsSchema.java:166), so compaction(strategy=...) and replication(factor=rf) (resharding_test.py:429) are ignored: the 4 strategy params per node count run the identical scenario and 4-node runs use RF=1. Note: _remove_existent_ks guard for @flaky reruns is dead since f536aa78e0; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63); counter1 still sets dclocal_read_repair_chance/read_repair_chance (Cassandra-legacy options). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    },
+    "TestReshardingVariants::test_resharding_mv": {
+      "description": "Creates base table (id pk + 1 int col) and MV with PK (id, col) via TableManager/MaterializedViewManager, prefills 10000 rows, checks count(*) on both, restarts node1 with smp+1 (and ignore_msb 15->12 via default arg), asserts base sstable count <= before*smp, resharding logged, no log errors, per-key assert_one count==1 on base and MV (tools/assertions.py:135), count(*)==10000 on both, and assert_two_queries_equal at CL=ALL. Guards MV + base consistency across resharding.",
+      "origin": {
+        "sha": "c9f826d880",
+        "date": "2018-03-22",
+        "pr": 581,
+        "summary": "Reshard when base table has materialized view; adds TWCS (scylladb#3273 fixed)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "15056bc533": "count(*) timeout via count_request_timeout.",
+        "b200f37397": "Parametrized.",
+        "1ebfd12e88": "Port to pytest.",
+        "3462a00182": "Use get_sstables_files for file counting.",
+        "d95f1d9d3d": "Error check -> check_errors_all_nodes.",
+        "29646f1956": "Python3 port (formatting).",
+        "38c2e1e45a": "File-count bound before*reshard_to.",
+        "be9638b291": "Base table and MV use parametrized compaction strategy; #3302 require commented out.",
+        "94fa69d030": "Cluster created with non-default murmur3 (#3303).",
+        "191e6151b2": "Re-enables @require(#3302) on resharding_mv (decorator removed later in pytest port).",
+        "c9f826d880": "Origin: reshard with base table having MV (scylladb#3273 fixed).",
+        "500617cfda": "Class marked required_features('!tablets') (scylladb/scylladb#16739) -> runs only in vnodes job (dtest-release-with-raft).",
+        "fc9d10b224": "Module mark next_gating -> dtest_full (removed from gating)."
+      },
+      "relevance": "Live: murmur3_partitioner_ignore_msb_bits is value_status::Used (db/config.cc:1496); vnodes resharding at boot via run_table_resharding_compaction logs 'Resharding ... for ks.cf' at info (compaction/task_manager_module.cc:1101). Vnodes-only; tablets resharding is separate (scylladb#16739 open). Long term vnodes->tablets migration (test/cluster/test_vnodes_to_tablets_migration.py) may reduce relevance. MVs on vnodes keyspaces still supported.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly",
+          "coverage": "partial",
+          "note": "Unit-level resharding of shared sstables via distributed_loader::reshard; no real node restart with changed --smp / ignore_msb, no CQL data check."
+        },
+        {
+          "path": "test/cluster/mv/test_mv_building.py",
+          "coverage": "partial",
+          "note": "Mentions resharding for view building; not post-resharding base/view data check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only e2e MV-across-resharding data check. Bug: assert_two_queries_equal (resharding_test.py:493-503) passes the base-table query as both query1 and query2, so exp_res==act_res (tools/assertions.py:468) can't fail; intended base-vs-MV comparison never happens (MV still checked by per-key assert_one and count(*), lines 485-491). Note: docstring copy-pasted from counter test; data-file check only on base table; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+    }
+  }
+}
