@@ -1,0 +1,144 @@
+{
+  "file": "auth_roles_test.py",
+  "tests": {
+    "TestAuthRoles::test_list_permissions": {
+      "description": "Single node, PasswordAuthenticator+CassandraAuthorizer. Builds a role graph (role1 -> role2 -> mike) with table grants and an ALTER-on-ROLE grant, then checks LIST ALL PERMISSIONS (incl. auto-granted creator perms for keyspace/table/roles, EXPORT when EXPORT_PERMISSION feature enabled), LIST ... OF <role> (inherited perms included), LIST ... ON ROLE role1, LIST DROP/ALTER PERMISSION ON ROLE with/without OF filter, empty result for unrelated role, and that a non-superuser can list its own (inherited) permissions. Guards LIST PERMISSIONS semantics for role resources and role inheritance (CASSANDRA-7653/8650 port).",
+      "origin": {
+        "sha": "e19a04b3fd5435d4765a76bc05b05ec175c42838",
+        "date": "2014-12-18",
+        "pr": null,
+        "summary": "Cassandra upstream: 7653 Tests for role based access control (Sam Tunnicliffe); extended in ac74a8727e for role admin perms (CASSANDRA-8650/7216)"
+      },
+      "commits": {
+        "b72d7fb3d3ac0eeb177cd692ef2cfb8c022b7869": "expect EXPORT among creator perms of ks/table when EXPORT_PERMISSION feature enabled (SCYLLADB-2360)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "818c379c590aecc66549bf013be1a8cfec970290": "revert of ab7ebdb: keyspace creator perms back to support_func=False",
+        "0ed851247c622cce1e2590151a3bd8b20de054ae": "SimpleStrategy -> NetworkTopologyStrategy in CREATE KEYSPACE",
+        "ab7ebdb4585058e3474c0cdf50f6a54f5a9a8a56": "expect function perms on keyspace creator (support_func=True); reverted later",
+        "3c182498a41760b906ce51ffb9ba85ef0c8f5412": "port to pytest, rename list_permissions_test -> test_list_permissions",
+        "4e464cd52b0a6f648def9f9566a764e91e60f8ce": "adapt to Scylla: keyspace creator perms without function perms (support_func=False)",
+        "a69c68993a90f1f7989aab900e1907b5239a5b1e": "driver execute API update",
+        "25beea0f9c46496e0f4d7f6ea4faeac33a33d206": "CREATE ROLE syntax cleanup (WITH PASSWORD/LOGIN)",
+        "ac74a8727ebb6a7ebfdc1c52119153a2ec96652a": "add role-resource perms (ALTER ON ROLE, LIST ... ON ROLE) checks",
+        "e19a04b3fd5435d4765a76bc05b05ec175c42838": "origin",
+        "cd7bc59546d98ffd176baef1a3e261aae1692c52": "file-level: removed next_gating tests already ported to scylladb (PR scylladb#24343); this test kept (not ported)"
+      },
+      "relevance": "Live: cql3/statements/list_permissions_statement.cc; role-resource permissions and auto-grant to creators still in Scylla; EXPORT permission recently added and test updated 2026-10-19 (b72d7fb).",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_test.py::TestAuth::test_all_authorization_operations",
+          "coverage": "partial",
+          "note": "LIST ALL PERMISSIONS / OF / ON ... NORECURSIVE for plain users; no role inheritance, no ON ROLE resources, no creator auto-grants"
+        },
+        {
+          "path": "test/cqlpy/test_permissions.py::test_grant_applicable_data_and_role_permissions",
+          "coverage": "partial",
+          "note": "grant/revoke applicable perms on data/role resources, not LIST output with role graph"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking LIST PERMISSIONS output across role inheritance, ON ROLE resources and OF filtering; not ported in scylladb#24343 (test/cluster/dtest/auth_roles_test.py lacks it). Fast (4.7s), 100% pass over 38 runs, maintained (b72d7fb)."
+    },
+    "TestAuthRoles::test_list_permissions_validation": {
+      "description": "Non-superuser mike, granted role2 (which is granted role1), lists permissions OF role2 and OF role1 (roles granted to him) successfully, and gets Unauthorized for LIST ALL PERMISSIONS (everyone's) and LIST ALL PERMISSIONS OF john (role not granted to him). Guards authorization checks in LIST PERMISSIONS for non-superusers.",
+      "origin": {
+        "sha": "e19a04b3fd5435d4765a76bc05b05ec175c42838",
+        "date": "2014-12-18",
+        "pr": null,
+        "summary": "Cassandra upstream: 7653 Tests for role based access control"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "0ed851247c622cce1e2590151a3bd8b20de054ae": "SimpleStrategy -> NetworkTopologyStrategy",
+        "3c182498a41760b906ce51ffb9ba85ef0c8f5412": "port to pytest, rename",
+        "25beea0f9c46496e0f4d7f6ea4faeac33a33d206": "CREATE ROLE syntax cleanup",
+        "e19a04b3fd5435d4765a76bc05b05ec175c42838": "origin"
+      },
+      "relevance": "Live: error strings at cql3/statements/list_permissions_statement.cc:68,75.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_test.py::TestAuth::test_all_authorization_operations",
+          "coverage": "partial",
+          "note": "asserts identical Unauthorized messages ('view everyone's permissions', 'view cathy's permissions') and user listing own perms; lacks listing perms OF a role granted (transitively) to the user"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Both Unauthorized assertions duplicated by scylladb test/cluster/dtest/auth_test.py::test_all_authorization_operations; only unique bit is non-superuser listing perms of transitively granted roles. Cheap (4.7s, 100% pass); could merge into test_list_permissions or keep."
+    },
+    "TestAuthRoles::test_drop_non_existent_role_should_not_update_cache": {
+      "description": "With roles_validity_in_ms=10000, runs DROP ROLE IF EXISTS mike (nonexistent), then CREATE ROLE mike, GRANT ALL on table, logs in as mike and SELECTs. Guards CASSANDRA-9189: superuser-status check in DROP ROLE IF EXISTS caching a nonexistent role in Cassandra's RolesCache, breaking later authz.",
+      "origin": {
+        "sha": "2396f5b3d103ac422fa882e25d2166e4a6516e63",
+        "date": "2015-04-14",
+        "pr": null,
+        "summary": "Cassandra upstream: Added test around caching in DROP ROLE IF EXISTS for CASSANDRA-9189"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "0ed851247c622cce1e2590151a3bd8b20de054ae": "SimpleStrategy -> NetworkTopologyStrategy",
+        "77db1bde1116870c2c89c80419ae50fbccddf5bd": "renamed to test_ prefix (was never collected by pytest before 2023) and added next_gating",
+        "2396f5b3d103ac422fa882e25d2166e4a6516e63": "origin",
+        "cd7bc59546d98ffd176baef1a3e261aae1692c52": "file-level: removed next_gating tests ported to scylladb#24343; this one stayed (gating mark dropped), not ported"
+      },
+      "relevance": "roles_validity_in_ms is not a Scylla config option (no match in db/config.cc), so the test's cache config is a no-op. Scylla's auth cache (auth/cache.cc) mirrors role records loaded from tables via load_roles/remove_role; no negative-lookup caching, so the CASSANDRA-9189 mechanism does not exist. Remaining flow (create role, grant, login, select) is basic.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_grant_revoke_permissions",
+          "coverage": "partial",
+          "note": "create role, grant table perms, login, read/write"
+        },
+        {
+          "path": "test/cqlpy/test_permissions.py::test_grant_revoke_data_permissions",
+          "coverage": "partial",
+          "note": "grant then use data perms as new role"
+        },
+        {
+          "path": "test/boost/auth_cache_test.cc::test_update_cache_for_dropped_role",
+          "coverage": "partial",
+          "note": "Scylla auth cache correctness on role drop"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Guards Cassandra-only RolesCache bug (CASSANDRA-9189) via roles_validity_in_ms, which Scylla does not have; Scylla's cache (auth/cache.cc) has no negative entries. Remaining create/grant/login/select flow covered by test_grant_revoke_permissions (scylladb test/cluster/dtest) and cqlpy test_permissions.py."
+    },
+    "TestAuthRoles::test_roles_do_not_inherit_login_privilege": {
+      "description": "Creates mike (LOGIN=false) and with_login (LOGIN=true), grants with_login to mike, asserts LIST ROLES OF mike / OF with_login show per-role login flags. The real assertion (mike still cannot log in, i.e. LOGIN not inherited) is commented out due to scylla #4284.",
+      "origin": {
+        "sha": "e19a04b3fd5435d4765a76bc05b05ec175c42838",
+        "date": "2014-12-18",
+        "pr": null,
+        "summary": "Cassandra upstream: 7653 Tests for role based access control"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "3c182498a41760b906ce51ffb9ba85ef0c8f5412": "port to pytest, rename",
+        "ec64ed831df3af23acb58bcc2f86a8d4a0bedd7f": "update LIST ROLES expected row format (CASSANDRA-8761)",
+        "25beea0f9c46496e0f4d7f6ea4faeac33a33d206": "CREATE ROLE syntax cleanup",
+        "e19a04b3fd5435d4765a76bc05b05ec175c42838": "origin",
+        "4e464cd52b0a6f648def9f9566a764e91e60f8ce": "file-level (PR #858, 2019): commented out assert_unauthenticated('mike is not permitted to log in') for scylla #4284"
+      },
+      "relevance": "Behavior live: service/client_state.cc check_user_can_login() checks only the role's own can_login ('{} is not permitted to log in'). #4284 fixed by scylladb a139afc30c (2019-02-27), yet the check remains commented out, so the test only verifies LIST ROLES output.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_list_roles",
+          "coverage": "partial",
+          "note": "LIST ROLES OF with inherited roles and mixed login flags (role1 LOGIN=false, mike LOGIN=true) - covers what this test actually asserts"
+        },
+        {
+          "path": "test/boost/auth_test.cc (can_login=false rejects authenticate)",
+          "coverage": "partial",
+          "note": "login rejected when own LOGIN=false; no inheritance case"
+        },
+        {
+          "path": "test/cluster/test_audit.py::_test_negative_audit_records_auth_no_login",
+          "coverage": "partial",
+          "note": "LOGIN=false role cannot log in; no inheritance"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "As-is only asserts LIST ROLES output already covered by test_list_roles (scylladb test/cluster/dtest/auth_roles_test.py). The meaningful non-inheritance login check was disabled for #4284, fixed since a139afc30c (2019); re-enable it (then unique, GREEN) or remove."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
