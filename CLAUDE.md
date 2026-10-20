@@ -74,11 +74,6 @@ Effective decision = human > analysis > GRAY.
 - Every non-GREEN needs evidence (scylla test path, commit removing feature, issue link).
 - History: function commits + file-level commits that affect the test; formatting commits flagged.
 
-## Status
-
-- Pilot done: alternator_stream_tests (2 tests, both GREEN). Notes: both from c4a3c00e (PR 1977, scylladb/scylla#8012);
-  `@unmark.next_gating` cites scylladb/scylladb#15260, now closed → could return to gating.
-
 ## Analysis
 
 Use the `analyze` skill (`/analyze <module>` or `/analyze next`, or "analyze file X" / "analyze next file").
