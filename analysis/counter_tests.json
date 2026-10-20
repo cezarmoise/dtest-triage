@@ -1,0 +1,173 @@
+{
+  "file": "counter_tests.py",
+  "tests": {
+    "TestCounters::test_int_rollover": {
+      "description": "Single node, RF=1 counter table. Increments a counter by sys.maxsize (2^63-1), asserts value is INT64_MAX, +1 wraps to INT64_MIN, -1 wraps back to INT64_MAX. Documents scylla counter wraparound semantics (scylladb#2225, closed WONTFIX).",
+      "origin": {
+        "sha": "821345dc51",
+        "date": "2017-04-12",
+        "pr": 477,
+        "summary": "counter_tests: add int_rollover_test (PR 'counter_tests: add prepare statement and auth tests')"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "765117d923": "pytest port (rename *_test -> test_*, asserts converted)",
+        "77c52abacc": "removed experimental=True config",
+        "60fdd2b6c5": "added @attr('single_node')",
+        "29646f1956": "python3 port (no logic change here)",
+        "a9153641f0": "added cache_hit_rate_read_balancing=False config",
+        "821345dc51": "origin",
+        "23eae564fc": "file-level: removed 18 tests ported to scylla test/cluster/dtest/counter_test.py; moved #18180 tablets skip mark to TestCounters class; explicitly kept this test as not ported"
+      },
+      "relevance": "Live: counters are int64 sums in scylla (counters.hh/counters.cc); wraparound behavior unchanged, #2225 closed WONTFIX.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts counter int64 overflow wraparound (grep of test/cqlpy/test_counter.py, test/cqlpy/cassandra_tests/validation/entities/counters_test.py, test/cluster/dtest/counter_test.py, test/boost/counter_test.cc found none), so unique; cheap single-node CQL test, good candidate to port to cqlpy. Downgraded from GREEN for issues. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: docstring says MAX_INT but value is sys.maxsize (INT64_MAX on 64-bit, platform-dependent) (counter_tests.py:24-27,39). Note: cache_hit_rate_read_balancing=False is irrelevant on 1 node (counter_tests.py:30)."
+    },
+    "TestCounters::test_prepare_unset_value": {
+      "description": "Single node, protocol v4. Sets counter t=0 to 1, then executes prepared 'c = c + ?' with UNSET_VALUE for 1000 keys (incl. t=0). Asserts table still has exactly one row [0, 1], i.e. unset counter increment is a no-op and creates no rows.",
+      "origin": {
+        "sha": "efe90b3407",
+        "date": "2017-04-12",
+        "pr": 477,
+        "summary": "counter_tests: add prepare_unset_value_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "765117d923": "pytest port (rename *_test -> test_*, asserts converted)",
+        "77c52abacc": "removed experimental=True config",
+        "60fdd2b6c5": "added @attr('single_node')",
+        "a9153641f0": "added cache_hit_rate_read_balancing=False config",
+        "efe90b3407": "origin",
+        "23eae564fc": "file-level: kept as not ported; class-level #18180 skip mark"
+      },
+      "relevance": "Live: unset counter increment skip semantics (Cassandra NEWS 'unset bind counter operation does not change the counter value') implemented in scylla.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_unset.py::test_unset_counter_increment",
+          "coverage": "partial",
+          "note": "prepared c=c+? with UNSET_VALUE leaves existing counter unchanged; does not check that no row is created for new keys"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/counters_test.py::testCounterUpdatesWithUnset",
+          "coverage": "partial",
+          "note": "increment/decrement with UNSET_VALUE on existing row unchanged"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Core assertion (UNSET increment is no-op on existing counter) fully covered by cqlpy test_unset.py::test_unset_counter_increment and counters_test.py::testCounterUpdatesWithUnset; only extra is 'no row created for 999 new keys', trivially addable to cqlpy. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: session.prepare() called inside the 1000-iteration loop (counter_tests.py:91-92), wasteful. Note: cache_hit_rate_read_balancing=False irrelevant on 1 node (counter_tests.py:71)."
+    },
+    "TestCounters::test_alter_non_counter_with_counter": {
+      "description": "Single node. Creates non-counter table (a text, b text, PK(a,b)) and asserts ALTER TABLE ADD \"c\" counter raises ConfigurationException. Reproducer for scylladb#7065 (counter column added to non-counter table was persisted and crashed node), fixed by scylla 1c29f0a43d.",
+      "origin": {
+        "sha": "f156a11098",
+        "date": "2020-11-16",
+        "pr": 1764,
+        "summary": "test(counter_tests): add test to cover scylladb/scylla#7065"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "765117d923": "pytest port (rename *_test -> test_*, asserts converted)",
+        "f156a11098": "origin",
+        "23eae564fc": "file-level: kept as not ported; class-level #18180 skip mark"
+      },
+      "relevance": "Live: check in cql3/statements (added by scylla 1c29f0a43d, 2020-08-24); scylladb#7065 closed.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_counter_column_added_into_non_counter_table",
+          "coverage": "full",
+          "note": "identical ALTER TABLE ADD \"c\" counter -> ConfigurationException; originally boost cql_query_test added with the fix 1c29f0a43d, converted to cqlpy in 25731a1a97 (2026-09-23)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully duplicated by scylla test/cqlpy/test_cql_query.py::test_counter_column_added_into_non_counter_table (same statement, same exception; originally added with the fix 1c29f0a43d). Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: docstring says 'shouldn't crash' but the #7065 crash was after restart; test never restarts, so it checks only the rejection (counter_tests.py:103-114)."
+    },
+    "TestCountersStress::test_counter_stress": {
+      "description": "2-node (2 racks) cluster, NTS RF=2. Creates keyspace1.counter1 (5 counter columns, legacy c-s schema), runs cassandra-stress counter_write n=100000 (10000 debug), asserts c-s reported >= n partitions and SELECT count(*) == n, then counter_read and asserts >= n partitions read. Counter values are never verified.",
+      "origin": {
+        "sha": "96bcc763cd",
+        "date": "2017-03-22",
+        "pr": 467,
+        "summary": "counters stress test"
+      },
+      "commits": {
+        "6f303700c6": "added @pytest.mark.use_cassandra_stress",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings / isort)",
+        "765117d923": "pytest port (setUp -> autouse fixture, asserts converted)",
+        "22e4adbee4": "op_cnt reduced 10x in debug mode; added 'Verifying data count' log",
+        "c98ec0aaab": "c-s result keys 'Total partitions' -> 'total partitions'",
+        "96bcc763cd": "origin",
+        "2fb588840d": "file-level: class skip_if tablets & issue_open(#18180)",
+        "efd75aba69": "file-level: setup cluster populate(3) -> generate_cluster_topology(rack_num=2) (rf-rack-valid)",
+        "22bf986628": "file-level: module-wide next_gating mark",
+        "c087d07d24": "removed WITH COMPACT STORAGE from counter1 table",
+        "d093fa9457": "SimpleStrategy -> NetworkTopologyStrategy",
+        "bd50daa526": "counter_read limited to -rate threads=4 (flakiness fix)"
+      },
+      "relevance": "Live: counters supported (incl. tablets since #18180 fix). c-s counter_write/read are tool workloads, not a scylla feature.",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/counter_test.py::test_increment_counters_in_threads",
+          "coverage": "partial",
+          "note": "concurrent counter increments on 3 nodes with value verification (stronger assertion)"
+        },
+        {
+          "path": "test/cluster/test_counters_with_tablets.py::test_counter_updates_during_tablet_migration",
+          "coverage": "partial",
+          "note": "concurrent counter updates, values verified"
+        },
+        {
+          "path": "resharding_test.py::TestReshardingVariants::test_resharding_counter",
+          "coverage": "partial",
+          "note": "dtest: same c-s counter_write/counter_read workload (plus resharding)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~51s) + redundant: same c-s counter_write/counter_read load runs in resharding_test.py::test_resharding_counter, and concurrent counter correctness is verified with values in scylla test/cluster/dtest/counter_test.py::test_increment_counters_in_threads and test/cluster/test_counters_with_tablets.py; this test only checks c-s op counts and row count. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) is dead - scylladb#18180 closed 2025-11-04 (counter_tests.py:139). Note: table options read_repair_chance/dclocal_read_repair_chance and JSON-string caching are legacy (accepted but ignored, cql3/statements/cf_prop_defs.cc:125) (counter_tests.py:174-186). Note: weak assertions - counter values never checked."
+    },
+    "TestCountersStress::test_counter_stress_user_profile": {
+      "description": "2-node (2 racks) cluster. Runs cassandra-stress user profile test_data/c-s-profiles/cassandra-stress-custom-counters-1.yaml (ks.counter_cf: PK(id int, name text), 2 counters, RF=2) ops(insert=1) n=100000, asserts >= n partitions and count(*) == n, then ops(read1=1) and asserts >= n partitions. Counter values never verified.",
+      "origin": {
+        "sha": "96bcc763cd",
+        "date": "2017-03-22",
+        "pr": 467,
+        "summary": "counters stress test"
+      },
+      "commits": {
+        "6f303700c6": "added @pytest.mark.use_cassandra_stress",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings / isort)",
+        "765117d923": "pytest port (setUp -> autouse fixture, asserts converted)",
+        "22e4adbee4": "op_cnt reduced 10x in debug mode; added 'Verifying data count' log",
+        "c98ec0aaab": "c-s result keys 'Total partitions' -> 'total partitions'",
+        "96bcc763cd": "origin",
+        "2fb588840d": "file-level: class skip_if tablets & issue_open(#18180)",
+        "efd75aba69": "file-level: setup cluster populate(3) -> generate_cluster_topology(rack_num=2) (rf-rack-valid)",
+        "22bf986628": "file-level: module-wide next_gating mark"
+      },
+      "relevance": "Live: counters with clustering keys; c-s user profile is a tool path.",
+      "duplicates": [
+        {
+          "path": "distributed_queries_test.py::TestDistributedAggregations::test_distributed_count_all",
+          "coverage": "partial",
+          "note": "dtest: populates via the same c-s counter profile (100k ops) then runs count(*)"
+        },
+        {
+          "path": "test/cluster/dtest/counter_test.py::test_multi_counter_update",
+          "coverage": "partial",
+          "note": "multiple counter columns per row, values verified"
+        },
+        {
+          "path": "test/cluster/dtest/counter_test.py::test_increment_counters_in_threads",
+          "coverage": "partial",
+          "note": "concurrent counter updates on multi-node cluster, values verified"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slow (~53s) with weak assertions (c-s op counts + row count only); load path overlaps distributed_queries_test.py::test_distributed_count_all (same profile) and scylla test/cluster/dtest/counter_test.py counter tests, but no single test fully covers c-s user-profile counter writes/reads with clustering key. Likely RED candidate. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) is dead - scylladb#18180 closed 2025-11-04 (counter_tests.py:139). Note: profile uses batchtype: LOGGED for a counter table (test_data/c-s-profiles/cassandra-stress-custom-counters-1.yaml), counter statements are not allowed in logged batches - works only because each op is a single row; count(*) == n assumes c-s generates n distinct (id,name) keys."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
