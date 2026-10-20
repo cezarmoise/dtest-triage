@@ -1,0 +1,374 @@
+{
+  "file": "read_amplification_test.py",
+  "tests": {
+    "TestReadAmplification::test_no_amplification_on_read_20kb": {
+      "description": "Single node, RF=1; writes 20KB (10 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then reads each partition by key and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 20. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on single-partition reads.",
+      "origin": {
+        "sha": "2c7c414f",
+        "date": "2017-08-24",
+        "pr": 523,
+        "summary": "Larisa Ustalov: initial read amplification tests (repair + partition reads 20kb/20mb/1gb with c-s)."
+      },
+      "commits": {
+        "2c7c414f": "Created test with c-s write/read and metric ratio check.",
+        "f12b106e": "Added seq pop, major compaction before restart, max_ratio_expected param (20 for 20kb).",
+        "f90202f0": "Switched from c-s to CQL insert_c1c2 + per-key SELECTs, 2KB rows.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "97d82898": "Added read_type param (PARTITION_READ/SCAN_READ) to helper.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 15s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Smallest variant, ratio relaxed to 20 (fixed per-sstable overhead dominates), overlaps 400kb/20mb variants. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_amplification_on_read_400kb": {
+      "description": "Single node, RF=1; writes 400KB (200 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then reads each partition by key and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 10. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on single-partition reads.",
+      "origin": {
+        "sha": "f90202f0",
+        "date": "2018-05-14",
+        "pr": 640,
+        "summary": "Replaced c-s with CQL inserts/selects; 1gb partition-read variant replaced by 400kb (the 400kb test is born here; git log -L attributes it to 2c7c414f)."
+      },
+      "commits": {
+        "2c7c414f": "Created test with c-s write/read and metric ratio check.",
+        "f90202f0": "Created this variant (replacing 1gb) with CQL reads.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "97d82898": "Added read_type param (PARTITION_READ/SCAN_READ) to helper.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 15s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_amplification_on_read_20mb": {
+      "description": "Single node, RF=1; writes 20MB (10240 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then reads each partition by key and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 10. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on single-partition reads.",
+      "origin": {
+        "sha": "2c7c414f",
+        "date": "2017-08-24",
+        "pr": 523,
+        "summary": "Larisa Ustalov: initial read amplification tests (repair + partition reads 20kb/20mb/1gb with c-s)."
+      },
+      "commits": {
+        "2c7c414f": "Created test with c-s write/read and metric ratio check.",
+        "f90202f0": "Switched from c-s to CQL insert_c1c2 + per-key SELECTs, 2KB rows.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "97d82898": "Added read_type param (PARTITION_READ/SCAN_READ) to helper.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 28s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_amplification_on_scanning_read_20kb": {
+      "description": "Single node, RF=1; writes 20KB (10 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then does a full-table paged scan (fetch_size=25) and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 10. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on range scans.",
+      "origin": {
+        "sha": "97d82898",
+        "date": "2018-01-09",
+        "pr": 563,
+        "summary": "Added scanning-read variants (20kb/2mb/20mb) via PageFetcher full-table scan."
+      },
+      "commits": {
+        "97d82898": "Created scan variant (full-table paged SELECT).",
+        "8a1250dd": "Reduced parallelism of (removed) 1gb variant; no effect here.",
+        "f90202f0": "Switched to CQL inserts; scan on ks.cf.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 15s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Smallest scan variant, overlaps 2mb/20mb scan variants. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_amplification_on_scanning_read_2mb": {
+      "description": "Single node, RF=1; writes 2MB (1024 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then does a full-table paged scan (fetch_size=25) and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 10. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on range scans.",
+      "origin": {
+        "sha": "97d82898",
+        "date": "2018-01-09",
+        "pr": 563,
+        "summary": "Added scanning-read variants (20kb/2mb/20mb) via PageFetcher full-table scan."
+      },
+      "commits": {
+        "97d82898": "Created scan variant (full-table paged SELECT).",
+        "8a1250dd": "Reduced parallelism of (removed) 1gb variant; no effect here.",
+        "f90202f0": "Switched to CQL inserts; scan on ks.cf.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 19s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_amplification_on_scanning_read_20mb": {
+      "description": "Single node, RF=1; writes 20MB (10240 rows) of 2KB rows (c1,c2 1KB text), flush, major compact, restart to drop cache, waits for AIO counters to settle, then does a full-table paged scan (fetch_size=25) and asserts scylla_reactor_aio_bytes_read delta / written bytes <= 10. Guards against gross disk read amplification (index/readahead/buffer sizing regressions) on range scans.",
+      "origin": {
+        "sha": "97d82898",
+        "date": "2018-01-09",
+        "pr": 563,
+        "summary": "Added scanning-read variants (20kb/2mb/20mb) via PageFetcher full-table scan."
+      },
+      "commits": {
+        "97d82898": "Created scan variant (full-table paged SELECT).",
+        "8a1250dd": "Reduced parallelism of (removed) 1gb variant; no effect here.",
+        "f90202f0": "Switched to CQL inserts; scan on ks.cf.",
+        "6955a5a6": "Pytest port (rename *_test -> test_*); behavior unchanged.",
+        "60fdd2b6": "Added single_node attr.",
+        "80faef17": "Replaced fixed 10s sleeps after compact/restart with wait-until-AIO-counters-stable (4s quiet, 60s cap); assertions unchanged.",
+        "f1e598e3": "Wait for binary proto on restart before measuring (flakiness fix).",
+        "c39f00be": "Fixed pytest-port typo in get_metrics assert (key == dict -> key in dict).",
+        "48999519": "Added class to next_gating."
+      },
+      "relevance": "Live: reactor aio_bytes_read/aio_reads metrics exist (seastar/src/core/reactor.cc:2651-2653); single-partition and scan read paths fully live. Runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 pass, avg 59s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_skip_using_index_rows",
+          "coverage": "partial",
+          "note": "asserts aio_reads count drops with index skipping; no end-to-end bytes-read vs data-size ratio"
+        },
+        {
+          "path": "test/perf/perf_fast_forward.cc",
+          "coverage": "partial",
+          "note": "perf tool measuring aio reads/bytes per scenario; not a pass/fail gate"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test asserts end-to-end disk bytes read vs data size; would be GREEN on coverage. Slowest read variant (59s); 2mb scan covers same path. Note: read_amplification() loop `while (not thr.done()) or total_read_bytes == 0` (read_amplification_test.py ~L216) has no timeout: if the read thread fails before any disk read the test spins until pytest timeout. Note: create_cf(read_repair=0.0) emits read_repair_chance, obsolete/ignored in scylla since c323c93fa4 (2024-03-28) - dead option."
+    },
+    "TestReadAmplification::test_no_read_amplification_on_repair": {
+      "description": "4 nodes (3 racks), RF=3, hinted handoff off. Stops node2, writes 500 rows of 2KB at QUORUM (100 in debug), restarts node2, repairs ks.cf from node2 and while repair runs (and at the end) asserts the summed rx_row_bytes/tx_row_bytes delta across nodes stays in (0, 3x written bytes). Guards against repair transferring far more row data than needed (repair amplification).",
+      "origin": {
+        "sha": "2c7c414f",
+        "date": "2017-08-24",
+        "pr": 523,
+        "summary": "Initial repair amplification test with c-s and streaming metrics (2c7c414f, PR 523)."
+      },
+      "commits": {
+        "f5c8d4c3": "Switched from dead streaming metrics to repair rx_row_bytes/tx_row_bytes + wait for metric exposure (fixes scylla-dtest#3573).",
+        "6955a5a6": "Pytest port; behavior unchanged.",
+        "51359fa4": "Replaced c-s by CQL insert_c1c2 (1KB c1,c2), disabled hinted handoff, compaction_enforce_min_threshold=True.",
+        "d0b4dce8": "Explicit 600s repair timeout with core dump (scylladb#6603).",
+        "e175d310": "Row count /5 in debug mode.",
+        "89978509": "Write concurrency lowered to 10 (MV flow-control slowdown, dtest#4115).",
+        "1de494dc": "Data set reduced 500MB -> 500 rows x 2KB; enabled in gating.",
+        "f70312e6": "Use metric deltas start->end instead of lifetime counters (scylladb#19319); added get_metrics_safely.",
+        "64b060d8": "Allow zero delta while repair still running (scylladb#20448).",
+        "14011c8e": "rf-rack-valid topology dc1: rack1:2, rack2:1, rack3:1.",
+        "44ed3fa0": "Used nodetool cluster repair for tablets; reverted by d0e55d7e (failed next). ccm repair() now dispatches vnode/tablet repair itself.",
+        "d0e55d7e": "Revert of 44ed3fa0/36a75a3d.",
+        "80faef17": "Repair poll interval 10s -> 1s.",
+        "48999519": "Class added to next_gating but these two tests were unmarked then (later re-enabled by 1de494dc).",
+        "2c7c414f": "Created test (c-s, streaming metrics, 1M rows)."
+      },
+      "relevance": "Live: row-level repair metrics rx_row_bytes/tx_row_bytes exist (repair/row_level.cc:207-209); repair of tablets via ccm tablet_repair. 32/32 pass in both next jobs, avg 27s.",
+      "duplicates": [
+        {
+          "path": "repair_test.py::TestRepair::test_two_consecutive_repair (dtest)",
+          "coverage": "partial",
+          "note": "checks scylla_repair_tx_row_bytes >0 then ==0 on second repair; vnodes only, no amplification bound"
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py",
+          "coverage": "partial",
+          "note": "uses scylla_repair_row_from_disk_nr metric, not a transfer-amplification bound"
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py",
+          "coverage": "partial",
+          "note": "asserts inc_sst_read/skipped bytes for incremental repair, different scenario"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test bounding repair row-transfer amplification; partial overlap with repair_test.py::test_two_consecutive_repair. Note: despite the name, since f5c8d4c3 it measures repair network row bytes (scylla_repair_rx/tx_row_bytes, repair/row_level.cc:207-209), not disk reads (scylla_repair_row_from_disk_bytes would be the read metric). Note: `local=True` is silently dropped for tablet keyspaces (ccm ScyllaNode.repair -> tablet_repair, which repairs the whole table). Note: read_repair=0.0 / ALTER MV read_repair_chance=0.0 are obsolete no-ops since scylla c323c93fa4. Note: initial 99-row insert (keys 1..99) is overwritten by the main insert; dead-ish."
+    },
+    "TestReadAmplification::test_no_read_amplification_on_repair_with_mv": {
+      "description": "4 nodes (3 racks), RF=3, hinted handoff off with a materialized view (PK (c1,key)) on the base table. Stops node2, writes 500 rows of 2KB at QUORUM (100 in debug), restarts node2, repairs ks.cf from node2 and while repair runs (and at the end) asserts the summed rx_row_bytes/tx_row_bytes delta across nodes stays in (0, 3x written bytes). Guards against repair transferring far more row data than needed (repair amplification), also with view-update generation on the base table.",
+      "origin": {
+        "sha": "995c6c45",
+        "date": "2019-08-29",
+        "pr": 1095,
+        "summary": "Julia Yakovlev: MV variant of repair amplification test; PR body is template only."
+      },
+      "commits": {
+        "f5c8d4c3": "Switched from dead streaming metrics to repair rx_row_bytes/tx_row_bytes + wait for metric exposure (fixes scylla-dtest#3573).",
+        "6955a5a6": "Pytest port; behavior unchanged.",
+        "995c6c45": "Created this MV variant.",
+        "51359fa4": "Replaced c-s by CQL insert_c1c2 (1KB c1,c2), disabled hinted handoff, compaction_enforce_min_threshold=True.",
+        "d0b4dce8": "Explicit 600s repair timeout with core dump (scylladb#6603).",
+        "e175d310": "Row count /5 in debug mode.",
+        "89978509": "Write concurrency lowered to 10 (MV flow-control slowdown, dtest#4115).",
+        "1de494dc": "Data set reduced 500MB -> 500 rows x 2KB; enabled in gating.",
+        "f70312e6": "Use metric deltas start->end instead of lifetime counters (scylladb#19319); added get_metrics_safely.",
+        "64b060d8": "Allow zero delta while repair still running (scylladb#20448).",
+        "14011c8e": "rf-rack-valid topology dc1: rack1:2, rack2:1, rack3:1.",
+        "44ed3fa0": "Used nodetool cluster repair for tablets; reverted by d0e55d7e (failed next). ccm repair() now dispatches vnode/tablet repair itself.",
+        "d0e55d7e": "Revert of 44ed3fa0/36a75a3d.",
+        "80faef17": "Repair poll interval 10s -> 1s.",
+        "48999519": "Class added to next_gating but these two tests were unmarked then (later re-enabled by 1de494dc)."
+      },
+      "relevance": "Live: row-level repair metrics rx_row_bytes/tx_row_bytes exist (repair/row_level.cc:207-209); repair of tablets via ccm tablet_repair. 32/32 pass in both next jobs, avg 36s.",
+      "duplicates": [
+        {
+          "path": "repair_test.py::TestRepair::test_two_consecutive_repair (dtest)",
+          "coverage": "partial",
+          "note": "checks scylla_repair_tx_row_bytes >0 then ==0 on second repair; vnodes only, no amplification bound"
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py",
+          "coverage": "partial",
+          "note": "uses scylla_repair_row_from_disk_nr metric, not a transfer-amplification bound"
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py",
+          "coverage": "partial",
+          "note": "asserts inc_sst_read/skipped bytes for incremental repair, different scenario"
+        },
+        {
+          "path": "materialized_views_test.py / repair_test.py (dtest)",
+          "coverage": "partial",
+          "note": "MV+repair correctness covered elsewhere; this test only adds the transfer-bytes bound, which MV does not affect"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test bounding repair row-transfer amplification; partial overlap with repair_test.py::test_two_consecutive_repair. MV variant: measured metric is the same as non-MV variant and view consistency is not checked, so MV adds little beyond the non-MV test. Note: despite the name, since f5c8d4c3 it measures repair network row bytes (scylla_repair_rx/tx_row_bytes, repair/row_level.cc:207-209), not disk reads (scylla_repair_row_from_disk_bytes would be the read metric). Note: `local=True` is silently dropped for tablet keyspaces (ccm ScyllaNode.repair -> tablet_repair, which repairs the whole table). Note: read_repair=0.0 / ALTER MV read_repair_chance=0.0 are obsolete no-ops since scylla c323c93fa4. Note: initial 99-row insert (keys 1..99) is overwritten by the main insert; dead-ish."
+    },
+    "TestMultiShardReader::test_create_reader_on_one_shard_1node_cluster": {
+      "description": "1 node, RF=1, --smp 2; inserts 10 rows with 4x1MB blobs, flushes, restarts nodes to empty cache, runs traced `select count(*) where token(key)=<t>` and parses system_traces.events ('Creating shard reader on shard', 'scheduling bulk DMA read', 'Reading partition range') per source; asserts each node read from only one shard. Guards scylladb#8161 (multishard combining reader read from all shards for single-token ranges, fixed in bc1fcd3db2).",
+      "origin": {
+        "sha": "618317da",
+        "date": "2021-09-26",
+        "pr": 2309,
+        "summary": "Covers scylladb#8161 / fix bc1fcd3db2 (multishard reader only reads needed shards)."
+      },
+      "commits": {
+        "618317da": "Created test (cqlsh TRACING + system_traces parsing), PR 2309 is a later pytest-port PR that contains the commit.",
+        "bb01fc75": "Switched to python driver tracing, added dtest_full mark.",
+        "930fb62d": "Parse thread as 'shard N[/sched_group]' after trace format change (scylla-enterprise#2982).",
+        "14011c8e": "rf-rack-valid topology dict.",
+        "48999519": "Class added to next_gating.",
+        "19376e49": "prepare() default protocol_version 3 -> 4."
+      },
+      "relevance": "Live: trace messages exist (readers/multishard.cc:899, tracing/traced_file.cc:218, sstables/sstable_set.cc:737). scylladb#8161 CLOSED. 32/32 pass in next jobs, avg 21s.",
+      "duplicates": [
+        {
+          "path": "test/boost/mutation_reader_test.cc::test_multishard_combining_reader_only_reads_from_needed_shards",
+          "coverage": "full",
+          "note": "regression test for #8161 added with the fix bc1fcd3db2; asserts exactly the needed shards' readers are created for a range starting at a single token (random 0..smp-1 extra shards)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Boost test test_multishard_combining_reader_only_reads_from_needed_shards covers the reader logic of #8161; this dtest adds only an end-to-end CQL+tracing check, cheap (21s). Bug: get_reader_shards does `shards_by_source[src].update(shard)` with a str -> adds characters, so shard '12' becomes {'1','2'}; harmless only because smp is capped at 2 (read_amplification_test.py get_reader_shards). Note: prepare() sets max_cached_partition_size_in_bytes=1, option removed from scylla in 77f944880c (2017-02-09) - dead config; prepare() params protocol_version/create_keyspace and run_query_and_get_its_session_id node arg unused; missing f-prefix in a debug log."
+    },
+    "TestMultiShardReader::test_create_reader_on_one_shard_3nodes_cluster": {
+      "description": "3 nodes (2 racks), RF=2, --smp 2; inserts 10 rows with 4x1MB blobs, flushes, restarts nodes to empty cache, runs traced `select count(*) where token(key)=<t>` and parses system_traces.events ('Creating shard reader on shard', 'scheduling bulk DMA read', 'Reading partition range') per source; asserts each node read from only one shard. Guards scylladb#8161 (multishard combining reader read from all shards for single-token ranges, fixed in bc1fcd3db2).",
+      "origin": {
+        "sha": "618317da",
+        "date": "2021-09-26",
+        "pr": 2309,
+        "summary": "Covers scylladb#8161 / fix bc1fcd3db2 (multishard reader only reads needed shards)."
+      },
+      "commits": {
+        "618317da": "Created test (cqlsh TRACING + system_traces parsing), PR 2309 is a later pytest-port PR that contains the commit.",
+        "bb01fc75": "Switched to python driver tracing, added dtest_full mark.",
+        "930fb62d": "Parse thread as 'shard N[/sched_group]' after trace format change (scylla-enterprise#2982).",
+        "14011c8e": "rf-rack-valid topology dict.",
+        "48999519": "Class added to next_gating.",
+        "19376e49": "prepare() default protocol_version 3 -> 4."
+      },
+      "relevance": "Live: trace messages exist (readers/multishard.cc:899, tracing/traced_file.cc:218, sstables/sstable_set.cc:737). scylladb#8161 CLOSED. 32/32 pass in next jobs, avg 46s.",
+      "duplicates": [
+        {
+          "path": "test/boost/mutation_reader_test.cc::test_multishard_combining_reader_only_reads_from_needed_shards",
+          "coverage": "full",
+          "note": "regression test for #8161 added with the fix bc1fcd3db2; asserts exactly the needed shards' readers are created for a range starting at a single token (random 0..smp-1 extra shards)"
+        },
+        {
+          "path": "read_amplification_test.py::TestMultiShardReader::test_create_reader_on_one_shard_1node_cluster (dtest)",
+          "coverage": "full",
+          "note": "same scenario on 1 node"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow + redundant: #8161 reader logic fully covered by test/boost/mutation_reader_test.cc::test_multishard_combining_reader_only_reads_from_needed_shards, and the 1-node variant covers the same e2e path; extra nodes do not exercise anything new in the multishard reader. Bug: get_reader_shards does `shards_by_source[src].update(shard)` with a str -> adds characters, so shard '12' becomes {'1','2'}; harmless only because smp is capped at 2 (read_amplification_test.py get_reader_shards). Note: prepare() sets max_cached_partition_size_in_bytes=1, option removed from scylla in 77f944880c (2017-02-09) - dead config; prepare() params protocol_version/create_keyspace and run_query_and_get_its_session_id node arg unused; missing f-prefix in a debug log."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
