@@ -1,0 +1,83 @@
+{
+  "file": "rest_api_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestScyllaARestApi::test_basic_rest_uptime": {
+      "description": "Single node. Reads GET /system/uptime_ms, sleeps 10s, reads again; asserts the uptime delta lies between 9990ms and the wall-clock time measured around both requests + 10ms. Guards that the REST uptime counter advances in real time (used by nodetool info).",
+      "origin": {"sha": "0badffd83d", "date": "2020-03-08", "pr": 1351, "summary": "Added 3 uptime REST tests (basic, after restart, compare nodes)."},
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "afdad9630e": "bounds changed to [sleep-10ms, measured wall time+10ms] after undershoot failure",
+        "c7410e39f8": "lower bound < changed to <= (exactly 10000ms seen on fast machine)",
+        "fa6b692a1b": "port to pytest: single_node mark, debug -> logger.debug",
+        "0badffd83d": "origin",
+        "b866c65bce": "request_uptime helper uses node.api_port instead of hardcoded 10000",
+        "e7adbae14a": "class marked next_gating"
+      },
+      "relevance": "Live: /system/uptime_ms in api/api-doc/system.json:111, used by tools/scylla-nodetool.cc:1379 (nodetool info).",
+      "duplicates": [
+        {"path": "test/rest_api/test_system.py::test_system_uptime_ms", "coverage": "partial", "note": "only checks HTTP status, not value"},
+        {"path": "test/nodetool/test_info.py", "coverage": "partial", "note": "mocked REST server, tests nodetool formatting only"}
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking the uptime value actually advances in real time; scylla tests only check status (test/rest_api/test_system.py::test_system_uptime_ms) or mock it. Cheap (~15s), 100% pass after bound fixes afdad9630e/c7410e39f8."
+    },
+    "TestScyllaARestApi::test_rest_uptime_after_restart": {
+      "description": "Single node started, sleep 10s, node stopped and restarted; asserts uptime_ms after restart < (total elapsed since test start - 10s), i.e. uptime was reset by restart and not carried over. Guards that uptime is per-process.",
+      "origin": {"sha": "0badffd83d", "date": "2020-03-08", "pr": 1351, "summary": "Added 3 uptime REST tests."},
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4, f-string join)",
+        "9ffd273f04": "formatting (ruff format)",
+        "51d3c29ee0": "formatting (assert message split into two f-strings); commit mainly adds test_drop_row_cache",
+        "fa6b692a1b": "port to pytest: single_node mark",
+        "0badffd83d": "origin",
+        "b866c65bce": "request_uptime helper uses node.api_port instead of hardcoded 10000"
+      },
+      "relevance": "Live: /system/uptime_ms (api/api-doc/system.json:111).",
+      "duplicates": [
+        {"path": "test/rest_api/test_system.py::test_system_uptime_ms", "coverage": "partial", "note": "status only"},
+        {"path": "rest_api_tests.py::TestScyllaARestApi::test_compare_node_uptime", "coverage": "partial", "note": "same restart-resets-uptime check, 2 nodes"}
+      ],
+      "decision": "GREEN",
+      "reason": "Unique check that uptime resets on restart; no scylla test checks the value. Cheap (~19s), 100% pass. Assertion is loose (uptime < elapsed-10s) but meaningful."
+    },
+    "TestScyllaARestApi::test_compare_node_uptime": {
+      "description": "Two nodes started, sleep 10s, node1 restarted; asserts node2 uptime - node1 uptime > 10000ms. Same restart-resets-uptime scenario as test_rest_uptime_after_restart, plus implicit check that restarting node1 does not affect node2's uptime.",
+      "origin": {"sha": "0badffd83d", "date": "2020-03-08", "pr": 1351, "summary": "Added 3 uptime REST tests."},
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4, f-string join)",
+        "9ffd273f04": "formatting (ruff format)",
+        "51d3c29ee0": "formatting (assert message split into two f-strings)",
+        "0badffd83d": "origin",
+        "b866c65bce": "request_uptime helper uses node.api_port instead of hardcoded 10000"
+      },
+      "relevance": "Live: /system/uptime_ms (api/api-doc/system.json:111).",
+      "duplicates": [
+        {"path": "rest_api_tests.py::TestScyllaARestApi::test_rest_uptime_after_restart", "coverage": "partial", "note": "same restart-resets-uptime assertion on 1 node; uptime is a per-process local value so node2 independence adds little"},
+        {"path": "test/rest_api/test_system.py::test_system_uptime_ms", "coverage": "partial", "note": "status only"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant with test_rest_uptime_after_restart in the same file (both assert uptime resets after restart); extra node only checks that uptime is per-node, which is trivially true (local process clock). Candidate to drop or merge; cheap (~22s)."
+    },
+    "TestScyllaARestApi::test_drop_row_cache": {
+      "description": "Single node, c-s write+read 50K rows to populate cache, scrape Prometheus metrics, POST /system/drop_sstable_caches, scrape again; asserts cache miss/eviction counters did not decrease and cache rows/partitions/LSA usage did not increase. Added for scylla 761f89e55e (api: Introduce system/drop_sstable_caches).",
+      "origin": {"sha": "51d3c29ee0", "date": "2021-07-07", "pr": 2373, "summary": "Test for new drop_sstable_caches API (scylla 761f89e55e)."},
+      "commits": {
+        "6f303700c6": "added use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (list concat -> unpacking in stress cmd)",
+        "51d3c29ee0": "origin: test + get_metrics/drop_row_cache helpers",
+        "b866c65bce": "drop_row_cache helper uses node.api_port instead of hardcoded 10000"
+      },
+      "relevance": "Live: /system/drop_sstable_caches (api/column_family.cc:1166) -> database::drop_caches (replica/database.cc:1827) invalidates row cache + sstable caches. Metrics still exist (db/row_cache.cc:161-176, utils/logalloc.cc:2870,2888).",
+      "duplicates": [
+        {"path": "test/cqlpy/test_select_from_mutation_fragments.py::test_mutation_source", "coverage": "full", "note": "asserts data is in row-cache before and only in sstable after POST /system/drop_sstable_caches - direct, stronger check"},
+        {"path": "test/cluster/test_major_compaction.py", "coverage": "partial", "note": "uses manager.api.drop_sstable_caches (test/pylib/rest_client.py:537)"},
+        {"path": "test/cluster/test_tablets.py", "coverage": "partial", "note": "uses drop_sstable_caches"}
+      ],
+      "decision": "RED",
+      "reason": "Assertions can't detect a no-op drop: increase_metrics are counters (db/row_cache.cc:161,163,176) so `>=` always holds, and `<=` on gauges also holds if nothing changed (rest_api_tests.py:107-111); POST status not checked (drop_row_cache helper). Scylla's test/cqlpy/test_select_from_mutation_fragments.py::test_mutation_source directly verifies cache is emptied by the same endpoint. Bug: get_metrics (rest_api_tests.py:64) overwrites per-shard values, so only the last shard's sample is compared; scylla_lsa_memory_allocated is a counter (utils/logalloc.cc:2888) asserted to 'decrease'; metric_class param unused."
+    }
+  }
+}
