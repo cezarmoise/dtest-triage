@@ -11,6 +11,7 @@ Tests to analyze: {TESTS} (`all` = every test in the JSON `tests` list; otherwis
 For EACH of those tests:
 1. Read the test + helpers/fixtures it uses. Origin: the function history may stop at a refactor
    (e.g. "port to pytest"); find the real origin in file-level commits / `git log -S'<name>' upstream/next`.
+   The `pr` in the data JSON can be wrong (a later PR containing the commit, e.g. the pytest port); verify it.
    Read origin commit + PR (`gh pr view <n> -R scylladb/scylla-dtest --json title,body`) and any linked scylla issue.
 2. Description: what scenario, what is asserted, which scylla bug/feature it guards. 2-5 sentences.
 3. Commit summaries: for each function-level commit, 1 line on what it changed IN THIS TEST
@@ -28,7 +29,9 @@ For EACH of those tests:
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
    Every YELLOW/RED needs concrete evidence (paths, shas, issue links). Don't guess — if unsure, YELLOW.
-   Issues/bugs found in the test or its helpers (no-op asserts, dead code/regexes, disabled checks, never-run, etc.):
+   Issues/bugs found in the test or its helpers (no-op asserts, dead code/regexes, disabled checks, never-run,
+   dead config like `experimental_features=['cdc']` (UNUSED in scylla), refs to closed issues, etc.; class-level
+   issues apply to every test of the class):
    always add them to `reason` ("Bug: ..." / "Note: ...", with file:line or sha). Downgrade GREEN to YELLOW;
    YELLOW and RED keep their decision.
 
