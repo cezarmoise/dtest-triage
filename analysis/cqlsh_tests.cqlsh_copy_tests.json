@@ -1,0 +1,940 @@
+{
+  "file": "cqlsh_tests/cqlsh_copy_tests.py",
+  "tests": {
+    "TestCqlshCopy::test_all_datatypes_round_trip": {
+      "description": "Single node. Creates a table with a column of every CQL type (scalars, collections, tuple, nested frozen UDTs/collections), inserts one row via the driver, COPY TO csv, SELECT, TRUNCATE, COPY FROM the csv and asserts (assert_all) the table content equals the pre-truncate content. Guards cqlsh COPY serialization/parsing of all types (CASSANDRA-9302). Pure cqlsh-client behavior; server only stores/returns the row.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; result comparison switched to assert_all on re-SELECT",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "6614e750ca": "add next-gating attr",
+        "954d2d4c02": "drop @require('9302') (enable test on scylla)",
+        "983f000332": "add @require('9302')",
+        "b56055c59a": "docstring: @jira_ticket CASSANDRA-9302",
+        "e45ceca512": "extend table/data to collections, tuple, UDTs, nested frozen types (p..w)",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "tempfile delete=False, assert 1 imported row",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY TO/FROM is implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh), not in scylla server. Server-side type support is covered by cqlpy.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyAllDatatypes::test_all_datatypes_round_trip",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 3ba32232fd, PR scylladb/scylla-cqlsh#234 merged 2026-10-04); same schema/data, also asserts '1 rows exported/imported'; run by scylla-cqlsh CI integration_test_scylla against scylladb/scylla:2026.3.3 (.github/workflows/build-push.yml)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlsh-client behavior fully covered by the explicit port in scylla-cqlsh test_copy_data.py::TestCopyAllDatatypes::test_all_datatypes_round_trip (scylla-cqlsh#234), which runs against Scylla in scylla-cqlsh CI; precedent: dtest #7384 dropped a COPY test as 'cqlsh behavior belongs in cqlsh's test suite'. Note: scylla-cqlsh CI pins a released Scylla (2026.3.3), not master."
+    },
+    "TestCqlshCopy::test_colon_delimiter": {
+      "description": "Single node. non_default_delimiter_template(':'): inserts 10000 ints, COPY TO csv WITH DELIMITER=':' and compares with SELECT via assert_csv_result_equal. Intended to verify cqlsh COPY TO honors a custom delimiter. Since the pytest port the helper only compares row counts, so the delimiter itself is never checked.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port: attr -> pytest.mark.single_node; also weakened assert_csv_result_equal to row-count only (assertCountEqual -> len ==)",
+        "c7d4aee9b4": "remove @require('#2386') (enable on scylla)",
+        "60fdd2b6c5": "add single_node mark",
+        "954d2d4c02": "add @require('#2386') (skip on scylla)",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY DELIMITER option is cqlsh-client behavior (scylla-cqlsh copyutil.py); server not involved beyond plain reads.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_colon_delimiter",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 8100739350, PR #234); stronger: parses the csv with the delimiter and compares values, asserts '1000 rows exported'; runs in scylla-cqlsh CI against Scylla 2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (with real value checks) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_colon_delimiter (PR scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:288-305) only asserts len(csv)==len(results) since pytest port d9b34802f3 (was assertCountEqual on content), so the delimiter is never verified; the except branch mismatch-logging elif is dead (only reached when lengths differ)."
+    },
+    "TestCqlshCopy::test_letter_delimiter": {
+      "description": "Single node. non_default_delimiter_template('a'): inserts 10000 ints, COPY TO WITH DELIMITER='a', compares with SELECT via assert_csv_result_equal. Intended to verify a letter delimiter; helper only compares row counts since the pytest port.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port: pytest.mark.single_node; weakened assert_csv_result_equal to row-count only",
+        "c7d4aee9b4": "remove @require('#2386') (enable on scylla)",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY DELIMITER option is cqlsh-client behavior (scylla-cqlsh copyutil.py).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_letter_delimiter",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh e42f43f373, PR #234); compares parsed values; runs in scylla-cqlsh CI against Scylla"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (with value checks) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_letter_delimiter (PR scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) checks only row count since d9b34802f3, so the delimiter is never verified."
+    },
+    "TestCqlshCopy::test_explicit_column_order_writing": {
+      "description": "Single node. Table (a int pk, b int, c text) with 4 rows; COPY ks.testorder (a, c, b) TO csv and compare with a reference csv written in (a, c, b) order via assert_csvs_items_equal. Intended to verify COPY TO honors an explicit column list order. Since the pytest port the helper only compares line counts, so column order is never verified.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port: f-strings, single_node mark; assert_csvs_items_equal (cqlsh_tools.py) weakened to line-count only",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp files, fix csvfile.close() call",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "temp files delete=False",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY column list is cqlsh-client behavior (scylla-cqlsh copyutil.py).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_explicit_column_order_writing",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh a0527a5856, PR #234); compares exported csv rows with expected (a, c, b) values; runs in scylla-cqlsh CI against Scylla"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (with value checks) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_explicit_column_order_writing (PR scylladb/scylla-cqlsh#234). Bug: assert_csvs_items_equal (cqlsh_tools.py:35-39) only compares line counts since d9b34802f3 (was assert_count_equal on lines), so column order is never checked; reference_file never deleted."
+    },
+    "TestCqlshCopy::test_explicit_column_order_reading": {
+      "description": "Single node. Table (a int pk, b text, c int); writes csv rows (a, c, b) and runs COPY ks.testorder (a, c, b) FROM csv, then compares SELECT with a reference csv via assert_csv_result_equal. Intended to verify COPY FROM maps columns by explicit list; helper only checks row count (4) since the pytest port, so mapping is not verified (wrong mapping would fail on type parse though, since b text/c int).",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "rename assertCsvResultEqual -> assert_csv_result_equal (pep8-naming)",
+        "d9b34802f3": "pytest port: f-strings, rows_to_list; assert_csv_result_equal weakened to row-count only",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp files, fix csvfile.close() call",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "temp files delete=False",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY FROM column list is cqlsh-client behavior (scylla-cqlsh copyutil.py).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_explicit_column_order_reading",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 4518345f2d, PR #234); compares SELECTed values with expected mapping; runs in scylla-cqlsh CI against Scylla"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (with value checks) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_explicit_column_order_reading (PR scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since d9b34802f3; docstring says 'COPY can write' for a read test."
+    },
+    "TestCqlshCopy::test_copy_to_with_child_process_crashing": {
+      "description": "Single node, 100k rows via cassandra-stress. Sets CQLSH_COPY_TEST_FAILURES={'exit_range': tokens 0..5e18} so the cqlsh COPY TO worker process exporting that range exits; asserts cqlsh wrote something to stderr and the csv has fewer than 100k lines. Guards cqlsh COPY TO handling of a crashing child process (CASSANDRA-9304). Failure injection is cqlsh-internal (copyutil.py); server not involved.",
+      "origin": {
+        "sha": "8b41fd41c8",
+        "date": "2015-11-15",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Tests with failure injection for CASSANDRA-9304'. Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "ccc91f1984": "relax assert from 'some records might be missing' in err to any non-empty stderr (cqlsh-rs wording)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "356aacb644": "class marked next_gating; this test unmarked (scylladb/scylla-cqlsh#37 cqlsh timeout)",
+        "7799f9654a": "skip in debug mode (scylla-dtest#3275 timeouts)",
+        "d9b34802f3": "pytest port (logger, f-strings)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "081d3f3ca6": "add @require('9302')",
+        "0bb45ec361": "widen exit_range end 1e18 -> 5e18",
+        "16516faec2": "prepare() without partitioner arg; readlines() count",
+        "8b41fd41c8": "test added (origin)"
+      },
+      "relevance": "cqlsh COPY TO multiprocess export and CQLSH_COPY_TEST_FAILURES injection live in scylla-cqlsh pylib/cqlshlib/copyutil.py (scylla tools/cqlsh submodule); pure client behavior.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyToWithFailures::test_copy_to_with_child_process_crashing",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 75e761c952, PR #234); stronger: asserts 'Child process N died with exit code 1' and 'some records might be missing', bounds exported rows by the failing range; 300s timeout guard; runs in scylla-cqlsh CI against Scylla 2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlsh-client behavior fully covered by stronger port scylla-cqlsh test_copy_round_trip.py::TestCopyToWithFailures::test_copy_to_with_child_process_crashing (scylla-cqlsh#234); dtest #7384 precedent: COPY retry/failure behavior belongs to cqlsh's suite. Bug: `assert err.strip()` (cqlsh_copy_tests.py:1462) is near-vacuous (cqlsh-rs emits informational stderr warnings, see d22c82e604). Bug: os.environ['CQLSH_COPY_TEST_FAILURES'] set (l.1455) and never unset, leaks into later run_cqlsh calls in the same worker. Note: @unmark.next_gating refs closed scylladb/scylla-cqlsh#37 (stale)."
+    },
+    "TestCqlshCopy::test_copy_from_with_more_failures_than_max_attempts": {
+      "description": "Single node, 1000 rows via cassandra-stress; COPY TO a csv, TRUNCATE, then COPY FROM WITH CHUNKSIZE=1 MAXATTEMPTS=3 with CQLSH_COPY_TEST_FAILURES={'failing_batch': id 30, 5 failures}. Asserts cqlsh output matches a failure regex and row count < 1000. Guards cqlsh COPY FROM giving up after MAXATTEMPTS (CASSANDRA-9302).",
+      "origin": {
+        "sha": "081d3f3ca6",
+        "date": "2015-11-26",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest '9302: tests with failure injection'. Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "ccc91f1984": "assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to process' in stderr (cqlsh-rs wording)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "e2f36cccf3": "assert_row_count_in_select_less called with explicit COUNT query",
+        "d9b34802f3": "pytest port (logger, f-strings)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "238b55c2bd": "remove @require('#2386') (enable on scylla; file-level, same PR series)",
+        "081d3f3ca6": "test added (origin)"
+      },
+      "relevance": "MAXATTEMPTS/CHUNKSIZE retry logic and the failing_batch injection are cqlsh-client code (scylla-cqlsh copyutil.py).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyFromWithFailures::test_copy_from_with_more_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 980d043ae3, PR #234); stronger: asserts 'attempt 2 of 3', 'given up after 3 attempts', error file contains exactly the failing row, count == 999; runs in scylla-cqlsh CI against Scylla"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_copy_from_gives_up_after_max_attempts",
+          "coverage": "full",
+          "note": "same scenario with CHUNKSIZE=10"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copyutil.py::TestImportTask::test_import_error_handler_max_errors_exceeded",
+          "coverage": "partial",
+          "note": "unit-level error handler"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by stronger scylla-cqlsh ports (test_copy_round_trip.py::TestCopyFromWithFailures::test_copy_from_with_more_failures_than_max_attempts, ::TestCopyRoundTripWithRetries::test_copy_from_gives_up_after_max_attempts; scylla-cqlsh#234). Weak asserts: regex accepts any 'insert error(s)' and count<1000 holds even if COPY FROM imports nothing (e.g. scylladb/cqlsh-rs#191 imports 0 rows into stress's quoted columns, so test would pass vacuously under cqlsh-rs). Bug: CQLSH_COPY_TEST_FAILURES env leak (l.1495, never unset); the preparatory COPY TO can inherit a leaked exit_range/failing_range from earlier COPY TO tests in the same worker."
+    },
+    "TestCqlshCopy::test_copy_from_with_child_process_crashing": {
+      "description": "Single node, 1000 rows via cassandra-stress; COPY TO, TRUNCATE, COPY FROM WITH CHUNKSIZE=1 and CQLSH_COPY_TEST_FAILURES={'exit_batch': id 30} so the worker importing batch 30 exits. Asserts stderr non-empty and row count < 1000. Guards cqlsh COPY FROM aborting when a child process dies (CASSANDRA-9302).",
+      "origin": {
+        "sha": "081d3f3ca6",
+        "date": "2015-11-26",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest '9302: tests with failure injection'. Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "596bca853e": "relax assert from 'child process(es) died unexpectedly' in err to any non-empty err",
+        "e2f36cccf3": "assert_row_count_in_select_less with explicit COUNT query",
+        "238b55c2bd": "remove @require('#2386'); expected message 'Failed to process' -> 'child process(es) died unexpectedly'",
+        "d9b34802f3": "pytest port (logger, f-strings)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "081d3f3ca6": "test added (origin)"
+      },
+      "relevance": "cqlsh COPY FROM multiprocess import and exit_batch injection are scylla-cqlsh copyutil.py; pure client behavior.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyFromWithFailures::test_copy_from_with_child_process_crashing",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 1688d3b2fb, PR #234); stronger: asserts the abort message (or CHILDTIMEOUT abort), failing row absent, count <= 999; documents a cqlsh bug (worker doesn't die promptly); runs in scylla-cqlsh CI against Scylla"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlsh-client behavior fully covered by stronger port scylla-cqlsh test_copy_round_trip.py::TestCopyFromWithFailures::test_copy_from_with_child_process_crashing (scylla-cqlsh#234). Bug: `assert err` (cqlsh_copy_tests.py:1576) is near-vacuous since 596bca853e (any stderr, incl. warnings). Bug: CQLSH_COPY_TEST_FAILURES env set (l.1570) and never unset; leaks to later tests in the worker."
+    },
+    "TestCqlshCopy::test_bulk_round_trip_default": {
+      "description": "3-node cluster, cassandra-stress writes 100k rows (cl=ALL) into keyspace1.standard1; COPY TO (CONSISTENCY ALL), check csv row count == SELECT COUNT, TRUNCATE, COPY FROM, COPY TO again and assert both csv files have the same number of lines. Checks cqlsh bulk export/import across multiple nodes/token ranges (CASSANDRA-9302). Only line counts are compared, not values.",
+      "origin": {
+        "sha": "e45ceca512",
+        "date": "2015-10-30",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Tests for CASSANDRA-9302' (split test_bulk_round_trip into default/blogposts/with_timeouts). Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "6f303700c6": "add use_cassandra_stress mark",
+        "b15f3b5c8f": "helper rewritten for flaky jenkins (retry search for timeouts variant); re-adds unused partitioner='murmur3' arg",
+        "931e115f99": "fixup of b15f3b5c8f (helper f-strings, retry grep)",
+        "894f00c06d": "helper: skip first-export count check only when copy_from_retry (timeouts variant)",
+        "4a61708738": "helper: drop copy_from_retry machinery with removal of test_bulk_round_trip_with_timeouts",
+        "238b55c2bd": "remove @require('#2386') (enable on scylla)",
+        "d9b34802f3": "pytest port (@require -> pytest.mark.require)",
+        "4ff1e28809": "drop partitioner arg (murmur3 only)",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "b56055c59a": "docstring: @jira_ticket CASSANDRA-9302",
+        "f804b8b7a7": "helper: assert SELECT COUNT == num_records",
+        "e45ceca512": "test added (origin)"
+      },
+      "relevance": "COPY is cqlsh-client code, but this exercises it against a 3-node master cluster (incl. tablets in next-dtest-tablets) with 100k rows: per-token-range paging exports and multi-node imports at CL=ALL. Server-side, it touches range scans by token, TRUNCATE and COUNT(*) on a 3-node cluster.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries",
+          "coverage": "partial",
+          "note": "round trip COPY TO->TRUNCATE->COPY FROM->COPY TO with value comparison, but 1000 rows on single-node released Scylla (2026.3.3), with injected retries"
+        },
+        {
+          "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy::test_bulk_round_trip_blogposts",
+          "coverage": "partial",
+          "note": "same helper, 3 nodes, user profile with clustering rows"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "cqlsh behavior partially covered by scylla-cqlsh test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries (scylla-cqlsh#234), but that runs 1000 rows on a single released-Scylla node; dtest is the only multi-node/tablets bulk COPY check against master (~41s). Note: only line counts compared (cqlsh_copy_tests.py:1319,1335); `partitioner` arg of _test_bulk_round_trip (l.1234) is unused dead param."
+    },
+    "TestCqlshCopy::test_bulk_round_trip_blogposts": {
+      "description": "Same as test_bulk_round_trip_default but with the blogposts.yaml cassandra-stress user profile (10 clustering rows per op, 10k ops) into stresscql.blogposts, with batch_size_warn_threshold_in_kb=10. COPY TO, count check, TRUNCATE, COPY FROM, COPY TO; asserts equal line counts. Exercises cqlsh COPY on a wide-partition table across 3 nodes (CASSANDRA-9302).",
+      "origin": {
+        "sha": "e45ceca512",
+        "date": "2015-10-30",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Tests for CASSANDRA-9302'. Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "b15f3b5c8f": "add batch_size_warn_threshold_in_kb=10 config, drop page_timeout=60, re-add unused partitioner arg; helper rewritten",
+        "931e115f99": "fixup of b15f3b5c8f (helper)",
+        "894f00c06d": "helper: skip first-export count check only for timeouts variant",
+        "4a61708738": "helper: drop copy_from_retry machinery",
+        "238b55c2bd": "remove @require('#2386')",
+        "d9b34802f3": "pytest port (marks)",
+        "4ff1e28809": "drop partitioner arg (murmur3 only)",
+        "60fdd2b6c5": "add single_node attr (no longer present at upstream/next)",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "b56055c59a": "docstring: @jira_ticket CASSANDRA-9302",
+        "f804b8b7a7": "helper: assert SELECT COUNT == num_records",
+        "e45ceca512": "test added (origin)"
+      },
+      "relevance": "COPY is cqlsh-client code; the 3-node master cluster (incl. tablets) with clustering-row partitions and a low batch_size_warn_threshold_in_kb (live option, db/config.cc) makes it the only multi-node wide-partition COPY check. Server only provides range reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries",
+          "coverage": "partial",
+          "note": "single-node, 1000 rows simple table, released Scylla"
+        },
+        {
+          "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy::test_bulk_round_trip_default",
+          "coverage": "partial",
+          "note": "same helper/topology, simple table"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with scylla-cqlsh test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries (single node, 1000 rows) and with sibling test_bulk_round_trip_default; slow (~51s) and asserts only line counts. Note: batch_size_warn_threshold_in_kb=10 has no assertion on warnings; `partitioner` param unused (cqlsh_copy_tests.py:1234)."
+    },
+    "TestCqlshCopy::test_number_delimiter": {
+      "description": "Single node. non_default_delimiter_template('1'): inserts 10000 ints, COPY TO WITH DELIMITER='1', compares with SELECT via assert_csv_result_equal. Intended to verify a digit delimiter (values containing it must be quoted); helper only compares row counts since the pytest port.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "c7d4aee9b4": "remove @require('#2386') (enable on scylla)",
+        "954d2d4c02": "add @require('#2386') (skip on scylla)"
+      },
+      "relevance": "COPY DELIMITER is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_number_delimiter",
+          "coverage": "full",
+          "note": "explicit port; stronger: parses csv values and asserts quoting of values containing the delimiter ('\"1\"1\"10\"', '2120'), '1000 rows exported'; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (with value + quoting checks) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_number_delimiter (scylladb/scylla-cqlsh#234); dtest #7384 precedent. Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3 (was assertCountEqual on content), so delimiter/quoting never verified."
+    },
+    "TestCqlshCopy::test_null_as_null_indicator": {
+      "description": "Single node. custom_null_indicator_template('null'): inserts 2 rows with text and 2 with null, COPY TO WITH NULL='null', compares csv with SELECT (nulls mapped to indicator) via assert_csv_result_equal. Intended to verify NULL option output; helper only compares row counts.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "c7d4aee9b4": "remove @require('#2386') (enable on scylla)",
+        "954d2d4c02": "add @require('#2386') (skip on scylla)"
+      },
+      "relevance": "COPY NULL option is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_null_as_null_indicator",
+          "coverage": "full",
+          "note": "explicit port; asserts exact csv content incl. indicator for null cells; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_null_as_null_indicator (scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3 (was assertCountEqual on content), so the null indicator is never checked (4 rows always match). Note: template calls all_datatypes_prepare() (creates unused UDTs)."
+    },
+    "TestCqlshCopy::test_quoted_column_names_reading_specify_names": {
+      "description": "Single node. quoted_column_names_reading_template(specify_column_names=True): table with quoted columns \"IdNumber\", \"select\" (reserved word), writes 4-row csv, COPY FROM with explicit quoted column list, compares SELECT with csv via assert_csv_result_equal. Guards cqlsh quoting of case-sensitive/reserved column names on import; helper only compares row counts.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "Quoted-identifier handling in COPY FROM is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_quoted_column_names_reading_specify_names",
+          "coverage": "full",
+          "note": "explicit port; asserts '4 rows imported' and exact SELECT content; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_quoted_column_names_reading_specify_names (scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3 (was assertCountEqual on content), so a COPY FROM into wrong columns would still pass."
+    },
+    "TestCqlshCopy::test_quoted_column_names_writing_specify_names": {
+      "description": "Single node. quoted_column_names_writing_template(specify_column_names=True): table with quoted columns \"IdNumber\", \"select\", inserts 4 rows, COPY TO with explicit quoted column list, compares with a reference csv via assert_csvs_items_equal. Guards cqlsh quoting of case-sensitive/reserved column names on export; helper only compares line counts.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "Quoted-identifier handling in COPY TO is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_quoted_column_names_writing_specify_names",
+          "coverage": "full",
+          "note": "explicit port; asserts '4 rows exported' and exact csv content; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_quoted_column_names_writing_specify_names (scylladb/scylla-cqlsh#234). Bug: assert_csvs_items_equal (cqlsh_tools.py:35-39) only compares line counts since d9b34802f3, so column values/quoting never checked; reference_file never deleted."
+    },
+    "TestCqlshCopy::test_quoted_column_names_reading_dont_specify_names": {
+      "description": "Single node. quoted_column_names_reading_template(specify_column_names=False): table with quoted columns \"IdNumber\", \"select\" (reserved word), writes 4-row csv, COPY FROM without column list, compares SELECT with csv via assert_csv_result_equal. Guards cqlsh quoting of case-sensitive/reserved column names on import; helper only compares row counts.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "Quoted-identifier handling in COPY FROM is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_quoted_column_names_reading_dont_specify_names",
+          "coverage": "full",
+          "note": "explicit port; asserts '4 rows imported' and exact SELECT content; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_quoted_column_names_reading_dont_specify_names (scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3 (was assertCountEqual on content), so a COPY FROM into wrong columns would still pass."
+    },
+    "TestCqlshCopy::test_quoted_column_names_writing_dont_specify_names": {
+      "description": "Single node. quoted_column_names_writing_template(specify_column_names=False): table with quoted columns \"IdNumber\", \"select\", inserts 4 rows, COPY TO without column list, compares with a reference csv via assert_csvs_items_equal. Guards cqlsh quoting of case-sensitive/reserved column names on export; helper only compares line counts.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "Quoted-identifier handling in COPY TO is cqlsh-client option handling (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only stores/returns rows.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_quoted_column_names_writing_dont_specify_names",
+          "coverage": "full",
+          "note": "explicit port; asserts '4 rows exported' and exact csv content; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_quoted_column_names_writing_dont_specify_names (scylladb/scylla-cqlsh#234). Bug: assert_csvs_items_equal (cqlsh_tools.py:35-39) only compares line counts since d9b34802f3, so column values/quoting never checked; reference_file never deleted."
+    },
+    "TestCqlshCopy::test_read_invalid_float": {
+      "description": "Single node. data_validation_on_read_template(2.14, expect_invalid=True): writes csv row [1, 2.14] and COPY FROM into (a int, b int); asserts cqlsh reports a COPY FROM failure (COPY_FROM_FAILURE_RE on stdout+stderr) and the table is empty. Guards cqlsh client-side type validation/rejection on import (CASSANDRA-9302).",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "ccc91f1984": "expect_invalid branch: assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to import' in stderr (cqlsh-rs wording)",
+        "954d2d4c02": "drop @require('9302') (enable on scylla)"
+      },
+      "relevance": "Parsing/validation of csv values happens in cqlsh copyutil (client); server never sees the bad row.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromValidation::test_read_invalid_float",
+          "coverage": "full",
+          "note": "explicit port; asserts 'Failed to import' and empty table; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_data.py::TestCopyFromValidation::test_read_invalid_float (scylladb/scylla-cqlsh#234), same scenario and asserts; pure cqlsh-client behavior. Note: regex is broad (any 'Failed to process'/'COPY FROM error' matches), but empty-table check keeps it meaningful; only extra dtest value is cqlsh-rs wording (ccc91f1984)."
+    },
+    "TestCqlshCopy::test_read_invalid_uuid": {
+      "description": "Single node. data_validation_on_read_template(uuid4(), expect_invalid=True): writes csv row [1, uuid4()] and COPY FROM into (a int, b int); asserts cqlsh reports a COPY FROM failure (COPY_FROM_FAILURE_RE on stdout+stderr) and the table is empty. Guards cqlsh client-side type validation/rejection on import (CASSANDRA-9302).",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "ccc91f1984": "expect_invalid branch: assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to import' in stderr (cqlsh-rs wording)",
+        "954d2d4c02": "drop @require('9302') (enable on scylla)"
+      },
+      "relevance": "Parsing/validation of csv values happens in cqlsh copyutil (client); server never sees the bad row.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromValidation::test_read_invalid_uuid",
+          "coverage": "full",
+          "note": "explicit port; asserts 'Failed to import' and empty table; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_data.py::TestCopyFromValidation::test_read_invalid_uuid (scylladb/scylla-cqlsh#234), same scenario and asserts; pure cqlsh-client behavior. Note: regex is broad (any 'Failed to process'/'COPY FROM error' matches), but empty-table check keeps it meaningful; only extra dtest value is cqlsh-rs wording (ccc91f1984)."
+    },
+    "TestCqlshCopy::test_read_invalid_text": {
+      "description": "Single node. data_validation_on_read_template('test', expect_invalid=True): writes csv row [1, 'test'] and COPY FROM into (a int, b int); asserts cqlsh reports a COPY FROM failure (COPY_FROM_FAILURE_RE on stdout+stderr) and the table is empty. Guards cqlsh client-side type validation/rejection on import (CASSANDRA-9302).",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "9ffd273f04": "formatting (ruff format)",
+        "ccc91f1984": "expect_invalid branch: assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to import' in stderr (cqlsh-rs wording)",
+        "954d2d4c02": "drop @require('9302') (enable on scylla)"
+      },
+      "relevance": "Parsing/validation of csv values happens in cqlsh copyutil (client); server never sees the bad row.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromValidation::test_read_invalid_text",
+          "coverage": "full",
+          "note": "explicit port; asserts 'Failed to import' and empty table; scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_data.py::TestCopyFromValidation::test_read_invalid_text (scylladb/scylla-cqlsh#234), same scenario and asserts; pure cqlsh-client behavior. Note: regex is broad (any 'Failed to process'/'COPY FROM error' matches), but empty-table check keeps it meaningful; only extra dtest value is cqlsh-rs wording (ccc91f1984)."
+    },
+    "TestCqlshCopy::test_read_valid_data": {
+      "description": "Single node. data_validation_on_read_template(2, expect_invalid=False): COPY FROM a csv row [1, 2] into (a int, b int) and compares SELECT with csv via assert_csv_result_equal. Sanity check of the validation template; asserts only that 1 row exists.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR, not the origin."
+      },
+      "commits": {
+        "d9b34802f3": "pytest port; assert_csv_result_equal/assert_csvs_items_equal weakened to count-only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes; driver monkeypatch moved to helper)",
+        "cfdf134ab8": "re-add test after revert (origin)",
+        "d22c82e604": "drop `assert not err` in valid branch (cqlsh-rs stderr warnings)",
+        "ccc91f1984": "expect_invalid branch: assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to import' in stderr (cqlsh-rs wording)"
+      },
+      "relevance": "Basic COPY FROM is cqlsh-client behavior; trivially covered by many COPY tests.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromValidation::test_read_valid_data",
+          "coverage": "full",
+          "note": "explicit port; stronger: asserts no 'Failed to import', '1 rows imported from 1 files', exact row (1, 2); scylla-cqlsh PR #234 merged 2026-10-04, CI runs against scylladb/scylla:2026.3.3"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact row) by scylla-cqlsh test_copy_data.py::TestCopyFromValidation::test_read_valid_data (scylladb/scylla-cqlsh#234); also low value (template sanity check). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3 (was assertCountEqual on content); with stderr check dropped in d22c82e604 it only checks that 1 row exists."
+    },
+    "TestCqlshCopy::test_reading_counter": {
+      "description": "Single node. Creates table (a int, b text, c counter, PK(a,b)), writes a CSV with header and 4 rows, TRUNCATE, COPY FROM WITH HEADER = true, asserts table content equals the CSV data (assert_all, ignore_order). Guards cqlsh COPY FROM into counter tables (CASSANDRA-9043: COPY FROM must issue counter updates).",
+      "origin": {
+        "sha": "2c01d33c",
+        "date": "2015-11-18",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'CASSANDRA-9043: Add test case for COPY from COUNTER csv' (Zhao Yang); turned into _test_reading_counter_template in 954d2d4c02 (PR #490)."
+      },
+      "commits": {
+        "2fb588840d": "add skip_if(tablets & issue_open('#18180')) (counters unsupported with tablets)",
+        "d9b34802f3": "pytest port: single_node mark, assertItemsEqual -> assert_all(ignore_order)",
+        "60fdd2b6c5": "add single_node mark",
+        "954d2d4c02": "refactor into _test_reading_counter_template (3-col table, header, TRUNCATE, copy_options); enable on scylla (PR #490)"
+      },
+      "relevance": "COPY FROM into counter tables is client logic (copyutil builds UPDATE c = c + ? instead of INSERT). Server-side counter writes are covered by scylla test/cqlpy/test_counter.py and, with tablets, test/cluster/test_counters_with_tablets.py. scylladb/scylladb#18180 (tablets counters) closed 2025-11-04, so the skip_if is dead and the test now runs in next-dtest-tablets (16/16 pass).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromCounters::test_reading_counter",
+          "coverage": "full",
+          "note": "explicit port, same table/data, also asserts '4 rows imported from 1 files'; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario (stronger asserts) in scylla-cqlsh test_copy_data.py::TestCopyFromCounters::test_reading_counter (scylladb/scylla-cqlsh#234); server-side counters incl. tablets covered by scylla test/cqlpy/test_counter.py and test/cluster/test_counters_with_tablets.py. Note: skip_if(with_feature('tablets') & issue_open('#18180')) is dead, #18180 closed 2025-11-04."
+    },
+    "TestCqlshCopy::test_reading_counter_without_batching": {
+      "description": "Single node. Same as test_reading_counter but COPY FROM ... WITH HEADER = true AND MAXBATCHSIZE = 1, i.e. counter updates sent unbatched. Guards CASSANDRA-11474 (COPY FROM counters with batching disabled).",
+      "origin": {
+        "sha": "954d2d4c02",
+        "date": "2017-05-17",
+        "pr": 490,
+        "summary": "Scylla PR #490 '- more counter tests' (Larisa Ustalov) brought this upstream-Cassandra test (CASSANDRA-11474) in together with the template refactor and enabled COPY tests on scylla."
+      },
+      "commits": {
+        "2fb588840d": "add skip_if(tablets & issue_open('#18180')) (counters unsupported with tablets)",
+        "d9b34802f3": "pytest port: single_node mark, assertItemsEqual -> assert_all(ignore_order)",
+        "60fdd2b6c5": "add single_node mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "954d2d4c02": "add test (origin)"
+      },
+      "relevance": "COPY FROM into counter tables is client logic (copyutil builds UPDATE c = c + ? instead of INSERT). Server-side counter writes are covered by scylla test/cqlpy/test_counter.py and, with tablets, test/cluster/test_counters_with_tablets.py. scylladb/scylladb#18180 (tablets counters) closed 2025-11-04, so the skip_if is dead and the test now runs in next-dtest-tablets (16/16 pass). MAXBATCHSIZE is a cqlsh COPY option.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromCounters::test_reading_counter_without_batching",
+          "coverage": "full",
+          "note": "explicit port with MAXBATCHSIZE = 1, asserts row count message + content; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario in scylla-cqlsh test_copy_data.py::TestCopyFromCounters::test_reading_counter_without_batching (scylladb/scylla-cqlsh#234); MAXBATCHSIZE is cqlsh-client behavior. Note: skip_if(with_feature('tablets') & issue_open('#18180')) is dead, #18180 closed 2025-11-04."
+    },
+    "TestCqlshCopy::test_reading_counters_with_skip_cols": {
+      "description": "Single node. Table with 4 counter columns; CSV with 2 rows of 1s. Runs COPY FROM WITH SKIPCOLS four times (without truncation) and asserts the counters of non-skipped columns accumulate (counter COPY FROM is not idempotent). Guards CASSANDRA-9303 SKIPCOLS option on counter tables.",
+      "origin": {
+        "sha": "954d2d4c02",
+        "date": "2017-05-17",
+        "pr": 490,
+        "summary": "Scylla PR #490 '- more counter tests' brought this upstream-Cassandra test (CASSANDRA-9303) in, with @require('#2386') (removed later)."
+      },
+      "commits": {
+        "2fb588840d": "add skip_if(tablets & issue_open('#18180')) (counters unsupported with tablets)",
+        "d9b34802f3": "pytest port: single_node mark, assertItemsEqual -> assert_all(ignore_order)",
+        "60fdd2b6c5": "add single_node mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "77c52abacc": "remove experimental flag from cluster config",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "954d2d4c02": "add test (origin)"
+      },
+      "relevance": "COPY FROM into counter tables is client logic (copyutil builds UPDATE c = c + ? instead of INSERT). Server-side counter writes are covered by scylla test/cqlpy/test_counter.py and, with tablets, test/cluster/test_counters_with_tablets.py. scylladb/scylladb#18180 (tablets counters) closed 2025-11-04, so the skip_if is dead and the test now runs in next-dtest-tablets (16/16 pass). SKIPCOLS is a cqlsh COPY option.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromCounters::test_reading_counters_with_skip_cols",
+          "coverage": "full",
+          "note": "explicit port, same 4 SKIPCOLS steps and accumulated expectations, also asserts '2 rows imported'; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario in scylla-cqlsh test_copy_data.py::TestCopyFromCounters::test_reading_counters_with_skip_cols (scylladb/scylla-cqlsh#234). Note: skip_if(with_feature('tablets') & issue_open('#18180')) is dead, #18180 closed 2025-11-04."
+    },
+    "TestCqlshCopy::test_reading_use_header": {
+      "description": "Single node. Writes a CSV with header 'a,b' + 4 rows, COPY FROM WITH HEADER = true, asserts table content equals data. Guards cqlsh COPY FROM HEADER option.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8. Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; assert_all(ignore_order)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "test fixes (tempfile delete=False)",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_reading_use_header",
+          "coverage": "full",
+          "note": "explicit port, same data; also asserts '4 rows imported' and no 'Failed'; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlsh-client option fully covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_reading_use_header (scylladb/scylla-cqlsh#234); precedent dtest #7384. Note: redundant csvfile.close() inside with-block."
+    },
+    "TestCqlshCopy::test_reading_with_ttl": {
+      "description": "Single node. Writes 4-row CSV, COPY FROM WITH TTL = '5', asserts rows present, sleeps 10s, asserts table empty. Guards cqlsh COPY FROM TTL option (CASSANDRA-9494), i.e. cqlsh adds USING TTL to its inserts.",
+      "origin": {
+        "sha": "255e32d0b2",
+        "date": "2015-11-19",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Test for CASSANDRA-9494' (Stefania Alborghetti). Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "518ca98f00": "fix final assert to expect empty table ({}) after expiry (was [data])",
+        "d9b34802f3": "pytest port; assert_all",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "954d2d4c02": "@require('9494') -> @require('#2386') (later removed by 238b55c2bd)",
+        "255e32d0b2": "add test (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes. TTL expiry itself is server-side and covered by scylla test/cqlpy/test_ttl.py.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_reading_with_ttl",
+          "coverage": "full",
+          "note": "explicit port; COPY FROM WITH TTL = 3600 and checks TTL(b) in (0, 3600] instead of sleeping for expiry (faster, deterministic); scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        },
+        {
+          "path": "test/cqlpy/test_ttl.py",
+          "coverage": "partial",
+          "note": "server-side TTL expiry"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Client option covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_reading_with_ttl (checks TTL() value, scylladb/scylla-cqlsh#234); server expiry covered by scylla test/cqlpy/test_ttl.py; dtest spends ~10s in time.sleep. Note: unused `result` variable (cqlsh_copy_tests.py:738)."
+    },
+    "TestCqlshCopy::test_round_trip_murmur3": {
+      "description": "3 nodes, RF=1 (Murmur3). Inserts 10000 rows (text PK, int, float, uuid), SELECT, COPY TO csv, asserts 10000 lines, TRUNCATE, COPY FROM, asserts content equals the earlier SELECT (assert_all). Exercises cqlsh COPY TO splitting the token ring across multiple nodes and COPY FROM routing, with real content comparison. Runs under tablets and consistent-topology gating jobs.",
+      "origin": {
+        "sha": "f804b8b7a7",
+        "date": "2015-10-01",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest '9304: Added more round trip tests' (Stefania Alborghetti; one test per partitioner). Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "4ff1e28809": "remove non-murmur3 partitioner variants; partitioner param dropped (PR #1248)",
+        "19621d766f": "remove @freshCluster decorator",
+        "954d2d4c02": "drop test_round_trip_order_preserving sibling; no change to this test",
+        "f804b8b7a7": "add test (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes. Multi-node token-range split of COPY TO is client logic but depends on server token/tablet metadata; 'murmur3' name is now meaningless (only partitioner in scylla).",
+      "duplicates": [
+        {
+          "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy::test_bulk_round_trip_default",
+          "coverage": "partial",
+          "note": "same 3-node topology, 100000 rows via stress, but compares only line/row counts"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopySource::test_source_copy_round_trip",
+          "coverage": "partial",
+          "note": "1000-row round trip with content compare, single node released Scylla"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries",
+          "coverage": "partial",
+          "note": "single node, 1000 rows, injected retries"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Not ported to scylla-cqlsh (#234 has only single-node round trips); this is the only multi-node COPY round trip with content comparison against master (incl. tablets), but overlaps test_bulk_round_trip_default (YELLOW) - keep at most one of them. Note: test name refers to partitioner choice removed in 4ff1e28809."
+    },
+    "TestCqlshCopy::test_source_copy_round_trip": {
+      "description": "Single node. Inserts 1000 rows, runs COPY TO via a SOURCE'd command file, TRUNCATE, COPY FROM via SOURCE, asserts content equals original. Guards CASSANDRA-9083 (unicode issues when COPY is run from SOURCE).",
+      "origin": {
+        "sha": "3e8af80aae",
+        "date": "2015-05-29",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Add test for CASSANDRA-9083' (Tyler Hobbs)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; assert_all",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "46c31264b1": "tearDown Windows fix for tempfile; no behavior change on Linux",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "3e8af80aae": "add test (origin)"
+      },
+      "relevance": "SOURCE and COPY are both cqlsh-client commands; no server-specific behavior.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopySource::test_source_copy_round_trip",
+          "coverage": "full",
+          "note": "explicit port, same table/1000 rows, also asserts exported/imported counts; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Pure cqlsh-client scenario fully covered by scylla-cqlsh test_copy_data.py::TestCopySource::test_source_copy_round_trip (scylladb/scylla-cqlsh#234). Note: commandfile leaked if an assert fails before os.unlink."
+    },
+    "TestCqlshCopy::test_undefined_as_null_indicator": {
+      "description": "Single node. custom_null_indicator_template('undefined'): inserts 2 rows with b and 2 without, COPY TO WITH NULL = 'undefined', compares csv with SELECT (nulls replaced by indicator) via assert_csv_result_equal. Intended to verify the NULL option of COPY TO.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port; also weakened assert_csv_result_equal to row-count only",
+        "60fdd2b6c5": "add single_node mark",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_undefined_as_null_indicator",
+          "coverage": "full",
+          "note": "explicit port, asserts exact csv content incl. indicator; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered (exact content) by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_undefined_as_null_indicator (scylladb/scylla-cqlsh#234). Bug: assert_csv_result_equal (cqlsh_copy_tests.py:297) only compares row counts since pytest port d9b34802f3, so the null indicator is never checked. Note: template uses all_datatypes_prepare() (creates unused UDTs)."
+    },
+    "TestCqlshCopy::test_writing_use_header": {
+      "description": "Single node. Inserts 3 rows, COPY TO WITH HEADER = true, reads csv and asserts sorted content equals header + rows. Guards COPY TO HEADER option.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff pyupgrade: open mode)",
+        "d9b34802f3": "pytest port; assertItemsEqual -> sorted ==",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: NamedTemporaryFile text mode utf-8",
+        "55acefe5da": "formatting (pep8)",
+        "868827f35a": "compare order-independently",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "test fixes (tempfile delete=False)",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_writing_use_header",
+          "coverage": "full",
+          "note": "explicit port; stronger: asserts header is the first line; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_writing_use_header (scylladb/scylla-cqlsh#234), which also checks the header is first. Note: dtest sorts header together with rows, so header position is not verified."
+    },
+    "TestCqlshCopy::test_writing_with_timeformat": {
+      "description": "Single node. Inserts 3 timestamps, COPY TO WITH DATETIMEFORMAT = '%Y/%m/%d %H:%M', asserts exact csv values. Guards CASSANDRA-10633/8970 (custom time format in COPY TO).",
+      "origin": {
+        "sha": "87c6e69461",
+        "date": "2015-11-06",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Regression test for CASSANDRA-10633/8970' (Stefania Alborghetti). Data PR #52 is a later 'Merge upstream' PR."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (ruff pyupgrade)",
+        "518ca98f00": "split cmds string; sort csv rows by key before comparing",
+        "238b55c2bd": "remove @require('#2386'); option TIMEFORMAT -> DATETIMEFORMAT",
+        "d9b34802f3": "pytest port",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3 port",
+        "954d2d4c02": "add @require('#2386') and stray `print cmds`",
+        "255e32d0b2": "formatting (docstring punctuation)",
+        "53464f1cee": "docstring (doxygen markup)",
+        "87c6e69461": "add test (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_options.py::TestCopyOptions::test_writing_with_timeformat",
+          "coverage": "full",
+          "note": "explicit port, identical data and expected values; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_writing_with_timeformat (scylladb/scylla-cqlsh#234). Note: stray print(cmds) (cqlsh_copy_tests.py:697)."
+    },
+    "TestCqlshCopy::test_wrong_number_of_columns": {
+      "description": "Single node. Table (a, b); CSV row with 3 values; COPY FROM, asserts table empty and output matches COPY_FROM_FAILURE_RE. Guards that COPY FROM rejects rows with wrong column count (CASSANDRA-9302). Since ccc91f1984 the regex also accepts cqlsh-rs wording.",
+      "origin": {
+        "sha": "ed8fe85df8",
+        "date": "2015-05-08",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'add tests for cqlsh COPY command' (CASSANDRA-9306); reverted 9bc7347894, re-added cfdf134ab8."
+      },
+      "commits": {
+        "ccc91f1984": "accept both Python-cqlsh and cqlsh-rs failure wording via COPY_FROM_FAILURE_RE on out+err (PR #7181, DTEST-246)",
+        "056f5dc7a8": "formatting (ruff: out -> _out)",
+        "9ffd273f04": "formatting (ruff format)",
+        "d9b34802f3": "pytest port",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3 port",
+        "954d2d4c02": "remove @require('9302') (enable on scylla)",
+        "983f000332": "add @require('9302')",
+        "b56055c59a": "docstring @jira_ticket",
+        "e45ceca512": "assert 'Failed to import' in error output",
+        "d64d78e60f": "tempfile -> self.tempfile",
+        "f168856574": "test fixes",
+        "e0a2d911e0": "formatting (docstring quotes)",
+        "cfdf134ab8": "re-add test after revert (origin)"
+      },
+      "relevance": "COPY TO/FROM and its options are implemented in the cqlsh client (scylla-cqlsh pylib/cqlshlib/copyutil.py, scylla submodule tools/cqlsh); server only serves plain reads/writes.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_data.py::TestCopyFromValidation::test_wrong_number_of_columns",
+          "coverage": "full",
+          "note": "explicit port; stronger: asserts 'Failed to import 1 rows' and 'Invalid row length 3 should be 2' + empty table; scylla-cqlsh PR #234 merged 2026-10-04; CI integration_test_scylla runs against scylladb/scylla:2026.3.3 single node, NTS RF=1 keyspace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-cqlsh test_copy_data.py::TestCopyFromValidation::test_wrong_number_of_columns (scylladb/scylla-cqlsh#234). Note: only extra dtest value is cqlsh-rs wording compatibility (ccc91f1984, DTEST-246); COPY_FROM_FAILURE_RE is broad (any 'Failed to process'/'COPY FROM error')."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
