@@ -1,0 +1,35 @@
+{
+  "file": "delete_insert_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestDeleteInsert::test_delete_insert_search": {
+      "description": "2 DCs x 2 racks x 1 node, NTS RF dc1:2 dc2:2, table with secondary index on `group`. Inserts 1000 rows in 4 random groups, deletes all group2 rows by PK (IN batches of 100), re-inserts them, then runs 20 parallel LOCAL_QUORUM `SELECT ... WHERE group='group2'` from random nodes expecting the count to equal the re-inserted rows. Guards SI correctness after delete + re-insert of the same keys (Cassandra CASSANDRA-5510 port); in scylla this exercises MV-based index view updates (tombstone vs re-insert shadowing).",
+      "origin": {"sha": "b5b8dc484df4fdafad5d493246ad46e57061c88a", "date": "2013-11-07", "pr": null, "summary": "Ryan McGuire, Cassandra dtest 'Adds delete_insert_test from CASSANDRA-5510' (forced C* 1.2.5); inherited from Cassandra dtest, not scylla-specific."},
+      "commits": {
+        "39edad09d649659c591daffd76b17cf21791465d": "populate([2,2]) -> generate_cluster_topology(2 DCs x 2 racks x 1 node) for RF-rack-validity",
+        "c35eab0e6f6ed586f4136ac99cb105af46bd7f1b": "create_ddl mutable default rf -> None (no behavior change)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "bb3254f6e27d81e3affa14642ed1c7647a057f7e": "class marked next_gating",
+        "c0ae2db291c3c427005c596a3d419f27cd984357": "class marked dtest_full",
+        "786bc0e7fb769fe1df9e774fdcb9721394edd62d": "pytest port; ROWS moved to class attr; delete split into IN batches of 100 (scylla cartesian-product limit) -- introduced ids[start:-1] off-by-one; assert message added",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "a461138c150342b4793eeb9d094536a72c17889a": "threading.Thread -> ThreadPoolExecutor + concurrent.futures.wait; meant to propagate thread exceptions but wait() never raises, so still doesn't",
+        "cfadc7cda27b39c12918650a4305a0e5a1776f1a": "formatting",
+        "6ce18537641711a0376e9984abdae1fb72db51bd": "formatting",
+        "1761f6fac2a7104df392a918ef5fdee13ef01173": "rename cursor -> session",
+        "3a5b8d344a8b2a2063fe7a6505453b1ffd94d1a3": "PyTester -> Tester rename, whitespace",
+        "0e3c3b1aeecdad2536c16321f7763012feb32eb2": "port from cql lib to python driver; SELECT via SimpleStatement LOCAL_QUORUM",
+        "c86cb683f3f5b9150fe9d3b6f0464b97746b8a18": "removed forced CASSANDRA_VERSION=1.2.5"
+      },
+      "relevance": "Live: secondary indexes (MV-backed in scylla), NTS multi-DC, LOCAL_QUORUM reads all current. Delete+re-insert shadowing in index view updates is real scylla logic (db/view).",
+      "duplicates": [
+        {"path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_delete_indexed_rows", "coverage": "partial", "note": "deletes rows and verifies index/view no longer return them at CL=ALL; no re-insert step"},
+        {"path": "test/cqlpy/test_secondary_index.py::test_partition_deletion", "coverage": "partial", "note": "SI consistency after partition delete; single node, no re-insert"},
+        {"path": "test/cqlpy/test_materialized_view.py::test_base_partition_deletion_in_batch_with_insert", "coverage": "partial", "note": "MV view update for delete+insert of same base row; single node"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario (SI query after delete+re-insert, multi-DC) is live and only partially covered elsewhere, but the test asserts nothing. Bug: delete_insert_test.py:94 `concurrent.futures.wait(...)` never calls `.result()`, so assertion and query errors in run_query (l.82-85) are swallowed -- has never asserted since origin (threads in b5b8dc48, kept by a461138c). Bug: l.52 `ids[start:-1]` skips deleting the last group2 row (786bc0e7). Note: l.69 `session.consistency_level = \"LOCAL_QUORUM\"` is a no-op attribute (writes use driver default CL); 20 extra connections never closed. Fix (`for f in threads: f.result()`) or remove."
+    }
+  }
+}
