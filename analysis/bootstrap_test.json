@@ -1,0 +1,716 @@
+{
+  "file": "bootstrap_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestBootstrap::test_add_node": {
+      "description": "2-node cluster, add node3 via ccm cluster.new_node(3), start it with wait_other_notice, stop cluster. No data, no assertions beyond start/stop succeeding. Added as a self-test for the then-new ccm cluster.new_node() helper (scylla-ccm PR 199).",
+      "origin": {
+        "sha": "8707d7f7f419f33a7af54906eeca1f868b02d58e",
+        "date": "2019-12-15",
+        "pr": 1194,
+        "summary": "Benny Halevy: bootstrap_test: add tests for cluster.new_node (PR 'Use cluster.new_node', depends on scylla-ccm#199)"
+      },
+      "commits": {
+        "8707d7f7f419f33a7af54906eeca1f868b02d58e": "origin: added as add_node_test (ccm cluster.new_node self-test)",
+        "61425046fee1821dd97e37b7855ef9a039c4d2c0": "cluster.start(wait_other_notice=True) to avoid gating flake",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest (rename to test_*)"
+      },
+      "relevance": "Node bootstrap is live behavior, but the test only checks that ccm new_node + start works; it's a ccm/framework smoke test.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "full",
+          "note": "bootstraps nodes (vnodes+tablets) under writes, plus decommission/removenode"
+        },
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_simple_bootstrap",
+          "coverage": "full",
+          "note": "same new_node+start, plus data/size checks"
+        },
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_read_from_bootstrapped_node",
+          "coverage": "full",
+          "note": "new_node+start plus data check"
+        }
+      ],
+      "decision": "RED",
+      "reason": "ccm new_node() self-test (PR 1194) with no Scylla assertion; adding a node is fully covered by test/cluster/test_topology_ops.py and by every other bootstrap dtest. Note: in next_gating as cheap smoke (~20s); log text says 'three nodes' but populates 2 (bootstrap_test.py:100)."
+    },
+    "TestBootstrap::test_add_detached_node": {
+      "description": "Same as test_add_node but node3 is created with cluster.new_node(3, add_node=False), i.e. not registered in the ccm cluster object, so a finalizer stops it. Scylla-side scenario identical to test_add_node; only exercises the ccm add_node=False path.",
+      "origin": {
+        "sha": "8707d7f7f419f33a7af54906eeca1f868b02d58e",
+        "date": "2019-12-15",
+        "pr": 1194,
+        "summary": "Benny Halevy: bootstrap_test: add tests for cluster.new_node"
+      },
+      "commits": {
+        "8707d7f7f419f33a7af54906eeca1f868b02d58e": "origin: added as add_node_test (ccm cluster.new_node self-test)",
+        "61425046fee1821dd97e37b7855ef9a039c4d2c0": "cluster.start(wait_other_notice=True) to avoid gating flake",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest (rename to test_*)",
+        "0f9e1b431ab89ab566eaeef3f4d21ca525144e58": "class-level dtest_full mark (was missing after pytest move)"
+      },
+      "relevance": "Tests ccm behavior (add_node=False), not Scylla behavior; Scylla sees an ordinary bootstrap.",
+      "duplicates": [
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_add_node",
+          "coverage": "full",
+          "note": "identical Scylla scenario"
+        },
+        {
+          "path": "dtest update_cluster_layout_tests.py (new_node(..., add_node=False) at lines 388, 731, 813)",
+          "coverage": "full",
+          "note": "ccm add_node=False path exercised by real tests"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "full",
+          "note": "bootstrap coverage"
+        }
+      ],
+      "decision": "RED",
+      "reason": "ccm framework self-test (PR 1194, add_node=False) with no Scylla-specific assertion; Scylla scenario identical to test_add_node and the ccm path is used by update_cluster_layout_tests.py:388/731/813. Note: log text says 'three nodes' but populates 2 (bootstrap_test.py:116)."
+    },
+    "TestBootstrap::test_cluster_become_unavailable_when_kill_node_during_bootstrap": {
+      "description": "Start cluster (vnodes: 2 nodes RF=2 CL=TWO; tablets: 3 nodes RF=3 CL=QUORUM), c-s writes in background, bootstrap node (RBNO forced via allowed_repair_based_node_ops), wait for 'start streaming' + stream/repair start, then stop it gracefully or kill -9. Vnodes: assert existing nodes log 'gossip - Removed endpoint' and (force) start thread died with returncode -9. Then a fresh 5s c-s at same CL must succeed, i.e. aborted bootstrap leaves cluster available. Regression test for scylladb/scylla#4488 (still OPEN, gossip-era).",
+      "origin": {
+        "sha": "20e457a392e9c729e5b60aaf27cf9bbb18e67e8a",
+        "date": "2020-06-14",
+        "pr": 1559,
+        "summary": "test(bootstrap_test.py): Killing node during bootstrap; covers scylladb/scylla#4488"
+      },
+      "commits": {
+        "385421a7b7d206b5b6c4746faf2983495aae4223": "ignore pattern accepts 'abort requested' rendering (seastar fmt change)",
+        "7c8ba551887491c6c953c733b22941418087bda5": "set allowed_repair_based_node_ops incl. bootstrap explicitly (default changed in scylladb#28080)",
+        "119b9dfe82e3752e4cdb77d7a7761c128d13498c": "rf-rack-valid topology (1 node per rack, new node in r1)",
+        "66a909f40ff64b8929c091cb0ca450fa7a776b26": "'Removed endpoint' regex accepts host id",
+        "44ff85592f449b5f1980a30f9c8c5cd2bddcc317": "split tablets scenario into separate test; tablets path here syncs on system_distributed repair msg",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "use_cassandra_stress mark",
+        "93468e62fe9f8e3a6f3946e84940c09b1c3111c5": "remove duplicated tablets restart lines",
+        "49aa179b27be3178a30594da2d507f0622c605da": "tablets: restart killed node and re-run c-s (later moved to tablets test)",
+        "bb71da5bdc010d292f13ad35fc7db893c2ef65dd": "tablets: 3 nodes RF=3 CL=QUORUM; skip gossip checks with tablets",
+        "bab7a141c47a5491cc719a6927acef67e374333b": "re-enable gracefully variant under consistent-topology-changes",
+        "c2904bb70d81e9d6497adbb4785a44fcc96ddf69": "shorten c-s durations (5s prepopulate, 30s background, 5s after)",
+        "e9f529da226a1e51d802f06f57d06e0da4b5d793": "wait for 'gossip - Removed endpoint' on remaining nodes",
+        "494825f61227e5be2e61c97b73cc2fb862ad28dd": "skip gracefully variant with consistent-topology-changes",
+        "cb2fdef72f7277ae5a1177d0f83676841e4353f5": "ignore raft_topology abort_requested_exception",
+        "33beab0f879dc8e7446f32fd022ad93f66c342d3": "parametrize gracefully/force (was two wrapper tests)",
+        "1fcf20c927c08b0cca996ab035afa28d9311081d": "drop FatClient 'removing from gossip' check",
+        "914129181e8a45bb8307c569696f1813b0cd9a4b": "formatting (remove pylint comments)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "61fdc99d1bddc643efbc8ffd37fda04717ed2582": "bootstrap start pattern extended for raft topology",
+        "e0759255130502fe804fcf02e34776da6ca203ee": "explicit 5s pre-populate c-s before bootstrap",
+        "00aeef0b5970c8dd7fc6ff68ed6dddee6a3f90eb": "wait for compaction of user ks before starting new node",
+        "943a44b362be1d838f30ff39ae887518ce2316ba": "remove @require(#4488) so it runs",
+        "0e88cd4b1619d2c00d31ed0e36d9809d79a5510f": "after kill, run c-s again and assert success",
+        "8febf69c69331df668213390eed8ac1bab500a56": "drop deprecated capture_output",
+        "21f4ec71218d1784bd1fc9a699129e5500627f74": "ignore 'bootstrap.*failed'",
+        "f817d6c0bab9fcae73944f6d97d80e8883550494": "FatClient regex adjusted",
+        "1a2291d32d9a714b1ec9124f8ab0c6254d1fed9d": "stress() result handling via assert_cs_success",
+        "c1fa17619ae49a0591f7e97129d2f95d6e253d02": "bootstrap log message text fix",
+        "b2ed93e7e9d471fae050fd93bb34270951936c1a": "pytest refactor (formatting)",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest",
+        "a95022a90ef59cfc3aa546c6dffb74f1bbc4d418": "formatting (autopep8)",
+        "20e457a392e9c729e5b60aaf27cf9bbb18e67e8a": "origin"
+      },
+      "relevance": "Live: raft-topology bootstrap rollback when the joining node dies mid-streaming. Log messages relied on exist (service/storage_service.cc 'start streaming', gms/gossiper.cc:924 'Removed endpoint', repair/repair.cc:1783 'sync data for keyspace'). Runs in dtest-release (tablets path) and dtest-release-with-raft (vnodes path).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap streaming failure via stream_ranges_fail injection -> rollback; no node death, no write load, debug/dev only"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py::test_random_failures",
+          "coverage": "partial",
+          "note": "pauses/fails bootstrapping node at injection points"
+        },
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_cluster_become_unavailable_when_kill_node_during_tablets_bootstrap",
+          "coverage": "partial",
+          "note": "under tablets this test's tablets branch is nearly the same scenario"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Kill-joiner-under-load in release mode is only partially covered by injection-based scylla tests (test_topology_streaming_failure); worth keeping the vnodes path. Bug: c-s ToolError during the kill window is swallowed (bootstrap_test.py:618-622), so mid-bootstrap availability (the #4488 claim) is never asserted, only post-abort writes. Note: with tablets (dtest-release) the tablets branch duplicates test_..._tablets_bootstrap, which 44ff85592f meant to split out; log uses set literal {\"Gracefully\"...} (line 599); docstring says RF=2/CL=2 regardless of tablets."
+    },
+    "TestBootstrap::test_cluster_become_unavailable_when_kill_node_during_tablets_bootstrap": {
+      "description": "Tablets only: 3-node cluster (3 racks), RF=3 CL=QUORUM c-s writes, bootstrap node4 into rack r3 with RBNO, wait for 'start streaming' and tablet stream/repair start, stop it (graceful/kill). Assert post-abort 5s c-s succeeds, then restart node4 and assert another c-s run succeeds. Separated from the main test because with tablets the node is killed during tablet migration, after it already joined the ring.",
+      "origin": {
+        "sha": "44ff85592f449b5f1980a30f9c8c5cd2bddcc317",
+        "date": "2024-09-03",
+        "pr": 4892,
+        "summary": "Benny Halevy: Refactor test_cluster_become_unavailable_when_kill_node_during_bootstrap for tablets (split out tablets-only case)"
+      },
+      "commits": {
+        "385421a7b7d206b5b6c4746faf2983495aae4223": "ignore pattern accepts 'abort requested' rendering",
+        "28d3e990f8aadf74c02c051b635a63aae9029266": "force RBNO bootstrap (streaming too slow in debug after scylladb b637e17b19)",
+        "a8458d65cf43c750cfa534d3955e1da0d6896347": "rf-rack-valid topology; new node in r3",
+        "25776f6fca3bcb2e4c666b5ebb049d08a665f4c5": "stream msg regex 'Streaming for tablet migration|Beginning stream session' (file streaming)",
+        "58a17539f767378f737a3efc6eead404ea86d098": "remove non-tablets branches; always restart node and re-run c-s",
+        "44ff85592f449b5f1980a30f9c8c5cd2bddcc317": "origin (copied from main test)",
+        "93468e62fe9f8e3a6f3946e84940c09b1c3111c5": "pre-split: remove duplicated tablets restart lines (inherited)",
+        "49aa179b27be3178a30594da2d507f0622c605da": "pre-split: tablets restart + c-s (inherited)"
+      },
+      "relevance": "Live (tablets + raft topology). Note the stream regex alternative 'Beginning stream session' is debug-level (streaming/stream_coordinator.cc:80, enabled via --logger-log-level stream_session=debug) and 'Streaming for tablet migration' is info in storage_service.cc:5795; with RBNO bootstrap the actual match may be the debug one.",
+      "duplicates": [
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_cluster_become_unavailable_when_kill_node_during_bootstrap (dtest-release, tablets path)",
+          "coverage": "partial",
+          "note": "same cluster/CL/kill flow; lacks only the restart of killed node + final c-s"
+        },
+        {
+          "path": "test/cluster/test_tablets_migration.py::test_node_failure_during_tablet_migration[destination-streaming]",
+          "coverage": "partial",
+          "note": "destination replica fails during tablet streaming; injection-based"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap streaming failure rollback"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Heavily overlaps the main test's tablets path (both run in dtest-release, ~140s each x2 params); unique bit is restarting the killed node and writing again. Bug: c-s ToolError swallowed during kill window (bootstrap_test.py:698-702); comment says CL=TWO but uses QUORUM; docstring says RF=2/2 nodes but uses RF=3/3 nodes; log uses set literal (line 688); redundant `assert 'tablets' in scylla_features` after required_features mark; `dtest_config` and `kill_node_err_msg`/`start_new_node_thread` unused."
+    },
+    "TestBootstrap::test_decommissioned_wiped_node_can_join": {
+      "description": "3 nodes, c-s 10K writes; bootstrap node4, assert all rows readable via node4 at QUORUM; decommission node4, stop it, wipe data+commitlog, restart same node (same IP, new host id) and assert it bootstraps ('start streaming'); vnodes only: off-strategy compaction started during bootstrap. Ported from Cassandra dtest (CASSANDRA-9765).",
+      "origin": {
+        "sha": "8b6737ae6cd97020364a676e11ccd244b45a5d8d",
+        "date": "2015-07-15",
+        "pr": 52,
+        "summary": "Stefania Alborghetti (Cassandra dtest): Added more tests for CASSANDRA-9765; merged into scylla-dtest via 'Merge upstream' PR 52"
+      },
+      "commits": {
+        "87126168575903a92539adef9aff76fe40b454f8": "gossip quarantine regex accepts host id",
+        "66a909f40ff64b8929c091cb0ca450fa7a776b26": "'is now dead|DOWN' regex accepts host id",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "formatting (typo fix in comment)",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "use_cassandra_stress mark",
+        "49aa179b27be3178a30594da2d507f0622c605da": "skip off-strategy validation with tablets",
+        "ca814ca6d1b3dec3cfc9f499f54cd91319b338e4": "wait for 'gossip quarantine over' only without consistent-topology-changes",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade)",
+        "61fdc99d1bddc643efbc8ffd37fda04717ed2582": "bootstrap start pattern extended for raft topology",
+        "9fdbe770dc9d2c736e2ce62669ce4e262c467e8a": "assert data via node4 + validate off-strategy compaction during bootstrap",
+        "c1fa17619ae49a0591f7e97129d2f95d6e253d02": "bootstrap log message text fix",
+        "0f9e1b431ab89ab566eaeef3f4d21ca525144e58": "class-level dtest_full mark",
+        "4612bf4ada5906e8c01485a90369e0d5a489d38d": "watch for specific 'Starting to bootstrap' after restart",
+        "b5fa7aae3c27900d241a4ff0130aada10d9d0d60": "wait for gossip quarantine over before restart",
+        "25e7beb79c80fc0317cb47e4d79fb0629b82fe06": "stop without wait_other_notice, wait for 'is now DOWN', rmtree data/commitlog",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest",
+        "cddb8987c6a96a095ccd9065ebc9a9f684ca2149": "shutil -> node.rmtree",
+        "8b058921960e8faacf173be9bb4dfa0e5b7d1ec1": "debug printouts",
+        "95d3941936b87b5d80ca806383ffa6b481c986bf": "rename node2 -> node4",
+        "70eec5f1b86363f69e233eb486b37f9be8ccf4d8": "formatting (stress args)",
+        "8ff723d2f361cb9ea81418a98f0f490c2f5b3f02": "SIGKILL after decommission",
+        "8b6737ae6cd97020364a676e11ccd244b45a5d8d": "origin"
+      },
+      "relevance": "Live: re-joining a decommissioned node's address with wiped state (new host id, same IP) under raft topology. 'gossip quarantine over' no longer exists in scylla source; consistent-topology-changes is UNUSED/always-on (db/config.cc:2123).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_decommission.py::test_decommissioned_node_cant_rejoin",
+          "coverage": "partial",
+          "note": "complement: non-wiped decommissioned node must be refused"
+        },
+        {
+          "path": "dtest topology_test.py::test_decommissioned_node_cant_rejoin",
+          "coverage": "partial",
+          "note": "same complement in dtest"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test re-adds a wiped decommissioned node with same IP; scenario is live. Note: dead gossip-mode branch waiting for 'gossip quarantine over' (bootstrap_test.py:403-405), message absent from scylla and consistent-topology always on in conftest.py:734. Note: no data check after rejoin; bootstrap check uses watch_log_for(timeout=0) only."
+    },
+    "TestBootstrap::test_failed_bootstrap_wiped_node_can_join": {
+      "description": "1 node, c-s 10k writes+flush; bootstrap node2 with stream_io_throughput_mb_per_sec=1 and KillOnBootstrap thread kills it mid-bootstrap; assert node2 dead and node1 logs 'Finished to force remove node'. Wipe node2, remove throttle, restart and assert it bootstraps ('start streaming'). Ported from Cassandra dtest (CASSANDRA-9765).",
+      "origin": {
+        "sha": "8b6737ae6cd97020364a676e11ccd244b45a5d8d",
+        "date": "2015-07-15",
+        "pr": 52,
+        "summary": "Stefania Alborghetti (Cassandra dtest): Added more tests for CASSANDRA-9765; merged via PR 52"
+      },
+      "commits": {
+        "45ba2066ec21952286db1e57930a1a3cb33ebf60": "fix race: throttle stream_io_throughput_mb_per_sec=1, n=10k, unthrottle on rejoin (scylladb/scylladb#26525)",
+        "ab68dcc56f324c52eebe7bf71da30098a0f66c25": "rename failed_bootstap -> failed_bootstrap",
+        "87126168575903a92539adef9aff76fe40b454f8": "gossip regexes accept host id",
+        "eb859a9fed684ea00e3c05b45bf2f66c9a166025": "'Finished to force remove node' regex accepts host id",
+        "f44b49082adf505beb5b78a27ff4757b5d99b4b4": "_cleanup -> wipe_node_data_directories",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "use_cassandra_stress mark",
+        "ca814ca6d1b3dec3cfc9f499f54cd91319b338e4": "skip quarantine wait in raft-topology mode",
+        "d06bed122f27ac0d6e36a80f661f458d80aacfcb": "feature check via self.scylla_features",
+        "1bc85a15c7f6ecc6af373095a5bdaf0aa77a7a26": "raft mode waits for 'Finished to force remove node'",
+        "f902f8f8539ede1caf48c13c9c748a6e0c85ad29": "ignore patterns for new raft_topology log prefix",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade)",
+        "61fdc99d1bddc643efbc8ffd37fda04717ed2582": "bootstrap start pattern extended for raft topology",
+        "c1fa17619ae49a0591f7e97129d2f95d6e253d02": "bootstrap log message text fix",
+        "0f9e1b431ab89ab566eaeef3f4d21ca525144e58": "class-level dtest_full mark",
+        "b2ed93e7e9d471fae050fd93bb34270951936c1a": "pytest refactor (formatting)",
+        "4612bf4ada5906e8c01485a90369e0d5a489d38d": "watch for specific bootstrap start message",
+        "3b35a95e362368ac2c09865b707721e9e544d90d": "wait for gossip quarantine over",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest",
+        "cddb8987c6a96a095ccd9065ebc9a9f684ca2149": "shutil -> node.rmtree",
+        "2a1443c92a519f656ca5fe262dc7ef0b57432e4a": "wait for node1 to notice node2 removed from gossip",
+        "84d8e3083bd826d8fede845e54db8a4bbf64b7fc": "explicit wait_other_notice/wait_for_binary_proto=False",
+        "d4c7de38909a60d2f5692f5078a2ef76926ddc3d": "also wipe commitlog",
+        "611af16330aad3c5b629fc0099fa97c9a01bef85": "revert to default timeouts",
+        "8b6737ae6cd97020364a676e11ccd244b45a5d8d": "origin"
+      },
+      "relevance": "Live: raft-topology bootstrap failure rollback + rejoin of same IP. 'Finished to force remove node' exists (gms/gossiper.cc:880). Gossip-mode messages ('has been silent ... removing from gossip', 'gossip quarantine over') no longer exist in scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap streaming failure -> rollback; no rejoin of wiped node"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py::test_random_failures",
+          "coverage": "partial",
+          "note": "bootstrap failures at injection points"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with injection-based rollback tests; rejoin after killed bootstrap is unique-ish. Note: dead gossip-mode branches (bootstrap_test.py:450, 459-461) and stale ignore patterns with old 'raft topology:' prefix (line 469). Note: rejoin only asserts 'start streaming' with timeout=0; no data check despite original_rows being read (line 433, unused)."
+    },
+    "TestBootstrap::test_full_cluster_recovery_after_forcibly_stop_3_nodes_rf_3": {
+      "description": "Helper _full_cluster_recovery_after_stop: 3-node cluster (3 racks), ks RF=3, insert 10000 c1c2 rows at QUORUM, cluster.flush(), forcibly (SIGKILL) stop all nodes, assert processes exited, start all, reconnect, query all 10000 keys at QUORUM asserting values. Not related to bootstrap; checks no data loss after full cluster stop.",
+      "origin": {
+        "sha": "5808f72e73ad2dc6e9308553018475806ce1636c",
+        "date": "2020-05-19",
+        "pr": 1516,
+        "summary": "nizarh11: full_cluster_recovery_after_stop_test: test for cluster recovery after gently/forcibly stop"
+      },
+      "commits": {
+        "5808f72e73ad2dc6e9308553018475806ce1636c": "origin: added test + _full_cluster_recovery_after_stop helper",
+        "9ab7a73bef876f28fb9702de1a53a31da0327018": "helper: all_pids[0] -> node.pid",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest (assertEqual -> assert)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "helper uses generate_cluster_topology (rf racks)"
+      },
+      "relevance": "Live: full-cluster restart with data. Generic, not bootstrap-specific.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_restart_cluster.py::test_restart_cluster",
+          "coverage": "partial",
+          "note": "3-node graceful full restart, no data check"
+        },
+        {
+          "path": "test/cluster/test_truncate_with_drop.py::test_truncation_records_pruned_on_dirty_restart",
+          "coverage": "partial",
+          "note": "dirty restart path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (test_restart_cluster has no data check); cheap, but three near-identical variants could be one parametrized test. Bug: cluster.flush() before stop (bootstrap_test.py:504) means data is in sstables, so commitlog replay after forcible kill is never exercised; docstring says c-s but uses insert_c1c2."
+    },
+    "TestBootstrap::test_full_cluster_recovery_after_gentle_stop_6_nodes_rf_2": {
+      "description": "Helper _full_cluster_recovery_after_stop: 6-node cluster (2 racks), ks RF=2, insert 10000 c1c2 rows at QUORUM, cluster.flush(), gently stop all nodes, assert processes exited, start all, reconnect, query all 10000 keys at QUORUM asserting values. Not related to bootstrap; checks no data loss after full cluster stop.",
+      "origin": {
+        "sha": "5808f72e73ad2dc6e9308553018475806ce1636c",
+        "date": "2020-05-19",
+        "pr": 1516,
+        "summary": "nizarh11: full_cluster_recovery_after_stop_test: test for cluster recovery after gently/forcibly stop"
+      },
+      "commits": {
+        "5808f72e73ad2dc6e9308553018475806ce1636c": "origin: added test + _full_cluster_recovery_after_stop helper",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "renamed from 5 nodes to 6 nodes; helper uses generate_cluster_topology",
+        "9ab7a73bef876f28fb9702de1a53a31da0327018": "helper: all_pids[0] -> node.pid",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest (assertEqual -> assert)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)"
+      },
+      "relevance": "Live: full-cluster restart with data. Generic, not bootstrap-specific.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_restart_cluster.py::test_restart_cluster",
+          "coverage": "partial",
+          "note": "3-node graceful full restart, no data check"
+        },
+        {
+          "path": "test/cluster/test_truncate_with_drop.py::test_truncation_records_pruned_on_dirty_restart",
+          "coverage": "partial",
+          "note": "dirty restart path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap (test_restart_cluster.py::test_restart_cluster is the same graceful full restart without data); value is the data check. Note: docstring says c-s but uses insert_c1c2; flush before graceful stop is redundant (drain)."
+    },
+    "TestBootstrap::test_full_cluster_recovery_after_forcibly_stop_4_nodes_rf_1": {
+      "description": "Helper _full_cluster_recovery_after_stop: 4-node cluster (1 racks), ks RF=1, insert 10000 c1c2 rows at QUORUM, cluster.flush(), forcibly (SIGKILL) stop all nodes, assert processes exited, start all, reconnect, query all 10000 keys at QUORUM asserting values. Not related to bootstrap; checks no data loss after full cluster stop.",
+      "origin": {
+        "sha": "5808f72e73ad2dc6e9308553018475806ce1636c",
+        "date": "2020-05-19",
+        "pr": 1516,
+        "summary": "nizarh11: full_cluster_recovery_after_stop_test: test for cluster recovery after gently/forcibly stop"
+      },
+      "commits": {
+        "5808f72e73ad2dc6e9308553018475806ce1636c": "origin: added test + _full_cluster_recovery_after_stop helper",
+        "9ab7a73bef876f28fb9702de1a53a31da0327018": "helper: all_pids[0] -> node.pid",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest (assertEqual -> assert)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "helper uses generate_cluster_topology (rf racks)"
+      },
+      "relevance": "Live: full-cluster restart with data. Generic, not bootstrap-specific.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_restart_cluster.py::test_restart_cluster",
+          "coverage": "partial",
+          "note": "3-node graceful full restart, no data check"
+        },
+        {
+          "path": "test/cluster/test_truncate_with_drop.py::test_truncation_records_pruned_on_dirty_restart",
+          "coverage": "partial",
+          "note": "dirty restart path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (test_restart_cluster has no data check); cheap, but three near-identical variants could be one parametrized test. Bug: cluster.flush() before stop (bootstrap_test.py:504) means data is in sstables, so commitlog replay after forcible kill is never exercised; docstring says c-s but uses insert_c1c2."
+    },
+    "TestBootstrap::test_local_quorum_bootstrap": {
+      "description": "2 DCs x 1 node, keyspace NTS dc1:1 dc2:1 via c-s user profile, preload 2M inserts; start node3 in dc2 with no_wait, sleep 3s, then 500k inserts at LOCAL_QUORUM from dc1 and assert no 'error inserting key' in c-s output. Guards CASSANDRA-8058: pending replicas in a remote DC must not raise LOCAL_QUORUM blockFor (scylla equivalent: per-DC pending counting, db/consistency_level.cc:147, storage_proxy.cc:1786 cites #8058).",
+      "origin": {
+        "sha": "2fc4f6c6694d7b3ae8066183c2170f65c5d07270",
+        "date": "2015-03-12",
+        "pr": null,
+        "summary": "Alan Boudreault (Cassandra dtest): Add test for local quorum queries while a node is bootstrapping"
+      },
+      "commits": {
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "use_cassandra_stress mark",
+        "b4629329614d61399572fd97e50abe73fd872aa4": "docker c-s: profile via tmp_path, check stdout/stderr of result",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "16660d26beb79b113a3149ee4f0b8e0a234da517": "add to next_gating",
+        "ebf7250038a29078199ca81df4a9c6454aebafb8": "kill node3 at end to avoid bootstrap errors in logs",
+        "ae80cae03f8895647295bb6ce41990d534356b09": "not_debug -> scylla_mode('!debug')",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "port to pytest",
+        "4bb12d8ece83864991f2ffd39a0491c6d946e772": "scylla_mode negation support (marker)",
+        "7122400eaa8f525c3a87f2362813f6fb1cb81402": "dtest-full attr",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "dtest-full attr",
+        "e729ac3e969f546a6cf410bba3929de2d874a1ae": "run in scylla release mode only",
+        "0311d61f620cefc330d75a2b90c1d04dca3635b8": "remove pre-2.1 logic",
+        "556d9207ba7b51a6a2923e05dc8dd093869734d6": "formatting/imports (file-level)"
+      },
+      "relevance": "Live logic (per-DC pending replica handling in db/consistency_level.cc). Under tablets (next-dtest-tablets) the joining node gets no pending replicas during bootstrap (tablets migrate after join), so the guarded scenario only applies to the vnodes run.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_recovery_user_data.py",
+          "coverage": "partial",
+          "note": "reasons about LOCAL_QUORUM with pending replicas in dc2, but not the remote-DC-bootstrap check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test found for LOCAL_QUORUM writes while a remote-DC node bootstraps, but evidence is thin: Note: timing is racy, node3 started with no_wait + sleep(3) and never verified to be in bootstrap/pending state during the stress (bootstrap_test.py:330-332); with tablets no pending replicas exist so the check is vacuous there. Note: regex check (line 336-338) is mostly redundant since node.stress raises ToolError on non-zero exit; 157s avg in gating."
+    },
+    "TestBootstrap::test_start_stop": {
+      "description": "Populate 1 node, start (wait_for_binary_proto, wait_other_notice), stop cluster. No data, no assertions beyond ccm start/stop succeeding (and the generic log-error check at teardown). Added as a quick sanity test (scylla-dtest#1068) to catch crashes on shutdown.",
+      "origin": {
+        "sha": "b34534f384fa24651b0bdd2c2ea29549f628e9dc",
+        "date": "2019-07-29",
+        "pr": 1069,
+        "summary": "Benny Halevy: bootstrap_test: add start_stop_test - 'basic test that starts a one node cluster and stops it; quick sanity test' (Fixes scylla-dtest#1068)"
+      },
+      "commits": {
+        "b34534f384fa24651b0bdd2c2ea29549f628e9dc": "origin: added as start_stop_test",
+        "41dc74f4ace178cfdc1995d90beeaa7ed0785c8c": "added dtest-smoke attr",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
+        "61425046fee1821dd97e37b7855ef9a039c4d2c0": "cluster.start(wait_other_notice=True) to avoid smoke flake",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest (rename to test_*)"
+      },
+      "relevance": "Node start/stop is live, but the test only exercises ccm start/stop on a single node; no Scylla-specific assertion.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_boot_nodes.py::test_boot",
+          "coverage": "full",
+          "note": "boots nodes via test.py manager; every test.py cluster test starts/stops servers and fails on crash"
+        },
+        {
+          "path": "dtest (any test)",
+          "coverage": "full",
+          "note": "every dtest starts and stops a cluster with the same teardown log/crash checks"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Smoke/sanity test with no Scylla assertion (PR 1069); start+stop is implicitly done by every dtest and test.py cluster test (e.g. test/cluster/test_boot_nodes.py::test_boot). Note: marked next_gating + dtest_smoke, so cheap (~15s) env sanity check; same reasoning as test_add_node RED."
+    },
+    "TestBootstrap::test_start_stop_node": {
+      "description": "Populate 3 nodes, start, stop node1 with wait_other_notice (others must see it DOWN within 10s), stop cluster. No data and no other assertions. Added to test single-node shutdown with wait_other_notice (refs scylladb/scylla#4384 'Problem stopping node', closed, and scylla-ccm#178).",
+      "origin": {
+        "sha": "56fbcc817a89076007c22415b17ab91c4208aeed",
+        "date": "2019-09-15",
+        "pr": 1108,
+        "summary": "Benny Halevy: bootstrap_test: add start_stop_test_node - test single node shutdown with wait_for_others; refs scylladb/scylla#4384, scylla-ccm#178"
+      },
+      "commits": {
+        "56fbcc817a89076007c22415b17ab91c4208aeed": "origin: added as start_stop_test_node",
+        "41dc74f4ace178cfdc1995d90beeaa7ed0785c8c": "added dtest-smoke attr",
+        "61425046fee1821dd97e37b7855ef9a039c4d2c0": "cluster.start(wait_other_notice=True) to fix gating flake in node1.stop(wait_other_notice)",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest (rename to test_*)"
+      },
+      "relevance": "Graceful stop of one node with peers noticing it down is live behavior and exercised constantly; the test asserts nothing Scylla-specific beyond ccm's wait_other_notice.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_coordinator_queue_management.py::test_coordinator_queue_management",
+          "coverage": "full",
+          "note": "server_stop_gracefully + server_not_sees_other_server on a 5-node cluster (same 'stop node, peers see it down')"
+        },
+        {
+          "path": "dtest (many, e.g. bootstrap_test.py::TestBootstrap::test_reject_bootstrap_wiped_node_misspelled_seeds)",
+          "coverage": "full",
+          "note": "node.stop(wait_other_notice=True, ...) is used throughout dtest"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Smoke test (PR 1108) whose target bug scylladb/scylla#4384 is closed; stop-one-node-and-peers-notice is exercised by many tests (test_coordinator_queue_management.py uses server_stop_gracefully + server_not_sees_other_server) and dtests (node.stop(wait_other_notice=True)). No Scylla assertion of its own; cheap (~24s) next_gating/dtest_smoke."
+    },
+    "TestBootstrap::test_off_strategy_during_bootstrap": {
+      "description": "1-node vnodes cluster with enable_repair_based_node_ops=true, insert 10k rows into ks.cf, flush; bootstrap node2. Asserts (via _validate_off_strategy_started) that node2 logs 'Starting off-strategy compaction for ks.cf' after 'raft_topology - start streaming', that bootstrap reached 'streaming completed', that no regular compaction of ks.cf finished during bootstrap, and count(*)=10000 from node2 at CL=ONE. Guards that streamed sstables go to the maintenance set and are reshaped off-strategy instead of compacted in-strategy during bootstrap.",
+      "origin": {
+        "sha": "f7316dbc2ebc188f7212c8519f7781e9deba1c07",
+        "date": "2021-07-12",
+        "pr": 2232,
+        "summary": "Amos Kong: feature(bootstrap_test.py): add off_strategy_during_bootstrap_test - compaction disabled during repair-based bootstrap/replace (data JSON maps this sha to PR 2306, actual PR is 2232)"
+      },
+      "commits": {
+        "f7316dbc2ebc188f7212c8519f7781e9deba1c07": "origin: added off_strategy_during_bootstrap_test (no compaction of ks.cf between 'Starting to bootstrap' and 'Bootstrap completed!')",
+        "0f9e1b431ab89ab566eaeef3f4d21ca525144e58": "class marked dtest_full",
+        "c1fa17619ae49a0591f7e97129d2f95d6e253d02": "bootstrap start log pattern 'JOINING: Starting to bootstrap' -> 'Starting to bootstrap'",
+        "9fdbe770dc9d2c736e2ce62669ce4e262c467e8a": "added _validate_off_strategy_started (assert off-strategy started after bootstrap start); ks/table vars",
+        "16660d26beb79b113a3149ee4f0b8e0a234da517": "added to next_gating",
+        "61fdc99d1bddc643efbc8ffd37fda04717ed2582": "bootstrap start/done patterns extended for raft topology ('raft topology: start/streaming completed')",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "cb2fdef72f7277ae5a1177d0f83676841e4353f5": "required_features('!tablets') - tablets migrate post-bootstrap without off-strategy",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting"
+      },
+      "relevance": "Live for vnodes: compaction_manager.cc:1806 logs 'Starting off-strategy compaction for {}', streaming/consumer.cc:92-97 adds streamed sstables off-strategy, storage_service.cc:5134/5186 log 'start streaming'/'streaming completed'. Not applicable to tablets (skipped). Note: allowed_repair_based_node_ops default is 'replace,removenode,rebuild' (db/config.cc:1466), so bootstrap uses streaming, not RBNO as docstring claims; enable_repair_based_node_ops=True (default already true) is a no-op here.",
+      "duplicates": [
+        {
+          "path": "dtest compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap",
+          "coverage": "partial",
+          "note": "bootstraps node2 (vnodes) and asserts 'Done with off-strategy compaction' per shard + TWCS window segregation; does not check absence of in-strategy compaction during bootstrap"
+        },
+        {
+          "path": "test/cluster (none)",
+          "coverage": "partial",
+          "note": "no test.py test checks off-strategy during bootstrap; only test/rest_api/test_storage_service.py exercises the offstrategy REST endpoint"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Off-strategy-during-bootstrap is live (vnodes only) and only partially overlapped by compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap. Bug: the 'no compaction during bootstrap' check (bootstrap_test.py:169-179) greps 'Compacted .* sstables to', which scylla f7324a44a2 (2025-07-13) demoted to debug (compaction.cc:1039) while dtest runs Scylla at info (ccm --default-log-level info), so the check can never fire. Note: docstring says repair-based bootstrap, but bootstrap is not in allowed_repair_based_node_ops default (db/config.cc:1466)."
+    },
+    "TestBootstrap::test_simple_bootstrap": {
+      "description": "num_tokens=1 with balanced initial_tokens; node1 gets 10k rows in ks.cf (RF=1), flush+compact, record 'Space used (total)' from cfstats. A background reader queries random keys at CL=ONE while node2 bootstraps; after bootstrap, flush/compact node2, cleanup node1 (vnodes only), compact, check reader had no error, and assert node1_before ~= node1_after+node2_after and node1_after ~= node2_after (30% tolerance). Guards read availability during bootstrap and correct data split/cleanup after bootstrap.",
+      "origin": {
+        "sha": "20b4b032ad96e5250c45b2b489cd52a0fc3963c4",
+        "date": "2011-09-30",
+        "pr": null,
+        "summary": "Sylvain Lebresne (Cassandra dtest): Add bootstrap test"
+      },
+      "commits": {
+        "20b4b032ad96e5250c45b2b489cd52a0fc3963c4": "origin (Cassandra dtest): simple bootstrap test",
+        "6ffa61116ce4f67bda216cd18970d293cb2763ba": "Cassandra-era test additions",
+        "29a26ae647898d34576dffeb1513e5ee75423344": "update for Cassandra 1.2 (tokens)",
+        "7286a60656d0ed04a707f1720824c05bce2926e4": "balanced_tokens usage update",
+        "ade239062da248ef22b07023767725a509a9c6df": "relax size error tolerance (CASSANDRA-7010)",
+        "007950a83348a143575aafe316fab07fb978b647": "Windows adjustments",
+        "cd2c9f7540c258cc919e1d1311746b45fcfb8de8": "switch to new base classes",
+        "8594c7292fe087b987f1d3d554ebf37d9f924970": "removed sleeps",
+        "a64f29cdc8ca9b88b7566c69536e9a2fdb78a217": "use built-in flag",
+        "3f05c9a7ea850971596537a79a8c2b4e433ed322": "size via nodetool (later reverted)",
+        "1bfebc0e85f060865abb827882d43e8f8a1b2624": "revert nodetool size calc",
+        "d01ed177e7f159b38bce5e05091f3802d3720463": "fix bootstrap size differences",
+        "590e2d5d34f06a0efa98716658b197ce9719de43": "debug logs",
+        "82547ff2e82d11fbc75572f458b98e58408295c3": "compact node2 before measuring size",
+        "794b805b19c8614046e9999ffb0b53ec9b8eb254": "fix initial_token handling",
+        "d1c2d8766f6636bbf906d5c6d9ac621434351b97": "typo fix 'boostrap'",
+        "f0032df2978a45fd6c881bb7034485eb974f3d29": "Scylla: node2.flush() before measuring",
+        "e5ad7e5620cd7564ae167cfa421a136310bfc42f": "Scylla: size via cfstats 'Space used (total)' (get_space_used helper)",
+        "826404987241869c1504053daa2646c89f07d968": "fix no-op assertion comparing node1_after to itself -> node2_after",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "pytest migration of bootstrap_test.py",
+        "b2ed93e7e9d471fae050fd93bb34270951936c1a": "formatting",
+        "16660d26beb79b113a3149ee4f0b8e0a234da517": "added to next_gating",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "873366ed0d1cfa54c4aabba786ec1588348d6eb3": "disabled with consistent-topology-changes (initial_token unsupported)",
+        "3cf0217d663350ab0dac2ace208a00dbdd6181ee": "re-enabled with raft topology",
+        "2dbb401e81b69674cb4dc1999e5dafb9b0106c1b": "skip node1.cleanup() with tablets"
+      },
+      "relevance": "Live: bootstrap, nodetool cleanup (vnodes), cfstats 'Space used (total)'. Under tablets num_tokens/initial_token are irrelevant and the size split depends on the tablet load balancer; still passes 100% in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "bootstrap under concurrent writes (vnodes+tablets) with failed-mutation log check; no reads during bootstrap, no data-size split check"
+        },
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_read_from_bootstrapped_node",
+          "coverage": "partial",
+          "note": "checks data after bootstrap, not reads during it nor size split"
+        },
+        {
+          "path": "dtest update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_new_node_while_query_info",
+          "coverage": "partial",
+          "note": "queries while adding a node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Reads-during-bootstrap + post-bootstrap size split/cleanup is live and only partially overlapped (test/cluster/test_topology_ops.py, update_cluster_layout_tests.py::test_simple_add_new_node_while_query_info). Note: background reader sleeps 1s between queries (Runner sleep=1.0, dtest_class.py:55), so only a handful of reads overlap the ~seconds-long bootstrap; under tablets num_tokens=1/initial_token are meaningless (bootstrap_test.py:189,220)."
+    },
+    "TestBootstrap::test_read_from_bootstrapped_node": {
+      "description": "3-node cluster, cassandra-stress write n=10000 (keyspace1.standard1, RF=1), full-scan rows via node1; bootstrap node4, full-scan via exclusive connection to node4 and assert identical rows. Guards that a freshly bootstrapped coordinator sees all existing data (origin CASSANDRA-6648).",
+      "origin": {
+        "sha": "17e8f3f5680f6d78755577d8817b1eeb64b642d8",
+        "date": "2014-02-05",
+        "pr": null,
+        "summary": "Ryan McGuire (Cassandra dtest): Adds additional bootstrap test for CASSANDRA-6648"
+      },
+      "commits": {
+        "17e8f3f5680f6d78755577d8817b1eeb64b642d8": "origin (Cassandra dtest) for CASSANDRA-6648",
+        "dd309d8fec9106b07b1e061b72997075060c0ade": "version-dependent stress options",
+        "942da44e19c56b25b4ca48abcfbc7ff95315cb9d": "stress args as list",
+        "cd2c9f7540c258cc919e1d1311746b45fcfb8de8": "switch to new base classes",
+        "8594c7292fe087b987f1d3d554ebf37d9f924970": "removed sleeps",
+        "3cf9a5cff59f08080304d9fa64f3ac2bd30f6620": "stress keyspace names for 2.1",
+        "af8516aa9f9666b50660052904569ef1c685fa7e": "wait for node start; real data validation (compare rows via CQL)",
+        "0311d61f620cefc330d75a2b90c1d04dca3635b8": "removed pre-2.1 logic",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "pytest migration of bootstrap_test.py",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "marked use_cassandra_stress"
+      },
+      "relevance": "Live: bootstrap streaming + reads coordinated by the new node; works for both vnodes and tablets (runs in dtest-release and dtest-release-with-raft).",
+      "duplicates": [
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_manual_bootstrap",
+          "coverage": "full",
+          "note": "same c-s write + full-scan row comparison after adding a node (auto_bootstrap=False is ignored, see that entry); reads via node2 instead of the new node"
+        },
+        {
+          "path": "dtest update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_node",
+          "coverage": "partial",
+          "note": "exclusive connection to new node and row checks, but after RF change + repair"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "bootstrap under writes, no read-back from new node"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheap (~24s) check that a just-bootstrapped node serves all pre-existing data as coordinator; no test.py test reads back from the new node after bootstrap. Of the overlapping pair with test_manual_bootstrap, this one is the cleaner keeper (reads via the new node exclusively)."
+    },
+    "TestBootstrap::test_manual_bootstrap": {
+      "description": "2-node cluster, c-s writes 1000 keys with RF=1, full-scan via node2; add node3 with auto_bootstrap=False, start it, nodetool repair keyspace1.standard1 on node3 (vnodes only), cleanup node1, assert full scan via node2 equals original rows. Intended to test manual (no auto_bootstrap) node addition followed by repair, from CASSANDRA-9022.",
+      "origin": {
+        "sha": "f94b6e86168eeef73ea39579ef66d9cd904e8992",
+        "date": "2015-03-24",
+        "pr": null,
+        "summary": "Alan Boudreault (Cassandra dtest): Add manual bootstrap test for CASSANDRA-9022"
+      },
+      "commits": {
+        "f94b6e86168eeef73ea39579ef66d9cd904e8992": "origin (Cassandra dtest) for CASSANDRA-9022",
+        "d01ed177e7f159b38bce5e05091f3802d3720463": "bootstrap size fixes (file-wide)",
+        "0cf2782c44343b49890fcfec09253e5017848b0a": "use uniform distribution instead of loop",
+        "7dd58eb0ef4f06f452eb6968b5533c175b2eeb94": "merge",
+        "032da6737aa66dd42a0c74467a21c77ae7e8b6f1": "match distribution range to op count",
+        "e4e9443c7904498ea07f64f86305e02760b70001": "validate data via CQL instead of stress",
+        "715947234934f087163948409a7e53cc8a8e5bd2": "wait for binary protocol",
+        "5e461c34f0c621abd7101c76ead683ef57f25bf2": "stress table name for 2.0",
+        "4a7f63f472dbb4dcc631c4047a360c45afa89ea8": "cluster version check fix",
+        "b85037830dbd2067eb55815b4e698431fbb23049": "version check fix",
+        "0311d61f620cefc330d75a2b90c1d04dca3635b8": "removed pre-2.1 logic",
+        "7cb0f591eef6ac58445a99e5443f4c4c3fd6e2d4": "formatting",
+        "8f31589531039a0e8e2b773f80d3af15b252cd7a": "added next-gating attr",
+        "6b5a3275e422c8392ef3dae2705b284813eb6cf6": "added dtest-debug attr",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "added dtest-full attr",
+        "7122400eaa8f525c3a87f2362813f6fb1cb81402": "dtest-full attr update",
+        "50aab63aaa71e07b46ce29b83899f819bec72451": "port to pytest",
+        "3003444523f74ff409e267e7e48cd874f7f8cee7": "pytest migration of bootstrap_test.py",
+        "0f9e1b431ab89ab566eaeef3f4d21ca525144e58": "class marked dtest_full",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "ee486bd96acd25db5f887417dc253904c652239e": "required_features('!tablets') (scylladb/scylladb#16599)",
+        "121ba0be459bd9a14131432b77867eb063884daf": "re-enabled with tablets",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "marked use_cassandra_stress",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "c-s replication factor 2 -> 1; docstring typo",
+        "44ed3fa0594af9f17eefc7df77c6373a30c0edb1": "repair only keyspace1.standard1 and only without tablets",
+        "d0e55d7e6300f94445a3775db22192fd2edfa5f3": "revert of 44ed3fa059 (back to node3.repair())",
+        "36a75a3da59155672393cb9d81da5fe521529c95": "re-apply: repair keyspace1.standard1 only, skip with tablets"
+      },
+      "relevance": "The scenario under test is gone: scylla d0b3f3dfe8 (2020-07-22, 'gossip: Get rid of seed concept') made auto_bootstrap ignored ('The unsafe auto_bootstrap option is now ignored'); db/config.cc:1065 keeps the option but nothing reads it. ccm new_node() defaults to auto_bootstrap=False anyway (scylla-ccm cluster.py:349), so node3 is a regular bootstrap.",
+      "duplicates": [
+        {
+          "path": "dtest bootstrap_test.py::TestBootstrap::test_read_from_bootstrapped_node",
+          "coverage": "full",
+          "note": "same c-s write + full-scan compare after a normal bootstrap"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "regular bootstrap under writes"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Tested option removed: auto_bootstrap is ignored since scylla d0b3f3dfe8 (2020), so this is a plain bootstrap + row compare, fully duplicated by test_read_from_bootstrapped_node. Bug: with RF=1 (since 91cca0c2d6) node3.repair() (bootstrap_test.py:285-286) is a no-op (single replica), so the 'manual repair' step verifies nothing. Removing frees ~41s from next_gating."
+    },
+    "TestBootstrap::test_reject_node_bootstrap_no_gossip": {
+      "description": "3 nodes in 3 racks, insert 1000 rows RF=3 at CL=ALL, full cluster stop; restart only node1+node2, start new node4 and expect it to fail with 'topology coordinator rejected request to join' / 'banned from the cluster' (node3 down). Then start node3, wipe node4 and start it again (must succeed), stop node3, read all keys via node4 at QUORUM. Guards that a join is rejected while a member is down after full-cluster restart (scylla-dtest#2858, scylladb/scylladb PR 11425) and that the rejected node can retry.",
+      "origin": {
+        "sha": "b9df33c8333a8caaac26d81fc671f631e47cccb9",
+        "date": "2023-08-17",
+        "pr": 3514,
+        "summary": "Mark Gurevich: add bootstrap reject test after cluster shutdown (scylla-dtest#2858, scylladb/scylladb PR 11425)"
+      },
+      "commits": {
+        "b9df33c8333a8caaac26d81fc671f631e47cccb9": "origin: expect 'has gossip status=UNKNOWN' startup failure while n3 down",
+        "29f66d4596cd9b1d9503e67ebd99ba4a4b7265fa": "refactor: start node4 without waiting, watch_log_for expected error instead of pytest.raises",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "0b35fa428c8441c8156e64cce4f9f6ab73c0b5a9": "enabled for raft topology: add 'topology coordinator rejected request to join' pattern, wipe node4 before retry",
+        "86389eb1752479de4fa46c83bb363f821a20577f": "drop wait for 'gossip quarantine over'",
+        "f44b49082adf505beb5b78a27ff4757b5d99b4b4": "_cleanup -> wipe_node_data_directories helper",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "3-rack topology, node4 in rack2",
+        "0c235f3a292a5f46e231a4bfb8d703a06d0deffd": "accept 'received notification of being banned from the cluster'"
+      },
+      "relevance": "Live: storage_service.cc:1345/7138 'the topology coordinator rejected request to join the cluster', storage_service.cc:7396 'being banned from the cluster'. The gossip-mode message 'has gossip status=UNKNOWN' no longer exists in scylla (grep finds nothing).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_coordinator_queue_management.py::test_coordinator_queue_management",
+          "coverage": "partial",
+          "note": "bootstrap with a dead node is canceled ('request canceled because some required nodes are dead|banned'); no full-cluster restart, no retry/data check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test/cluster/test_coordinator_queue_management.py (join rejected while a node is dead); full-restart + retry + data read is unique. Note: dead regex alternative 'has gossip status=UNKNOWN' (bootstrap_test.py:728) - message removed from scylla; 'consistent-topology-changes' branch (line 760) is always true; log says 'Populating cluster with one node' but populates 3."
+    },
+    "TestBootstrap::test_reject_bootstrap_wiped_node_misspelled_seeds": {
+      "description": "3-node cluster; stop node2, wipe its data, rewrite its scylla.yaml 'seeds:' -> 'seed:', start it (swallowing ccm TimeoutError), then assert node1 and node3 still report [UN, DN, UN]. Regression for scylla-enterprise#3523 (Nauto: wiped node with seed typo bootstrapped as a new node reusing an existing node's IP and joined).",
+      "origin": {
+        "sha": "044e6ad33a4218d456b1ddbe94cb35eda2e1b54b",
+        "date": "2024-04-03",
+        "pr": 4143,
+        "summary": "Lukasz Paszkowski: reject wiped node bootstrap with misspelled seeds (regression for scylla-enterprise#3523, fixed in master)"
+      },
+      "commits": {
+        "044e6ad33a4218d456b1ddbe94cb35eda2e1b54b": "origin: expect 'Startup failed: Unable to gossip with any nodes={127.0.0.1}' with shadow_round_ms=10s",
+        "2df1ca3170adf4341c2abe4953f12325f9449281": "instead of the log message, check node2 stays DN via wait_for_nodes_status from node1/node3 (fixes scylla-dtest#4373, #4376)",
+        "f44b49082adf505beb5b78a27ff4757b5d99b4b4": "_cleanup -> wipe_node_data_directories helper",
+        "91cca0c2d65dc9c60585c38e584dfca67076efc0": "renamed (typo fix bootstap/mispelled -> bootstrap/misspelled)"
+      },
+      "relevance": "Seed fallback is live: init.cc:31-47 uses seeds=127.0.0.1 when 'seeds' param is missing. Raft topology rejects joining with an already-used IP/identity. But in ccm node1 IS 127.0.0.1, so the fallback seed is a real cluster member - unlike the customer case where 127.0.0.1 was not part of the cluster.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_start_bootstrapped_with_invalid_seed.py::test_start_bootstrapped_with_invalid_seed",
+          "coverage": "partial",
+          "note": "invalid seed config at startup; different scenario and currently skipped (scylladb/scylladb#28153)"
+        },
+        {
+          "path": "test/cluster/test_ip_mappings.py::test_full_shutdown_during_replace",
+          "coverage": "partial",
+          "note": "same-IP reuse during replace, not wiped-node rejoin"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No test.py test covers a wiped node rejoining with the same IP; behavior is live. Note: in ccm the default seed 127.0.0.1 (init.cc:46-47) is node1, so the misspelling barely changes anything and the customer scenario (seed not in cluster) is not reproduced. Note: no assertion on why node2 failed - TimeoutError from node2.start is swallowed (bootstrap_test.py:801-804), so a hung node passes too; that wait makes it ~145s."
+    }
+  }
+}
