@@ -18,7 +18,8 @@ cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
 data/                     # generated, overwritten on refresh
 analysis/<module>.json    # LLM analysis (per-file subagent, analyze_prompt.md)
-analyze_prompt.md         # subagent prompt, {MODULE} placeholder
+analyze_prompt.md         # subagent prompt, {MODULE} / {TESTS} placeholders
+.claude/skills/analyze/   # /analyze skill: pick module, run chunks, validate, commit, push
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
@@ -79,8 +80,11 @@ Effective decision = human > analysis > GRAY.
 - Pilot done: alternator_stream_tests (2 tests, both GREEN). Notes: both from c4a3c00e (PR 1977, scylladb/scylla#8012);
   `@unmark.next_gating` cites scylladb/scylladb#15260, now closed → could return to gating.
 
+## Analysis
+
+Use the `analyze` skill (`/analyze <module>` or `/analyze next`, or "analyze file X" / "analyze next file").
+`scripts/pending.py` lists unanalyzed tests in chunks; `scripts/check_analysis.py <module>` validates a result.
+
 ## Next
 
-1. User reviews pilot; adjust `analyze_prompt.md`.
-2. Analysis subagents per module, in parallel, checkpoint per file (`analysis/<module>.json`).
-   Big modules (cdc_types_test etc.) may need splitting by class.
+`/analyze next` until `scripts/pending.py` prints nothing. Big modules (cql_additional_tests: 215 tests) take many chunks.

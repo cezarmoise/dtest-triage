@@ -5,7 +5,12 @@
   "tests": {
     "TestAlternatorStreams::test_added_node_gets_closed_shards": {
       "description": "3-node Alternator cluster (cdc + alternator-streams), KEYS_ONLY stream table prefilled, background write stress; bootstraps node4 and, via DescribeStream on node4, asserts that some shards are closed (have EndingSequenceNumber). Guards that a topology change creates a new CDC generation and that the new node's Streams API exposes the previous generation as closed shards (scylladb/scylla#8012 KCL stuck after decommission/add, regression fixed in scylladb/scylla#8209 / #8210). Vnodes: bootstrap commits a new generation immediately; tablets: node4 raises tablet-count floor -> split -> new per-table generation, polled up to 180s.",
-      "origin": {"sha": "c4a3c00e", "date": "2021-02-21", "pr": 1977, "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"},
+      "origin": {
+        "sha": "c4a3c00e",
+        "date": "2021-02-21",
+        "pr": 1977,
+        "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"
+      },
       "commits": {
         "215b97c6d6": "tablets: poll (90x2s) for closed shards since generation is committed only after async tablet split (SCYLLADB-3911)",
         "eccda80e42": "formatting",
@@ -20,15 +25,28 @@
       },
       "relevance": "Live. Alternator Streams over CDC generations for both vnodes and tablets (alternator/streams.cc; tablets streams d5df3ec07c, generation change on split/merge 98de3f0e86). Test only uses public DynamoDB Streams API + bootstrap; no removed options.",
       "duplicates": [
-        {"path": "test/alternator/test_streams_tablets.py::test_parent_children_split", "coverage": "partial", "note": "single-node; forces tablet split via tablet count and checks parent/child shards (closed parents). No node bootstrap, no vnodes path."},
-        {"path": "test/cluster/test_cdc_generation_publishing.py", "coverage": "partial", "note": "verifies new CDC generation per bootstrap at CQL/system-table level, not via Alternator DescribeStream."}
+        {
+          "path": "test/alternator/test_streams_tablets.py::test_parent_children_split",
+          "coverage": "partial",
+          "note": "single-node; forces tablet split via tablet count and checks parent/child shards (closed parents). No node bootstrap, no vnodes path."
+        },
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py",
+          "coverage": "partial",
+          "note": "verifies new CDC generation per bootstrap at CQL/system-table level, not via Alternator DescribeStream."
+        }
       ],
       "decision": "GREEN",
       "reason": "Only test checking that a bootstrap-triggered generation change surfaces as closed Alternator Streams shards on the new node (vnodes and tablet-split-after-bootstrap paths); scylla tests cover tablet split only on single node. Cheap (~22s) and 100% pass in 19 runs; scylladb#15260 (reason for unmark.next_gating) is closed, so could return to gating."
     },
     "TestAlternatorStreams::test_updated_shards_during_add_decommission_node": {
       "description": "4-node cluster (racks 1/1/2), stream table prefilled, write stress, and a background thread repeatedly decommissioning/wiping/re-bootstrapping the last node. After each observed add-node + decommission cycle (detected via raft_topology log lines) it re-reads DescribeStream and asserts open shards always exist. Vnodes: open shards must change (new generation per topology change, up to 7 cycles); tablets: open shards must stay unchanged for 3 cycles (same rack re-bootstrap restores the tablet floor and merges are blocked with Streams). Origin reproducer attempt for scylladb/scylla#8012.",
-      "origin": {"sha": "c4a3c00e", "date": "2021-02-21", "pr": 1977, "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"},
+      "origin": {
+        "sha": "c4a3c00e",
+        "date": "2021-02-21",
+        "pr": 1977,
+        "summary": "improvement(alternator_stream_tests.py): verify shards properties during decommission and add node (merged 2021-05-18; ported to pytest in 57707b88 / PR 2388)"
+      },
       "commits": {
         "23e128c942": "seed decommission log marks before churn thread starts (hardening)",
         "6dde94d3f7": "branch assertion: tablets expect unchanged open shards, vnodes expect change; removed #7189 skip (SCYLLADB-4024)",
@@ -51,12 +69,158 @@
       },
       "relevance": "Live. Relies on raft_topology log 'updating topology state: start decommission' / 'bootstrap: accept node' (service/topology_coordinator.cc:416,4715,4752), Streams on vnodes and tablets, and tablet-merge blocking with Alternator Streams (4b6937b570, ca87e4734b).",
       "duplicates": [
-        {"path": "alternator_stream_tests.py::TestAlternatorStreams::test_sequence_numbers_during_add_decommission_node", "coverage": "partial", "note": "same churn setup, asserts start sequence numbers change after topology change; currently skipped (jira:DTEST-200)."},
-        {"path": "test/alternator/test_streams_tablets.py::test_parent_children_merge", "coverage": "partial", "note": "single-node, merge-related streams behavior; no decommission/bootstrap churn."},
-        {"path": "test/cluster/test_cdc_generation_publishing.py", "coverage": "partial", "note": "CDC generation per topology change at CQL level, not through Alternator Streams API under churn."}
+        {
+          "path": "alternator_stream_tests.py::TestAlternatorStreams::test_sequence_numbers_during_add_decommission_node",
+          "coverage": "partial",
+          "note": "same churn setup, asserts start sequence numbers change after topology change; currently skipped (jira:DTEST-200)."
+        },
+        {
+          "path": "test/alternator/test_streams_tablets.py::test_parent_children_merge",
+          "coverage": "partial",
+          "note": "single-node, merge-related streams behavior; no decommission/bootstrap churn."
+        },
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py",
+          "coverage": "partial",
+          "note": "CDC generation per topology change at CQL level, not through Alternator Streams API under churn."
+        }
       ],
       "decision": "GREEN",
       "reason": "No scylla test exercises Alternator Streams shards under repeated decommission/bootstrap churn on a multi-node cluster; recently reworked for raft and tablets (PRs 7226, 7230, 7235) and 100% pass in 19 runs. Slow (~219s) but unique; sibling test_sequence_numbers_during_add_decommission_node is the more redundant one."
+    },
+    "TestAlternatorStreams::test_verify_all_nodes_have_same_stream": {
+      "description": "3-node Alternator cluster with streams; creates a KEYS_ONLY stream table via node1 and writes 100 items. Then, for every node as coordinator, reads all shards of the stream (DescribeStream + GetShardIterator AT_SEQUENCE_NUMBER + GetRecords) and asserts the INSERT records' keys equal the written keys. Guards that the Streams view (shards + records) is consistent regardless of which node serves the request. No specific scylla issue; basic smoke test from the original Streams test infrastructure.",
+      "origin": {
+        "sha": "2c7cd959",
+        "date": "2020-11-11",
+        "pr": 1759,
+        "summary": "feature(alternator_stream_tests.py): Create tests for Alternator stream - initial Streams infra + this test (merged 2020-12-09)"
+      },
+      "commits": {
+        "c07b7ed4b8": "filter on INSERT instead of MODIFY and expect num_of_items (not 2x) records; removed unmark.next_gating -> back in gating",
+        "9ffd273f04": "formatting",
+        "57707b883c": "port to pytest",
+        "8b272dfdec": "class marked next_gating, this test unmarked from gating (scylladb/scylladb#15260)",
+        "620138288d": "added to next_gating",
+        "27607dc355": "whole class skipped with tablets (#16317)",
+        "c6f8340937": "class skipped unconditionally with tablets",
+        "5e4b1ec9f8": "tablets skip narrowed to issue_open(#23838) -> runs with tablets again",
+        "23c130820e": "populate default rack_per_node=True -> RF-rack-valid 3-rack cluster"
+      },
+      "relevance": "Live. Alternator Streams are GA ('alternator-streams' experimental flag is now feature::UNUSED in db/config.cc:2121), work on vnodes and tablets. Uses only public DynamoDB Streams API.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_streams.py",
+          "coverage": "partial",
+          "note": "97 tests cover GetRecords/shards/INSERT events thoroughly, but single-node only (test/alternator runs against one server)."
+        },
+        {
+          "path": "alternator_stream_tests.py::TestAlternatorStreams::test_verify_stream_records_after_topology_changed",
+          "coverage": "partial",
+          "note": "same read-all-shards + keys diff, done via 4 different coordinator nodes (node1, node4, node3, node5) on a multi-node cluster; superset scenario except 'every node' loop."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only unique bit is reading the full stream through each of 3 coordinators; record correctness is covered by test/alternator/test_streams.py (single node) and multi-coordinator reads are already done by test_verify_stream_records_after_topology_changed in the same file. Cheap (31-64s), 100% pass in 32 runs, so low cost to keep; candidate for merge into the topology test."
+    },
+    "TestAlternatorStreams::test_verify_stream_records_after_topology_changed": {
+      "description": "3-node Streams cluster, KEYS_ONLY table, then bootstraps node4/node5 (rack-valid). In 4 steps it writes 100 items via different nodes and between steps does topology ops: decommission node1, stop/start node4, remove (delete) node4. After each op it reads the whole stream from another coordinator (node1/node4/node3/node5) and asserts all INSERT keys written so far are present. Guards that Alternator Streams records survive CDC generation changes / streaming caused by bootstrap, decommission, restart and node removal (vnodes: new CDC generations; tablets: migrations/resize).",
+      "origin": {
+        "sha": "12ff2f07",
+        "date": "2020-12-13",
+        "pr": 1799,
+        "summary": "test(alternator_stream_tests.py): Verifying stream after the cluster topology changed - adds/removes/decommissions nodes and verifies stream data after each"
+      },
+      "commits": {
+        "d2153f889c": "new nodes placed in rack ((idx-1)%3)+1 instead of new rack per node -> fixes rf_rack_valid_keyspaces violation",
+        "23c130820e": "new_node() given explicit dc1/rack so ccm writes cassandra-rackdc.properties (fixes bad_property_file_error); default rack_per_node=True",
+        "c07b7ed4b8": "filter INSERT instead of MODIFY, expect cumulative len(expected) records instead of 2x new; removed unmark.next_gating -> back in gating",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "fb3dfc9ea9": "added noqa PLR0915 (formatting)",
+        "a5d481ffd2": "removed no_boot_speedups mark",
+        "8b272dfdec": "unmarked from next_gating (scylladb/scylladb#15260)",
+        "52c82fbe62": "added no_boot_speedups mark",
+        "efa25826f8": "cluster_options uuid_sstable_identifiers_enabled=False",
+        "57707b883c": "port to pytest",
+        "27607dc355": "whole class skipped with tablets (#16317)",
+        "c6f8340937": "class skipped unconditionally with tablets",
+        "5e4b1ec9f8": "tablets skip narrowed to issue_open(#23838) -> runs with tablets again"
+      },
+      "relevance": "Live. Streams over CDC generations (vnodes) and tablet-based streams; decommission/removenode/restart all current ops. uuid_sstable_identifiers_enabled=False option is unrelated leftover but harmless.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_streams.py",
+          "coverage": "partial",
+          "note": "record correctness only, single node, no topology changes."
+        },
+        {
+          "path": "test/alternator/test_streams_tablets.py::test_get_records_with_alternating_tablets_count",
+          "coverage": "partial",
+          "note": "records across tablet split/merge generation changes, single node, no node add/remove."
+        },
+        {
+          "path": "test/cluster/test_writes_to_previous_cdc_generations.py",
+          "coverage": "partial",
+          "note": "CDC (CQL) writes across generation changes after bootstrap; not Alternator Streams read path, no decommission/remove."
+        },
+        {
+          "path": "alternator_stream_tests.py::TestAlternatorStreams::test_added_node_gets_closed_shards",
+          "coverage": "partial",
+          "note": "checks shards closed after bootstrap, not record completeness."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test verifying Alternator Streams record completeness across bootstrap, decommission, restart and node removal on a multi-node cluster; scylla tests are single-node or CQL-CDC only. 100% pass in 32 runs after 2025-2026 fixes (c07b7ed4, 23c13082, d2153f88); costly (80-200s) but unique."
+    },
+    "TestAlternatorStreams::test_list_streams_limit_parameter": {
+      "description": "3-node Streams cluster; creates 20 KEYS_ONLY tables, then pages ListStreams with Limit 5,7,3,1,4 (sum 20) via a random coordinator per page using ExclusiveStartStreamArn=LastEvaluatedStreamArn. Asserts each page has exactly Limit streams, the union equals the 20 created ARNs, and a final call after the last ARN returns an empty list. Guards DynamoDB ListStreams Limit/paging semantics; no linked scylla issue.",
+      "origin": {
+        "sha": "80a0fe88",
+        "date": "2021-05-04",
+        "pr": 2126,
+        "summary": "improvement(alternator_stream_tests.py): Added a test for list_streams 'limit' parameter"
+      },
+      "commits": {
+        "27607dc355": "moved tablets skip (#16317) from this test to the whole class",
+        "14e82bbae0": "skip_if tablets & issue_open(#16317) on this test",
+        "9ffd273f04": "formatting",
+        "620138288d": "added to next_gating",
+        "57707b883c": "port to pytest",
+        "c6f8340937": "class skipped unconditionally with tablets",
+        "5e4b1ec9f8": "tablets skip narrowed to issue_open(#23838) -> runs with tablets again",
+        "23c130820e": "populate default rack_per_node=True"
+      },
+      "relevance": "Live. alternator/streams.cc list_streams handles Limit/ExclusiveStartStreamArn; tables sorted by keyspace+table name (da8adb4d26, 2023) so order is deterministic and identical on every node (schema replicated) - cross-coordinator paging adds nothing.",
+      "duplicates": [
+        {
+          "path": "test/alternator/test_streams.py::test_list_streams_paged",
+          "coverage": "full",
+          "note": "Limit=1 paging via LastEvaluatedStreamArn finds all tables."
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_list_streams_paged_cookie",
+          "coverage": "full",
+          "note": "exact page size == Limit, cookie == last ARN, no duplicates, last page end."
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_list_streams_paged_with_new_table",
+          "coverage": "full",
+          "note": "34 tables, page of Limit=2 has exactly 2, rest via ExclusiveStartStreamArn, each table once (#12601)."
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_list_streams_unfull_last_page_no_cookie",
+          "coverage": "partial",
+          "note": "last-page/cookie semantics."
+        },
+        {
+          "path": "test/alternator/test_streams.py::test_list_streams_zero_limit",
+          "coverage": "partial",
+          "note": "Limit validation."
+        }
+      ],
+      "decision": "RED",
+      "reason": "ListStreams Limit/paging is fully covered by test/alternator/test_streams.py (test_list_streams_paged, _paged_cookie, _paged_with_new_table, 621c49b621). Only extra is random coordinator per page, which is irrelevant since list_streams sorts by ks/table name from replicated schema (alternator/streams.cc ~L239). Costs ~45s of 3-node cluster in gating for a pure API check."
     }
   }
 }
