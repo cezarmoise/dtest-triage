@@ -1,0 +1,1381 @@
+{
+  "file": "compaction_additional_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestCompactionAdditional::test_compact_data_by_time_window": {
+      "description": "Single node, TWCS table with 1-minute windows and timestamp_resolution=MILLISECONDS. Writes 7 flushed sstables into each of 4 consecutive past windows (explicit ms USING TIMESTAMP), runs major compaction, snapshots the Data files, then writes 2 more windows and asserts the original sstables are still present (old, already-compacted windows must not be recompacted with newer data). Guards TWCS window bucketing / timestamp_resolution handling.",
+      "origin": {
+        "sha": "54c16c5248",
+        "date": "2018-01-04",
+        "pr": 562,
+        "summary": "Support twcs: added TWCS test verifying sstables are compacted only within their window (later refactored in 8d4307180c, PR 644)."
+      },
+      "commits": {
+        "34f49659c3": "PR 7501: write explicit millisecond timestamps into consecutive past windows instead of waiting real minutes; added major compaction before snapshot (runtime ~150s -> ~21s).",
+        "c26bd2638d": "Convert to pytest (parametrize timestamp_resolution).",
+        "6567c410a3": "Mark single_node.",
+        "57b51f25b5": "prepare() enables enable_sstable_key_validation.",
+        "fe34e16e2a": "Use get_node_cf_dir helper.",
+        "8f310d3887": "Stop starting nodes with DEBUG logging.",
+        "2b442c05d3": "Commented out MICROSECONDS param (suspected flakiness) - only MILLISECONDS runs since.",
+        "f43822b2a7": "Switch to debug log level to fix tests.",
+        "c364f2de75": "Added MILLISECONDS timestamp resolution param.",
+        "8d4307180c": "Refactor TWCS tests (PR 644).",
+        "eccda80e42": "Formatting / tree-wide",
+        "9ffd273f04": "Formatting / tree-wide",
+        "19991c953b": "Formatting / tree-wide",
+        "aedaa57c4e": "Formatting / tree-wide",
+        "c3471a97e4": "Formatting / tree-wide"
+      },
+      "relevance": "Live: TWCS and timestamp_resolution option exist (compaction/time_window_compaction_strategy.cc, TIMESTAMP_RESOLUTION_KEY).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::time_window_strategy_size_tiered_behavior_correctness",
+          "coverage": "full",
+          "note": "Asserts a past window already compacted into a single sstable is not picked again (newest_bucket == 0) - the exact property this dtest checks."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::time_window_strategy_ts_resolution_check",
+          "coverage": "full",
+          "note": "MILLISECONDS vs MICROSECONDS bucket assignment."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows",
+          "coverage": "partial",
+          "note": "Dtest: per-window sstables after major compaction across 5 windows."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario (past compacted window not recompacted; ms resolution) fully covered by boost time_window_strategy_size_tiered_behavior_correctness + time_window_strategy_ts_resolution_check. Bug: after the second write loop there is no wait_for_compactions before listing files (compaction_additional_test.py:410), so a wrong compaction still in flight would not be caught (racy, weak assert). Note: MICROSECONDS param disabled since 2b442c05d3 (2019), parametrize with a single value."
+    },
+    "TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node": {
+      "description": "Single node, RF=1 pk-only table: insert 100 rows, delete 10 (partition tombstones) while all in memtable, flush, then dump sstables (scylla sstable dump-data) and assert tombstoned partitions carry no clustering_elements (shadowed data dropped at flush) and at least one tombstone exists; also count(*) == 90. Guards scylla commit bcadd8229b (compacting reader on memtable flush).",
+      "origin": {
+        "sha": "9b8926fdb9",
+        "date": "2022-04-03",
+        "pr": 2680,
+        "summary": "Test for compaction reader when flushing memtable (scylladb/scylla bcadd8229b)."
+      },
+      "commits": {
+        "9b8926fdb9": "Added the test.",
+        "9b505498a7": "File-level: dump_sstables helper switched to 'scylla sstable dump-data' (validate_tombstones_in_sstables format).",
+        "b4e0c01e3f": "File-level: dump_sstables disables autocompaction of system_schema."
+      },
+      "relevance": "Live: replica/table.cc still wraps memtable flush in make_compacting_reader when the memtable has tombstones (merge bcadd8229b).",
+      "duplicates": [
+        {
+          "path": "test/boost/memtable_test.cc::memtable_flush_compresses_mutations",
+          "coverage": "partial",
+          "note": "Added in the same scylla merge (bcadd8229b); asserts flushed sstable contains only the tombstone. Uses a row tombstone on a pk+ck table vs partition tombstone here."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Feature unit-tested by test/boost/memtable_test.cc::memtable_flush_compresses_mutations from the same scylla merge (bcadd8229b); dtest only differs by partition vs row tombstone. Cheap (6s); candidate for RED if partition-tombstone compaction is considered generic."
+    },
+    "TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node_stopped": {
+      "description": "3-node cluster (3 racks), node2 stopped; RF=3 table, insert 100 / delete 10 rows (CL default), flush node1+node3, assert their sstables have tombstones without shadowed row data; start node2, repair it, assert count(*) == 90 from node1. Same feature as the one-node variant (bcadd8229b) with a down replica.",
+      "origin": {
+        "sha": "9b8926fdb9",
+        "date": "2022-04-03",
+        "pr": 2680,
+        "summary": "Test for compaction reader when flushing memtable (scylladb/scylla bcadd8229b)."
+      },
+      "commits": {
+        "36a75a3da5": "Use nodetool cluster repair when needed (PR 5925) - later reverted.",
+        "d0e55d7e63": "Revert of 'use nodetool cluster repair command when needed'.",
+        "44ed3fa059": "Use nodetool cluster repair when needed (PR 5801).",
+        "f1c2e0b732": "Populate with generate_cluster_topology(rack_num=3) for rf_rack_valid_keyspaces.",
+        "9b8926fdb9": "Added the test.",
+        "9b505498a7": "File-level: dump_sstables via scylla sstable dump-data."
+      },
+      "relevance": "Live (same flush-compaction feature).",
+      "duplicates": [
+        {
+          "path": "test/boost/memtable_test.cc::memtable_flush_compresses_mutations",
+          "coverage": "partial",
+          "note": "Flush compaction unit test."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node",
+          "coverage": "full",
+          "note": "Same assertions on the flushing replica; the stopped node adds nothing for the feature."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~50s) and redundant: the down node/repair adds nothing to the memtable-flush-compaction feature, which is asserted identically by the one-node sibling and boost memtable_flush_compresses_mutations. Note: node2 data is never validated (count(*) after repair runs at default CL from node1); class-level @single_node mark while the test boots 3 nodes."
+    },
+    "TestCompactionAdditional::test_compaction_delete_with_smp_change": {
+      "description": "Start node with smp=1, STCS table (gc_grace 5, tombstone_gc immediate), insert 100 keys, flush+compact; restart with smp=2 (resharding), delete all keys, wait gc_grace, insert/flush until a compaction happens; hard stop, dump sstables and check tombstone count <=100 (and >0 if <2 compactions); restart, verify no resurrection; major compact until 2 more compactions and assert no tombstones left. Originally guarded data resurrection with shared sstables after smp change (2016).",
+      "origin": {
+        "sha": "d8b70a956a",
+        "date": "2016-04-19",
+        "pr": 301,
+        "summary": "Compaction shared sstables: validate managing of shared sstables (smp change)."
+      },
+      "commits": {
+        "068022d716": "Pin tombstone_gc={'mode':'immediate'} (RF=1 tombstone gc).",
+        "b4e0c01e3f": "dump_sstables disables autocompaction in system_schema.",
+        "0deecab3f0": "Fix compat with tombstone GC blocking.",
+        "4fa4441592": "Do not disable uuid_sstable_identifiers_enabled.",
+        "9b505498a7": "Use 'scylla sstable dump-data' instead of sstabledump.",
+        "7124daefc3": "Test with uuid_sstable_identifiers_enabled=False (reverted by 4fa4441592).",
+        "0c1a98e1f2": "Log sstable2json output.",
+        "c26bd2638d": "Convert to pytest.",
+        "6567c410a3": "Mark single_node.",
+        "57b51f25b5": "enable_sstable_key_validation in prepare().",
+        "e1e31d4f88": "Count compactions before delete.",
+        "cc988d92b0": "Forcibly stop node after smp change.",
+        "5bac4e0ada": "Count compactions only for ks.cf.",
+        "7444120d0a": "Fix expected marked_deleted.",
+        "69b935ad7c": "Verify marked_deleted before resurrection check.",
+        "0b090303b3": "Reduce gc_grace_seconds to 5.",
+        "2e32c600bc": "Parameterize vars, add debug messages.",
+        "8f310d3887": "No DEBUG logging at node start.",
+        "6b5a3275e4": "Add dtest_debug mark.",
+        "14b966127d": "Added to next-gating.",
+        "f43822b2a7": "Debug log level.",
+        "8d4307180c": "TWCS refactor (file-wide).",
+        "b35fbed3e2": "2.2 file-name format support.",
+        "7a340f1632": "Add TWCS to strategies list (file-wide).",
+        "08d652f114": "Fix sstabledump output parsing.",
+        "e6fac6a50e": "Formatting / tree-wide",
+        "70e8dfbe2a": "File-level: add compaction-on-boot test (helper changes).",
+        "c6a1ac0a9c": "Update logic for resharding.",
+        "d8b70a956a": "Added the test."
+      },
+      "relevance": "Resharding on smp change still exists for vnode tables; shared sstables are resharded at boot. Under tablets (next-dtest-tablets job) smp 1->2 does not reshard (tablets are shard-assigned), so that run checks only no-resurrection after restart.",
+      "duplicates": [
+        {
+          "path": "resharding_test.py::TestReshardingTombstonesSingleNode::test_disable_tombstone_removal_during_reshard",
+          "coverage": "full",
+          "note": "Same docstring/flow (insert, delete, gc, compaction, restart with more smp, no resurrection, major removes tombstones) for 4 strategies incl. STCS, smp 2->4, stricter asserts (numfound>0 unconditional, waits for 'Resharded' log). !tablets, runs in dtest-release-with-raft (76 runs, 100%)."
+        },
+        {
+          "path": "test/boost/sstable_resharding_test.cc::sstable_resharding_test",
+          "coverage": "partial",
+          "note": "Unit-level resharding correctness."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Superseded by resharding_test.py::TestReshardingTombstonesSingleNode::test_disable_tombstone_removal_during_reshard (same scenario, 4 strategies, stronger asserts); only caveat: that test is not next_gating. Bug: 'assert numfound <= keys' is near-vacuous and the >0 check is skipped when >=2 compactions ran (compaction_additional_test.py:238-240); with tombstone_gc immediate (068022d716) the gc_grace sleeps are meaningless; docstring step 8 (insert 100 more keys) not implemented."
+    },
+    "TestCompactionAdditional::test_compaction_removes_ttld_data_by_time_windows": {
+      "description": "Single node, TWCS (1-min windows, expired_sstable_check_frequency_seconds=1) with default_ttl=20, gc_grace=1, tombstone_gc immediate. Writes 11 flushed sstables with explicit timestamps spanning 3 past windows, waits TTL+gc, asserts files still present, then inserts new data, flushes, waits for a 'Compacted N sstables to []' log line and asserts all original sstables were purged (fully expired sstables dropped).",
+      "origin": {
+        "sha": "0a66cab2b0",
+        "date": "2017-11-20",
+        "pr": 562,
+        "summary": "Support twcs: added compaction_by_twcs test."
+      },
+      "commits": {
+        "a528937279": "PR 7501: explicit past-window timestamps, shorter TTL (runtime ~260s -> ~35s).",
+        "068022d716": "Pin tombstone_gc immediate.",
+        "00f557b8f0": "wait_for_compactions after flush before snapshot.",
+        "2d58256248": "pytest conversion fixes.",
+        "c26bd2638d": "Convert to pytest.",
+        "6567c410a3": "Mark single_node.",
+        "57b51f25b5": "enable_sstable_key_validation.",
+        "fe34e16e2a": "Use get_node_cf_dir.",
+        "2240395443": "Less restrictive log pattern.",
+        "ba54d31c8e": "File-level TWCS major compaction PR (helpers).",
+        "542d3ee36e": "Update expected log message.",
+        "8f310d3887": "No DEBUG logging at start.",
+        "f43822b2a7": "Debug log level.",
+        "c364f2de75": "Millisecond resolution (file-wide TWCS tests).",
+        "8d4307180c": "Insert 10 keys instead of 1.",
+        "22b27416c5": "Make TWCS test more consistent.",
+        "5c6fa3ecec": "Fix test parameters.",
+        "54c16c5248": "TWCS compaction-within-window test added alongside.",
+        "0a66cab2b0": "Added the test."
+      },
+      "relevance": "Live: TWCS fully-expired sstable detection (expired_sstable_check_frequency_seconds, get_fully_expired_sstables) and the 'Compacted N sstables to [...]' debug log (compaction/compaction.cc:1039).",
+      "duplicates": [
+        {
+          "path": "twcs_additional_test.py::TestTimeWindowCompactionStrategyAdditional::test_expired_sstables_are_compacted_separately",
+          "coverage": "partial",
+          "note": "TWCS with TTL'd sstables across windows; waits until expired sstables are removed from disk and checks 'Fully expired sstable' logs (next_gating, 76s)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditionalStrategy::test_compaction_removes_ttld_data_after_gc_period[TimeWindowCompactionStrategy]",
+          "coverage": "partial",
+          "note": "TTL'd data removed by compaction after gc, single window."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::compaction_with_fully_expired_table",
+          "coverage": "partial",
+          "note": "Fully expired sstable compacts to no output."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Largely overlapped by twcs_additional_test::test_expired_sstables_are_compacted_separately (TWCS expired sstables removed) plus boost compaction_with_fully_expired_table; distinct only in default_ttl and multi-window e2e purge. Now cheap (~35s after PR 7501), so not 'slow + redundant'."
+    },
+    "TestCompactionAdditional::test_data_from_different_windows_compacted_together": {
+      "description": "Single node TWCS (1-min windows, tombstone_gc disabled): inserts 4 rows of one partition with timestamps in 4 distinct windows, flush + major compaction -> 4 sstables (one per window). Deletes the partition, flush, major compaction, asserts only 1 sstable remains (cross-window compaction drops shadowed data). Guards scylla-enterprise#2055 (TWCS compacting across windows for deletes).",
+      "origin": {
+        "sha": "549f828965",
+        "date": "2022-03-09",
+        "pr": 2649,
+        "summary": "test(twcs): deleted data from different windows can be compacted (scylla-enterprise PR 2055)."
+      },
+      "commits": {
+        "38d127eb3a": "Add explicit tombstone_gc mode 'disabled'.",
+        "549f828965": "Added the test."
+      },
+      "relevance": "Live: TWCS compaction across buckets (scylla 7c90088152, 2021-11).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
+          "coverage": "full",
+          "note": "Rows of one pk in 10 windows + partition tombstone compacted together (can_purge_tombstones::no) -> exactly 1 output sstable containing only the deletion. Same scenario."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_interposer_on_memtable_flush_split",
+          "coverage": "full",
+          "note": "Flush splits memtable into per-window sstables (first assert)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows",
+          "coverage": "full",
+          "note": "Dtest superset: 5 windows, major -> 5 sstables, delete all, major -> 1 sstable, no resurrection."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (scylla 7c90088152, the OSS equivalent of enterprise#2055) and by sibling dtest TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows."
+    },
+    "TestCompactionAdditional::test_double_compaction_by_cleanup_and_major_compactions": {
+      "description": "Single node (compaction_static_shares=10 to slow compaction), STCS table with 200k rows (20k debug). 3x: insert/delete a chunk, flush, run 'nodetool compact ks' and 'nodetool cleanup ks' in parallel. Parses compaction debug log for Compacting/Cleaning lines and sstable generations and asserts no sstable was both regular-compacted and cleaned; asserts no log errors. Guards scylladb/scylla#8155 (fixed 2cf0c4bbf1, follow-up 80a1ebf0f3 / #8168).",
+      "origin": {
+        "sha": "2d58256248",
+        "date": "2021-11-25",
+        "pr": 2365,
+        "summary": "Added during pytest conversion/rebase of compaction_additional_test (covers scylladb/scylla#8155)."
+      },
+      "commits": {
+        "a195acf07d": "Add tests to next_gating (this test later carries @unmark.next_gating).",
+        "bffcd059dd": "Scale down rows in debug mode.",
+        "5c316a67f8": "Mark single_node.",
+        "8dae55f7b4": "Fix validation (exclude stopped tasks).",
+        "99998cd538": "Update sstable-generation regex (SSTABLE_PREFIX_REG_EXPR).",
+        "2d58256248": "Added the test."
+      },
+      "relevance": "Behavior live for vnode keyspaces (compaction_manager::try_perform_cleanup runs with compaction disabled). Under tablets cleanup is a no-op (api/tasks.cc force_keyspace_cleanup returns early for !is_vnode_based); runs only in dtest-release jobs (vnodes, @unmark.next_gating).",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of #8155 but the core assertion is a no-op. Bug: split_pattern '(?:me|..)-(\\d+)-' (compaction_additional_test.py:964) never matches UUID sstable generations, which scylla always uses (sstables/generation_type.hh sstable_generation_generator -> UUID; config uuid_sstable_identifiers_enabled Unused since 6da758d74c), so regular/cleanup lists are empty and the intersection assert passes trivially. Bug: interrupt branch of REG_EXPR_TEMPLATE (compaction_additional_test.py:137) expects 'user-triggered operation', removed in scylla 08c8c03a20 (reason now 'cleanup'), so stopped-task exclusion is dead. Fix regex or remove."
+    },
+    "TestCompactionAdditional::test_double_compaction_by_cleanup_and_ongoing_compaction": {
+      "description": "Single node (compaction_static_shares=10), 3 tables with NullCompactionStrategy loaded with 200k rows each and flushed; in parallel ALTER each to STCS (triggering regular compaction) and run 'nodetool cleanup ks'. Parses compaction log to assert no sstable was compacted by both regular compaction and cleanup, row counts intact, no log errors. Guards scylladb/scylla#8155.",
+      "origin": {
+        "sha": "2d58256248",
+        "date": "2021-11-25",
+        "pr": 2365,
+        "summary": "Added during pytest conversion/rebase of compaction_additional_test (covers scylladb/scylla#8155)."
+      },
+      "commits": {
+        "9a721e14da": "Disable for tablets (required_features !tablets) - cleanup not supported with tablets.",
+        "bffcd059dd": "Scale down rows in debug mode.",
+        "5c316a67f8": "Mark single_node.",
+        "8dae55f7b4": "Fix validation (exclude stopped tasks).",
+        "99998cd538": "Update sstable-generation regex.",
+        "2d58256248": "Added the test."
+      },
+      "relevance": "Live for vnode keyspaces only; runs only in next-dtest-consistent-topology (16 runs).",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique #8155 coverage but double-compaction assert is a no-op: same helper bugs as the major variant - split_pattern '(\\d+)' cannot match UUID sstable generations (always UUID, sstables/generation_type.hh; 6da758d74c), and the 'user-triggered operation' interrupt regex is dead since scylla 08c8c03a20. Only assert_row_count and grep_log_for_errors are effective. ~157s."
+    },
+    "TestCompactionAdditional::test_major_compaction_processes_tables_in_order_by_size": {
+      "description": "Single node smp=1, 3 tables filled with different row counts (6 permutations of 100/1k-10k/100k), flush, 'nodetool compact', then read system.compaction_history and assert tables were compacted in ascending size order. Guards scylla 342bfbd65a (major compaction processes smallest tables first; now compaction/task_manager_module.cc run_table_tasks sort).",
+      "origin": {
+        "sha": "15d4f77e3a",
+        "date": "2021-12-20",
+        "pr": 2460,
+        "summary": "Sorted order for major compaction (scylla commit 342bfbd65a)."
+      },
+      "commits": {
+        "f667fcf413": "Unrelated (adds test_reshard_after_compaction_strategy_and_smp_change nearby).",
+        "f9f8cae7c5": "Sort by (compaction_time, size) to break equal-ms ties (PR 3103).",
+        "5e75425bc0": "Start node with --smp 1.",
+        "076a7a0102": "Keep latest compaction time per table.",
+        "4186a87284": "Filter compaction_history rows to those after the major compaction start.",
+        "aad023bee8": "Move flush out of table-prep helper.",
+        "e4de33d195": "Formatting / tree-wide (pylint disables)",
+        "df06a88f76": "Remove spaces from parametrize ids.",
+        "15d4f77e3a": "Added the test.",
+        "eccda80e42": "Formatting / tree-wide",
+        "9ffd273f04": "Formatting / tree-wide"
+      },
+      "relevance": "Live: compaction/task_manager_module.cc:235-250 sorts table tasks by live_disk_space_used and picks the smallest.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique coverage (no scylla test for major-compaction table ordering). Note: tie-break attrgetter('compaction_time','size') (compaction_additional_test.py:926, f9f8cae7c5) makes equal-ms compacted_at entries sort by size, i.e. the expected order; PR 3103 shows 100 and 10k tables tying, so ordering between small tables is often not actually checked. 6 permutations x ~32s each."
+    },
+    "TestCompactionAdditional::test_major_compaction_with_several_timewindows": {
+      "description": "Single node (default smp), TWCS 1-min windows, min_threshold=7: writes 8 flushes per window into 3 past windows (explicit timestamps, overlapping keys). Stops node, reads Statistics min/max timestamps to map sstables to windows (expects 3), starts node, major compaction, then asserts the same number of windows and 1..num_shards sstables per window (major compaction does not merge windows).",
+      "origin": {
+        "sha": "ba54d31c8e",
+        "date": "2020-06-02",
+        "pr": 1540,
+        "summary": "TWCS with major compaction."
+      },
+      "commits": {
+        "45c51e8ec3": "PR 7501: explicit timestamps into past windows instead of wall-clock waits (~108s -> ~30s).",
+        "a2848f6702": "Ensure at least two time windows.",
+        "40c0a5107d": "Adjust expected sstables per window (<= shards).",
+        "6b0c067f39": "tablets_initial_scale_factor=1 (low tablet count).",
+        "622c5e95ed": "Remove sstable-tools usage (dump_sstable_stats).",
+        "2d58256248": "pytest conversion fixes.",
+        "c26bd2638d": "Convert to pytest.",
+        "6567c410a3": "Mark single_node.",
+        "57b51f25b5": "enable_sstable_key_validation.",
+        "fe34e16e2a": "Use get_node_cf_dir.",
+        "b14869076c": "Take number of shards into account.",
+        "2ca5dd7456": "Fix number_of_time_windows calculation.",
+        "1a815e015e": "TWCS with major compaction part 2.",
+        "ba54d31c8e": "Added the test."
+      },
+      "relevance": "Live: TWCS major compaction segregates output per window (interposer).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_major_compaction_test",
+          "coverage": "partial",
+          "note": "Mutations in different windows compacted into separate sstables; same-window into one."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows",
+          "coverage": "partial",
+          "note": "Major compaction -> 1 sstable per window and sstables do not span windows (smp=1)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with boost twcs_major_compaction_test and sibling TestTimeWindowDataSegregation tests; adds multi-shard check. Note: tablets_initial_scale_factor passed again though prepare() already sets it; sstables_files_after_major_compaction is assigned but never used (dead var, compaction_additional_test.py:489)."
+    },
+    "TestCompactionAdditional::test_refresh_and_restart_after_compaction_strategy_change": {
+      "description": "Single node, cassandra-stress table with strategy1 (LCS/TWCS/STCS), fill + major, disable autocompaction, write more data shaped for strategy2, back up sstables and copy them to upload/, ALTER to strategy2, TRUNCATE, then (a) nodetool refresh from upload/ and (b) restart with the backup in staging/; each time watches for 'Reshape|Reshard keyspace1.standard1' and verifies data with c-s read n=100. Guards reshape-on-load (strict mode for refresh, relaxed on boot) after a compaction strategy change.",
+      "origin": {
+        "sha": "126f6ea8c6",
+        "date": "2020-08-06",
+        "pr": 1637,
+        "summary": "Add compaction_strategy_change_and_restart_test (Trello 'reshaping sstables on node boot')."
+      },
+      "commits": {
+        "fc9d10b224": "PR 6559: @unmark.next_gating (cost reduction; runs only nightly).",
+        "6f303700c6": "Mark use_cassandra_stress.",
+        "e398a11b83": "skip_if tablets & scylladb/scylladb#16739 open.",
+        "9ffd273f04": "formatting / tree-wide",
+        "fb3dfc9ea9": "noqa PLR0915 only (formatting).",
+        "f05e040bfa": "Split assert_reshape/verify_data; watch also for completion msgs ('Done loading new SSTables', 'Reshaped .* seconds').",
+        "aaf4329e8e": "Accept Reshard as well as Reshape; timeout 5->30s.",
+        "687f7a740b": "Copy sstables to staging/ from backup only right before restart (was copied up front).",
+        "ec5663a8f6": "Spelling/grammar (formatting).",
+        "4286930b48": "Moved strategy matrix to get_strategies_upgrade_options(); DTCS dropped, ICS commented out (scylladb#9944).",
+        "892ade630e": "formatting / tree-wide",
+        "2d58256248": "pytest conversion fixes.",
+        "c26bd2638d": "Convert to pytest (parametrize strategy pairs).",
+        "6567c410a3": "Mark single_node."
+      },
+      "relevance": "Live: reshape on refresh/boot (compaction/task_manager_module.cc 'Reshaped ... seconds', sstables_loader.cc 'Done loading new SSTables'). STCS is now an alias of ICS (scylla 5bf0c6ddac, 2026-08-26), so the STCS params actually exercise ICS.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::stcs_reshape_test / lcs_reshape_test / twcs_reshape_with_disjoint_set_test",
+          "coverage": "partial",
+          "note": "Per-strategy reshape candidate selection, no refresh/boot path."
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_reshape_with_tablets",
+          "coverage": "partial",
+          "note": "Reshape on boot (STCS, tablets) e2e, no strategy change."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditionalStrategy::test_compaction_is_started_on_boot",
+          "coverage": "partial",
+          "note": "Reshape/compaction on boot for 4 strategies."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e of reshape after strategy change on refresh+restart, but very expensive (9 params x ~307s = ~46 min/build, dtest-release-with-raft only) and most params assert nothing: reshape is checked only when strategy2 in {LCS,TWCS} and strategy1 != strategy2, and on restart X->LCS is also exempted, so only LCS->TWCS / STCS->TWCS assert reshape on boot (compaction_additional_test.py:686-699, 736). Note: assert_reshape swallows TimeoutError for all other params (pass even if nothing loads besides c-s read n=100 of first keys); docstring still mentions DTCS (removed); ICS disabled pending scylladb/scylladb#9944 (open); STCS params now run ICS (scylla 5bf0c6ddac). Candidate to trim to the 4 asserting pairs."
+    },
+    "TestCompactionAdditional::test_reshard_after_compaction_strategy_and_smp_change": {
+      "description": "Like the refresh test but node starts with --smp 1, data is written for strategy1/strategy2, strategy is changed, node restarted with --smp 3, sstables refreshed from upload/ (must log 'Reshard keyspace1.standard1' + 'Done loading new SSTables'), then TRUNCATE, restart with --smp 2 and backup in staging/ (must log 'Resharded .* keyspace1.standard1'); c-s read n=100 verifies data. Guards resharding of foreign-shard sstables on refresh and boot after strategy/smp change. Skipped with tablets and on <3 CPUs.",
+      "origin": {
+        "sha": "f667fcf413",
+        "date": "2023-04-23",
+        "pr": 3133,
+        "summary": "Added in PR 3133 (adjust refresh test to cleanup during reshard) as a reshard-specific variant of the refresh test."
+      },
+      "commits": {
+        "0a77f754e5": "PR 7023: always skip with tablets (dropped issue_open(#16739) condition).",
+        "55968d498e": "PR 7023: start node with sstables_loader/sstable_directory/compaction debug logging.",
+        "6f303700c6": "Mark use_cassandra_stress.",
+        "e398a11b83": "skip_if tablets & scylladb/scylladb#16739 open.",
+        "9ffd273f04": "formatting / tree-wide",
+        "fb3dfc9ea9": "noqa PLR0915 only (formatting).",
+        "a195acf07d": "Module-level next_gating; this test @unmark.next_gating citing scylla-enterprise#3385.",
+        "f667fcf413": "Origin.",
+        "df06a88f76": "Param ids without spaces (generate_ids).",
+        "15d4f77e3a": "File-level (adds other test); no behavior change here."
+      },
+      "relevance": "Live: resharding on refresh/boot ('Resharded ... for ks.cf', compaction/task_manager_module.cc:1115; 'Reshard' compaction type). Vnodes only; tablets resharding is scylladb/scylladb#16739 (open). STCS params now run ICS (5bf0c6ddac).",
+      "duplicates": [
+        {
+          "path": "resharding_test.py::TestReshardingVariants::test_resharding_by_smp_increase / test_resharding_by_smp_decrease",
+          "coverage": "partial",
+          "note": "Resharding on smp change per compaction strategy with data checks (~35-50s each); no refresh/staging path."
+        },
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_shared_sstables_reshard_correctly (+variants)",
+          "coverage": "partial",
+          "note": "Reshard of shared sstables at load time."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_refresh_and_restart_after_compaction_strategy_change",
+          "coverage": "partial",
+          "note": "Same flow without smp change."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only e2e test of resharding through refresh(upload/) and staging/ after smp change, but resharding is strategy-agnostic so the 9-param strategy matrix (~327s each, ~49 min/build) is mostly redundant with resharding_test.py smp variants; trim to 1-2 params. Note: @unmark.next_gating cites scylladb/scylla-enterprise#3385, CLOSED 2025-08-12 (compaction_additional_test.py:743); STCS params now run ICS (scylla 5bf0c6ddac)."
+    },
+    "TestCompactionAdditionalStrategy::test_compaction_is_started_on_boot": {
+      "description": "Per strategy (LCS/STCS/TWCS/ICS): write 100 keys, flush, major, stop, delete commitlogs, copy every sstable 4x under fresh (UUID) generations (ICS: drop Scylla.db to force new run ids), restart and wait for a 'Compacted|Resharded|Reshaped N sstables to [...ks/cf-...]' debug log; asserts the Data file set changed. Guards scylladb/scylla#1404 (trigger regular compaction on boot), now effectively reshape on boot.",
+      "origin": {
+        "sha": "70e8dfbe2a",
+        "date": "2016-07-20",
+        "pr": 360,
+        "summary": "Add a test to check that compaction starts on boot (test ref scylladb/scylla#1404, closed)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting / tree-wide",
+        "19991c953b": "formatting / tree-wide",
+        "37d58b2678": "Generate UUID sstable identifiers for copies (PR 3471).",
+        "8e62f6bf1c": "Extract generation-id helper.",
+        "a07c44417a": "rmtree commitlog subdirs.",
+        "2d58256248": "pytest conversion fixes.",
+        "c26bd2638d": "Convert to pytest (strategy fixture).",
+        "57b51f25b5": "prepare() enables enable_sstable_key_validation.",
+        "710976e2d5": "Copy whole sstables per generation map (don't mix components).",
+        "3462a00182": "Use get_sstables_files.",
+        "c3471a97e4": "formatting / tree-wide",
+        "85b08ade2a": "Log regex 'compaction -.*' to allow task prefix.",
+        "657c92dce5": "Accept 'Reshaped' (distributed loader change).",
+        "8f310d3887": "Stop starting nodes with DEBUG logging.",
+        "29646f1956": "python3 port.",
+        "65a423fc6e": "Accept 'Resharded'; compare file sets instead of counts.",
+        "91b3d574c8": "watch_log_for instead of sleep.",
+        "f43822b2a7": "Debug log level.",
+        "7a340f1632": "Add TWCS to strategies.",
+        "f9eac6f61b": "Fix assert to NotEqual (expect sstable set change).",
+        "e6fac6a50e": "formatting / tree-wide"
+      },
+      "relevance": "Live: reshape/regular compaction on boot; debug 'X N sstables to [..]' log at compaction/compaction.cc:1039. STCS is now an alias of ICS (scylla 5bf0c6ddac), so STCS and ICS params run the same strategy.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_reshape_with_tablets",
+          "coverage": "partial",
+          "note": "Restart with 32 sstables/tablet, asserts 'Reshaped 32 sstables' and 1 sstable per tablet (STCS only)."
+        },
+        {
+          "path": "test/cluster/test_compaction_strategy_deprecation.py::test_size_tiered_layout_across_restart",
+          "coverage": "partial",
+          "note": "Off-strategy STCS/ICS layout reshaped on boot."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::lcs_reshape_test / stcs_reshape_test / twcs_reshape_with_disjoint_set_test",
+          "coverage": "partial",
+          "note": "Reshape selection per strategy."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~11s) and still the only multi-strategy (LCS/TWCS) boot-compaction e2e, but STCS/ICS reshape-on-boot is covered by test_reshape_with_tablets and test_size_tiered_layout_across_restart. Note: assertion is weak - any compaction (reshape or regular) that changes the file set passes, data correctness not checked; STCS and ICS params now duplicate (scylla 5bf0c6ddac); ka-format branch in _get_sstable_generation/_copy_sstable_file and integer-generation branch are dead (UUID generations always)."
+    },
+    "TestCompactionAdditionalStrategy::test_compaction_removes_ttld_data_after_gc_period": {
+      "description": "Per strategy: table with tombstone_gc immediate, insert 100 keys USING TTL 3, sleep 6s, upsert key 99, flush, major compact, dump sstables and assert exactly 1 partition remains. Guards purge of expired TTL data once past gc.",
+      "origin": {
+        "sha": "2910ac8d19",
+        "date": "2017-03-15",
+        "pr": 460,
+        "summary": "add compaction_removes_ttld_data_after_gc_period (TTL 29, sleep 31, gc_grace 1)."
+      },
+      "commits": {
+        "461b278699": "PR 7501: TTL 29->3, sleep 31->6s.",
+        "068022d716": "PR 7584: gc_grace_seconds=1 -> tombstone_gc 'immediate'.",
+        "9ffd273f04": "formatting / tree-wide",
+        "19991c953b": "formatting / tree-wide",
+        "b4e0c01e3f": "Use tools.misc.dump_sstables (disables system_schema autocompaction).",
+        "ecdf87c670": "Remove stale uuid comment.",
+        "91de20d5a7": "Use dump_sstables, count = len(json); stop disabling UUID ids.",
+        "0c1a98e1f2": "Log sstable json.",
+        "bcce67b823": "Rename uuid_sstable_identifiers_enabled option.",
+        "18b8381c90": "Disable UUID ids (sstable2json limitation).",
+        "c26bd2638d": "Convert to pytest.",
+        "57b51f25b5": "enable_sstable_key_validation.",
+        "8f310d3887": "No DEBUG logging.",
+        "6b5a3275e4": "dtest-debug attr.",
+        "8f31589531": "next-gating attr.",
+        "f43822b2a7": "Debug log level.",
+        "b35fbed3e2": "2.2 file-name format support.",
+        "54c16c5248": "File-level TWCS work (no change here).",
+        "0a66cab2b0": "File-level.",
+        "7a340f1632": "Add TWCS to strategies.",
+        "2910ac8d19": "Origin.",
+        "e6fac6a50e": "formatting / tree-wide",
+        "70e8dfbe2a": "File-level (strategies list)."
+      },
+      "relevance": "Live (TTL expiry -> tombstone purge, tombstone_gc immediate). Purge is done by the mutation compactor, strategy-agnostic; STCS == ICS alias now (5bf0c6ddac).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::tombstone_purge_test",
+          "coverage": "full",
+          "note": "make_expiring cells, gc_grace 0, forward_jump_clocks past TTL, compaction purges expired data (and keeps it when it would resurrect shadowed data)."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::compaction_with_fully_expired_table",
+          "coverage": "partial",
+          "note": "Fully expired sstables dropped."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_compaction_removes_ttld_data_by_time_windows",
+          "coverage": "partial",
+          "note": "TWCS TTL purge e2e."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Expired-TTL purge is fully covered by boost tombstone_purge_test, and it is strategy-agnostic so the 4 params add nothing. Note: the TTL'd rows are never flushed before key 99 is upserted, so all data sits in one memtable and is purged at flush time; major compaction runs on a single sstable and is not really exercised (compaction_additional_test.py:1317-1325, same since origin 2910ac8d19). Comment 'TTL 3 + gc_grace 1' is stale since 068022d716 removed gc_grace_seconds."
+    },
+    "TestLCSSSTablePromotion::test_lcs_sstable_promotion": {
+      "description": "Single node, LCS table with sstable_size_in_mb=1, inserts 50K rows (10K debug), flush, waits until per-level sstable counts converge, then asserts per-level space amplification (size(L)+size(L+1))/size(L+1) < 1.2. Guards scylla 9de7abdc80 (LCS stops promoting once L is 10x L-1) and the ~1.1 space-amp promise.",
+      "origin": {
+        "sha": "3013f2bace",
+        "date": "2022-04-25",
+        "pr": 2702,
+        "summary": "Test LCS sstable promotion (10x rule) for scylla 9de7abdc80."
+      },
+      "commits": {
+        "0cc1b5cbca": "PR 6510 (Copilot): rows 1M/100K -> 50K/10K, concurrency 50.",
+        "a83179af38": "PR 4938: check space amplification via REST sstable_info instead of level-count distribution (dtest#4702).",
+        "9ffd273f04": "formatting / tree-wide",
+        "fadd0b5b58": "Wait until level distribution converges.",
+        "d51d89c7c7": "Ignore unused var (formatting).",
+        "fc412a9ce6": "_get_table_level returns list[int].",
+        "f6c2f78a23": "Add dtest_full marker."
+      },
+      "relevance": "Live: LCS fan-out rule in compaction/leveled_manifest.hh; REST /column_family/sstables/per_level and /storage_service/sstable_info exist.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_fan_out_cache",
+          "coverage": "partial",
+          "note": "Directly asserts the 9de7abdc80 rule: promote when L2 < 10x L1, skip when L2 >= 10x L1 (added 5c12ab4c81, 2026-08)."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_01..07 / leveled_invariant_fix",
+          "coverage": "partial",
+          "note": "LCS manifest/level logic."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Rule is unit-tested by boost leveled_fan_out_cache; dtest adds e2e space-amp check, but it is probably vacuous now. Bug (likely): after 0cc1b5cbca (PR 6510) cut data to 50K rows ('value1','value2' ~62B/row, per the in-code example of ~62MB for 1M rows) the table is ~3MB, below the 10MB L1 target for 1MB sstables, so no data reaches L2 and _check_space_amplification only compares L0 vs L1 (trivially 1.0 once L0 is empty) - the promotion/space-amp assert is effectively vacuous (compaction_additional_test.py:2601, 2614, 2656-2692). Note: convergence loop returns silently after 10 iterations without converging. Fix data size (or assert len(levels)>2) or drop."
+    },
+    "TestLCSSSTablePromotion::test_lcs_table_promotion_major_compaction": {
+      "description": "LCS table (1MB sstables), autocompaction disabled, insert 50K rows, flush, major compaction via REST, then same convergence + space-amplification check as the promotion test. Checks LCS major compaction output layout respects ~1.1x space amp.",
+      "origin": {
+        "sha": "3013f2bace",
+        "date": "2022-04-25",
+        "pr": 2702,
+        "summary": "Added with the LCS promotion tests."
+      },
+      "commits": {
+        "0cc1b5cbca": "PR 6510: rows 1M/100K -> 50K/10K, concurrency 50.",
+        "a83179af38": "PR 4938: space-amp check instead of level distribution.",
+        "9ffd273f04": "formatting / tree-wide",
+        "fadd0b5b58": "Wait until levels converge.",
+        "fc412a9ce6": "_get_table_level returns list[int]."
+      },
+      "relevance": "Live: LCS major compaction (compaction_strategy_aware_major_compaction_test exists in boost).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_fan_out_cache",
+          "coverage": "partial",
+          "note": "Directly asserts the 9de7abdc80 rule: promote when L2 < 10x L1, skip when L2 >= 10x L1 (added 5c12ab4c81, 2026-08)."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_01..07 / leveled_invariant_fix",
+          "coverage": "partial",
+          "note": "LCS manifest/level logic."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::compaction_strategy_aware_major_compaction_test",
+          "coverage": "partial",
+          "note": "LCS major output level."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial unit coverage of LCS major layout; dtest assert likely vacuous. Bug (likely): after 0cc1b5cbca (PR 6510) cut data to 50K rows ('value1','value2' ~62B/row, per the in-code example of ~62MB for 1M rows) the table is ~3MB, below the 10MB L1 target for 1MB sstables, so no data reaches L2 and _check_space_amplification only compares L0 vs L1 (trivially 1.0 once L0 is empty) - the promotion/space-amp assert is effectively vacuous (compaction_additional_test.py:2601, 2614, 2656-2692). Note: autocompaction stays disabled, so no promotion happens after the major - the 'promotion' in the name is not exercised; class has no dtest_full mark unlike its sibling."
+    },
+    "TestLCSSSTablePromotion::test_lcs_table_promotion_after_stcs_migration": {
+      "description": "STCS table, 5 insert+flush rounds (5K..80K rows, overlapping keys k0..), ALTER to LCS (1MB), nodetool refresh, wait for level convergence, assert space amplification < 1.2. Checks STCS->LCS migration ends in a good LCS layout.",
+      "origin": {
+        "sha": "3013f2bace",
+        "date": "2022-04-25",
+        "pr": 2702,
+        "summary": "Added with the LCS promotion tests."
+      },
+      "commits": {
+        "0cc1b5cbca": "PR 6510: inserts [20K..500K] -> [5K..80K], concurrency 50.",
+        "a83179af38": "PR 4938: space-amp check instead of level distribution.",
+        "9ffd273f04": "formatting / tree-wide",
+        "87435cae3e": "Extract _wait_until_table_levels_converge.",
+        "6690032e6a": "Wait until levels converge.",
+        "fc412a9ce6": "_get_table_level returns list[int].",
+        "f11c840738": "Ignore unused var (formatting)."
+      },
+      "relevance": "Live: strategy change STCS->LCS; STCS is now an ICS alias (5bf0c6ddac) so the source strategy is actually ICS.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_fan_out_cache",
+          "coverage": "partial",
+          "note": "Directly asserts the 9de7abdc80 rule: promote when L2 < 10x L1, skip when L2 >= 10x L1 (added 5c12ab4c81, 2026-08)."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::leveled_01..07 / leveled_invariant_fix",
+          "coverage": "partial",
+          "note": "LCS manifest/level logic."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::lcs_reshape_test",
+          "coverage": "partial",
+          "note": "LCS handling of non-leveled (L0) input."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique e2e of STCS->LCS migration layout, but likely vacuous: insert_c1c2 reuses keys range(n), so only 80K distinct rows (~5MB) remain, under the 10MB L1 target - no L2, amp check trivially passes (see sibling). Note: 'nodetool refresh' is a no-op here (upload/ empty) (compaction_additional_test.py:2639); source STCS now runs ICS (scylla 5bf0c6ddac)."
+    },
+    "TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows": {
+      "description": "Single node --smp 1, TWCS 1-minute windows (gc_grace 1800, tombstone_gc timeout). Writes 1 partition with a row per second for 5 simulated minutes (USING TIMESTAMP), major -> 5 sstables; deletes all 300 rows with tombstones timestamped in window 5 -> 6 sstables; major -> asserts 1 sstable left (tombstones) and no rows readable. Guards scylla e44a28dce4 (#9662: compaction across TWCS buckets so deletes drop shadowed data in old windows).",
+      "origin": {
+        "sha": "0559d5a761",
+        "date": "2022-04-04",
+        "pr": 2690,
+        "summary": "TWCS major compaction compacts sstables from different time windows after deletes (scylla 55bb70a878 / e44a28dce4)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting / tree-wide",
+        "0559d5a761": "Origin (PR 2690).",
+        "d160a80c2e": "File-level helper refactor (prepare typing, simulate_write moved to tools.data); no behavior change here.",
+        "397d7137ad": "File-level: _check_sstable_timestamps gains window params; no behavior change here."
+      },
+      "relevance": "Live: TWCS cross-bucket compaction (compaction/compaction.cc mutation compaction in producer) since e44a28dce4.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
+          "coverage": "full",
+          "note": "10 sstables in different windows + tombstone sstable compacted -> single output containing only the deletion (same scenario, partition tombstone instead of row tombstones)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditional::test_data_from_different_windows_compacted_together",
+          "coverage": "full",
+          "note": "Same dtest scenario (delete pk across 4 windows -> 1 sstable); triaged RED as also covered by boost."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (added by the guarded scylla merge e44a28dce4) and duplicated by sibling dtest test_data_from_different_windows_compacted_together; row vs partition tombstones is not a meaningful difference for cross-bucket compaction."
+    },
+    "TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_rows_in_first_timewindow": {
+      "description": "Same setup with 5 partitions over 5 minutes; deletes all rows of window 0 (tombstones in window 5) -> 6 sstables; major -> asserts 5 sstables (window 0 sstable vanished, windows 1-4 + tombstone sstable kept, each within one window) and expected row count. Checks cross-bucket compaction while keeping per-window segregation of the output.",
+      "origin": {
+        "sha": "0559d5a761",
+        "date": "2022-04-04",
+        "pr": 2690,
+        "summary": "Added in PR 2690 with the other TWCS delete tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting / tree-wide",
+        "0559d5a761": "Origin (PR 2690).",
+        "d160a80c2e": "File-level helper refactor (prepare typing, simulate_write moved to tools.data); no behavior change here.",
+        "397d7137ad": "File-level: _check_sstable_timestamps gains window params; no behavior change here.",
+        "6b0c067f39": "PR 5477: pass tablets_initial_scale_factor=1 (force low tablet count).",
+        "fb3dfc9ea9": "ruff pylint (formatting)."
+      },
+      "relevance": "Live: TWCS interposer segregation + cross-bucket mutation compaction.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
+          "coverage": "partial",
+          "note": "Full deletion only -> single output."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_major_compaction_test",
+          "coverage": "partial",
+          "note": "Major output split per window."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_several_rows_per_timewindow",
+          "coverage": "partial",
+          "note": "Same flow with partial deletes in every window."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Combination (cross-bucket purge of one window + segregation of the rest) has no single unit test, but each half is covered in boost and the sibling several_rows test exercises the same flow; keep one of the two. Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:2115, 90)."
+    },
+    "TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_several_rows_per_timewindow": {
+      "description": "Same setup with 4 partitions; deletes the first 20 rows of every window (tombstones in window 5) -> 6 sstables; major -> asserts still 6 sstables (one per window, each within the window) and row count = total - deleted. Checks that partial deletes don't merge windows during TWCS major compaction.",
+      "origin": {
+        "sha": "0559d5a761",
+        "date": "2022-04-04",
+        "pr": 2690,
+        "summary": "Added in PR 2690 with the other TWCS delete tests."
+      },
+      "commits": {
+        "9ffd273f04": "formatting / tree-wide",
+        "0559d5a761": "Origin (PR 2690).",
+        "d160a80c2e": "File-level helper refactor (prepare typing, simulate_write moved to tools.data); no behavior change here.",
+        "397d7137ad": "File-level: _check_sstable_timestamps gains window params; no behavior change here.",
+        "6b0c067f39": "PR 5477: pass tablets_initial_scale_factor=1."
+      },
+      "relevance": "Live: TWCS interposer segregation + cross-bucket mutation compaction.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_major_compaction_test",
+          "coverage": "partial",
+          "note": "Major output split per window."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
+          "coverage": "partial",
+          "note": "Cross-bucket compaction with deletes."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_rows_in_first_timewindow",
+          "coverage": "partial",
+          "note": "Same flow."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compaction_remove_deleted_rows_in_previous_time_window",
+          "coverage": "partial",
+          "note": "Partial row deletes in previous window, plus tombstone gc."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with boost twcs_major_compaction_test/test_twcs_compaction_across_buckets and two sibling dtests; cheap (~28s). Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:1986, 90); assert messages say 'more than'/'less than' regardless of direction."
+    },
+    "TestTimeWindowDataSegregation::test_compaction_remove_deleted_rows_in_previous_time_window": {
+      "description": "Single node --smp 1, TWCS 1-minute windows, gc_grace 15s (tombstone_gc timeout). Writes 1 partition x 60 rows (1 simulated minute), major -> 1 sstable; deletes first 20 cks with timestamps in window 2 -> 2 sstables; major within gc_grace -> still 2 sstables and 40 rows readable; sleeps until gc_grace passes, major -> asserts deleted rows gone from all sstables and 1 sstable left. Guards scylla 55bb70a878/e44a28dce4 (TWCS major compacts across buckets so deletes in a newer window purge data in older windows).",
+      "origin": {
+        "sha": "0559d5a761",
+        "date": "2022-04-04",
+        "pr": 2690,
+        "summary": "TWCS major compaction compacts sstables from different time windows after deletes (scylla 55bb70a)."
+      },
+      "commits": {
+        "23642d4b5a": "Clamp sleep to >=0 (negative time.sleep crash).",
+        "9ffd273f04": "formatting",
+        "db4e3e20d0": "Drop uuid_sstable_identifiers_enabled=False mark; are_rows_in_sstable switched from sstable2json to scylla-sstable dump (new JSON layout).",
+        "efa25826f8": "Added uuid_sstable_identifiers_enabled=False mark (reverted by db4e3e20d0).",
+        "3bf19039ba": "Use gc_period=15 and sleep past it before final major so tombstones are purgeable; _create_ks_cl_with_twcs gains params.",
+        "83889e264b": "assert_deleted_rows_in_sstables_exists/removed scan all sstables instead of first N windows.",
+        "0559d5a761": "Origin."
+      },
+      "relevance": "Live: TWCS cross-bucket major compaction (compaction/time_window_compaction_strategy.cc, e44a28dce4) and tombstone_gc timeout mode.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
+          "coverage": "partial",
+          "note": "Cross-bucket compaction of deletes with data in older windows; does not wait out gc_grace and check final purge."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_rows_in_first_timewindow",
+          "coverage": "partial",
+          "note": "Same delete-in-newer-window flow (4 sibling dtests of this pattern); sibling delete_all_rows triaged RED."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cross-bucket purge is unit-covered by boost test_twcs_compaction_across_buckets and the flow is repeated by 3 sibling dtests; only the gc_grace wait + final purge is extra. Keep at most one of the 4 delete/TWCS siblings. Bug: assert_deleted_rows_in_sstables_exists (compaction_additional_test.py:2182) counts any 'clustering-row' incl. row tombstones (are_rows_in_sstable :2215), so after the 2nd major it passes on the tombstones even if shadowed data were dropped - the 'tombstones kept within gc_grace' check does not distinguish data from tombstones."
+    },
+    "TestTimeWindowDataSegregation::test_data_is_segregated_during_off_strategy": {
+      "description": "vnodes only. Node1 with TWCS, 5 simulated minutes of writes; bootstraps node2 with RBNO enabled for bootstrap. From repair stats logs finds shards that received rows, waits for 'Done with off-strategy compaction' on each, asserts each off-strategy run had <=30 candidates (repair no longer pre-segregates into N ranges x M windows sstables) and that node2 ends with ~1 sstable per window per shard. Guards scylla#9199 (fix a4053dbb72: postpone data segregation from repair to off-strategy).",
+      "origin": {
+        "sha": "b60abe70bb",
+        "date": "2022-03-04",
+        "pr": 2644,
+        "summary": "test(#9199): data is segregated during off-strategy (scylla a4053dbb72)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: node1 -> _node1)",
+        "79e88114c3": "Add allowed_repair_based_node_ops=bootstrap so RBNO bootstrap still used after no-RBNO default.",
+        "4848b6a65c": "Final sstable count uses shards_with_data instead of smp.",
+        "d33b2e0c60": "Non-greedy regex so full candidate count is captured (was capturing last digit only).",
+        "637000da99": "Derive shards_with_data from repair stats rx_row_nr; wait only for those shards.",
+        "bbecdadf9a": "Mark required_features('!tablets').",
+        "9ffd273f04": "formatting",
+        "45ae89ca5e": "Check candidates count on every shard via watch_log_for.",
+        "365638e667": "Raise candidates limit from <10 to <=30.",
+        "031d42a563": "Relax 'Starting off-strategy' regex.",
+        "dfa558f905": "Drop logger-module prefix from regex.",
+        "b60abe70bb": "Origin."
+      },
+      "relevance": "Live for vnode keyspaces: repair-based node ops + off-strategy (compaction/compaction_manager.cc:1806 'Starting off-strategy compaction ... candidates were found', repair/repair.cc:830 stats log). RBNO bootstrap is no longer default (db/config.cc:1466 default 'replace,removenode,rebuild'), test enables it explicitly; same repair path is used for default RBNO ops.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_reshape_with_disjoint_set_test",
+          "coverage": "partial",
+          "note": "Cited by a4053dbb72; checks TWCS reshape of disjoint sstables at once, not the repair->maintenance-set path."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap",
+          "coverage": "partial",
+          "note": "Same bootstrap + off-strategy segregation but via streaming, no candidate-count check."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only e2e regression test for #9199 (repair writes unsegregated sstables, off-strategy segregates them); no scylla test exercises repair->maintenance set->off-strategy with TWCS. Cheap (~15s), 16/16 passes."
+    },
+    "TestTimeWindowDataSegregation::test_enable_disable_optimized_query_for_twcs": {
+      "description": "2 nodes/2 racks RF=2, TWCS 5-minute windows, 60 simulated minutes of writes for 30 pks (flush every 100s). Runs 6 single-partition/IN/full-scan queries with the optimized TWCS read path, ALTERs compaction options to enable_optimized_twcs_queries=false, reruns and DeepDiffs results, re-enables and compares again. Guards scylla 168c6f47f9 (option to disable optimized TWCS queries) and the equivalence of both read paths.",
+      "origin": {
+        "sha": "d160a80c2e",
+        "date": "2022-05-07",
+        "pr": 2716,
+        "summary": "Check enable_optimized_twcs_queries option (scylla 168c6f47f9)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: node2 -> _node2)",
+        "f1c2e0b732": "Populate 2 racks via generate_cluster_topology for rf=rack.",
+        "9ffd273f04": "formatting",
+        "0077ca9e83": "Default TTL raised to 6000s so rows do not expire mid-test.",
+        "bb6370187d": "Enabled on debug; flush period 15s -> 100s to cut compaction work.",
+        "9c943fb08e": "Results as dicts compared with DeepDiff; stop logging full results.",
+        "d160a80c2e": "Origin."
+      },
+      "relevance": "Live: enable_optimized_twcs_queries in compaction/time_window_compaction_strategy.cc:127-151, used by time_series_sstable_set (:565).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_twcs_reversed_restricted_query_optimized / test_twcs_reversed_restricted_query_regular",
+          "coverage": "partial",
+          "note": "Exercise both read paths by toggling enable_optimized_twcs_queries (reversed restricted queries)."
+        },
+        {
+          "path": "test/boost/mutation_reader_test.cc::test_clustering_order_merger_sstable_set / clustering_combined_reader_mutation_source_test",
+          "coverage": "partial",
+          "note": "Correctness of the time_series_sstable_set optimized reader vs expected output."
+        },
+        {
+          "path": "test/cqlpy/test_compaction_strategy_validation.py",
+          "coverage": "partial",
+          "note": "Option validation (:128)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Path equivalence is unit-covered (boost clustering-order merger tests over time_series_sstable_set) and option toggling is covered by cqlpy test_twcs_reversed_restricted_query_*; dtest adds a multi-node, multi-window real dataset comparison for ~85s. Note: log message after re-enabling says 'Run tw queries with disabled optimized algorithms' (compaction_additional_test.py:2327); measured query times are logged but never asserted."
+    },
+    "TestTimeWindowDataSegregation::test_memtable_flush": {
+      "description": "3 nodes/3 racks RF=3, TWCS 1-minute windows; writes 10 simulated minutes without periodic flush, then per node flushes and asserts >1 new sstable and that every sstable's min/max timestamp falls in one window. Verifies the TWCS interposer splits a memtable flush by time window.",
+      "origin": {
+        "sha": "2d58256248",
+        "date": "2021-11-25",
+        "pr": 2365,
+        "summary": "Test added during the pytest conversion of compaction_additional_test (not present before)."
+      },
+      "commits": {
+        "416c8fe170": "Use disable_sstable_modifications (also disables tablet load balancing) while listing sstables.",
+        "f1c2e0b732": "Populate 3 racks via generate_cluster_topology for rf=rack.",
+        "622c5e95ed": "Read sstable stats via scylla-sstable instead of sstable-tools.",
+        "9ffd273f04": "formatting",
+        "85a598f4bb": "Disable autocompaction while listing/inspecting sstables.",
+        "2d58256248": "Origin."
+      },
+      "relevance": "Live: TWCS memtable flush interposer (time_window_compaction_strategy::make_interposer_consumer / timestamp_based_splitting_writer).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_interposer_on_memtable_flush_split",
+          "coverage": "full",
+          "note": "Rows over 10 windows in one memtable -> flush produces 10 sstables (one per window); _no_split variant checks single window."
+        },
+        {
+          "path": "test/boost/mutation_writer_test.cc::test_timestamp_based_splitting_mutation_writer",
+          "coverage": "partial",
+          "note": "Splitting writer unit test."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by boost test_twcs_interposer_on_memtable_flush_split (one memtable spanning N windows -> N sstables); 3 nodes/RF=3 add nothing to a node-local flush path. ~47s. Note: flush_period_seconds=999999999999 still flushes at t=0 (t % period == 0, tools/data.py), so 'pre' already contains a 1-second sstable."
+    },
+    "TestTimeWindowDataSegregation::test_rebuild_node_streaming": {
+      "description": "vnodes only. 3 nodes RF=3, TWCS 1-minute windows, 10 simulated minutes (flush every 20s); stops node3, wipes its ks data dir, restarts, runs nodetool rebuild, waits for rebuild completion, triggers off-strategy via REST and asserts node3's sstables each span <=1.5 windows. Checks TWCS data segregation of rebuild-streamed data.",
+      "origin": {
+        "sha": "1069a4e8d2",
+        "date": "2020-01-21",
+        "pr": 1249,
+        "summary": "Additional tests for TWCS segregation during streaming (bootstrap/decommission/repair/rebuild)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: node1 -> _node1)",
+        "eccda80e42": "formatting",
+        "bbecdadf9a": "Mark required_features('!tablets') (no off-strategy after tablet migration, scylladb/scylladb#17384).",
+        "9ffd273f04": "formatting",
+        "c14dcdb406": "run_rest_api passes cf as params.",
+        "0d334b3c30": "Trigger off-strategy via REST and wait for 'Done with off-strategy' instead of wait_for_compactions.",
+        "57b51f25b5": "prepare() enables enable_sstable_key_validation.",
+        "a9e08f61d5": "Accept 'rebuild_with_repair: finished with keyspace=ks' (RBNO rebuild).",
+        "1069a4e8d2": "Origin."
+      },
+      "relevance": "Live for vnodes: rebuild is RBNO by default (db/config.cc:1466), logs 'rebuild_with_repair: finished with keyspace=' (repair/repair.cc:2494); off-strategy REST endpoint exists.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_on_rebuild_multidc",
+          "coverage": "full",
+          "note": "Same rebuild -> REST off-strategy -> _check_sstable_timestamps flow (vnodes, rebuild of new dc), ~43s vs ~98s."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_data_is_segregated_during_off_strategy",
+          "coverage": "partial",
+          "note": "Same repair -> off-strategy segregation path (RBNO bootstrap) with stricter sstable-count assert."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~98s) and redundant: sibling test_streaming_on_rebuild_multidc runs the same RBNO rebuild + off-strategy + per-window check in ~43s, and test_data_is_segregated_during_off_strategy covers the repair->off-strategy segregation more strictly. Note: 'Streaming for rebuild successful' alternative is dead - scylla logs lowercase 'streaming for rebuild successful' (service/storage_service.cc:5436) since non-raft rebuild was removed (e8c72b7ba0) (compaction_additional_test.py:1846); no data validation after rebuild."
+    },
+    "TestTimeWindowDataSegregation::test_reshape_sstables_different_size_after_change_window_size": {
+      "description": "Single node, TWCS 1-minute windows, 1 partition; writes 64 simulated minutes alternating 16-minute blocks of tiny (10B) and large (1MB) values, major -> one sstable per window (32 small, 32 large). ALTERs window to 64 minutes, restarts, and parses '[Reshape ...] Reshaping [...]' logs: every reshape job but the last must contain only small sstables; then major and assert 1 sstable within the new window. Guards scylla 299ffb1e1a (#9938: TWCS reshape reuses STCS logic to compact similar-sized files in an oversized bucket).",
+      "origin": {
+        "sha": "397d7137ad",
+        "date": "2022-04-11",
+        "pr": 2711,
+        "summary": "Add TWCS reshape with different sstable sizes (scylla 299ffb1e1a)."
+      },
+      "commits": {
+        "9f534faa60": "Re-enable on tablets (drop '!tablets' added for scylladb/scylladb#16966).",
+        "bbecdadf9a": "Marked '!tablets' due to scylladb/scylladb#16966.",
+        "9ffd273f04": "formatting",
+        "d160a80c2e": "File-level helper refactor (simulate helper); no behavior change here.",
+        "397d7137ad": "Origin."
+      },
+      "relevance": "Live: compaction/time_window_compaction_strategy.cc:328-333 reuses size_tiered_compaction_strategy::get_reshaping_job per oversized bucket; reshape on boot.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_reshape_with_disjoint_set_test",
+          "coverage": "full",
+          "note": "Block added by 299ffb1e1a: 64 sstables in one bucket, intermixed small/big, asserts reshape job is the 32 small ones (strict and relaxed)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_and_unit",
+          "coverage": "full",
+          "note": "Same flow, different size distribution and window unit."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Exactly the 32 small + 32 big sstables in one bucket scenario of boost twcs_reshape_with_disjoint_set_test (added by the guarded scylla commit 299ffb1e1a); e2e ALTER+restart flow is kept by sibling _and_unit. Bug: failure message in run_flow_generate_and_reshape_twcs_sstables indexes sorted_sstables['large']['sstable'] (compaction_additional_test.py:2366) - KeyError instead of the assert message on failure; with a single reshape job the small-only check (found[:-1]) checks nothing and the last-bucket check is trivially true."
+    },
+    "TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_when_small_files_more_than_large": {
+      "description": "Same flow as test_reshape_sstables_different_size_after_change_window_size (run_flow_generate_and_reshape_twcs_sstables) with 96 one-minute windows mostly small and one large block, window changed to 100 minutes; asserts reshape jobs before the last contain only small sstables and that a final major leaves 1 sstable.",
+      "origin": {
+        "sha": "397d7137ad",
+        "date": "2022-04-11",
+        "pr": 2711,
+        "summary": "Add TWCS reshape with different sstable sizes (scylla 299ffb1e1a)."
+      },
+      "commits": {
+        "9f534faa60": "Re-enable on tablets (drop '!tablets' added for scylladb/scylladb#16966).",
+        "bbecdadf9a": "Marked '!tablets' due to scylladb/scylladb#16966.",
+        "9ffd273f04": "formatting",
+        "0559d5a761": "File-level helper changes (delete helpers added); no behavior change here.",
+        "397d7137ad": "Origin."
+      },
+      "relevance": "Live: same TWCS->STCS reshape bucketing (compaction/time_window_compaction_strategy.cc:328).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_reshape_with_disjoint_set_test",
+          "coverage": "partial",
+          "note": "Size-tiered selection inside an oversized TWCS bucket."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_and_unit",
+          "coverage": "full",
+          "note": "Same helper/flow, only the distribution and new window differ."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~114s) and redundant: third parametrization of the same helper flow; the selection logic is unit-tested by boost twcs_reshape_with_disjoint_set_test and the e2e path is kept by the _and_unit sibling. Bug: same KeyError in the assert message (compaction_additional_test.py:2366); Note: docstring says 80 small/16 large and window 96, actual distribution is 88 small/8 large windows and new window 100 (:2232-2248)."
+    },
+    "TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_and_unit": {
+      "description": "Same flow (run_flow_generate_and_reshape_twcs_sstables) with 96 one-minute windows (80 small incl. 1-byte values, 16 large), compaction window changed to 2 HOURS (unit change) and node restarted; asserts reshape ran on boot, jobs before the last contain only small sstables, and after major 1 sstable spanning <=1.5 x 2h.",
+      "origin": {
+        "sha": "397d7137ad",
+        "date": "2022-04-11",
+        "pr": 2711,
+        "summary": "Add TWCS reshape with different sstable sizes (scylla 299ffb1e1a)."
+      },
+      "commits": {
+        "9f534faa60": "Re-enable on tablets (drop '!tablets' added for scylladb/scylladb#16966).",
+        "bbecdadf9a": "Marked '!tablets' due to scylladb/scylladb#16966.",
+        "9ffd273f04": "formatting",
+        "397d7137ad": "Origin."
+      },
+      "relevance": "Live: TWCS reshape on boot after window option change; STCS bucketing in oversized windows (compaction/time_window_compaction_strategy.cc:328).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::twcs_reshape_with_disjoint_set_test",
+          "coverage": "partial",
+          "note": "Unit-level size-tiered selection; no ALTER window + restart."
+        },
+        {
+          "path": "compaction_additional_test.py::TestCompactionAdditionalStrategy::test_compaction_is_started_on_boot",
+          "coverage": "partial",
+          "note": "Reshape/compaction on boot for TWCS, without size-bucket check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep as the single e2e of the 3 reshape siblings (ALTER window size+unit, restart, reshape on boot by size tiers); selection logic itself is unit-covered by boost twcs_reshape_with_disjoint_set_test. ~115s. Bug: KeyError in assert message (compaction_additional_test.py:2366) and the small-only check is vacuous when only one reshape job is logged; Note: docstring says 120 sstables 80/40, actual 96 windows 80/16 (:2264-2280)."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_decommission": {
+      "description": "2 nodes RF=1, TWCS 1-minute windows, 20 simulated minutes of writes; decommissions node1 so its ranges/tablets stream to node2, triggers off-strategy via REST, and asserts every node2 sstable spans <=1.5 windows. Checks streamed data (vnodes: streaming + off-strategy; tablets: migration) stays segregated by TWCS window.",
+      "origin": {
+        "sha": "1069a4e8d2",
+        "date": "2020-01-21",
+        "pr": 1249,
+        "summary": "Additional tests for TWCS segregation during streaming (bootstrap/decommission/repair/rebuild)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "c14dcdb406": "run_rest_api passes cf as params.",
+        "d40654814b": "Trigger off-strategy compaction via REST after decommission before checking.",
+        "57b51f25b5": "prepare() enables enable_sstable_key_validation.",
+        "1069a4e8d2": "Origin.",
+        "416c8fe170": "File-level: _check_sstable_timestamps disables load balancing + autocompaction while inspecting."
+      },
+      "relevance": "Live: decommission streaming (vnodes, non-RBNO default for decommission) and tablet migration both write through the TWCS segregating consumer; /storage_service/keyspace_offstrategy_compaction exists.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_sstables_with_several_timewindows",
+          "coverage": "partial",
+          "note": "Tablets: migration to new nodes with TWCS segregation check (bootstrap, not decommission)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap",
+          "coverage": "partial",
+          "note": "Vnodes streaming + off-strategy segregation on bootstrap."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of TWCS segregation for decommission-driven streaming (vnodes) and runs on both gating jobs; no scylla test covers node-op streaming into TWCS. ~100s, 32/32 passes."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap": {
+      "description": "vnodes only. Node1 TWCS 1-minute windows, 20 simulated minutes; bootstraps node2 (streaming), waits for 'Done with off-strategy compaction' on every shard of node2, then asserts node2 sstables span <=1.5 windows, sstable count is ~windows x shards, and exactly one '[Reshape ks.test] Reshaped' per shard (off-strategy reshape done in one step, no write amplification).",
+      "origin": {
+        "sha": "0c6a7a8e59",
+        "date": "2019-07-15",
+        "pr": 1031,
+        "summary": "TWCS data segregation during streaming (moved from time_window_data_segregation_test.py; renamed in 1069a4e8d2 / PR 1249)."
+      },
+      "commits": {
+        "eccda80e42": "formatting",
+        "b4928fd409": "formatting",
+        "bbecdadf9a": "Mark required_features('!tablets').",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "771a619b89": "Shard regex accepts '[shard N:group]' log prefix.",
+        "f66684f8e7": "Switched off-strategy count from grep_log to watch_log_for over per-shard patterns (made count asserts tautological).",
+        "42af9754ce": "Expect 1-2 off-strategy messages per shard.",
+        "b409b8b326": "Expect off-strategy message twice per shard.",
+        "0d3b770b76": "Derive shard count from off-strategy log occurrences.",
+        "e19acb7f72": "Fix Reshaped regex escaping.",
+        "b288115da1": "shard_count = node2._smp.",
+        "f3bc5d3b13": "Wait for off-strategy; sstable count ~ windows x shards.",
+        "012a0e6a2b": "Write-amplification check by sstable size (later dropped).",
+        "e4de33d195": "Add reshape write-amplification checks (one reshape per shard, PR 2519).",
+        "2dd655d994": "tools.new_node -> tools.cluster.new_node.",
+        "57b51f25b5": "prepare() enables enable_sstable_key_validation.",
+        "1069a4e8d2": "Renamed test_streaming -> test_streaming_during_adding_node_with_boostrap.",
+        "0c6a7a8e59": "Origin (moved test)."
+      },
+      "relevance": "Live for vnodes: streaming bootstrap (RBNO bootstrap no longer default, db/config.cc:1466) puts sstables in maintenance set; off-strategy logs 'Done with off-strategy compaction' (compaction/compaction_manager.cc:1809) and reshape 'Reshaped' (compaction/compaction.cc:1530).",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_data_is_segregated_during_off_strategy",
+          "coverage": "partial",
+          "note": "Same bootstrap + off-strategy segregation but via RBNO bootstrap, with stricter candidate check."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_offstrategy_sstable_compaction",
+          "coverage": "partial",
+          "note": "Off-strategy compaction of maintenance sstables (unit, no TWCS/streaming)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of default (streaming) bootstrap -> off-strategy TWCS segregation + one reshape per shard, but part of its asserts are no-ops. Bug: watch_log_for(list) returns exactly one match per pattern (ccmlib node.py removes each pattern after its first match), so offstrategy_count == shard_count always and the %/>=/<= asserts (compaction_additional_test.py:1539-1541) are tautological since f66684f8e7; typo 'wer logged'."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_on_multidc_with_tablets": {
+      "description": "Tablets variant of test_streaming_on_rebuild_multidc. Starts 1 node in dc1 (GossipingPropertyFileSnitch), creates a TWCS (1-minute windows) table with rack-list RF, writes 10 minutes of USING TIMESTAMP data with periodic flushes, checks node1 sstables span <=1.5 windows. Adds node2 in dc2, ALTERs keyspace to replicate to dc2 (rack lists), waits for this table's 'Streaming for tablet migration of <table_id>:N finished' on node2, waits for compactions and asserts every sstable on node2 spans <=1.5 windows.",
+      "origin": {
+        "sha": "ef7651e3c0",
+        "date": "2026-03-18",
+        "pr": 6778,
+        "summary": "Add tablets version of test_streaming_on_rebuild_multidc (rebuild unsupported with tablets; DTEST-155)."
+      },
+      "commits": {
+        "13d5c225ff": "Wait for this table's tablet migration (table_id-specific regex, from_mark) instead of the first one, since audit/system_traces keyspaces now on tablets migrate too.",
+        "ef7651e3c0": "Test added."
+      },
+      "relevance": "Live: tablets, rack-list RF ALTER to add a DC, log 'Streaming for tablet migration of {} finished' (service/storage_service.cc:5795). But tablet migration uses file streaming by default (enable_file_stream=true, db/config.cc:1052; used for every transition except intranode, storage_service.cc:5771), i.e. sstables are copied verbatim; TWCS segregation on node2 is inherited from node1's already-segregated (and already checked) flush output, so the final check verifies little beyond 'file streaming does not merge sstables'.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_tablets_data_is_segregated_after_bootstrap",
+          "coverage": "partial",
+          "note": "Same tablet-migration -> TWCS segregation property, via bootstrap instead of DC add; also checks sstable count."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_sstables_with_several_timewindows",
+          "coverage": "partial",
+          "note": "Tablets job: tablet migration to new nodes + per-sstable window check."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_twcs_interposer_on_memtable_flush_split",
+          "coverage": "partial",
+          "note": "The segregation that is actually observed originates in the flush interposer, unit-tested here."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only tablets DC-add + TWCS check, but with default file-based tablet streaming the sstables are copied as-is, so the assertion is near-tautological given node1 was already checked (db/config.cc:1052, service/storage_service.cc:5771); overlaps the other tablets segregation tests. Note: waits for only the first tablet of the table to finish (compaction_additional_test.py:1796) while other tablets of the table may still be migrating; checks only sstables present at that point."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_on_rebuild_multidc": {
+      "description": "Vnodes-only (skipped with tablets). Starts node1 in dc1, creates TWCS (1-min window) table RF dc1:1, writes 10 minutes of timestamped data, checks segregation on node1. Adds node2 in dc2, ALTERs keyspace to dc1:1,dc2:1, runs 'nodetool rebuild dc1', waits for rebuild completion (repair-based rebuild by default), triggers off-strategy via REST, waits for start/done off-strategy log lines and compactions, then asserts every sstable on node2 spans <=1.5 windows. Guards TWCS data segregation (off-strategy reshape) of rebuild-streamed data.",
+      "origin": {
+        "sha": "1069a4e8d2",
+        "date": "2020-01-21",
+        "pr": 1249,
+        "summary": "Adding additional tests for TWCS segregating (streaming/rebuild/repair/decommission tests)."
+      },
+      "commits": {
+        "cf5981cceb": "Skip with tablets unconditionally (skip_if(with_feature('tablets'))), rebuild unsupported with tablets.",
+        "eccda80e42": "formatting",
+        "4e1e3bc7f1": "Replaced required_features('!tablets'/'!consistent-topology-changes') with skip_if(... & issue_open(#17572/#17280)).",
+        "bbecdadf9a": "Disabled with tablets (scylladb/scylladb#17572).",
+        "f431f6ad24": "Replaced threading.Thread with ThreadPoolExecutor for the rebuild call.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "72809f2380": "formatting",
+        "aedaa57c4e": "formatting",
+        "c14dcdb406": "run_rest_api cf passed via params dict (no behavior change).",
+        "0d334b3c30": "Trigger off-strategy compaction via REST after rebuild (off-strategy otherwise delayed 5 min after scylladb/scylladb#11848).",
+        "ea9388dbdf": "Wait for 'Done with off-strategy compaction' before checking sstables.",
+        "397d7137ad": "_check_sstable_timestamps gained window_size/unit params; table value column int->blob.",
+        "c26bd2638d": "Port to pytest.",
+        "6567c410a3": "Marked single_node.",
+        "57b51f25b5": "enable_sstable_key_validation=True in config.",
+        "c3471a97e4": "formatting",
+        "a9e08f61d5": "Accept repair-based rebuild log 'rebuild_with_repair: finished with keyspace=ks'; added to next-gating.",
+        "1069a4e8d2": "Test added."
+      },
+      "relevance": "Live for vnodes keyspaces: rebuild is repair-based by default (allowed_repair_based_node_ops default 'replace,removenode,rebuild', db/config.cc:1466), log '{op}: finished with keyspace=..., source_dc=' (repair/repair.cc:2494), off-strategy logs (compaction/compaction_manager.cc:1806,1809), REST keyspace_offstrategy_compaction. Rebuild not supported with tablets.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_rebuild_node_streaming",
+          "coverage": "full",
+          "note": "Same rebuild -> REST off-strategy -> window check (already marked RED as redundant with this test)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_data_is_segregated_during_off_strategy",
+          "coverage": "partial",
+          "note": "Repair-based node op (bootstrap) -> off-strategy segregation."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_on_multidc_with_tablets",
+          "coverage": "partial",
+          "note": "Tablets counterpart (DC add without rebuild)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Kept candidate: the remaining rebuild + off-strategy TWCS segregation test (test_rebuild_node_streaming is RED as its duplicate); no scylla test covers it. Downgraded for issues: Bug: 'Streaming for rebuild successful' regex alternative is dead (scylla logs lowercase) (compaction_additional_test.py:1739); self.rebuild_errors ('rebuild is in progress' failures) counted but never asserted, silently swallowed (:1718-1737); ThreadPoolExecutor with one task + immediate .result() is pointless and never shut down (:1733-1735). Note: stale comment 'removed from gating' (:1681-1682) while module pytestmark=next_gating applies (runs in next-dtest-consistent-topology); comment 'auto_bootstrap: false' (:1708) does not match code."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_on_repair": {
+      "description": "2 nodes in 2 racks, TWCS (1-min window) table RF=2. With tablet load balancing disabled: writes 10 minutes of data, checks both nodes' sstables, stops node2, writes 20 more minutes (flushing only node1), restarts node2, repairs the keyspace on node2 and flushes. Triggers off-strategy via REST on node2 and asserts every sstable on both nodes spans <=1.5 windows. Guards TWCS segregation of repair-received data (repair skips segregation and relies on off-strategy, scylladb/scylla#9199).",
+      "origin": {
+        "sha": "1069a4e8d2",
+        "date": "2020-01-21",
+        "pr": 1249,
+        "summary": "Adding additional tests for TWCS segregating."
+      },
+      "commits": {
+        "416c8fe170": "Wrap write/stop/repair phase in disable_load_balancing_ctx and use _check_sstable_timestamps(disable_load_balancing=False) inside it.",
+        "36a75a3da5": "Re-apply: node2.repair(['-seq', ks]) -> node2.repair(keyspace=ks) (ccm picks cluster repair for tablets).",
+        "d0e55d7e63": "Revert of 44ed3fa059 (failed next).",
+        "44ed3fa059": "node2.repair(keyspace=ks) for tablets-aware repair (reverted).",
+        "f1c2e0b732": "Use generate_cluster_topology(rack_num=2) populate instead of prepare(2) for rf=rack (drops prepare()'s enable_sstable_key_validation/tablets_initial_scale_factor).",
+        "9ffd273f04": "formatting",
+        "c14dcdb406": "run_rest_api cf passed via params (no behavior change).",
+        "d40654814b": "Trigger and wait for off-strategy via REST before final check (was racy/flaky).",
+        "ab5a982b59": "Flush node2 after repair before checking sstables.",
+        "57b51f25b5": "Use prepare() with enable_sstable_key_validation.",
+        "1069a4e8d2": "Test added."
+      },
+      "relevance": "Live: row-level repair (vnodes and tablets via ccm cluster repair), off-strategy REST endpoint, TWCS. Runs on both gating jobs.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_data_is_segregated_during_off_strategy",
+          "coverage": "partial",
+          "note": "Repair-based bootstrap -> off-strategy segregation (vnodes only); this test covers plain repair on vnodes and tablets."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_offstrategy_sstable_compaction",
+          "coverage": "partial",
+          "note": "Off-strategy compaction unit test, no TWCS/repair."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of TWCS segregation for data received through regular repair (both vnodes and tablets), no scylla test covers it; 32/32 passes, ~103s. Note: since f1c2e0b732 it no longer uses prepare(), so enable_sstable_key_validation and tablets_initial_scale_factor=1 ('tests assume 1 compaction group per shard', :90) are not set - config drift vs sibling tests; downgraded from GREEN for this issue, otherwise keep."
+    },
+    "TestTimeWindowDataSegregation::test_streaming_sstables_with_several_timewindows": {
+      "description": "2 nodes in 2 racks, TWCS (1-min) table RF=2, writes 10 minutes of data to 100 pks flushing every 120s, sanity-checks node1 sstables span <=180s. Adds 2 new nodes (one per rack) and starts them; with tablets waits on each new node for this table's 'Streaming for tablet migration of <table_id>:N finished'. Asserts every sstable on the new nodes spans <=1.5 windows. Guards TWCS segregation of streamed data on bootstrap (scylla#6162 flakiness fix history).",
+      "origin": {
+        "sha": "1069a4e8d2",
+        "date": "2020-01-21",
+        "pr": 1249,
+        "summary": "Adding additional tests for TWCS segregating."
+      },
+      "commits": {
+        "13d5c225ff": "Wait for this table's tablet migration (table_id regex) instead of any migration (audit/system_traces on tablets).",
+        "f1c2e0b732": "generate_cluster_topology(rack_num=2) + new nodes placed in rack1/rack2 for rf=rack.",
+        "25776f6fca": "Tablet migration log regex accepts both 'Streaming for tablet migration ... finished' and 'Tablet migration succeeded'.",
+        "b4e28f6487": "Fix tablet-migration log for enterprise.",
+        "5baf6e0f78": "With tablets, wait for 'Tablet migration succeeded' on new nodes before checking.",
+        "2dd655d994": "tools.new_node -> tools.cluster.new_node (refactor).",
+        "c26bd2638d": "Port to pytest.",
+        "57b51f25b5": "Use prepare() with enable_sstable_key_validation.",
+        "fd768d58f4": "Start with 2 nodes RF=2, add a new node.",
+        "3e7a1f6834": "Write 100 pks instead of 10 (scylladb/scylla#6162).",
+        "9374d0df87": "RF=1 -> RF=2 to avoid no data streamed (flaky, scylla#6162).",
+        "1069a4e8d2": "Test added."
+      },
+      "relevance": "Live: vnodes bootstrap is streaming-based by default (allowed_repair_based_node_ops excludes bootstrap, db/config.cc:1466); tablets migration uses file streaming by default (db/config.cc:1052), where sstables are copied as-is so the tablets variant mostly re-checks node1's flush segregation.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_during_adding_node_with_boostrap",
+          "coverage": "partial",
+          "note": "Vnodes: streaming bootstrap -> off-strategy -> per-sstable window check + sstable count + one reshape per shard (stricter)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_tablets_data_is_segregated_after_bootstrap",
+          "coverage": "partial",
+          "note": "Tablets: bootstrap tablet migration + segregation sstable-count check."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_on_multidc_with_tablets",
+          "coverage": "partial",
+          "note": "Tablets: tablet migration + same per-sstable window check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: vnodes path is covered more strictly by test_streaming_during_adding_node_with_boostrap, tablets path by test_tablets_data_is_segregated_after_bootstrap / test_streaming_on_multidc_with_tablets, and with file-based tablet streaming the check is near-tautological; unique bit is multi-source (2 nodes, 2 racks) bootstrap of 2 nodes. Note: unused dtest_config param (:1801) since 13d5c225ff; new_node(..., bootstrap=False) (:1815) only makes the nodes seeds (they still bootstrap) - misleading; doesn't use prepare() since f1c2e0b732; with tablets waits only for the first of the table's tablets per node (:1818-1822)."
+    },
+    "TestTimeWindowDataSegregation::test_tablets_data_is_segregated_after_bootstrap": {
+      "description": "Tablets only. 1 node, TWCS (1-min) table RF=1 with tablets initial=2, writes 5 minutes of data to 30 pks. Bootstraps node2, waits for this table's 'Streaming for tablet migration of <table_id>:N finished', then asserts node2 has between 5 and 7 sstables (>= one per window, <= windows+2). Tablets replacement for the off-strategy segregation tests (scylladb/scylladb#17384: off-strategy not needed after tablet migration).",
+      "origin": {
+        "sha": "bbecdadf9a",
+        "date": "2024-02-29",
+        "pr": 4004,
+        "summary": "Adjust compaction_additional_test for tablets; adds this test as the tablets counterpart of test_data_is_segregated_during_off_strategy."
+      },
+      "commits": {
+        "13d5c225ff": "Wait for this table's tablet migration (table_id regex) instead of the first one (audit/system_traces on tablets migrate first).",
+        "056f5dc7a8": "Rename unused node1 -> _node1 (lint).",
+        "09b21b1f13": "Create keyspace with tablets initial=2 to prevent splits creating extra sstables.",
+        "6b0c067f39": "Pass tablets_initial_scale_factor=1 to prepare().",
+        "25776f6fca": "Migration log regex accepts file-stream 'Streaming for tablet migration ... finished' or 'Tablet migration succeeded'.",
+        "6fc604bd98": "Enterprise-specific migration log (adds dtest_config param).",
+        "bbecdadf9a": "Test added."
+      },
+      "relevance": "Live: tablets bootstrap migration, log at service/storage_service.cc:5795. Migration uses file streaming by default (enable_file_stream=true, db/config.cc:1052), so node2's sstables are copies of node1's flush-segregated sstables.",
+      "duplicates": [
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_sstables_with_several_timewindows",
+          "coverage": "partial",
+          "note": "Tablets job: bootstrap migration + per-sstable window check (no count check)."
+        },
+        {
+          "path": "compaction_additional_test.py::TestTimeWindowDataSegregation::test_streaming_on_multidc_with_tablets",
+          "coverage": "partial",
+          "note": "Tablet migration (DC add) + per-sstable window check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~13s) tablets segregation check but overlaps the other tablets streaming tests and, with file-based streaming, mostly re-verifies flush segregation (db/config.cc:1052). Note: tablets_initial_scale_factor=1 passed redundantly (already set in prepare(), :90) (:1661); enable_repair_based_node_ops=True is irrelevant for tablets (:1660); unused dtest_config param (:1653); comment 'we assume a single tablet here' (:1678) contradicts tablet_count=2."
+    },
+    "TestValidationCompaction::test_validation_compaction_detects_sstable_corruption": {
+      "description": "Single node; creates ks.cf with NullCompactionStrategy, stops node, copies a pre-built corrupt mc sstable (test-sstables/sstable_with_invalid_fragment, out-of-order partition and clustering row) into the table dir, restarts, runs scrub in VALIDATE mode via REST. Asserts the sstable files moved to the quarantine dir with identical names and that the log contains 'Scrubbing in validate mode', the out-of-order partition and clustering row messages (exact keys/positions) and 'Finished scrubbing in validate mode ... invalid'. Guards validation (scrub validate) compaction and quarantining (scylla f0e2f31839).",
+      "origin": {
+        "sha": "7e9b785cd5",
+        "date": "2022-01-25",
+        "pr": 2562,
+        "summary": "Validation compaction tests for scylla f0e2f31839 (validate-mode scrub)."
+      },
+      "commits": {
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "4d9081282b": "Update expected log regexes after scylla 5f37d43ee6 changed validator messages ('out-of-order ...').",
+        "486caa6a02": "validate_log_patterns helper reports which pattern is missing.",
+        "079d745685": "Copy corrupt sstables directly into table dir with node stopped instead of nodetool refresh (refresh cleanup heuristic would trip validator).",
+        "838f7030f6": "Create table with NullCompactionStrategy so restart doesn't compact the corrupt sstable.",
+        "fec45f2283": "Disable autocompaction and take pre-scrub file list after refresh (resharding renames generation).",
+        "a2092242fc": "Filter file lists with is_file() at caller.",
+        "77a36c4da6": "Drop unneeded second table (CF_2).",
+        "783922f53b": "RF=1, single_node, assert files moved to quarantine dir instead of count/name check.",
+        "7e9b785cd5": "Test added."
+      },
+      "relevance": "Live: scrub VALIDATE mode with quarantine (compaction/compaction.cc:2251,2262), validator messages 'out-of-order {} {}, previous {} was {}' / 'out-of-order {} at position ...' (mutation/mutation_fragment_stream_validator.cc:51,132).",
+      "duplicates": [
+        {
+          "path": "test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_corrupted_content",
+          "coverage": "partial",
+          "note": "Out-of-order partitions -> validation_errors>0 and sstable quarantined (unit level, no REST/on-disk quarantine dir/log text)."
+        },
+        {
+          "path": "nodetool_additional_test.py::TestNodetool::test_validate_sstable_with_invalid_fragment",
+          "coverage": "partial",
+          "note": "Same corrupt sstable set, VALIDATE via nodetool scrub; only waits for error/finished log, no quarantine check."
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub_mode",
+          "coverage": "partial",
+          "note": "REST scrub_mode=VALIDATE accepted (no corrupt data)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Logic covered at unit level (test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_corrupted_content) and e2e with the same sstables by nodetool_additional_test.py::test_validate_sstable_with_invalid_fragment; unique bit is the on-disk quarantine dir + exact log content via REST. Note: dead regex alternatives 'Invalid partition ... out-of-order compared to previous partition' and 'Invalid clustering row fragment ...' (pre-5f37d43ee6 format) (compaction_additional_test.py:2462-2466); ignore pattern '(Sscrub) compaction ks.cf.*' (:2488) is a typo matching nothing; unused class attrs CF_2, CORRUPT_DATA_FILE_PATH, DATA_FILE_NAME (:2450-2455); docstring step 'number of sstable files before and after is the same' not separately asserted."
+    },
+    "TestValidationCompaction::test_validation_compaction_with_valid_sstable": {
+      "description": "Single node; creates ks.cf (c1c2 table), inserts 10k rows, flushes, runs scrub VALIDATE via REST and asserts the table dir file list is unchanged and the log contains 'Scrubbing in validate mode' and 'Finished scrubbing in validate mode ... sstable is valid'.",
+      "origin": {
+        "sha": "7e9b785cd5",
+        "date": "2022-01-25",
+        "pr": 2562,
+        "summary": "Validation compaction tests for scylla f0e2f31839 (validate-mode scrub)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "486caa6a02": "validate_log_patterns helper reports which pattern is missing.",
+        "a2092242fc": "Filter file lists with is_file() at caller.",
+        "783922f53b": "Compare pre/post file lists with check_file_lists_are_equal instead of count/name check.",
+        "7e9b785cd5": "Test added."
+      },
+      "relevance": "Live: scrub VALIDATE, log 'Finished scrubbing in validate mode {} - sstable is valid' (compaction/compaction.cc:2262).",
+      "duplicates": [
+        {
+          "path": "test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable",
+          "coverage": "full",
+          "note": "Valid sstable (compressed/uncompressed): validation_errors==0, not quarantined, still the only in-strategy sstable."
+        },
+        {
+          "path": "test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable_no_quarantine",
+          "coverage": "full",
+          "note": "Same with quarantine disabled."
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub_mode",
+          "coverage": "partial",
+          "note": "REST scrub_mode=VALIDATE on a live table."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scylla unit tests test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable(_no_quarantine) fully cover 'valid sstable -> no errors, not quarantined, sstable unchanged', and test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub_mode covers the REST VALIDATE path; dtest adds only log-text checks. Note: regex alternative '(sstable(\\(s\\)|s) are' is dead, scylla only logs 'sstable is valid' (:2468); tablets_initial_scale_factor=1 passed redundantly in _prepare (:2540, already in prepare() :90)."
+    }
+  }
+}
