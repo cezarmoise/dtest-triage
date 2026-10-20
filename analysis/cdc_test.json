@@ -1,0 +1,451 @@
+{
+  "file": "cdc_test.py",
+  "tests": {
+    "TestCdc::test_add_field_with_cdc": {
+      "description": "Starts a 3-node (or 3x3 multi-DC) vnode/tablets cluster, checks CDC generation quality, creates ks.cf with cdc enabled, runs 10 writers inserting (a,b) at QUORUM, executes 'ALTER TABLE ks.cf ADD c int' mid-stream, keeps writing 15s. Asserts all confirmed writes appear in the CDC log, latest log rows match base table, one stream per partition per generation, log entries not earlier than their stream, and (vnodes) log/stream in same vnode. Guards CDC log correctness across base schema changes (scylladb/scylladb#15357 write timeouts on alter).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node) instead of sizes; cluster.populate(topology)",
+        "1980973f18": "origin: test added",
+        "dde17a5118": "add next-gating attr",
+        "fd85b1400c": "remove from gating (flaky, scylladb/scylladb#15357)",
+        "1bf1af6b46": "re-enable next_gating (#15357 fixed)",
+        "1a29c74e4d": "add no_boot_speedups mark",
+        "a5d481ffd2": "remove no_boot_speedups mark",
+        "71a40be745": "schema_change_template: start nodes with migration_manager=trace (debug scylladb/scylladb#15357)",
+        "e4a2574a81": "helpers adjusted for tablets (cdc_streams table for tablets, skip vnode check when tablets)",
+        "5172ba88e2": "enable CDC tests with tablets"
+      },
+      "relevance": "CDC with schema changes is live; runs with vnodes and tablets (helpers branch on keyspace_has_tablets). system_distributed.cdc_streams_descriptions_v2 / system.cdc_streams still used.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_with_alter.py::test_add_and_drop_column_with_cdc",
+          "coverage": "partial",
+          "note": "writes during ADD/DROP column with CDC, base count == log count; single DC, error injection, skipped in release"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_alter_table_drop_column",
+          "coverage": "partial",
+          "note": "drop column then read CDC log (#10473), no concurrent writes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Gating test (next-dtest-tablets + consistent-topology, 64 runs 100% pass, ~76s); multi-node/multi-DC CDC log invariants across ALTER ADD not covered by scylla tests (only partial: test_cdc_with_alter.py). Would be GREEN but: Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. Note: check_that_log_entries_and_their_streams_are_in_the_same_vnode skips rows whose base vnode isn't among log vnodes ('if base_row_vnode not in good_vnodes: continue'), weakening the check. "
+    },
+    "TestCdc::test_add_field_with_cdc_and_preimage": {
+      "description": "Starts a 3-node (or 3x3 multi-DC) vnode/tablets cluster, checks CDC generation quality, creates ks.cf with cdc enabled + preimage, runs 1 writer inserting (a,b) at QUORUM, executes 'ALTER TABLE ks.cf ADD c int' mid-stream, keeps writing 15s. Asserts all confirmed writes appear in the CDC log, latest log rows match base table, one stream per partition per generation, log entries not earlier than their stream, and (vnodes) log/stream in same vnode. Guards CDC log correctness across base schema changes (scylladb/scylladb#15357 write timeouts on alter).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node) instead of sizes; cluster.populate(topology)",
+        "1980973f18": "origin: test added",
+        "71a40be745": "schema_change_template: start nodes with migration_manager=trace (debug scylladb/scylladb#15357)",
+        "e4a2574a81": "helpers adjusted for tablets (cdc_streams table for tablets, skip vnode check when tablets)",
+        "5172ba88e2": "enable CDC tests with tablets"
+      },
+      "relevance": "CDC with schema changes is live; runs with vnodes and tablets (helpers branch on keyspace_has_tablets). system_distributed.cdc_streams_descriptions_v2 / system.cdc_streams still used.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_with_alter.py::test_add_and_drop_column_with_cdc",
+          "coverage": "partial",
+          "note": "writes during ADD/DROP column with CDC, base count == log count; single DC, error injection, skipped in release"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_alter_table_drop_column",
+          "coverage": "partial",
+          "note": "drop column then read CDC log (#10473), no concurrent writes"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_add_field_with_cdc",
+          "coverage": "partial",
+          "note": "same schema_change_template, 10 writers, gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same template as gating test_add_field_with_cdc; preimage adds only read-before-write path, content never verified. 116 runs 100% pass ~67s in dtest-release(-with-raft). Bug: preimage variant is a near no-op for preimage: with_preimage uses 1 writer whose keys i=0,1,2.. are each written once, so no existing row is ever updated -> check_preimage's 'len(writes)>1' branch (preimage content assertion) never runs; only diff vs non-preimage variant is 1 writer instead of 10. Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. "
+    },
+    "TestCdc::test_remove_field_with_cdc": {
+      "description": "Starts a 3-node (or 3x3 multi-DC) vnode/tablets cluster, checks CDC generation quality, creates ks.cf with cdc enabled, runs 10 writers inserting (a,b) at QUORUM, executes 'ALTER TABLE ks.cf DROP c (table created with extra 'c int')' mid-stream, keeps writing 15s. Asserts all confirmed writes appear in the CDC log, latest log rows match base table, one stream per partition per generation, log entries not earlier than their stream, and (vnodes) log/stream in same vnode. Guards CDC log correctness across base schema changes (scylladb/scylladb#15357 write timeouts on alter).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node) instead of sizes; cluster.populate(topology)",
+        "1980973f18": "origin: test added",
+        "dde17a5118": "add next-gating attr",
+        "52c82fbe62": "add no_boot_speedups mark",
+        "a5d481ffd2": "remove no_boot_speedups mark",
+        "71a40be745": "schema_change_template: start nodes with migration_manager=trace (debug scylladb/scylladb#15357)",
+        "e4a2574a81": "helpers adjusted for tablets (cdc_streams table for tablets, skip vnode check when tablets)",
+        "5172ba88e2": "enable CDC tests with tablets"
+      },
+      "relevance": "CDC with schema changes is live; runs with vnodes and tablets (helpers branch on keyspace_has_tablets). system_distributed.cdc_streams_descriptions_v2 / system.cdc_streams still used.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_with_alter.py::test_add_and_drop_column_with_cdc",
+          "coverage": "partial",
+          "note": "writes during ADD/DROP column with CDC, base count == log count; single DC, error injection, skipped in release"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_alter_table_drop_column",
+          "coverage": "partial",
+          "note": "drop column then read CDC log (#10473), no concurrent writes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Gating test (64 runs 100% pass ~76s); CDC log invariants across DROP column on multi-node/multi-DC; scylla tests overlap partially (test_cdc_with_alter.py, cqlpy test_cdc_alter_table_drop_column). Would be GREEN but: Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. Note: check_that_log_entries_and_their_streams_are_in_the_same_vnode skips rows whose base vnode isn't among log vnodes ('if base_row_vnode not in good_vnodes: continue'), weakening the check. "
+    },
+    "TestCdc::test_remove_field_with_cdc_and_preimage": {
+      "description": "Starts a 3-node (or 3x3 multi-DC) vnode/tablets cluster, checks CDC generation quality, creates ks.cf with cdc enabled + preimage, runs 1 writer inserting (a,b) at QUORUM, executes 'ALTER TABLE ks.cf DROP c (table created with extra 'c int')' mid-stream, keeps writing 15s. Asserts all confirmed writes appear in the CDC log, latest log rows match base table, one stream per partition per generation, log entries not earlier than their stream, and (vnodes) log/stream in same vnode. Guards CDC log correctness across base schema changes (scylladb/scylladb#15357 write timeouts on alter).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node) instead of sizes; cluster.populate(topology)",
+        "1980973f18": "origin: test added",
+        "71a40be745": "schema_change_template: start nodes with migration_manager=trace (debug scylladb/scylladb#15357)",
+        "e4a2574a81": "helpers adjusted for tablets (cdc_streams table for tablets, skip vnode check when tablets)",
+        "5172ba88e2": "enable CDC tests with tablets"
+      },
+      "relevance": "CDC with schema changes is live; runs with vnodes and tablets (helpers branch on keyspace_has_tablets). system_distributed.cdc_streams_descriptions_v2 / system.cdc_streams still used.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_with_alter.py::test_add_and_drop_column_with_cdc",
+          "coverage": "partial",
+          "note": "writes during ADD/DROP column with CDC, base count == log count; single DC, error injection, skipped in release"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_alter_table_drop_column",
+          "coverage": "partial",
+          "note": "drop column then read CDC log (#10473), no concurrent writes"
+        },
+        {
+          "path": "test/cluster/test_cdc_with_alter.py::test_concurrent_writes_and_drop_column_with_cdc_preimage",
+          "coverage": "partial",
+          "note": "concurrent updates (preimage='full') + DROP column, validates sstables via compaction"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_remove_field_with_cdc",
+          "coverage": "partial",
+          "note": "same template without preimage, gating; preimage branch dead anyway"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~67s x 116 runs) + redundant: preimage+DROP column covered by scylla test/cluster/test_cdc_with_alter.py::test_concurrent_writes_and_drop_column_with_cdc_preimage (real updates triggering preimage, #26340), log invariants covered by gating dtest test_remove_field_with_cdc (same template). Bug: preimage variant is a near no-op for preimage: with_preimage uses 1 writer whose keys i=0,1,2.. are each written once, so no existing row is ever updated -> check_preimage's 'len(writes)>1' branch (preimage content assertion) never runs; only diff vs non-preimage variant is 1 writer instead of 10. Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. "
+    },
+    "TestCdc::test_simple_cdc": {
+      "description": "Starts 3-node / multi-DC cluster, waits for CDC generation, checks generation token ranges refine vnodes and every vnode has a stream, then 10 writers insert into a cdc-enabled table for 15s. Asserts all confirmed writes logged, log matches base, one stream per partition per generation, entries not earlier than their stream, and (vnodes) base/log in same vnode. Basic CDC end-to-end sanity on a multi-node cluster.",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node) instead of sizes; cluster.populate(topology)",
+        "1980973f18": "origin: test added",
+        "e4a2574a81": "helpers adjusted for tablets; vnode check skipped with tablets",
+        "5172ba88e2": "enable CDC tests with tablets"
+      },
+      "relevance": "Live: CDC with vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "cdc_test.py::TestCdc::test_simple_cdc_with_preimage",
+          "coverage": "full",
+          "note": "same simple_cdc_template (1 writer, preimage branch dead), next_gating"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_add_field_with_cdc",
+          "coverage": "full",
+          "note": "schema_change_template = simple_cdc_template + one ALTER on unused column; gating with tablets+consistent-topology"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_cluster_expansion_with_cdc",
+          "coverage": "full",
+          "note": "same setup/checks plus bootstrap (vnodes)"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_log_entries_use_cdc_streams",
+          "coverage": "partial",
+          "note": "single node: log stream ids come from current generation"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~48s, 76 runs) and redundant: identical flow and assertions are run by gating dtests test_add_field_with_cdc/test_remove_field_with_cdc (simple template + an irrelevant ALTER) and test_simple_cdc_with_preimage (same template). If one simple test is kept, prefer this one over _with_preimage (10 writers with overlapping keys vs dead preimage check). Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. "
+    },
+    "TestCdc::test_cluster_expansion_with_cdc": {
+      "description": "Starts 3-node / multi-DC vnode cluster, writes to a cdc table (10 writers) while bootstrapping a new node in a random DC. Waits for the new generation, asserts ring changed, new generation refines new vnodes, all writes recorded, log matches base, one stream per partition per generation, and log/stream vnode colocation before and after expansion. Guards CDC generation switch on bootstrap under concurrent writes (scylla#5389/#5390).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "1980973f18": "origin: test added",
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add Single_cluster / Multi_DC_cluster param",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: rack-per-node topology via cluster.populate(topology)",
+        "4ef12bc5a6": "mark required_features('!tablets'): topology changes don't affect tablets CDC streams",
+        "dde17a5118": "add next-gating attr",
+        "52c82fbe62": "add no_boot_speedups mark (still present)"
+      },
+      "relevance": "Live but vnodes-only: CDC generations still created on bootstrap via raft topology coordinator (topology_coordinator new_cdc_generation); tablets keyspaces (default) use per-tablet streams, so skipped with tablets.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py::test_cdc_generations_are_published",
+          "coverage": "partial",
+          "note": "new CDC generation per bootstrap / after removenode+check_and_repair; no writes/log checks"
+        },
+        {
+          "path": "test/cluster/test_writes_to_previous_cdc_generations.py::test_writes_to_recent_previous_cdc_generations",
+          "coverage": "partial",
+          "note": "writes to previous generations after bootstraps; no log invariants"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique: write-consistency of CDC log across a generation switch on bootstrap, multi-DC (scylla tests only check generation creation/publishing). Gating (consistent-topology, 32 runs 100%, ~80s). Would be GREEN but: Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. Note: check_that_log_entries_and_their_streams_are_in_the_same_vnode skips rows whose base vnode isn't among log vnodes ('if base_row_vnode not in good_vnodes: continue'), weakening the check. "
+    },
+    "TestCdc::test_cluster_expansion_with_cdc_and_preimage": {
+      "description": "Starts 3-node / multi-DC vnode cluster, writes to a cdc table with preimage (1 writer) while bootstrapping a new node in a random DC. Waits for the new generation, asserts ring changed, new generation refines new vnodes, all writes recorded, log matches base, one stream per partition per generation, and log/stream vnode colocation before and after expansion. Guards CDC generation switch on bootstrap under concurrent writes (scylla#5389/#5390).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "1980973f18": "origin: test added",
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add Single_cluster / Multi_DC_cluster param",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: rack-per-node topology via cluster.populate(topology)",
+        "4ef12bc5a6": "mark required_features('!tablets'): topology changes don't affect tablets CDC streams",
+        "52c82fbe62": "add no_boot_speedups mark (still present)"
+      },
+      "relevance": "Live but vnodes-only: CDC generations still created on bootstrap via raft topology coordinator (topology_coordinator new_cdc_generation); tablets keyspaces (default) use per-tablet streams, so skipped with tablets.",
+      "duplicates": [
+        {
+          "path": "cdc_test.py::TestCdc::test_cluster_expansion_with_cdc",
+          "coverage": "partial",
+          "note": "same template, 10 writers, gating"
+        },
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py::test_cdc_generations_are_published",
+          "coverage": "partial",
+          "note": "new CDC generation per bootstrap / after removenode+check_and_repair; no writes/log checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same template as gating test_cluster_expansion_with_cdc; preimage only adds read-before-write, content never verified (44 runs 100%, ~79s, raft only). Candidate to drop if non-preimage variant kept. Bug: preimage variant never checks preimage content: 1 writer, each key written once -> no row updated -> check_preimage 'len(writes)>1' branch never runs; differs from non-preimage variant only by 1 vs 10 writers. Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. "
+    },
+    "TestCdc::test_cluster_reduction_with_cdc": {
+      "description": "Starts a vnode cluster with one extra node in the first rack of each DC, writes to a cdc table (10 writers), decommissions the extra node mid-stream, writes 15s more. Asserts all confirmed writes logged (ConnectionException counted as unconfirmed), log matches base, one stream per partition per generation, and log/stream colocation in the pre-decommission ring (decommission keeps the old generation).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "1980973f18": "origin: test added",
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add Single_cluster / Multi_DC_cluster param",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: rack-per-node topology via cluster.populate(topology)",
+        "4ef12bc5a6": "mark required_features('!tablets'): topology changes don't affect tablets CDC streams",
+        "dde17a5118": "add next-gating attr",
+        "7799f9654a": "skip in debug (timeouts, scylla-dtest#3275)",
+        "52c82fbe62": "add no_boot_speedups mark",
+        "a5d481ffd2": "remove no_boot_speedups mark"
+      },
+      "relevance": "Live but vnodes-only: CDC generations still created on bootstrap via raft topology coordinator (topology_coordinator new_cdc_generation); tablets keyspaces (default) use per-tablet streams, so skipped with tablets. Decommission does not create a new generation (needs checkAndRepairCdcStreams).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py::test_cdc_generations_are_published",
+          "coverage": "partial",
+          "note": "new CDC generation per bootstrap / after removenode+check_and_repair; no writes/log checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique: CDC log consistency while decommissioning (old generation kept), multi-DC; no scylla test writes during decommission and checks the log. Gating (consistent-topology, 32 runs 100%, ~95s). Would be GREEN but: Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. Note: check_that_log_entries_and_their_streams_are_in_the_same_vnode skips rows whose base vnode isn't among log vnodes ('if base_row_vnode not in good_vnodes: continue'), weakening the check. "
+    },
+    "TestCdc::test_cluster_reduction_with_cdc_and_preimage": {
+      "description": "Starts a vnode cluster with one extra node in the first rack of each DC, writes to a cdc table with preimage (1 writer), decommissions the extra node mid-stream, writes 15s more. Asserts all confirmed writes logged (ConnectionException counted as unconfirmed), log matches base, one stream per partition per generation, and log/stream colocation in the pre-decommission ring (decommission keeps the old generation).",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "1980973f18": "origin: test added",
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "efd3d25c13": "add Single_cluster / Multi_DC_cluster param",
+        "9ffd273f04": "formatting (ruff format)",
+        "f707859c2c": "rf-rack-valid: rack-per-node topology via cluster.populate(topology)",
+        "4ef12bc5a6": "mark required_features('!tablets'): topology changes don't affect tablets CDC streams"
+      },
+      "relevance": "Live but vnodes-only: CDC generations still created on bootstrap via raft topology coordinator (topology_coordinator new_cdc_generation); tablets keyspaces (default) use per-tablet streams, so skipped with tablets. Decommission does not create a new generation (needs checkAndRepairCdcStreams).",
+      "duplicates": [
+        {
+          "path": "cdc_test.py::TestCdc::test_cluster_reduction_with_cdc",
+          "coverage": "partial",
+          "note": "same template, 10 writers, gating"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same template as gating test_cluster_reduction_with_cdc; preimage content never verified (54 runs 100%, ~75s, raft only). Candidate to drop if non-preimage variant kept. Bug: preimage variant never checks preimage content: 1 writer, each key written once -> no row updated -> check_preimage 'len(writes)>1' branch never runs; differs from non-preimage variant only by 1 vs 10 writers. Note: run_writes_with_counting (cdc_test.py ~L627) tolerates InvalidRequest 'cdc: attempted to get a stream from an earlier generation...' - message removed from scylla in 330a37b5c9 (2024-01-23, writes to previous gens allowed) -> dead branch. "
+    },
+    "TestCdc::test_check_and_repair_after_cluster_reduction": {
+      "description": "3-node vnode cluster (rack per node); checks initial generation quality, decommissions node3, runs `nodetool checkAndRepairCdcStreams` (60s timeout) and asserts a new generation appears whose token set equals the new ring; a 2nd run must not create another generation. Guards scylladb/scylla#9780 (regenerate when generation has too many/spurious streams after decommission).",
+      "origin": {
+        "sha": "9abb092d76",
+        "date": "2022-01-11",
+        "pr": 2533,
+        "summary": "cdc_test: nodetool checkAndRepairCdcStreams after a decommission (scylladb/scylla#9780)"
+      },
+      "commits": {
+        "9abb092d76": "origin: test added",
+        "9ffd273f04": "formatting (ruff format)",
+        "4ef12bc5a6": "mark required_features('!tablets')",
+        "241dfbda55": "run nodetool via ThreadPoolExecutor with timeout instead of multiprocessing.Process",
+        "c2bfd5a0b2": "populate_sequentially: rack-per-node topology (RF-rack-valid)",
+        "426de71be7": "correct CL when querying CDC streams tables (helper)"
+      },
+      "relevance": "Live: storage_service::check_and_repair_cdc_streams -> raft_check_and_repair_cdc_streams (service/storage_service.cc:3666), uses cdc::is_cdc_generation_optimal; nodetool checkAndRepairCdcStreams in tools/scylla-nodetool.cc. Vnodes-only.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_cdc_generation_publishing.py::test_cdc_generations_are_published",
+          "coverage": "partial",
+          "note": "removenode + 10 concurrent cdc_streams_check_and_repair -> exactly one new generation; doesn't check new gen tokens == ring or decommission path"
+        },
+        {
+          "path": "test/nodetool/test_check_and_repair_cdc_streams.py",
+          "coverage": "partial",
+          "note": "nodetool cmd -> REST mapping only (mocked)"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_check_and_repair_cdc_streams_liveness",
+          "coverage": "partial",
+          "note": "same command, gossip-only (!consistent-topology-changes)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Strong partial overlap with scylla test_cdc_generations_are_published (removenode then check_and_repair yields one new gen, idempotence implied by coalescing); dtest adds decommission path and gen-tokens==ring check. Cheap (~9s, 19 runs 100%, raft job only)."
+    },
+    "TestCdc::test_simple_cdc_with_preimage": {
+      "description": "Same flow as test_simple_cdc (simple_cdc_template): 3-node / multi-DC cluster, generation quality check, then writes for 15s to a table with cdc={'enabled':true,'preimage':true} and checks all writes logged, log matches base, one stream per partition per generation, entries not earlier than their stream, (vnodes) same vnode. With preimage, run_writes_with_counting uses 1 writer and each key i is written exactly once, so check_preimage only ever sees single INSERT rows - effectively asserts 'no preimage row for new rows'.",
+      "origin": {
+        "sha": "1980973f18",
+        "date": "2019-12-02",
+        "pr": 1330,
+        "summary": "cdc_tests: introduce cdc_tests.py (refs scylladb/scylla#5389, #5390)"
+      },
+      "commits": {
+        "f707859c2c": "rf-rack-valid: cluster_config yields topology (rack per node); simple_cdc_template takes topology",
+        "9ffd273f04": "formatting (ruff format)",
+        "efd3d25c13": "add cluster_config fixture param: Single_cluster / Multi_DC_cluster",
+        "6a34b65116": "port to pytest (formatting/structure)",
+        "dde17a5118": "add @next_gating",
+        "1980973f18": "origin: test added",
+        "1a29c74e4d": "added no_boot_speedups mark (CDC gen writes inconsistent with gossip speedups)",
+        "a5d481ffd2": "removed no_boot_speedups mark again",
+        "5172ba88e2": "enable CDC tests with tablets",
+        "e4a2574a81": "helpers adjusted for tablets; vnode check skipped with tablets",
+        "241dfbda55": "run_writes_with_counting: Process -> ThreadPoolExecutor (py3.14 pickling)"
+      },
+      "relevance": "Live: CDC preimage (cdc/log.cc pre_image handling) with vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "cdc_test.py::TestCdc::test_add_field_with_cdc",
+          "coverage": "full",
+          "note": "next_gating; schema_change_template = same setup/invariants with 10 writers on overlapping keys (stronger) + irrelevant ALTER"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_remove_field_with_cdc",
+          "coverage": "full",
+          "note": "next_gating; same as above"
+        },
+        {
+          "path": "cdc_test.py::TestCdc::test_simple_cdc",
+          "coverage": "full",
+          "note": "same template, 10 writers (already RED)"
+        },
+        {
+          "path": "test/cqlpy/test_cdc.py::test_cdc_with_lwt_preimage",
+          "coverage": "full",
+          "note": "preimage table, inserts of new keys only, asserts no preimage rows - the only preimage property this dtest actually checks"
+        },
+        {
+          "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+          "coverage": "partial",
+          "note": "real preimage content checks on overwrites (which this dtest never does)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant and weaker than gating siblings: with preimage, run_writes_with_counting uses 1 writer writing each key once (cdc_test.py L596-598, L628/L643), so check_preimage's len(writes)>1 branch (L679-687) never runs and one-stream-per-partition/ordering checks are trivial; the multi-node invariants are covered by gating test_add_field_with_cdc/test_remove_field_with_cdc (10 writers), preimage-on-new-row by test/cqlpy/test_cdc.py::test_cdc_with_lwt_preimage. ~56s x2 params in gating. Bug: preimage check dead (never overwrites rows). Note: run_writes_with_counting tolerates 'cdc: attempted to get a stream from an earlier generation' InvalidRequest, message removed from scylla in 330a37b5c9 -> dead branch. If simple CDC coverage must stay, keep test_simple_cdc instead (or fix this one to overwrite keys)."
+    },
+    "TestCdcWithCompactStorage::test_artificial_column_with_type_empty_is_missing": {
+      "description": "2-node cluster, COMPACT STORAGE table (pk, ck[, reg_column]) with CDC, parametrized over preimage {full,true,false} x postimage x use_regular_column (12 variants). Runs insert, delete, 50-row batch insert and asserts every column of SELECT * from the CDC log is in an expected list (i.e. no column for the artificial empty-typed column); also asserts range delete on compact storage raises InvalidRequest. Regression for scylladb/scylladb#8410 (coredump on SELECT * from cdc log of compact table w/o regular columns), fixed by c010cefc4d (scylladb PR 8988).",
+      "origin": {
+        "sha": "eaf573da18",
+        "date": "2021-12-29",
+        "pr": 2506,
+        "summary": "test(cdc_test): Check cdc for table with compact storage (test for scylla PR 8988 / issue #8410)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "ddff319b52": "add cluster_options(enable_create_table_with_compact_storage=True) (compact storage deprecated, off by default)",
+        "a5d481ffd2": "removed no_boot_speedups mark",
+        "1a29c74e4d": "added no_boot_speedups mark",
+        "eaf573da18": "origin: test added",
+        "1753e557": "class marked required_features('!tablets') (scylladb/scylladb#16317)",
+        "f707859c2c": "rf-rack-valid: populate with 2 racks; removed class '!tablets' mark"
+      },
+      "relevance": "Live but deprecated: cdc/log.cc ~L1888 still skips empty-typed columns in images; compact storage gated behind enable_create_table_with_compact_storage (db/config.cc, 'will eventually be removed'). Range-deletion error still in cql3/statements/delete_statement.cc:158.",
+      "duplicates": [
+        {
+          "path": "test/cql/cdc_compact_storage_test.cql",
+          "coverage": "partial",
+          "note": "added by the fix c010cefc4d: compact tables with/without regular column, preimage+postimage, insert+overwrite; but selects explicit columns, not SELECT *, so does not check log schema lacks the artificial column (the #8410 crash path)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla's test/cql/cdc_compact_storage_test.cql covers the write path of the #8410 fix but not the log-schema/SELECT * part; cheap (~6s/variant) but over-parametrized: log schema doesn't depend on preimage/postimage, so 12 variants ~= 2. Could be RED by adding 'select * from tb3_scylla_cdc_log' to the cql test; compact storage is deprecated. Bug: assert_columns filters field 'v' which doesn't exist (no-op, L958-960) and always allows reg_column columns; create_table_query sets self.use_reg_column=True inside if (no-op, L869); in the pytest.raises block only the first range delete runs, so the reg_column range delete and the post-delete assert_columns are dead code (L945-950)."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
