@@ -1,0 +1,118 @@
+{
+  "file": "persistence_test.py",
+  "tests": {
+    "TestPersistence::test_persist_simple": {
+      "description": "1-node cluster, NTS RF=1 keyspace, STCS table, two INSERTs, SELECT *, graceful cluster stop/start (restart_cluster), SELECT * again and assert results equal. No explicit flush, so data reaches sstables via flush-on-shutdown (graceful stop). Added as regression guard for scylladb/scylladb#1581 (sstable write failing on boot due to existing TOC of system.local).",
+      "origin": {
+        "sha": "6a3eece18895b085da963e3eeac003af12be9ed3",
+        "date": "2016-08-15",
+        "pr": 384,
+        "summary": "Add persistence tests (regression for scylladb#1581)"
+      },
+      "commits": {
+        "6a3eece18895b085da963e3eeac003af12be9ed3": "origin: test added",
+        "7e15e9fd548fd6b9ada4f606b20f5a6e210c98de": "added next-gating attr",
+        "6b5a3275e422c8392ef3dae2705b284813eb6cf6": "added dtest-debug attr",
+        "0c951570661dee36409d6a2d52d1eee52a8c0527": "formatting (PEP8)",
+        "389ea11b3bebd7a22e1323652c8f70871ef56c23": "SimpleStrategy -> NetworkTopologyStrategy",
+        "491d907b0ce1695b6938bc2f98a8ac91b86f4fe6": "nose->pytest port (attrs->marks, assertEqual->assert); no behavior change",
+        "13a90e73039e8e4e2e78ebc85f48a67b6f039487": "file-level: next_gating moved from test_persist_simple to class (all tests gated)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting"
+      },
+      "relevance": "Live: basic write -> graceful restart -> read. Note STCS is now an alias of ICS in scylla (5bf0c6ddac, 2026-08-26), so the compaction option is effectively ICS; irrelevant to the assertion. scylladb#1581 is closed (2016).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_commitlog.py::test_reboot",
+          "coverage": "partial",
+          "note": "write -> graceful restart, then write -> kill -9 -> restart, asserts table content preserved (debug/dev only, error injection)"
+        },
+        {
+          "path": "test/cluster/dtest/commitlog_test.py::test_commitlog_replay_on_startup",
+          "coverage": "partial",
+          "note": "write -> abrupt stop -> replay -> data present (commitlog path rather than flush-on-shutdown)"
+        },
+        {
+          "path": "persistence_test.py::TestPersistence::test_persist_small_columns",
+          "coverage": "partial",
+          "note": "same write->restart->read scenario via cassandra-stress"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~10s, 100% pass) smoke test of write->graceful restart->read; this scenario is implicitly exercised by many restart tests but no scylla test is an exact match (closest test/cluster/test_commitlog.py::test_reboot, dev/debug only). Low unique value; keep only as a gating smoke test. Note: restart_cluster uses arbitrary time.sleep(0.5) (persistence_test.py:22,24)."
+    },
+    "TestPersistence::test_persist_small_columns": {
+      "description": "1-node cluster; cassandra-stress writes 5 rows with one 1-byte column (cl=ALL, RF=1), graceful cluster restart, then cassandra-stress reads the same 5 rows; passes if the c-s read does not fail. Part of the original persistence suite for scylladb#1581; helper stress_with_col_size is parameterized but only size=1 is ever used.",
+      "origin": {
+        "sha": "6a3eece18895b085da963e3eeac003af12be9ed3",
+        "date": "2016-08-15",
+        "pr": 384,
+        "summary": "Add persistence tests (regression for scylladb#1581)"
+      },
+      "commits": {
+        "6a3eece18895b085da963e3eeac003af12be9ed3": "origin: test added",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "added use_cassandra_stress mark",
+        "491d907b0ce1695b6938bc2f98a8ac91b86f4fe6": "nose->pytest port (attrs->marks, assertEqual->assert); no behavior change",
+        "13a90e73039e8e4e2e78ebc85f48a67b6f039487": "file-level: next_gating moved from test_persist_simple to class (all tests gated)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting"
+      },
+      "relevance": "Live behavior (data survives restart), but nothing size-specific: 1-byte values are routine in every test. c-s keyspace1/standard1 schema, no explicit flush.",
+      "duplicates": [
+        {
+          "path": "persistence_test.py::TestPersistence::test_persist_simple",
+          "coverage": "full",
+          "note": "same scenario (tiny rows -> graceful restart -> read and compare), with an explicit equality assert, ~3x faster, no c-s dependency"
+        },
+        {
+          "path": "test/cluster/test_commitlog.py::test_reboot",
+          "coverage": "partial",
+          "note": "write -> restart -> compare table content"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with test_persist_simple in the same file (same write->restart->read scenario, stronger assertion), while being ~3x slower (27s vs 10s) and depending on cassandra-stress. Note: stress_with_col_size helper only ever called with size=1 (persistence_test.py:36-41,75); the assertion is only implicit (c-s read not erroring)."
+    },
+    "TestPersistence::test_data_persistence_of_map_with_empty_keys": {
+      "description": "Regression for scylla-enterprise#909 (2019.1: map cell with empty-string key lost after flush+compact, visible only after restart since the read came from cache). Creates table with map<text,text>, inserts {'': ts}, reads row (memtable), nodetool flush + compact, restarts the cluster, re-reads and asserts the row equals the pre-restart row (now served from sstable).",
+      "origin": {
+        "sha": "3ba85292e677a93dc14cc147376299c1140de5e5",
+        "date": "2020-04-01",
+        "pr": 1398,
+        "summary": "Add test for scylla-enterprise#909 (squash commit has wrong subject 'update_cluster_layout_tests: remove_node_from_gossip_test: hard-stop node4'; PR title 'test(test_check_dict_data_after_reboot): Add new test for issue #909')"
+      },
+      "commits": {
+        "3ba85292e677a93dc14cc147376299c1140de5e5": "origin: test added (mislabelled squash subject)",
+        "15c3bb8816d888eae274ca0a1058e9e019990b94": "added print_table before/after reboot, fixed duplicated docstring step",
+        "a95022a90ef59cfc3aa546c6dffb74f1bbc4d418": "formatting",
+        "389ea11b3bebd7a22e1323652c8f70871ef56c23": "SimpleStrategy -> NetworkTopologyStrategy",
+        "491d907b0ce1695b6938bc2f98a8ac91b86f4fe6": "nose->pytest port (attrs->marks, assertEqual->assert); no behavior change",
+        "13a90e73039e8e4e2e78ebc85f48a67b6f039487": "file-level: next_gating moved from test_persist_simple to class (all tests gated)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting"
+      },
+      "relevance": "Empty map keys still allowed and must persist. The original bug was ka/la-format specific (per enterprise#909 comments: not reproducible on master after mc; issue closed as 'hoping fixed / irrelevant'); scylla can no longer write ka/la (db/config.cc sstable_format allows md/me/ms/mt), so the original code path is gone. Test still guards empty collection key round-trip through current sstable format.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_empty.py::test_insert_empty_string_key_with_flush",
+          "coverage": "partial",
+          "note": "empty-string clustering key, flush + BYPASS CACHE; not a collection key"
+        },
+        {
+          "path": "test/cqlpy/test_empty.py::test_empty_string_in_collection",
+          "coverage": "partial",
+          "note": "empty value in list<text>, memtable only, no flush"
+        },
+        {
+          "path": "test/lib/mutation_source_test.cc (random_mutation_generator)",
+          "coverage": "partial",
+          "note": "random collection cells through all mutation sources incl. sstables; empty map keys not specifically targeted"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test covers empty map key through flush/compact/sstable read, but the original bug (scylla-enterprise#909) was in the removed ka/la writer and could be replaced by a cqlpy test (map {'':x}, nodetool.flush, compaction, SELECT BYPASS CACHE) instead of an 11s cluster restart. Note: docstring says keyspace 'ks' but code uses 'keyspace1'; last_seen column unused; origin commit 3ba85292 has an unrelated subject."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
