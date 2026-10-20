@@ -1,0 +1,24 @@
+{
+  "file": "cql_static_columns_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestStaticColumnQueries::test_query_static_column_when_using_index": {
+      "description": "3-node cluster (RF=3), table (k, p, s static, r1) with secondary index on regular column r1, ~10k rows in 2 partitions (s=11 / s=22). Runs SELECT {*, k,p, p, s} ... WHERE r1 <op> ... ALLOW FILTERING (5 params) and checks row count + first rows. Guards scylla #8869 (selecting a static column in an indexed query was forbidden; allowed by scylla 58a9a24ff0, 4.6).",
+      "origin": {"sha": "d22bd4fd5c99d2ff30e4fb82f2b5779788415927", "date": "2021-12-15", "pr": 2538, "summary": "Added test + CQLTester helpers in tools/testers.py, for scylla commit 58a9a24 (#8869)."},
+      "commits": {
+        "d22bd4fd5c99d2ff30e4fb82f2b5779788415927": "origin: added parametrized test",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (List -> list, isort)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "a7fe0c153f7b0d0944f99952de489a8c676b3356": "added @pytest.mark.next_gating on class -> runs in gating"
+      },
+      "relevance": "Live behavior: static column selection with regular-column secondary index (scylla cql3/restrictions/statement_restrictions.cc, check removed in 58a9a24ff0).",
+      "duplicates": [
+        {"path": "test/cqlpy/cassandra_tests/validation/entities/static_columns_test.py::testStaticColumnsWithSecondaryIndex", "coverage": "full", "note": "Same schema shape (k,p,s static,v + index on v); SELECT *, p+s, p, s WHERE v=1; explicitly 'Reproduces issue #8869' (xfail removed in 58a9a24ff0)."},
+        {"path": "test/cqlpy/test_secondary_index.py", "coverage": "partial", "note": "Generic index paging/filtering tests; static-column index tests (index ON static col, different scenario)."}
+      ],
+      "decision": "RED",
+      "reason": "Scenario (#8869) fully covered by cqlpy testStaticColumnsWithSecondaryIndex; dtest only adds 3 nodes + 10k rows with no distribution/paging-specific assertion; costs ~95s/run in gating (5 params x ~19s). Bug: _validate_rows (tools/testers.py:72) zips results with a 1-2 item expected list, so for count>2 only first rows are checked; assert msg swaps actual/expected. Note: 3 of 5 params use range ops (<, >, >=) on r1, which a regular SI can't serve -> pure ALLOW FILTERING, not index path; docstring says 10000 rows but data has 9999 (range(1, DATA_SIZE))."
+    }
+  }
+}
