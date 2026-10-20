@@ -1,0 +1,281 @@
+{
+  "file": "rebuild_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestRebuild::test_simple_rebuild": {
+      "description": "1 node in dc1 (ks NTS dc1:1, 25 keys / 10 in debug), add node2 in dc2, ALTER ks to dc1:1,dc2:1, run `nodetool rebuild dc1` on node2, then read all keys at CL=ALL. Originally a Cassandra test for CASSANDRA-9119 (concurrent rebuild rejected); that part was dropped in 4b23df18a6. With tablets the ALTER itself streams to dc2 and rebuild skips tablet keyspaces.",
+      "origin": {
+        "sha": "6f5574f077",
+        "date": "2015-06-03",
+        "pr": null,
+        "summary": "Cassandra upstream 'Add rebuild test' (Yuki Morishita), CASSANDRA-9119 concurrent rebuild check; imported into scylla-dtest."
+      },
+      "commits": {
+        "f41ff46237": "dropped 60s 'wait for snitch reload' sleep after starting node2 (PR 7482).",
+        "e96d1bf76b": "keys 25000/10000 -> 25/10; ALTER KEYSPACE timeout=300 for tablet streaming (DTEST-275, PR 7373).",
+        "4b23df18a6": "removed concurrent rebuild check incl. `assert unexpected_errors == 0` (scylladb#26666 flaky, PR 6383).",
+        "ff08858f98": "skip mark #17572 -> #23525; ALTER uses current dc1 RF (rack-list aware).",
+        "447de7e91e": "skip with tablets while scylladb#17572 open (adding DC with tablets).",
+        "22f41ff27f": "same skip with tablets & issue_open(#17572) (refs #16129).",
+        "8731c4a984": "threading.Thread -> ThreadPoolExecutor for concurrent rebuild.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "72809f2380": "formatting",
+        "aedaa57c4e": "formatting",
+        "dcdd655558": "deflake: keys 25000 (10000 debug) to widen concurrent-rebuild window; debug logs.",
+        "460a88bd60": "port to pytest.",
+        "07cc9a56f6": "keys 1000 -> 10000.",
+        "36ca9bc5ad": "add_node helper moved to class method.",
+        "29646f1956": "py3: xrange/e.message.",
+        "0619a308ef": "nodes via cluster.new_node; silently dropped auto_bootstrap=False (comments still claim it).",
+        "6b5a3275e4": "add dtest-debug attr.",
+        "26a9f90503": "nodes created from cluster ipprefix/id (with auto_bootstrap=False).",
+        "175d459c84": "add next-gating attr.",
+        "3067cc64ab": "match 'rebuild is in progress' message; count + assert unexpected rebuild errors == 0.",
+        "2df9aa3490": "unskip; PropertyFileSnitch -> GossipingPropertyFileSnitch.",
+        "d1c2d8766f": "formatting (typo).",
+        "54df4845a1": "insert_c1c2 via execute_concurrent.",
+        "93d48d9303": "concurrent rebuild: exactly one of two calls must fail.",
+        "5c9e83e8ee": "formatting (jira_ticket tag).",
+        "3208763e84": "formatting",
+        "2dff127e76": "add @require(9119)."
+      },
+      "relevance": "Live: nodetool rebuild <src_dc> (raft_rebuild, service/storage_service.cc:3600; streaming in node_state::rebuilding ~:5404). With tablets, rebuild only covers vnode keyspaces (replica/database.cc:1604 excludes per-table/tablet strategies), so in next-dtest-tablets the rebuild is a no-op and the test only checks ALTER-driven tablet streaming to new DC. Skip mark refs #23525 (closed 2025-10-21) -> runs in tablets job.",
+      "duplicates": [
+        {
+          "path": "dtest rebuild_test.py::TestRebuild::test_rebuild_everywhere",
+          "coverage": "partial",
+          "note": "same cross-dc `rebuild dc1` flow (EverywhereStrategy vnode ks), but verifies every key on each node alone; strictly stronger check, runs in both jobs."
+        },
+        {
+          "path": "dtest rebuild_test.py::TestRebuild::test_rebuild_add_new_dc_with_tablets",
+          "coverage": "partial",
+          "note": "tablets-mode equivalent (add DC via ALTER)."
+        },
+        {
+          "path": "test/cluster/test_topology_remove_decom.py::test_rebuild_node",
+          "coverage": "partial",
+          "note": "rebuild via topology coordinator, no data check, single DC."
+        },
+        {
+          "path": "test/cluster/dtest/rebuild_test.py::TestRebuildStreamingAbortRepro::test_rebuild_stream_abort_repro",
+          "coverage": "partial",
+          "note": "2-DC non-RBNO rebuild --source-dc dc1 after RF increase (scylladb#27804), no data check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: test cannot detect a broken rebuild - NodetoolError is caught and counted in rebuild_errors/unexpected_errors (rebuild_test.py:89-104) but the asserts were removed in 4b23df18a6, and the final check reads at CL=ALL with node1 (source) alive (rebuild_test.py:110-111), which returns the row even if node2 has nothing. Candidate RED: test_rebuild_everywhere covers the same cross-dc rebuild with a real per-node check; alternatively fix (re-add assert, read node2 alone/LOCAL_ONE in dc2). Note: comments say auto_bootstrap: false but 0619a308ef dropped it; docstring CASSANDRA-9119 refers to removed check; skip mark refs closed #23525; rebuild is a no-op for tablet ks. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_everywhere": {
+      "description": "node1 in dc1 with vnode ks (tablets=0) holding 1000 keys, node2 in dc2, ALTER ks to EverywhereStrategy, `nodetool rebuild dc1` on node2; then stops cluster and starts each node alone, reading all keys at CL=ONE. Verifies rebuild of an EverywhereStrategy (scylla-only) keyspace from another DC delivers all data.",
+      "origin": {
+        "sha": "19d15a960b",
+        "date": "2021-07-01",
+        "pr": 2217,
+        "summary": "Benny Halevy: rebuild with EverywhereStrategy (scylla 4.6+); master commit 3abbe1a7 / PR 2217, cherry-picked into pytest branch via PR 2420 (data JSON pr=2420 is the rebase PR)."
+      },
+      "commits": {
+        "46c48420ed": "final check queries all keys instead of a single leftover loop key (PR 7482).",
+        "5b7e6174de": "keys 25000/10000 -> 1000.",
+        "a0d2340863": "split concurrent-rebuild check out into test_rebuild_everywhere_concurrent_rejected; shared _prepare_everywhere_cluster; 1 node per dc; ks tablets=0 so test runs with tablets (SCYLLADB-3387).",
+        "f41ff46237": "dropped 60s snitch-reload sleep (file-level, affected this test).",
+        "8731c4a984": "threading.Thread -> ThreadPoolExecutor.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "aedaa57c4e": "formatting",
+        "7f7fbb746d": "skip for tablets (later removed by a0d2340863).",
+        "4723f96636": "re-enable in raft-topology mode."
+      },
+      "relevance": "Live: EverywhereStrategy (locator/everywhere_replication_strategy) still supported for vnode keyspaces; nodetool rebuild <dc> live (storage_service.cc:3600).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_remove_decom.py::test_rebuild_node",
+          "coverage": "partial",
+          "note": "rebuild op only, no data verification, no EverywhereStrategy."
+        },
+        {
+          "path": "test/cluster/test_tablets.py (EverywhereStrategy param ~:1585)",
+          "coverage": "partial",
+          "note": "only checks strategy/tablets compatibility, no rebuild."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique coverage of cross-DC rebuild for EverywhereStrategy with a real per-node data check (each node alone, CL=ONE); recently cleaned up and deflaked (PR 7482), 100% pass in both jobs, ~19s. Class-level notes (start_rpc Unused, allow_log_errors) do not weaken its data assertions. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_many_tables": {
+      "description": "Single DC: node1 with ks (dc1:1) and 100 tables x 100 keys; add node2, ALTER ks to dc1:2, `nodetool rebuild` on node2, kill node1 and read every key at CL=ONE from node2. Checks rebuild handles many tables in a keyspace. Vnodes only.",
+      "origin": {
+        "sha": "53a4617fb1",
+        "date": "2019-11-24",
+        "pr": 1142,
+        "summary": "Benny Halevy: 'Rebuild many keyspaces test' PR 1142 (no linked issue)."
+      },
+      "commits": {
+        "db58c72176": "skip_if tablets unconditionally (rebuild not needed for tablet ks; #17575) (PR 6637).",
+        "e71ee98027": "skip with tablets while scylladb#17575 open.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "aedaa57c4e": "formatting",
+        "c3471a97e4": "formatting",
+        "460a88bd60": "port to pytest.",
+        "7ff9dc1d15": "use shared _check_data (count errors, assert 0).",
+        "0619a308ef": "file-level: add_node via cluster.new_node dropped auto_bootstrap=False.",
+        "53a4617fb1": "added test."
+      },
+      "relevance": "Live for vnode keyspaces (rebuild streams vnode ks only, replica/database.cc:1604). Tablets: skipped - rebuild does not apply.",
+      "duplicates": [
+        {
+          "path": "dtest rebuild_test.py::TestRebuild::test_rebuild_many_keyspaces",
+          "coverage": "partial",
+          "note": "same flow, 50 ks x 2 tables instead of 1 ks x 100 tables."
+        },
+        {
+          "path": "dtest repair_based_node_operations_test.py::test_verify_latest_copy_rebuild_node",
+          "coverage": "partial",
+          "note": "single-dc vnode rebuild with data check, few tables."
+        },
+        {
+          "path": "test/cluster/test_topology_remove_decom.py::test_rebuild_node",
+          "coverage": "partial",
+          "note": "no data check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Note: log says node2 starts with auto_bootstrap: false (rebuild_test.py:245) but add_node does not set it (dropped in 0619a308ef), so node2 bootstraps and already streams its RF=1 ranges; rebuild only fills the rest - the 'rebuild a non-bootstrapped node' intent is lost. Largely overlaps test_rebuild_many_keyspaces; 65s, vnode-only. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_many_keyspaces": {
+      "description": "Single DC: node1 with 50 keyspaces x 2 tables x 100 keys (RF dc1:1); add node2, ALTER every ks to dc1:2, `nodetool rebuild` on node2, kill node1, read all keys at CL=ONE. Checks rebuild across many keyspaces. Vnodes only.",
+      "origin": {
+        "sha": "1b27247309",
+        "date": "2019-11-24",
+        "pr": 1142,
+        "summary": "Benny Halevy: 'Rebuild many keyspaces test' PR 1142 (no linked issue; debug-mode too-many-open-files noted)."
+      },
+      "commits": {
+        "db58c72176": "skip_if tablets unconditionally (#17575 resolved: rebuild not needed for tablets) (PR 6637).",
+        "e71ee98027": "skip with tablets while scylladb#17575 open.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "aedaa57c4e": "formatting",
+        "c3471a97e4": "formatting",
+        "460a88bd60": "port to pytest.",
+        "7ff9dc1d15": "use shared _check_data.",
+        "0619a308ef": "file-level: add_node via cluster.new_node dropped auto_bootstrap=False.",
+        "1b27247309": "added test."
+      },
+      "relevance": "Live for vnode keyspaces; skipped with tablets.",
+      "duplicates": [
+        {
+          "path": "dtest rebuild_test.py::TestRebuild::test_rebuild_many_tables",
+          "coverage": "partial",
+          "note": "same flow, tables instead of keyspaces (100 tables total in both)."
+        },
+        {
+          "path": "test/cluster/test_topology_remove_decom.py::test_rebuild_node",
+          "coverage": "partial",
+          "note": "no data check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Note: same lost auto_bootstrap=False as many_tables (rebuild_test.py:297 log vs add_node, 0619a308ef), so node2 bootstraps first. Slowest test in file (104s) and near-duplicate of test_rebuild_many_tables (rebuild iterates keyspaces either way); keep at most one. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_keyspace_with_rf_1": {
+      "description": "3 nodes, enable_repair_based_node_ops=false, ks RF=1 with 1000 keys; stop node3, replace it with node4 (replace_node_host_id); expect a WARN 'Unable to find sufficient sources ... with RF = 1 for replace operation' instead of a failed replace, run `nodetool rebuild` on node4, and assert data was lost (some keys missing at CL=ALL). Guards scylladb#6351 (replace failed with 'unable to find sufficient sources' for RF=1).",
+      "origin": {
+        "sha": "5f0e535375",
+        "date": "2020-11-16",
+        "pr": 1761,
+        "summary": "Aleksandr Bykov: covers scylladb/scylla#6351 (replace aborting for RF=1 keyspaces)."
+      },
+      "commits": {
+        "056f5dc7a8": "raw-string regex in pytest.raises match (lint).",
+        "45e0149c79": "replace_address -> replace_node_host_id.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "460a88bd60": "port to pytest.",
+        "5f0e535375": "added test."
+      },
+      "relevance": "Live: WARN in dht/range_streamer.cc:71 (non-RBNO streaming replace, RF=1); enable_repair_based_node_ops still Used (db/config.cc:1465). In next-dtest-tablets ks is tablet-based: range_streamer is vnode-only and rebuild skips tablet ks (replica/database.cc:1604), so there the WARN must come from some vnode RF=1 system ks (e.g. legacy system_auth SimpleStrategy RF=1, auth/service.cc:129) and the rebuild step is a no-op.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_replace_after_losing_all_tablet_replicas",
+          "coverage": "partial",
+          "note": "tablet analogue: replace with no live source for a tablet."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique vnode coverage of scylladb#6351 (non-RBNO replace with RF=1 must warn, not fail). Note: WARN regex matches any keyspace (rebuild_test.py:338), so it doesn't prove ks itself was handled; with tablets the ks path is not exercised and `nodetool rebuild` is a no-op, i.e. the tablets-job run adds little. 'rebuild' step only asserts it doesn't fail. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_add_new_dc_with_tablets": {
+      "description": "Tablets only. 2 nodes in dc1 (racks r1,r2), ks dc1:2 with 25 keys (10 debug); add 2 nodes in dc2, ALTER ks dc2:0->1->2 (rack list if auto-expanded), each ALTER waits for tablet streaming; then read every 5th key at CL=ALL. Checks adding a DC with tablets via RF change (no nodetool rebuild needed).",
+      "origin": {
+        "sha": "d2df720bd3",
+        "date": "2024-04-27",
+        "pr": 4199,
+        "summary": "Pavel Emelyanov: adding a new DC with tablets needs no rebuild, RF raised one step at a time."
+      },
+      "commits": {
+        "c5673f85b8": "ALTER timeout=300; keys 25000 -> 25/10 (SCYLLADB-4992, SCYLLADB-5010, PR 7451).",
+        "ff08858f98": "second ALTER uses rack list ['r1','r2'] when RF auto-expanded to rack lists.",
+        "7ce3dd92ad": "nodes get racks r1/r2 for rf-rack-valid keyspaces.",
+        "d2df720bd3": "added test."
+      },
+      "relevance": "Live: tablet RF change ALTER KEYSPACE (scylladb#16129, #17572 closed). The step-by-step RF increase is no longer mandatory (multi-RF change: test/cluster/test_tablets.py::test_multi_rf_change_multi_dc_0_N), test still valid.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_multi_rf_change_multi_dc_0_N",
+          "coverage": "partial",
+          "note": "dc 0->N tablet RF changes, checks replica placement, not data."
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_rf_change",
+          "coverage": "partial",
+          "note": "single-dc RF up/down with fragment check."
+        },
+        {
+          "path": "dtest rebuild_test.py::TestRebuild::test_simple_rebuild",
+          "coverage": "partial",
+          "note": "in tablets mode does the same dc2 0->1 ALTER with data read."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: data check reads at CL=ALL with dc1 replicas alive (rebuild_test.py:402-403), returns rows even if dc2 got nothing, and only every 5th of 25 keys (5 keys); the real check is just that ALTER completes, which scylla test_multi_rf_change_multi_dc_0_N covers with placement asserts. Note: name says rebuild but no rebuild is run. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    },
+    "TestRebuild::test_rebuild_del_dc_with_tablets": {
+      "description": "Tablets only. 2+2 nodes in dc1/dc2 (racks), ks dc1:2,dc2:2 with 25000 keys (10000 debug); ALTER dc2 2->1->0, stop dc2 nodes, read all keys at CL=ALL. Checks removing a DC's replicas via RF change with tablets: CL=ALL would fail (Unavailable) if dc2 still held replicas.",
+      "origin": {
+        "sha": "373b42fc9a",
+        "date": "2024-05-30",
+        "pr": 4199,
+        "summary": "Pavel Emelyanov: symmetric to add-new-dc, decrease RF one by one."
+      },
+      "commits": {
+        "c5673f85b8": "ALTER timeout=300 for both decreases (SCYLLADB-4992, SCYLLADB-5010, PR 7451).",
+        "ff08858f98": "use decrease_rf/describe_rf (rack-list aware) for the two decreases.",
+        "7ce3dd92ad": "nodes get racks r1/r2 for rf-rack-valid keyspaces.",
+        "373b42fc9a": "added test."
+      },
+      "relevance": "Live: tablet RF decrease / DC drop via ALTER KEYSPACE.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_alter_tablets_rf_dc_drop",
+          "coverage": "partial",
+          "note": "dc2 -> 0 schema checks only."
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_multi_rf_change_multi_dc_0_N",
+          "coverage": "partial",
+          "note": "N->0 per DC, asserts replicas leave the DC."
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_multi_rf_decrease_abort_0_N",
+          "coverage": "partial",
+          "note": "RF decrease to 0 with abort."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with scylla test_tablets.py RF-drop tests (placement-level); dtest adds end-to-end read with dc2 down. Note: 25000 keys inserted though decreasing RF streams nothing (c5673f85b8 says so), making it 66s; 'removing nodes' only stops them (rebuild_test.py:454-456); no rebuild despite name. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+    }
+  }
+}
