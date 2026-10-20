@@ -1,0 +1,249 @@
+{
+  "file": "simple_cluster_driver_test.py",
+  "tests": {
+    "TestSimpleCluster::test_simple_create_insert_select": {
+      "description": "3-node cluster (3 racks), RF=3 keyspace; table created via node2, one row inserted at QUORUM via node3, then read at QUORUM from each of the 3 nodes (k=1 -> 1 row, k=2 -> 0 rows). Basic multi-node smoke test from 2015, no specific bug.",
+      "origin": {
+        "sha": "c0d1830ccbabc96bd3dbd30884711be5af204eb2",
+        "date": "2015-07-06",
+        "pr": 9,
+        "summary": "Add a simple cluster test (Shlomi Livne)"
+      },
+      "commits": {
+        "582d105d4b32266210743fdf864f182a79835558": "removed 3s sleep after start and 10s sleep at end.",
+        "9e48e4b24e54f8e42a9774c88cdb76e72ec0b6dd": "populate via generate_cluster_topology(rack_num=3) (rack==rf).",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "96a974bf770141dc930689b5b350891636a6888f": "port to pytest.",
+        "17e5d67cf63a5a6fef700355c6b4077e4c9c8ad4": "wrap ResultSet in list() for len().",
+        "cd199a765603933dc3bae0b2341e2a5418d0d283": "rename urchin->scylla (UrchinCluster->ScyllaCluster).",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "168adcbb94ef0a93e1a68cd40e163ccb5240b88d": "removed sleeps (CQL events supported).",
+        "20c68a25e2e6a76532cf4eea6cd88d1a7d494e2f": "added sleep(3) after start (+freshCluster).",
+        "740dc838717863619feadeaeb1c75d8ecb683bb1": "dropped --vnodes arg, added sleep(1) between steps.",
+        "c0d1830ccbabc96bd3dbd30884711be5af204eb2": "origin.",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live: basic CQL write/read at QUORUM on RF=3. Runs in both gating jobs (tablets + vnodes), 32/32 pass, ~14s.",
+      "duplicates": [
+        {
+          "path": "dtest:consistency_test.py::TestAvailability::test_simple_strategy",
+          "coverage": "full",
+          "note": "3 nodes RF=3, writes/reads at QUORUM (and others) from each node, same jobs; strict superset."
+        },
+        {
+          "path": "dtest:consistency_test.py::TestAccuracy::test_simple_strategy_users",
+          "coverage": "full",
+          "note": "QUORUM write/read correctness from each coordinator on RF=3."
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "multi-node insert/select at QUORUM/ALL etc."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Trivial smoke (1 QUORUM insert + 6 QUORUM reads); fully subsumed by consistency_test.py::TestAvailability::test_simple_strategy and TestAccuracy::test_simple_strategy_users (same 3-node RF=3 topology, same gating jobs) and implicitly by nearly every multi-node dtest. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    },
+    "TestSimpleCluster::test_simple_rf_3_consistency_level": {
+      "description": "3 nodes (3 racks), RF=3; 99 rows written at ALL. From each node (exclusive session) checks reads at ONE/TWO/THREE/QUORUM/ALL and writes at ANY..ALL all succeed; then stops node1 (THREE/ALL must raise Unavailable, rest pass), then node2 (only ONE reads / ANY,ONE writes pass, others Unavailable). Guards coordinator CL/Unavailable logic with progressive node loss.",
+      "origin": {
+        "sha": "20c68a25e2e6a76532cf4eea6cd88d1a7d494e2f",
+        "date": "2015-07-16",
+        "pr": 11,
+        "summary": "Add consistency_level tests (Shlomi Livne)"
+      },
+      "commits": {
+        "8b7e6b2b3d2071ba25a311faf2001ea114d92653": "use patient_exclusive_cql_connection per node; FallthroughRetryPolicy for expected-Unavailable statements (deflake, driver thread lag).",
+        "301650fa82": "file-level: helper got timeout=1 on expected-fail queries; prepare_cluster dropped 3s timeout.",
+        "00e1354786": "removed two sleep(60) after node stops.",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
+        "96a974bf770141dc930689b5b350891636a6888f": "port to pytest.",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "168adcbb94ef0a93e1a68cd40e163ccb5240b88d": "removed sleeps.",
+        "f0568aacae19e8063a47e4b1468877d6ea966c04": "moved setup into prepare_cluster(ks_rf).",
+        "1b60b22015b6313802f9d5b6691a0db35b9ce932": "added sleep(60) after each node stop (gossip FIXME).",
+        "20c68a25e2e6a76532cf4eea6cd88d1a7d494e2f": "origin.",
+        "9e48e4b24e54f8e42a9774c88cdb76e72ec0b6dd": "file-level: prepare_cluster uses generate_cluster_topology(rack_num=3).",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live: CL ONE/TWO/THREE/QUORUM/ALL/ANY + Unavailable. Both gating jobs, 32/32 pass, ~26s.",
+      "duplicates": [
+        {
+          "path": "dtest:consistency_test.py::TestAvailability::test_simple_strategy",
+          "coverage": "full",
+          "note": "3 nodes RF=3 (rack-per-node topology), exclusive session per node, progressive node stop with wait_other_notice, CL matrix ALL/QUORUM/ONE/TWO/THREE/ANY/LOCAL_*/SERIAL with assert_unavailable; same jobs; superset."
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "CL matrix with all nodes up."
+        },
+        {
+          "path": "test/cluster/test_multidc.py",
+          "coverage": "partial",
+          "note": "Unavailable for local CLs with RF=0 DC."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario as consistency_test.py::TestAvailability::test_simple_strategy (3-node RF=3, progressive node stops, Unavailable for unreachable CLs, every node as coordinator), which covers a larger CL matrix in the same gating jobs. Note: simple_consistency_level_validate (simple_cluster_driver_test.py:77-118) uses blind `except Exception` around the pass-CL loop, so a wrong row count counts as a 'failure' like Unavailable. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    },
+    "TestSimpleCluster::test_simple_rf_1_consistency_level_no_racklist": {
+      "description": "Vnodes only (skipped with tablets). 3 nodes, RF=1 (replicas spread across nodes); 99 rows at ALL. All up: ONE/QUORUM/ALL pass, TWO/THREE Unavailable from each node. After stopping node1 then node2: TWO/THREE still Unavailable, and for ONE/QUORUM/ALL reads/writes only asserts that SOME keys fail (pass_all=False).",
+      "origin": {
+        "sha": "20c68a25e2e6a76532cf4eea6cd88d1a7d494e2f",
+        "date": "2015-07-16",
+        "pr": 11,
+        "summary": "Add consistency_level tests (as test_simple_rf_1_consistency_level); split for tablets in 4a5b5c59 (PR 6285)."
+      },
+      "commits": {
+        "8b7e6b2b3d2071ba25a311faf2001ea114d92653": "exclusive per-node sessions, stop(wait_other_notice=True), FallthroughRetryPolicy for expected-Unavailable (deflake).",
+        "4a5b5c59ea": "renamed from test_simple_rf_1_consistency_level, skip_if(tablets) since rack-list RF=1 puts all replicas on one rack.",
+        "301650fa82": "file-level: timeout=1 on expected-fail queries in helper.",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
+        "96a974bf770141dc930689b5b350891636a6888f": "port to pytest.",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "168adcbb94ef0a93e1a68cd40e163ccb5240b88d": "removed sleeps.",
+        "f0568aacae19e8063a47e4b1468877d6ea966c04": "use prepare_cluster(1).",
+        "20c68a25e2e6a76532cf4eea6cd88d1a7d494e2f": "origin.",
+        "9e48e4b24e54f8e42a9774c88cdb76e72ec0b6dd": "file-level: 3-rack topology.",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live for vnode keyspaces (tablets disabled); runs only in next-dtest-consistent-topology, 16/16 pass, ~29s.",
+      "duplicates": [
+        {
+          "path": "dtest:consistency_test.py::TestAvailability::test_simple_strategy",
+          "coverage": "partial",
+          "note": "same pattern but RF=3 only; no RF=1 case."
+        },
+        {
+          "path": "test/cluster/test_multidc.py",
+          "coverage": "partial",
+          "note": "Unavailable checks only for RF=0 local CLs."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only RF=1 vnode CL/Unavailable test, but the node-down phases are weak: with pass_all=False the helper only asserts read_fail>0 (simple_cluster_driver_test.py:93,111), and the blind except counts wrong-row-count as a failure, so it can't detect wrong data. Value mostly in TWO/THREE Unavailable checks. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    },
+    "TestSimpleCluster::test_simple_rf_1_consistency_level_racklist": {
+      "description": "Tablets only. 3 nodes/3 racks, keyspace RF={'datacenter1':['rack3']} (rack list, asserts replication options). 99 rows at ALL. All up: ONE/QUORUM/ALL pass, TWO/THREE Unavailable from each node. After stopping node1 (non-replica) everything still passes from node2/node3; after stopping node3 (sole replica) all reads and ONE..THREE writes from node2 must raise Unavailable. Guards rack-list RF replica placement + CL availability.",
+      "origin": {
+        "sha": "4a5b5c59eaa75686628a7064a1ad4f734bafacb1",
+        "date": "2025-10-13",
+        "pr": 6285,
+        "summary": "Split test_simple_rf_1_consistency_level for tablets (rack-list auto-expansion) - Tomasz Grabiec, PR 'Prepare for handling auto-expansion into rack lists'."
+      },
+      "commits": {
+        "8b7e6b2b3d2071ba25a311faf2001ea114d92653": "exclusive per-node sessions, stop(wait_other_notice=True), FallthroughRetryPolicy for expected-Unavailable; fixes OperationTimedOut flake after node3.stop() (next#11597).",
+        "4a5b5c59eaa75686628a7064a1ad4f734bafacb1": "origin.",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live: rack-list RF (tablets) is current default direction (auto-expansion of numeric RF to rack lists). Runs in next-dtest-tablets, 16/16 pass, ~23s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_multidc.py::test_create_and_alter_keyspace_with_altering_rf_and_racks",
+          "coverage": "partial",
+          "note": "rack-list keyspace validity, no availability/Unavailable checks."
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_multidc.py::test_zero_token_nodes_multidc_basic",
+          "coverage": "partial",
+          "note": "CL matrix with tablets, all nodes up."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of CL/Unavailable with rack-list RF and replica-node loss (no scylla test found asserting Unavailable after stopping the rack-list replica); would be GREEN. Note: recently flaky (fixed by 8b7e6b2b, PR 7418). Note: after node1 stop it reuses key ranges 201-300/301-400 (simple_cluster_driver_test.py:251-252), harmless. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    },
+    "TestSimpleCluster::test_simple_rf_1_query": {
+      "description": "3 nodes, RF=1; 99 rows at ALL. From each node runs a full-table scan (expects 99 rows) and an IN query on 10 keys (expects 10) at ONE/QUORUM/ALL, and expects Unavailable at TWO/THREE. Checks multi-node range-scan/IN merging with RF=1.",
+      "origin": {
+        "sha": "f0568aacae19e8063a47e4b1468877d6ea966c04",
+        "date": "2015-07-23",
+        "pr": 14,
+        "summary": "add simple range query tests (Shlomi Livne)"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
+        "96a974bf770141dc930689b5b350891636a6888f": "port to pytest.",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "168adcbb94ef0a93e1a68cd40e163ccb5240b88d": "removed sleeps.",
+        "f0568aacae19e8063a47e4b1468877d6ea966c04": "origin.",
+        "9e48e4b24e54f8e42a9774c88cdb76e72ec0b6dd": "file-level: 3-rack topology.",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live. Both gating jobs, 32/32 pass, ~15s. With tablets, RF=1 is auto-expanded to a rack list so data sits on one node; with vnodes it's spread.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_cannot_decommision_below_replication_factor",
+          "coverage": "partial",
+          "note": "full scan at CL THREE on multi-node cluster."
+        },
+        {
+          "path": "test/cluster/test_conflicting_keys_read_repair.py::test_read_repair_with_conflicting_hash_keys",
+          "coverage": "partial",
+          "note": "full scan at CL ALL multi-node."
+        },
+        {
+          "path": "dtest:simple_cluster_driver_test.py::TestSimpleCluster::test_simple_rf_1_consistency_level_no_racklist",
+          "coverage": "partial",
+          "note": "same TWO/THREE Unavailable with RF=1, single-key reads."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap multi-node range scan + IN at several CLs with RF=1; only partial overlap found, but low-value assertions. Note: simple_query_validate (simple_cluster_driver_test.py:263-284) keeps read_pass/read_fail counters for a single query and the pass_all flag is always True - dead logic. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    },
+    "TestSimpleCluster::test_simple_rf_3_query": {
+      "description": "3 nodes, RF=3; 99 rows at ALL. From each node runs a full-table scan (99 rows) and a 10-key IN query at ONE/TWO/THREE/QUORUM/ALL, all must succeed with the right row counts. No node failures.",
+      "origin": {
+        "sha": "f0568aacae19e8063a47e4b1468877d6ea966c04",
+        "date": "2015-07-23",
+        "pr": 14,
+        "summary": "add simple range query tests (Shlomi Livne)"
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
+        "96a974bf770141dc930689b5b350891636a6888f": "port to pytest.",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "03befb00434e5055489d24e687adf6ef0d87925a": "formatting",
+        "168adcbb94ef0a93e1a68cd40e163ccb5240b88d": "removed sleeps.",
+        "f0568aacae19e8063a47e4b1468877d6ea966c04": "origin.",
+        "9e48e4b24e54f8e42a9774c88cdb76e72ec0b6dd": "file-level: 3-rack topology.",
+        "ec8c96644cfd9dd8020edd1da964162890b0a21b": "file-level: added @pytest.mark.next_gating to TestSimpleCluster (runs in gating).",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "file-level: added dtest-full attr to class."
+      },
+      "relevance": "Live. Both gating jobs, 32/32 pass, ~14s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_cannot_decommision_below_replication_factor",
+          "coverage": "partial",
+          "note": "RF=3 full scan at CL THREE, checks row count and values."
+        },
+        {
+          "path": "test/cluster/test_conflicting_keys_read_repair.py::test_read_repair_with_conflicting_hash_keys",
+          "coverage": "partial",
+          "note": "full scan at CL ALL."
+        },
+        {
+          "path": "dtest:simple_cluster_driver_test.py::TestSimpleCluster::test_simple_rf_1_query",
+          "coverage": "partial",
+          "note": "same queries with RF=1 (more interesting merge across nodes)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Happy-path only (no failures, row counts only); scans at high CL are exercised by many cluster tests (test_tablets.py, test_conflicting_keys_read_repair.py) but no exact duplicate found - leaning RED. Note: simple_query_validate pass/fail counters are dead logic for single query (simple_cluster_driver_test.py:263-277). Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
