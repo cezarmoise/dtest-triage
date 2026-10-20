@@ -1,0 +1,141 @@
+{
+  "file": "pushed_notifications_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestPushedNotifications::test_restart_node": {
+      "description": "2-node cluster; NotificationWaiter (raw control connection to node1, STATUS_CHANGE+TOPOLOGY_CHANGE) drains initial NEW_NODE/UP, then restarts node2 5 times and expects DOWN then UP for node2 each time (no spurious NEW_NODE on restart). Guards CASSANDRA-7816 and scylla#3979 (NEW_NODE only for genuinely new nodes) / RPC_READY-gated UP event.",
+      "origin": {
+        "sha": "2b28f51d25",
+        "date": "2015-03-03",
+        "pr": null,
+        "summary": "Cassandra upstream dtest for CASSANDRA-7816 (restart -> exactly one DOWN + one UP)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/f-strings)",
+        "d40954ee9f": "close NotificationWaiter connection via request finalizer",
+        "70cefc5ec8": "port to pytest (asserts, logger)",
+        "3165029367": "scylla adaptation (#3979): wait for binary proto, drain initial NEW_NODE/UP, version-based expected count; introduced no-op assert",
+        "7abfb9e8c1": "NotificationWaiter takes list of types; test subscribes to STATUS_CHANGE+TOPOLOGY_CHANGE",
+        "9f5109edf7": "waiter stops at num_notifications (default 1) instead of timing out",
+        "f31ac60706": "num_notifications moved to wait_for_notifications",
+        "73a6750877": "5 restart iterations, clear notifications between them",
+        "971c0d6ef6": "review cleanup (nodelist unpack, drop @attr selected)",
+        "2b28f51d25": "origin: test added"
+      },
+      "relevance": "Live: transport/event_notifier.cc on_up/on_down/on_join_cluster with _endpoints_pending_joined_notification and is_cql_ready gating.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_no_removed_node_event_on_ip_change.py::test_no_removed_node_event_on_ip_change",
+          "coverage": "partial",
+          "note": "only checks NEW_NODE / no REMOVED_NODE on IP change, not DOWN/UP on restart"
+        },
+        {
+          "path": "scylla-dtest pushed_notifications_test.py::TestPushedNotifications::test_restart_node_localhost",
+          "coverage": "partial",
+          "note": "same restart DOWN/UP sequence with exact list assert, but single restart and localhost rpc_address"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scylla coverage of DOWN/UP push events across repeated restarts (no scylla test/ equivalent). Bug: pushed_notifications_test.py:130 `assert expected_notifications, len(notifications) == notifications` is a no-op (always true) so notification count is never checked (from 3165029367). Note: dead Cassandra pre-2.2 branch (lines 119-123, 134-139) via cassandra_version()."
+    },
+    "TestPushedNotifications::test_sleep_and_restart_node": {
+      "description": "2-node cluster started, sleeps 120s to let any pending joined (NEW_NODE) notification flush, then registers waiter on node1, restarts node2 once and asserts exactly 2 notifications: DOWN then UP for node2. Added for scylla#7805 (unexpected NEW_NODE on restart, closed as expected pending event).",
+      "origin": {
+        "sha": "2f36c9e404",
+        "date": "2020-12-17",
+        "pr": 1824,
+        "summary": "Amos Kong: variant of restart_node_test with 120s sleep to wait for the pending joined notification (scylla#7805)."
+      },
+      "commits": {
+        "aedaa57c4e": "formatting (pyupgrade/f-strings)",
+        "d40954ee9f": "close NotificationWaiter connection via request finalizer",
+        "70cefc5ec8": "port to pytest",
+        "2f36c9e404": "origin: test added"
+      },
+      "relevance": "Behavior live (event_notifier pending joined notifications), but scylla#7805 closed; 120s sleep is a timing workaround.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest pushed_notifications_test.py::TestPushedNotifications::test_restart_node",
+          "coverage": "partial",
+          "note": "same restart DOWN/UP check, 5 iterations, drains initial events instead of sleeping"
+        },
+        {
+          "path": "scylla-dtest pushed_notifications_test.py::TestPushedNotifications::test_restart_node_localhost",
+          "coverage": "full",
+          "note": "since 5cc0cb5801 waits for NEW_NODE,UP then restart and asserts exact [NEW_NODE, UP, DOWN, UP], i.e. no extra NEW_NODE on restart, in ~12s"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow + redundant: avg 132s, ~120s of it time.sleep(120) (line 154); same assertion (exactly DOWN, UP on restart, no extra NEW_NODE) is covered deterministically by test_restart_node_localhost in ~12s (exact list assert since 5cc0cb5801) and test_restart_node. Runs in next_gating. Note: comment at line 164 ('did not send UP or DOWN') contradicts asserts; scylla#7805 closed."
+    },
+    "TestPushedNotifications::test_restart_node_localhost": {
+      "description": "Both nodes get rpc_address=localhost with distinct native/shard-aware ports (same client IP). Waiter registered on node1 before node2 starts; asserts exact sequence [NEW_NODE, UP] for node2, then after restarting node2 [NEW_NODE, UP, DOWN, UP]. Guards notifications when nodes share an rpc address (CASSANDRA-10052/15677) and NEW_NODE ordering/delay (scylla#7805, #17631).",
+      "origin": {
+        "sha": "7abfb9e8c1",
+        "date": "2015-09-01",
+        "pr": 52,
+        "summary": "Cassandra upstream dtest for CASSANDRA-10052 (no notifications with localhost rpc_address); scylla-adapted in 2a1bf0e672 (PR 1824) to expect DOWN/UP."
+      },
+      "commits": {
+        "b9ffbff236": "drop thrift branch in port setup",
+        "22db9f57d3": "use binary port when no thrift interface",
+        "5cc0cb5801": "deflake (scylla#17631): register waiter before node2 starts, wait NEW_NODE+UP, drop wait_and_restart param, assert exact sequence",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/f-strings)",
+        "38dc53eb02": "accept 2-3 notifications when not wait_and_restart (deflake)",
+        "d40954ee9f": "close NotificationWaiter connection via request finalizer",
+        "e200fca1b4": "wait for 3 notifications in no-wait case; log received notifications",
+        "c38df44c29": "add using_localhost FileLock fixture to avoid xdist clashes",
+        "c9c3b144a4": "re-enable after scylla#7805 closed; add wait_and_restart param with 120s sleep",
+        "70cefc5ec8": "port to pytest",
+        "2a1bf0e672": "scylla adaptation: unique native_shard_aware_transport_port, expect DOWN+UP; @require #7805",
+        "443063ae3e": "skipped ('does not work')",
+        "7abfb9e8c1": "origin: test added",
+        "e7761ef520": "re-enable for raft topology (scylla#17631 fixed)",
+        "44fbbe70d2": "deselect for consistent-topology-changes (scylla#17631)",
+        "72a403696a": "re-enable for raft topology",
+        "e66b34da58": "disable for raft topology as flaky"
+      },
+      "relevance": "Live: event_notifier on_join_cluster/on_up/on_down, native_shard_aware_transport_port config exists; scylla#17631 closed.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_no_removed_node_event_on_ip_change.py::test_no_removed_node_event_on_ip_change",
+          "coverage": "partial",
+          "note": "checks NEW_NODE event only, different scenario"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique coverage of exact NEW_NODE/UP/DOWN/UP push-event sequence (and shared rpc address setup); no scylla test/ equivalent. Stable now (100% over 32 runs, ~12s). Note: docstring lines 176-177 still describe Cassandra pre/post-4.0 behavior."
+    },
+    "TestPushedNotifications::test_new_node_event_delay": {
+      "description": "Starts node1, registers waiter, starts node2 without waiting; on first notification immediately connects CQL to node2 and creates ks/table + inserts 100 rows, then asserts a NEW_NODE for node2 was received. Guards scylla#7301 (NEW_NODE must be sent only after the new node's CQL server listens, commit 369895b80f).",
+      "origin": {
+        "sha": "4d8dd4874f",
+        "date": "2020-12-21",
+        "pr": 2371,
+        "summary": "Amos Kong: verify NEW_NODE is delayed until CQL server ready (scylla#7301); cherry-picked from 1d232915a1 into the pytest branch."
+      },
+      "commits": {
+        "c0fc64bded": "populate 2 racks x 1 node (RF=rack constraint)",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/f-strings)",
+        "d40954ee9f": "close NotificationWaiter connection via request finalizer",
+        "8de43ca57b": "use module-level create_ks/create_cf",
+        "4d8dd4874f": "origin: test added",
+        "4ba6b27cd7": "re-enable for consistent-topology-changes after scylla#15841 fix"
+      },
+      "relevance": "Live: transport/event_notifier.cc:239 on_join_cluster defers NEW_NODE while !is_cql_ready (pending set flushed in on_up).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_no_removed_node_event_on_ip_change.py::test_no_removed_node_event_on_ip_change",
+          "coverage": "partial",
+          "note": "asserts NEW_NODE emitted after IP change, not its timing vs CQL readiness"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of NEW_NODE-after-CQL-ready ordering (scylla#7301, 369895b80f); no scylla test/ equivalent; fast (~9s) and stable. Note: if no event arrives within 30s it still connects (node2 likely up by then), so the timing check is weak; the NEW_NODE assert remains."
+    }
+  }
+}
