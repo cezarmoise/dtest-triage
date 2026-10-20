@@ -1,0 +1,1171 @@
+{
+ "file": "cdc_tracing_info_test.py",
+ "analyzed_at": "2026-10-20",
+ "scylla_rev": "814c05a00f",
+ "tests": {
+  "TestCDCTraceInfo::test_tracing_delete_partition_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + single partition DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "c3471a97": "formatting (autopep8, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_delete_partition_native_type",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_delete_partition_native_type. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_partition_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single partition DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_delete_partition_native_type_preimage_postimage",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_delete_partition_native_type_preimage_postimage. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_partition_native_type": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (no images). Runs `TRACING ON;` + single partition DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_partition_native_type_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single partition DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_row_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + single row DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_delete_row_native_type",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_delete_row_native_type. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_row_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single row DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_row_native_type": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (no images). Runs `TRACING ON;` + single row DELETE after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_row_range_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + single range DELETE (ckey > 1 and ckey < 4) after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_delete_row_range_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single range DELETE (ckey > 1 and ckey < 4) after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_delete_partition_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of partition DELETEs over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_partition_preimage_postimage",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_info_for_native_type_batch_delete_partition_preimage_postimage. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_delete_row_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of row DELETEs over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_info_for_batch_delete_row_native_type_preimage_postimage",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_info_for_batch_delete_row_native_type_preimage_postimage. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_delete_row_native_type_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of row DELETEs over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_insert_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + logged BATCH of INSERTs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_insert_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of INSERTs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_insert_native_type": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (no images). Runs `TRACING ON;` + logged BATCH of INSERTs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_insert_native_type_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of INSERTs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_batch_update_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of UPDATEs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_partition_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of partition DELETEs over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_exclusive_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of range DELETE (ckey > 1 and ckey < 4)s over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_exclusive_preimage_postimage",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_info_for_native_type_batch_delete_row_range_bound_exclusive_preimage_postimage. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified. Note: misnamed - name says 'native_type' but uses value_type='list<text>' (cdc_tracing_info_test.py:152-159)."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_exclusive_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of range DELETE (ckey > 1 and ckey < 4)s over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_inclusive_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of range DELETE (ckey >= 1 and ckey <= 4)s over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "fb3dfc9e": "formatting (ruff pylint noqa comments).",
+    "c3471a97": "formatting (autopep8, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_inclusive_preimage_postimage",
+     "coverage": "full",
+     "note": "The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_info_for_native_type_batch_delete_row_range_bound_inclusive_preimage_postimage. The DELETE statement never writes the value column, so the base mutation and the asserted trace (same preimage/split lines, same tokens) are identical to the native-type twin; only the table schema differs (value list<text> vs text), which matters only to preimage contents that the test does not check. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified. Note: misnamed - name says 'native_type' but uses value_type='list<text>' (cdc_tracing_info_test.py:152-159)."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_delete_row_range_bound_inclusive_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of range DELETE (ckey >= 1 and ckey <= 4)s over several partitions after pre-populating partition(s) with 5 rows via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_info_for_native_type_batch_update_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + logged BATCH of UPDATEs over several partitions via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "c3471a97": "formatting (autopep8, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', Splitting, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_native_type": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (no images). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_native_type_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (postimage). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating. Postimage-only still emits 'Selecting preimage' (cdc/log.cc:2181 checks preimage() || postimage()).",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_insert_native_type_preimage_postimage",
+     "coverage": "full",
+     "note": "CDCTraceInfoMatcher.preimage_pattern (tools/cdc_utils.py:110-114) uses 'preimage or postimage', so preimage-only, postimage-only and both assert the identical 'Selecting preimage' trace; scylla cdc/log.cc:2181 takes the same branch for all three. Log contents (where pre vs post differ) are not checked."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_insert_native_type_preimage_postimage. CDCTraceInfoMatcher.preimage_pattern (tools/cdc_utils.py:110-114) uses 'preimage or postimage', so preimage-only, postimage-only and both assert the identical 'Selecting preimage' trace; scylla cdc/log.cc:2181 takes the same branch for all three. Log contents (where pre vs post differ) are not checked. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_native_type_preimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    },
+    {
+     "path": "scylla-dtest cdc_tracing_info_test.py::TestCDCTraceInfo::test_tracing_insert_native_type_preimage_postimage",
+     "coverage": "full",
+     "note": "CDCTraceInfoMatcher.preimage_pattern (tools/cdc_utils.py:110-114) uses 'preimage or postimage', so preimage-only, postimage-only and both assert the identical 'Selecting preimage' trace; scylla cdc/log.cc:2181 takes the same branch for all three. Log contents (where pre vs post differ) are not checked."
+    }
+   ],
+   "decision": "YELLOW",
+   "reason": "Redundant within module: asserts the identical trace sequence as test_tracing_insert_native_type_preimage_postimage. CDCTraceInfoMatcher.preimage_pattern (tools/cdc_utils.py:110-114) uses 'preimage or postimage', so preimage-only, postimage-only and both assert the identical 'Selecting preimage' trace; scylla cdc/log.cc:2181 takes the same branch for all three. Log contents (where pre vs post differ) are not checked. Cheap (~5s), so YELLOW not RED; candidate to drop or parametrize. Note: 'Generated N log mutations' count is matched by [\\d]+ only and CDC log table contents are never read (tools/cdc_utils.py:129), so only the trace sequence and split/preimage branch are verified."
+  },
+  "TestCDCTraceInfo::test_tracing_insert_native_type_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single INSERT via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_update_collection": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (no images). Runs `TRACING ON;` + single UPDATE via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_update_collection_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value list<text>) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single UPDATE via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_update_native_type": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (no images). Runs `TRACING ON;` + single UPDATE via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Preimage not enabled, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  },
+  "TestCDCTraceInfo::test_tracing_update_native_type_preimage_postimage": {
+   "description": "Single-node cluster, table (pkey int, ckey int, value text) WITH cdc enabled (preimage+postimage). Runs `TRACING ON;` + single UPDATE via cqlsh and parses the trace: asserts 'CDC: Started generating...' first, 'Finished generating all log mutations' last, and per affected partition token, in order: Selecting preimage, 'Generating log mutations', No need to split, 'Generated N log mutations'; no unmatched CDC lines. Guards CDC tracing instrumentation and the should_split / preimage-select decision for this operation.",
+   "origin": {
+    "sha": "4d718eab",
+    "date": "2020-06-11",
+    "pr": 1551,
+    "summary": "test(cdc_tracing): New tests for checking cdc tracing info (merged 2020-08-03); verifies CQL tracing output of CDC log-mutation generation for native types and collections. Function history otherwise only formatting; pytest port 5ac2cec5."
+   },
+   "commits": {
+    "9ffd273f": "formatting (ruff format, tree-wide).",
+    "4d718eab": "origin: added test as wrapper around check_tracing_info_for_operation.",
+    "5ac2cec5": "pytest port (PR 1551 follow-up); test body unchanged in substance.",
+    "050fe8ef": "added @pytest.mark.dtest_full to class -> tests were not running before 2022-07-27.",
+    "516fa448": "extracted decorated_key regex template in CDCTraceInfoMatcher (tools/cdc_utils.py).",
+    "8df4ca03": "made decorated_key regex whitespace-permissive after scylla changed its format; no scenario change.",
+    "e4a2182c": "class marked required_features('!tablets') (scylladb/scylladb#16317).",
+    "5172ba88": "removed '!tablets' mark -> runs with tablets too."
+   },
+   "relevance": "Trace points live in scylla cdc/log.cc:2161-2231 (cdc_service::impl::augment_mutation_call: 'Started generating', 'Selecting preimage' / 'Preimage not enabled', 'Generating log mutations', 'Splitting' / 'No need to split' via cdc/split.cc should_split, 'Generated N log mutations', 'Finished'). Single node, ~5s, 100% pass in dtest-release and dtest-release-with-raft (38 runs); dtest_full only, not gating.",
+   "duplicates": [
+    {
+     "path": "test/boost/cdc_test.cc::test_change_splitting",
+     "coverage": "partial",
+     "note": "verifies split log contents for mixed-timestamp batches, not the trace output or the per-operation split decision asserted here."
+    },
+    {
+     "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
+     "coverage": "partial",
+     "note": "preimage/postimage log contents; no tracing check."
+    }
+   ],
+   "decision": "GREEN",
+   "reason": "Only test (scylla or dtest) asserting CDC tracing output; distinct operation/type/image/batch combination whose split or preimage branch is not checked elsewhere (no scylla test greps 'CDC:' trace events; boost cdc_test.cc covers log contents only). Live code in cdc/log.cc. Cheap and stable."
+  }
+ }
+}
