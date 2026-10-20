@@ -1,0 +1,280 @@
+{
+  "file": "repair_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestRepair::test_simple_sequential_repair": {
+      "description": "3 nodes RF=3 (vnodes; skipped with tablets). Insert 1000 keys at ALL, stop node3, insert key 1000 at TWO, restart, insert 1000 more; verify node3 lacks key 1000, run `nodetool repair ks` on node1, verify node3 then has 2001 rows. Basic 'repair restores a missed write' check; originally ran with -seq.",
+      "origin": {
+        "sha": "155dd00dae",
+        "date": "2011-10-30",
+        "pr": null,
+        "summary": "Cassandra dtest 'new tests' (simple_repair_test); split into seq/par in 6043c780fc (2015-04-02)"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "b2f26f25df": "formatting (ruff commas)",
+        "6043c780fc": "split simple_repair_test into sequential/parallel variants (passing -seq/-par)",
+        "155dd00dae": "origin: simple_repair_test/_simple_repair (1000 keys, node3 down, 1 key, repair, check)",
+        "1b5a61da92": "file-level: drop 10s 'CASSANDRA-4373' sleep before repair in _simple_repair",
+        "788767d65a": "file-level: _simple_repair uses generate_cluster_topology(rack_num=3) for rf=rack",
+        "5aff0fdf52": "file-level: module pytestmark next_gating"
+      },
+      "relevance": "Live: vnode repair via nodetool repair. Sequential/parallel distinction gone (Scylla row-level repair; nodetool -seq only sets parallelism param, and the test no longer passes it).",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_one_missing_row",
+          "coverage": "full",
+          "note": "one row missing on one replica, repair, check all rows + tx/rx row counts from logs (stronger)"
+        },
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_option_seq",
+          "coverage": "partial",
+          "note": "repair with -seq on disjoint data"
+        },
+        {
+          "path": "dtest:repair_test.py::TestRepair::test_simple_parallel_repair",
+          "coverage": "full",
+          "note": "identical execution (sequential arg unused)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~73s) and redundant: identical to test_simple_parallel_repair and covered more strongly by repair_additional_test::test_repair_one_missing_row. Bug: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69)."
+    },
+    "TestRepair::test_simple_parallel_repair": {
+      "description": "Same scenario as test_simple_sequential_repair (3 nodes RF=3, node3 misses key 1000, repair from node1, check node3 has 2001 rows); originally the non -seq (parallel) variant.",
+      "origin": {
+        "sha": "155dd00dae",
+        "date": "2011-10-30",
+        "pr": null,
+        "summary": "Cassandra dtest simple_repair_test; parallel variant added in 6043c780fc (2015-04-02)"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "b2f26f25df": "formatting (ruff commas)",
+        "6043c780fc": "split simple_repair_test into sequential/parallel variants (passing -seq/-par)",
+        "155dd00dae": "origin: simple_repair_test/_simple_repair (1000 keys, node3 down, 1 key, repair, check)",
+        "1b5a61da92": "file-level: drop 10s 'CASSANDRA-4373' sleep before repair in _simple_repair",
+        "788767d65a": "file-level: _simple_repair uses generate_cluster_topology(rack_num=3) for rf=rack",
+        "5aff0fdf52": "file-level: module pytestmark next_gating",
+        "280927de3c": "remove tablets disable mark (scylladb#17342 fixed)",
+        "160f28fafa": "disable with tablets (scylladb#17342)",
+        "6b5a3275e4": "add commented-out dtest-debug attr (scylla#4384)",
+        "225584b919": "mark next-gating"
+      },
+      "relevance": "Live: vnode repair via nodetool repair. Parallel/sequential distinction not exercised.",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_one_missing_row",
+          "coverage": "full",
+          "note": "same missing-row repair scenario with tx/rx row checks"
+        },
+        {
+          "path": "dtest:repair_test.py::TestRepair::test_simple_sequential_repair",
+          "coverage": "full",
+          "note": "identical execution"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~72s) and redundant with repair_additional_test::test_repair_one_missing_row (and identical to the sequential variant). Bug: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). Note: commented dtest-debug mark refs scylla#4384."
+    },
+    "TestRepair::test_empty_vs_gcable_sequential_repair": {
+      "description": "2 nodes RF=2 (vnodes). cf1 gc_grace=1, cf2 default, compaction disabled. With node2 down, insert 10k rows in each table on node1 then delete them (partition + row tombstones); wait 2s; start node2, repair. Asserts no rows readable at CL=ALL. Intended (CASSANDRA-8979): empty vs gc-able tombstoned partitions considered in-sync, no repair for cf1.",
+      "origin": {
+        "sha": "4bad1baedf",
+        "date": "2015-03-27",
+        "pr": null,
+        "summary": "Cassandra dtest 'Test for CASSANDRA-8979'; split seq/par in 6043c780fc"
+      },
+      "commits": {
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "6043c780fc": "split empty_vs_gcable_no_repair_test into sequential/parallel variants",
+        "155dd00dae": "not this test's origin (wrapper history artifact; file-level 'new tests' 2011)",
+        "0c370f3a24": "not this test's origin (initial dtest commit)",
+        "4bad1baedf": "file-level: real origin of _empty_vs_gcable_no_repair (CASSANDRA-8979)",
+        "788767d65a": "file-level: generate_cluster_topology(rack_num=2) for rf=rack",
+        "19991c953b": "formatting (ruff range(0,n) -> range(n))"
+      },
+      "relevance": "Repair tombstone-GC handling is live in Scylla (enable_tombstone_gc_for_streaming_and_repair), but the test does not observe it on Scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
+          "coverage": "partial",
+          "note": "verifies GC-able tombstone is NOT replicated by repair (MUTATION_FRAGMENTS check) and is with the option off; tablet keyspace"
+        },
+        {
+          "path": "dtest:repair_test.py::TestRepair::test_empty_vs_gcable_parallel_repair",
+          "coverage": "full",
+          "note": "identical execution"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value assertion: on Scylla nothing checks the CASSANDRA-8979 property; scylla test_tombstone_gc_for_streaming_and_repair checks it properly. Identical to the parallel variant. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs() and its cf2 regex has a stray '/' (Cassandra 2.x log format). `sequential` param unused since 36a75a3da5, so seq/par variants are identical."
+    },
+    "TestRepair::test_empty_vs_gcable_parallel_repair": {
+      "description": "Same as test_empty_vs_gcable_sequential_repair (gc-able vs non-gc-able tombstones repaired into an empty node, check no rows visible at CL=ALL); originally the parallel variant.",
+      "origin": {
+        "sha": "4bad1baedf",
+        "date": "2015-03-27",
+        "pr": null,
+        "summary": "Cassandra dtest 'Test for CASSANDRA-8979'; parallel variant in 6043c780fc"
+      },
+      "commits": {
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "6043c780fc": "split empty_vs_gcable_no_repair_test into sequential/parallel variants",
+        "155dd00dae": "not this test's origin (wrapper history artifact; file-level 'new tests' 2011)",
+        "0c370f3a24": "not this test's origin (initial dtest commit)",
+        "4bad1baedf": "file-level: real origin of _empty_vs_gcable_no_repair (CASSANDRA-8979)",
+        "788767d65a": "file-level: generate_cluster_topology(rack_num=2) for rf=rack",
+        "19991c953b": "formatting (ruff range(0,n) -> range(n))"
+      },
+      "relevance": "Same as sequential variant: feature live, not observed by the test on Scylla.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
+          "coverage": "partial",
+          "note": "verifies GC-able tombstone is NOT replicated by repair (MUTATION_FRAGMENTS check) and is with the option off; tablet keyspace"
+        },
+        {
+          "path": "dtest:repair_test.py::TestRepair::test_empty_vs_gcable_sequential_repair",
+          "coverage": "full",
+          "note": "identical execution"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same as sequential variant: no effective assertion of the gc-able-not-repaired property on Scylla; covered by test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs() and its cf2 regex has a stray '/' (Cassandra 2.x log format). `sequential` param unused since 36a75a3da5, so seq/par variants are identical."
+    },
+    "TestRepair::test_local_dc_repair": {
+      "description": "_setup_multi_dc: 4 nodes (dc1:2, dc2:1, dc3:1), NTS dc1:2/dc2:1/dc3:1, node2 misses key 1000. Runs `nodetool repair -local ks` on node1 and checks node2 now has 2001 rows. Intended to also check only dc1 nodes took part (log check).",
+      "origin": {
+        "sha": "89227aa8a2",
+        "date": "2015-06-01",
+        "pr": null,
+        "summary": "Cassandra dtest 'Add multiple dc repair tests'"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "87d383ccff": "formatting (PEP8, isinstance in check_repair_logs)",
+        "cc63bfdb69": "guard log-based assertions with check_repair_logs() (disabled on Scylla)",
+        "eaf922c659": "convert asserts to unittest assert*, rename vars",
+        "89227aa8a2": "origin: add multi-DC repair test + _setup_multi_dc",
+        "788767d65a": "file-level: _setup_multi_dc topology dict with racks for rf=rack",
+        "6715b06a20": "file-level: skip test_local_dc_repair/test_dc_repair with tablets (scylladb#17550, dataCenters not supported for tablet repair)"
+      },
+      "relevance": "Live: nodetool repair --in-local-dc (tools/scylla-nodetool.cc:4926). Vnode-only (skipped with tablets).",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_option_dc",
+          "coverage": "full",
+          "note": "same 3-DC topology (dc1:2, dc2:1, dc3:1); checks -dc dc1,dc3 repairs dc1/dc3 but NOT dc2, invalid dc errors, and -local repairs only dc1 (per-node row counts)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by repair_additional_test::test_repair_option_dc, which also verifies other DCs were NOT repaired; here the 'only dc1 involved' check is dead. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~107s."
+    },
+    "TestRepair::test_dc_repair": {
+      "description": "_setup_multi_dc (4 nodes, 3 DCs, node2 misses key 1000). Runs repair with -dc dc1 -dc dc2 on node1, checks node2 has 2001 rows. Intended to also check dc3 was not involved (log check). Runs with vnodes and tablets.",
+      "origin": {
+        "sha": "89227aa8a2",
+        "date": "2015-06-01",
+        "pr": null,
+        "summary": "Cassandra dtest 'Add multiple dc repair tests'"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "87d383ccff": "formatting (PEP8, isinstance in check_repair_logs)",
+        "cc63bfdb69": "guard log-based assertions with check_repair_logs() (disabled on Scylla)",
+        "eaf922c659": "convert asserts to unittest assert*, rename vars",
+        "89227aa8a2": "origin: add multi-DC repair test + _setup_multi_dc",
+        "788767d65a": "file-level: _setup_multi_dc topology dict with racks for rf=rack",
+        "6715b06a20": "file-level: skip test_local_dc_repair/test_dc_repair with tablets (scylladb#17550, dataCenters not supported for tablet repair)",
+        "b5c2ea6802": "pass -dc twice instead of 'dc1,dc2'; wait for node2 alive",
+        "cfadc7cda2": "formatting (autopep8)",
+        "9ffd273f04": "formatting (ruff format)"
+      },
+      "relevance": "Live: nodetool repair --in-dc and cluster repair --in-dc (tools/scylla-nodetool.cc:4206/4925).",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_option_dc",
+          "coverage": "full",
+          "note": "same 3-DC topology (dc1:2, dc2:1, dc3:1); checks -dc dc1,dc3 repairs dc1/dc3 but NOT dc2, invalid dc errors, and -local repairs only dc1 (per-node row counts)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by repair_additional_test::test_repair_option_dc (runs with tablets too, and asserts the excluded DC got no data); here only 'node2 got the key' is checked. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~104s."
+    },
+    "TestRepair::test_two_consecutive_repair": {
+      "description": "Runs _simple_repair (node3 misses key 1000, repair from node1), asserts scylla_repair_tx_row_bytes on node1 > 0; restarts stopped nodes, repairs again and asserts the metric is 0, i.e. second repair streamed nothing.",
+      "origin": {
+        "sha": "ddff288668",
+        "date": "2020-03-31",
+        "pr": 1399,
+        "summary": "test(test_two_consecutive_repair): verify no data was streamed in second repair"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "b50f17b81f": "port to pytest (rename *_test -> test_*, logger)",
+        "87d383ccff": "formatting (PEP8, isinstance in check_repair_logs)",
+        "9ffd273f04": "formatting (ruff format)",
+        "421adf5450": "fix KeyError on metrics dict, metrics -> set",
+        "ddff288668": "origin: add test using get_node_metrics on scylla_repair_tx_row_bytes",
+        "1b5a61da92": "file-level: drop 10s sleep in _simple_repair"
+      },
+      "relevance": "Live: row-level repair metric tx_row_bytes (repair/row_level.cc:207). Vnode-only (skipped with tablets).",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_no_streaming_on_second_repair",
+          "coverage": "full",
+          "note": "second repair after disjoint-row repair syncs no extra rows (tx/rx row counts from logs, on all rows)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with repair_additional_test::test_no_streaming_on_second_repair; ~85s. Bug: '== 0' after second repair only works because check_rows_on_node(restart=False) left node1 stopped and cluster.start() resets the cumulative counter (repair_test.py:333); loop at :330-332 logs 'Starting node' but does nothing; assert message at :342 lacks f-prefix; `sequential` unused."
+    },
+    "TestRepair::test_repair_with_disabled_compaction": {
+      "description": "3 nodes RF=3, TWCS with compaction disabled. node3 misses key 2001 (keys=(1001, 2001) inserted while down, then range(2001) at ALL). Lists node3 sstable files, runs repair on node2, asserts `before < after`. Intended to guard scylladb#7525 / PR #7528 (repair master uses a single writer for all followers -> fewer sstables).",
+      "origin": {
+        "sha": "e35884945a",
+        "date": "2021-03-25",
+        "pr": 2372,
+        "summary": "test(repair_with_disabled_compaction) for scylladb#7525 (cherry-pick of 70c50d9b7d into pytest branch)"
+      },
+      "commits": {
+        "44ed3fa059": "replace _repair_options(...) with ccm node.repair(keyspace=..., local/dcs) which picks vnode/tablet repair; add tablets skip marks",
+        "d0e55d7e63": "revert of 44ed3fa059 (back to _repair_options with -seq/-local/-dc)",
+        "36a75a3da5": "re-land: node.repair(keyspace=...) (vnode or cluster repair); drops -seq, so `sequential` arg became unused; tablets skip marks",
+        "788767d65a": "generate_cluster_topology(rack_num=3) for rf=rack",
+        "589a05d088": "get_list_of_sstables call adapted to new subdir/suffix signature",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff range(0,n) -> range(n))",
+        "e35884945a": "origin: add test"
+      },
+      "relevance": "Single-writer-for-followers repair (scylladb#7525) is live but not asserted: repair master is node2, sstables are checked on follower node3, and only 'some file appeared' is tested.",
+      "duplicates": [
+        {
+          "path": "dtest:repair_additional_test.py::TestRepairAdditional::test_repair_one_missing_row",
+          "coverage": "partial",
+          "note": "repair delivers a missing row to a replica"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Low-value assertion that does not test #7525 (would need sstable count on the master per range). Bug: `before < after` compares two unsorted path lists lexicographically (repair_test.py:377), not their lengths; keys=(1001, 2001) is a 2-key tuple, probably meant a range (:369). Rewrite if #7525 coverage is wanted."
+    }
+  }
+}
