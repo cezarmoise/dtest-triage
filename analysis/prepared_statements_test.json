@@ -1,0 +1,53 @@
+{
+  "file": "prepared_statements_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestPreparedStatements::test_dropped_index": {
+      "description": "Single node: creates table with secondary index on b, prepares 'SELECT * FROM mytable WHERE b=?', executes it, drops the index, executes the prepared statement again. InvalidRequest is caught and printed, any other exception propagates; success is also accepted. No assertion on results or on the error. Port of Cassandra dtest for CASSANDRA-7875 (prepared statements using dropped indexes).",
+      "origin": {"sha": "91c7836d0425041831ffa9efb01a02b974dff6d7", "date": "2015-03-03", "pr": null, "summary": "Test for cassandra-7875 (Cassandra upstream dtest, Stefania Alborghetti)"},
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "343e19d29f7f57e512b3595c281185188db0d4f6": "SimpleStrategy -> NetworkTopologyStrategy in keyspace creation",
+        "ea9763766f14f032ac77897ff2e5d8a9ffdc4bae": "pytest port: rename dropped_index_test -> test_dropped_index, nodelist(), drop @since, add dtest_full/single_node marks",
+        "29646f195624980c81c821eb902eb3b9f7f41070": "python3: print() calls, import cleanup",
+        "671e0a0a4e14f4aa1af89b265015e350785e8239": "len(list(...)) on result for new driver",
+        "b9696fb4ecada4961a23f5c6961dd4b004ce2501": "@since('2.1') + whitespace",
+        "971c0d6ef61b143da99f22fbc0d9ae0804ccb7c2": "bare except -> except Exception",
+        "91c7836d0425041831ffa9efb01a02b974dff6d7": "origin: added the test",
+        "c2a2467e2aaf884f317c4610bca55b8da8b54ebd": "file-level: module marked next_gating",
+        "0311d61f620cefc330d75a2b90c1d04dca3635b8": "file-level: removed @since('2.1')"
+      },
+      "relevance": "Prepared statements + secondary index drop still live in scylla (DROP INDEX invalidates prepared statements of the base table via schema change; scylla now pins paging plan to index, 'no longer available' error).",
+      "duplicates": [
+        {"path": "test/cqlpy/test_secondary_index.py::test_paging_and_drop_index_allow_filtering_prepared", "coverage": "partial", "note": "prepared indexed SELECT, DROP INDEX, re-execute with assertions (ALLOW FILTERING variant)"},
+        {"path": "test/cqlpy/test_secondary_index.py::test_paging_and_drop_index_no_allow_filtering", "coverage": "partial", "note": "indexed SELECT without ALLOW FILTERING after DROP INDEX asserts InvalidRequest (unprepared, paged)"},
+        {"path": "test/boost/schema_change_test.cc::test_prepared_statement_is_invalidated_by_schema_change", "coverage": "partial", "note": "prepared statement invalidated by schema change"}
+      ],
+      "decision": "RED",
+      "reason": "Bug: test asserts nothing - InvalidRequest is swallowed and success also passes (prepared_statements_test.py:46-52), so it only catches crashes/unexpected error types. The same scenario is asserted properly in test/cqlpy/test_secondary_index.py (test_paging_and_drop_index_allow_filtering_prepared, test_paging_and_drop_index_no_allow_filtering)."
+    },
+    "TestPreparedStatements::test_prepared_select_star_on_schema_change": {
+      "description": "Single node, two sessions each prepare 'SELECT * FROM mytable' and verify 10 rows with column b. Then ALTER TABLE ADD c, DROP b; re-executing both prepared statements must return rows with c and without b. Guards CASSANDRA-10786 / JAVA-1196 (stale result metadata for prepared SELECT * after schema change).",
+      "origin": {"sha": "9927d9264a1e3b036043ebc34381220c1ddd5443", "date": "2019-02-10", "pr": 821, "summary": "Adding a new test for covering CASSANDRA-10786 (Israel Fruchter)"},
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "343e19d29f7f57e512b3595c281185188db0d4f6": "SimpleStrategy -> NetworkTopologyStrategy",
+        "ea9763766f14f032ac77897ff2e5d8a9ffdc4bae": "pytest port: rename, drop @since('4.0.0'), self.assert* -> assert",
+        "cd5f4d7d49080775a8919f8366759b313e601684": "refactor: loop over both sessions, also assert column b present before ALTER",
+        "829e524b1136e33dbd4bc2d8a7a89bbc2d1f73fd": "num_rows variable instead of literal 10",
+        "9927d9264a1e3b036043ebc34381220c1ddd5443": "origin: added the test",
+        "c2a2467e2aaf884f317c4610bca55b8da8b54ebd": "file-level: module marked next_gating"
+      },
+      "relevance": "Live: scylla invalidates prepared statements on schema change and supports result metadata id (SCYLLA_USE_METADATA_ID) for exactly this problem.",
+      "duplicates": [
+        {"path": "test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_columns", "coverage": "full", "note": "two sessions prepare SELECT *, third session ALTER TABLE ADD column, both prepared statements return new column count"},
+        {"path": "test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_types", "coverage": "partial", "note": "ALTER TABLE DROP c + ADD c TEXT, prepared SELECT * re-executed by two sessions"},
+        {"path": "test/boost/schema_change_test.cc::test_prepared_statement_is_invalidated_by_schema_change", "coverage": "partial", "note": "prepared 'select *' invalidated after ALTER TABLE ADD"},
+        {"path": "cql_tests.py::TestCQL::test_prepared_statement_invalidation", "coverage": "partial", "note": "other dtest: wildcard prepared SELECT across DROP/ADD/ALTER TYPE, asserts row contents"}
+      ],
+      "decision": "RED",
+      "reason": "Scenario (multiple sessions, prepared SELECT *, ALTER ADD/DROP column, re-execute) fully covered by test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_columns + _types, plus boost schema_change_test and dtest cql_tests.py::test_prepared_statement_invalidation. Note: docstring 'should be address in 4.0 version' refers to Cassandra."
+    }
+  }
+}
