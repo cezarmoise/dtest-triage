@@ -1,0 +1,574 @@
+{
+  "file": "sla_per_user_test.py",
+  "tests": {
+    "TestSLA::test_sla": {
+      "description": "Single node with password auth. Creates a service level with 100 shares, named 'sla1' or 'Sla1' (quoted, case-sensitive), and checks LIST ALL SERVICE_LEVELS has exactly one non-driver SL and LIST SERVICE_LEVEL <name> returns matching attributes. Basic CREATE/LIST smoke test.",
+      "origin": {
+        "sha": "5ddd4ffc46",
+        "date": "2019-03-10",
+        "pr": null,
+        "summary": "SLA per user first tests (sla_test), scylla-dtest-enterprise PR #14 (data JSON pr 2530 is the later pytest port); case-sensitive param merged from case_sensitive_sla_test in ddf491d487"
+      },
+      "commits": {
+        "5ddd4ffc46": "created as sla_test",
+        "aad6175ee9": "port to pytest",
+        "ddf491d487": "parametrized with sla1/Sla1 (merged case_sensitive_sla_test), uses validate_sl_list",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: CREATE/LIST SERVICE_LEVEL (cql3/statements/*service_level*). Shares option live.",
+      "duplicates": [
+        {
+          "path": "sla_per_user_test.py::TestSLA::test_sla_attached_to_entity",
+          "coverage": "full",
+          "note": "same CREATE sla1 WITH shares=100 + validate_sl_list, plus attach"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_manipulating_fake_default_service_level",
+          "coverage": "partial",
+          "note": "quoted case-sensitive SL name create/alter/attach/drop"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_default_shares_in_listings",
+          "coverage": "partial",
+          "note": "CREATE + LIST SERVICE LEVEL asserts shares"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_set_service_level_timeouts",
+          "coverage": "partial",
+          "note": "LIST SERVICE LEVEL after ALTER"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully subsumed by test_sla_attached_to_entity in the same file (identical create+validate_sl_list) and cqlpy service level tests; the 'Sla1' case-sensitivity param is covered by test/cqlpy/test_service_levels.py::test_manipulating_fake_default_service_level. Note: ServiceLevel.__eq__ (tools/sla.py:127) ignores the name, so name/case is only checked implicitly via LIST by quoted name."
+    },
+    "TestSLA::test_sla_attached_to_entity": {
+      "description": "Creates SL 'sla1' (100 shares), a Role or User (plain, or role with password+LOGIN), attaches the SL, then checks LIST ALL/LIST SERVICE_LEVEL and LIST ATTACHED SERVICE_LEVEL OF <entity> return exactly that SL with matching attributes. Covers ATTACH to role vs user.",
+      "origin": {
+        "sha": "5ddd4ffc46",
+        "date": "2019-03-10",
+        "pr": null,
+        "summary": "sla_role_test in first SLA tests (scylla-dtest-enterprise #14); role_with_authentication_test etc. merged in by ddf491d487 (PR 2613)"
+      },
+      "commits": {
+        "5ddd4ffc46": "created as sla_role_test",
+        "6b2ea30948": "added user/role-with-auth variants (separate tests)",
+        "d09737846f": "dropped require #830 for empty-named tests (not this test's current body)",
+        "aad6175ee9": "port to pytest",
+        "d8fdfe30c1": "validation refactor",
+        "ddf491d487": "merged role/user/auth variants into one parametrized test",
+        "68b8576325": "SLATester.prepare/populate_data cleanup while adding timeout tests; no behavior change for this test",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: ATTACH SERVICE_LEVEL / LIST ATTACHED SERVICE_LEVEL, roles/users via CassandraRoleManager.",
+      "duplicates": [
+        {
+          "path": "sla_per_user_test.py::TestSLA::test_attach_2_slas_to_role",
+          "coverage": "full",
+          "note": "first half is the same create_entity_with_service_level + validate_sl_list + validate_attached_slas_list for Role and User"
+        },
+        {
+          "path": "sla_per_user_test.py::TestSLAConfig::test_sla_configuration",
+          "coverage": "partial",
+          "note": "role WITH password+login+superuser with attached SL, actually used"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_attached_service_level",
+          "coverage": "partial",
+          "note": "LIST ATTACHED SERVICE LEVEL OF / LIST ALL ATTACHED for login user"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
+          "coverage": "partial",
+          "note": "ATTACH + LIST ATTACHED + LIST SERVICE LEVEL (LDAP role manager)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: test_attach_2_slas_to_role[with_role/with_user] runs the identical steps and asserts, the auth role variant is exercised by test_sla_configuration, and cqlpy test_attached_service_level covers LIST ATTACHED. Bug: params attach_to_auth_user and attach_to_user are identical (User, password None, login False; sla_per_user_test.py:111) so the 'auth user' case tests nothing new."
+    },
+    "TestSLA::test_sla_usage": {
+      "description": "Creates SL 'sla1', a superuser Role (password+LOGIN) or User (password) with the SL attached, validates listings, then runs a tiny cassandra-stress write (n=10, cl=ALL) as cassandra and as the entity. Added to catch SCT-style auth config issues (authorizer + superuser role usage); only asserts c-s does not fail, not that the SL is used.",
+      "origin": {
+        "sha": "c0764149e9",
+        "date": "2023-03-14",
+        "pr": 3084,
+        "summary": "introduce test that actually uses an SLA from a client (SCT authorizer/superuser config confusion)"
+      },
+      "commits": {
+        "c0764149e9": "created",
+        "9ffd273f04": "formatting",
+        "6f303700c6": "added use_cassandra_stress marker",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live behavior (login as role with attached SL), but the test does not check scheduling group/SL effect at all.",
+      "duplicates": [
+        {
+          "path": "sla_per_user_test.py::TestSLAConfig::test_sla_configuration",
+          "coverage": "full",
+          "note": "login role with password+superuser+attached SL runs queries on 3 nodes and verifies they run in sl:<name> (stronger)"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_per_service_level_cql_requests_serving",
+          "coverage": "partial",
+          "note": "role with attached SL connects and runs queries in its SG"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
+          "coverage": "partial",
+          "note": "user with attached SL served in sl:<name>"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value assertion (only that a 10-row c-s write succeeds as a role with an SL) and 5x slower (~24s) than its siblings; TestSLAConfig::test_sla_configuration in the same file logs in as such a role and additionally verifies the scheduling group, and scylla test_raft_service_levels/test_ldap_service_levels cover SL-attached users running queries."
+    },
+    "TestSLA::test_sla_no_shares": {
+      "description": "Creates SL 'sla1' without shares, attaches it to a role, and checks LIST SERVICE_LEVEL / LIST ATTACHED report the default 1000 shares. Guards scylla-enterprise#2163 'Default values for Service Level not listed'.",
+      "origin": {
+        "sha": "5ddd4ffc46",
+        "date": "2019-03-10",
+        "pr": null,
+        "summary": "sla_no_shares_test in first SLA tests (scylla-dtest-enterprise #14)"
+      },
+      "commits": {
+        "5ddd4ffc46": "created as sla_no_shares_test",
+        "6b2ea30948": "minor adjustments with the full SLA suite",
+        "aad6175ee9": "port to pytest",
+        "d8fdfe30c1": "validation refactor",
+        "ddf491d487": "rewritten with ServiceLevel/Role models, require enterprise#2163",
+        "14486477f7": "fixed require marker format",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: default shares (1000) for SL created without shares.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_default_shares_in_listings",
+          "coverage": "full",
+          "note": "creates SL without shares (error injection forces unset shares), attaches to role, asserts LIST SERVICE LEVEL shares == 1000 and LIST EFFECTIVE shares == '1000'"
+        },
+        {
+          "path": "test/boost/service_level_controller_test.cc::verify_unset_shares_in_cache_when_service_level_created_without_shares",
+          "coverage": "partial",
+          "note": "unset shares handling in SL cache"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_default_shares_in_listings. Bug: the check cannot fail on the guarded bug, since ServiceLevel.__eq__ (tools/sla.py:131) maps shares None->1000, so a listing with null shares (enterprise#2163) still compares equal. Note: require('scylladb/scylla-enterprise#2163') (sla_per_user_test.py:181) refers to an issue closed 2025-01-15."
+    },
+    "TestSLA::test_replace_sla": {
+      "description": "Creates SLs sla50 and sla300 and a Role/User, attaches sla50, checks both SLs listed and only sla50 attached; then DETACH + ATTACH sla300 and checks only sla300 is attached while both still exist. Covers DETACH SERVICE_LEVEL and re-attach.",
+      "origin": {
+        "sha": "ddf491d487",
+        "date": "2022-02-18",
+        "pr": 2613,
+        "summary": "Refactor sla tests: replaces detach_sla_test / detach_one_of_two_slas_test (originally 6b2ea30948, 2019) with a parametrized role/user test"
+      },
+      "commits": {
+        "5ddd4ffc46": "predecessor tests created (git log -L origin)",
+        "6b2ea30948": "detach_sla_test / detach_one_of_two_slas_test added (predecessors)",
+        "2c115f5dd4": "formatting",
+        "aad6175ee9": "port to pytest",
+        "d8fdfe30c1": "validation refactor",
+        "ddf491d487": "created as test_replace_sla (detach+attach via attach_another_sla_to_role)",
+        "68b8576325": "SLATester.prepare/populate_data cleanup while adding timeout tests; no behavior change for this test",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: DETACH SERVICE_LEVEL FROM <role>, ATTACH, LIST ATTACHED.",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
+          "coverage": "partial",
+          "note": "DETACH then LIST ATTACHED empty, re-ATTACH; LDAPRoleManager not CassandraRoleManager"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_attach_service_level_to_user.py::test_attach_service_level_to_user",
+          "coverage": "partial",
+          "note": "attach/detach two SLs in sequence, no LIST ATTACHED check"
+        },
+        {
+          "path": "sla_per_user_test.py::TestSLA::test_attach_2_slas_to_role",
+          "coverage": "partial",
+          "note": "same scenario but switches SL via ATTACH without DETACH"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: detach/re-attach with LIST ATTACHED verification exists in test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level but only under LDAPRoleManager; with CassandraRoleManager detach is only exercised (not verified) in cqlpy helpers. Cheap (4.5s); keep or fold into test_attach_2_slas_to_role."
+    },
+    "TestSLA::test_update_assigned_sla_service_shares": {
+      "description": "Creates an SL without shares attached to a Role/User, checks it lists with default shares, then ALTER SERVICE_LEVEL ... WITH shares=500 and checks LIST SERVICE_LEVEL and LIST ATTACHED SERVICE_LEVEL report 500. Covers ALTER of an attached SL being reflected in listings.",
+      "origin": {
+        "sha": "ddf491d487",
+        "date": "2022-02-18",
+        "pr": 2613,
+        "summary": "Refactor sla tests: replaces change_default_sla_and_attach_{user,role}_test (6b2ea30948, 2019)"
+      },
+      "commits": {
+        "5ddd4ffc46": "predecessor tests created (git log -L origin)",
+        "6b2ea30948": "change_default_sla_and_attach_{user,role}_test added (predecessors)",
+        "aad6175ee9": "port to pytest",
+        "d8fdfe30c1": "validation refactor",
+        "ddf491d487": "created as parametrized test_update_assigned_sla_service_shares, require enterprise#2163",
+        "14486477f7": "fixed require marker format",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: ALTER SERVICE_LEVEL WITH shares.",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_shares_check",
+          "coverage": "partial",
+          "note": "ALTER ... WITH shares succeeds; listing not checked"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_set_service_level_timeouts",
+          "coverage": "partial",
+          "note": "ALTER then LIST SERVICE LEVEL, but timeout not shares"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_default_shares_in_listings",
+          "coverage": "partial",
+          "note": "default shares listing (first half of this test)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only (scylla tests ALTER shares without listing, or list after ALTER timeout). Bug: the default-shares half cannot fail on null shares because ServiceLevel.__eq__ maps None->1000 (tools/sla.py:131). Note: stale require('scylladb/scylla-enterprise#2163') at sla_per_user_test.py:231 (issue closed 2025-01-15); unused `entity` object distinct from the one created (sla_per_user_test.py:243-244), harmless since lookup is by name."
+    },
+    "TestSLA::test_attach_2_slas_to_role": {
+      "description": "Creates sla1 (100 shares) attached to a Role/User, verifies, then creates sla2 (200) and ATTACHes it without DETACH; asserts both SLs exist and only sla2 is attached (ATTACH replaces the previous attachment).",
+      "origin": {
+        "sha": "6b2ea30948",
+        "date": "2019-03-11",
+        "pr": null,
+        "summary": "SLA per user: all tests (attach_2_slas_to_role_test), scylla-dtest-enterprise; data JSON pr 2530 is the pytest port"
+      },
+      "commits": {
+        "5ddd4ffc46": "first SLA tests (git log -L origin; test body added in 6b2ea30948)",
+        "6b2ea30948": "created as attach_2_slas_to_role_test",
+        "b25580fd9d": "py3 port (iteritems->items); no behavior change",
+        "2c115f5dd4": "formatting",
+        "aad6175ee9": "port to pytest",
+        "d8fdfe30c1": "validation refactor",
+        "ddf491d487": "parametrized for Role/User, model-based validation",
+        "68b8576325": "SLATester.prepare/populate_data cleanup while adding timeout tests; no behavior change for this test",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: ATTACH SERVICE_LEVEL overwrites the role's service_level attribute.",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_level_reuse_name",
+          "coverage": "partial",
+          "note": "re-ATTACHes another SL to cassandra without detach, but never checks LIST ATTACHED"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test verifying (via LIST ATTACHED) that ATTACH of a second SL replaces the first, for both roles and users; fast (4.5s), 100% pass."
+    },
+    "TestSLA::test_drop_sl_and_attach_new_to_role": {
+      "description": "Creates sla1 attached to a Role/User, DROPs sla1 and asserts LIST ATTACHED for the entity is empty, then creates sla2, attaches it and checks only sla2 exists and is attached. Covers DROP SERVICE_LEVEL removing attachments.",
+      "origin": {
+        "sha": "91feebddf1",
+        "date": "2023-02-12",
+        "pr": 3035,
+        "summary": "new chaos SLA tests PR, also added this drop-and-reattach test"
+      },
+      "commits": {
+        "91feebddf1": "created",
+        "9ffd273f04": "formatting",
+        "a9eaa5b869": "file-level: list_all_service_levels(skip_driver=True) so the new built-in 'driver' SL doesn't break the count in validate_sl_list",
+        "2ec6395909": "file-level: removed dtest_enterprise marker"
+      },
+      "relevance": "Live: DROP SERVICE_LEVEL detaches it from all roles.",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
+          "coverage": "partial",
+          "note": "'DROP also detaches the level from every role': asserts LIST ATTACHED empty after DROP (LDAPRoleManager)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test_ldap_attach_service_level (same drop->detached assertion, LDAP role manager only). Note: docstring is a copy of test_attach_2_slas_to_role's and doesn't mention the DROP (sla_per_user_test.py:366-377)."
+    },
+    "TestSLA::test_chaos_sl_creation_altering_deletion": {
+      "description": "4 nodes x 4 shards; 10 threads over 4 coordinator sessions for 300s loop CREATE SERVICE_LEVEL (random shares) -> read barrier -> ALTER shares -> DROP, two threads reusing the same names. Tolerated errors: 'no more scheduling groups exist', 'concurrent modification', 'doesn't exist', client timeouts (retried); anything else fails. Stress for concurrent group0 SL DDL and scheduling group create/rename/destroy; assertion is just 'no unexpected error' (+ dtest log error checks).",
+      "origin": {
+        "sha": "91feebddf1",
+        "date": "2023-02-12",
+        "pr": 3035,
+        "summary": "new chaos SLA test: random create/alter/drop of SLs in 10 parallel threads for 5 min"
+      },
+      "commits": {
+        "91feebddf1": "created (with role creation/attach and 'effectively dropped' log validation)",
+        "fb3dfc9ea9": "formatting",
+        "aedaa57c4e": "formatting",
+        "72809f2380": "formatting",
+        "9ffd273f04": "formatting",
+        "eccda80e42": "formatting",
+        "1a908b1465": "more error logging to investigate dtest#3577",
+        "3d8e785c64": "deterministic SL/role names via itertools.count; two threads reuse fixed names",
+        "4a7dced41d": "updated expected 'doesn't exist' error message",
+        "f47602bcbb": "removed unused effectively-dropped log watcher",
+        "9902bc3727": "replaced 15s sleeps with read_barrier",
+        "01eaf33336": "removed role creation/attach (now SL-only)",
+        "38d01d6d00": "removed effectively-dropped TODO",
+        "0d0e312d2f": "tolerate 'no more scheduling groups exist' (enterprise#4764)",
+        "586949334a": "tolerate group0 'concurrent modification' (SCYLLADB-1698)",
+        "35b34f7c14": "don't access .errors on InvalidRequest",
+        "275ca0ddb2": "tolerate concurrent-modification on drop",
+        "164cc2febb": "retry create/alter/drop on OperationTimedOut (SCYLLADB-4652)"
+      },
+      "relevance": "Live: SL DDL via group0, scheduling group limit (MAX_USER_SERVICE_LEVELS), SG renaming on reuse.",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_level_metric_name_change",
+          "coverage": "partial",
+          "note": "sequential SL create/drop name reuse (SG rename), enterprise#4912"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_level_reuse_name",
+          "coverage": "partial",
+          "note": "sequential name reuse, scylladb#26190"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_scheduling_groups_limit",
+          "coverage": "partial",
+          "note": "'no more scheduling groups exist' limit"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only concurrent multi-coordinator SL DDL stress, but slow (~327s), weak assertion (only 'no unexpected exception'; no final consistency check of SLs/SGs across nodes) and needed 4 flakiness-fix PRs in 2026 (6904, 7276, 7318, 7338: SCYLLADB-1698, SCYLLADB-4652) that each widened the tolerated errors. Consider shortening the loop or adding an end-state check."
+    },
+    "TestSLAConfig::test_sla_configuration": {
+      "description": "3 nodes, service_levels_interval_ms=500; creates ks.cf with data, a login superuser role with SL test_sl (500 shares). Opens a role session per node, waits until /service_levels/count_connections shows the role in sl:test_sl, then traces a SELECT and asserts every trace event (coordinator and replicas) has sl:test_sl in thread_name and reader concurrency semaphore events name sl:test_sl. Verifies SL->scheduling group/semaphore propagation end to end.",
+      "origin": {
+        "sha": "2c18a9c74b",
+        "date": "2024-01-24",
+        "pr": 3896,
+        "summary": "add test to verify scheduling group configuration (connections SG, trace thread SG, semaphore name added to trace in scylladb#16920)"
+      },
+      "commits": {
+        "2c18a9c74b": "created",
+        "b866c65bce": "file-level: use node.api_port for REST call",
+        "5a799e583b": "adapt to sl:driver for new connections: warm connections and wait_for SG switch, retry traced query (SCYLLADB-2978)"
+      },
+      "relevance": "Live: /service_levels/count_connections REST, per-SG reader_concurrency_semaphore trace '[reader concurrency semaphore {}]' (reader_concurrency_semaphore.cc:1032), service_levels_interval_ms (db/config.cc:1774).",
+      "duplicates": [
+        {
+          "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
+          "coverage": "partial",
+          "note": "user requests served in sl:<name> via metrics, single node"
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_driver_service_level_not_used_for_user_queries",
+          "coverage": "partial",
+          "note": "user queries counted in sl:test, single node"
+        },
+        {
+          "path": "test/cqlpy/test_service_level_api.py::test_count_opened_cql_connections",
+          "coverage": "partial",
+          "note": "count_connections endpoint"
+        },
+        {
+          "path": "workload_prioritization_upgrade_test.py",
+          "coverage": "partial",
+          "note": "same trace thread/semaphore checks, in upgrade scenario"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique multi-node check that replica-side execution (trace thread_name) and reader concurrency semaphore follow the coordinator's service level; scylla tests only check coordinator-side metrics/SG. Stable (100% in dtest-release/-with-raft, ~14s)."
+    },
+    "TestSLANegativeTests::test_create_sla_with_more_1000_shares": {
+      "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = 1001 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given 1001)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
+      "origin": {
+        "sha": "6b2ea30948",
+        "date": "2019-03-11",
+        "pr": null,
+        "summary": "Julia Yakovlev 'SLA per user: all tests' in the old enterprise dtest repo (sla_test_per_user.py); data's PR 2530 is the later pytest port, not the origin."
+      },
+      "commits": {
+        "ddf491d487": "refactor: docstring rewrite, test kept as wrapper over _wrong_shares",
+        "aad6175ee9": "pytest port (sla_test_per_user.py -> sla_per_user_test.py), uses tools/sla.py ServiceLevel",
+        "6b2ea30948": "origin: added the test",
+        "5ddd4ffc46": "first SLA per user tests; added helpers only (git -L noise)",
+        "e3aebb142c": "file-level: class added to next_gating",
+        "2ec6395909": "file-level: removed enterprise marker"
+      },
+      "relevance": "Live: range check SHARES_MIN_VAL..SHARES_MAX_VAL with that message in cql3/statements/sl_prop_defs.cc:63-64.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_user_based_sla_queries",
+          "coverage": "full",
+          "note": "CREATE SERVICE_LEVEL WITH SHARES = 0 and = 1001 -> SyntaxException (no message match)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 1001 -> SyntaxException), which runs in seconds without a dtest cluster; dtest only adds the message text match."
+    },
+    "TestSLANegativeTests::test_create_sla_with_0_shares": {
+      "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = 0 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given 0)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
+      "origin": {
+        "sha": "6b2ea30948",
+        "date": "2019-03-11",
+        "pr": null,
+        "summary": "Julia Yakovlev 'SLA per user: all tests' in the old enterprise dtest repo (sla_test_per_user.py); data's PR 2530 is the later pytest port, not the origin."
+      },
+      "commits": {
+        "ddf491d487": "refactor: docstring rewrite, test kept as wrapper over _wrong_shares",
+        "aad6175ee9": "pytest port (sla_test_per_user.py -> sla_per_user_test.py), uses tools/sla.py ServiceLevel",
+        "6b2ea30948": "origin: added the test",
+        "5ddd4ffc46": "first SLA per user tests; added helpers only (git -L noise)",
+        "e3aebb142c": "file-level: class added to next_gating",
+        "2ec6395909": "file-level: removed enterprise marker"
+      },
+      "relevance": "Live: range check SHARES_MIN_VAL..SHARES_MAX_VAL with that message in cql3/statements/sl_prop_defs.cc:63-64.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_user_based_sla_queries",
+          "coverage": "full",
+          "note": "CREATE SERVICE_LEVEL WITH SHARES = 0 and = 1001 -> SyntaxException (no message match)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 0 -> SyntaxException); dtest only adds the message text match."
+    },
+    "TestSLANegativeTests::test_create_sla_with_negative_shares": {
+      "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = -1 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given -1)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
+      "origin": {
+        "sha": "6b2ea30948",
+        "date": "2019-03-11",
+        "pr": null,
+        "summary": "Julia Yakovlev 'SLA per user: all tests' in the old enterprise dtest repo (sla_test_per_user.py); data's PR 2530 is the later pytest port, not the origin."
+      },
+      "commits": {
+        "ddf491d487": "refactor: docstring rewrite, test kept as wrapper over _wrong_shares",
+        "aad6175ee9": "pytest port (sla_test_per_user.py -> sla_per_user_test.py), uses tools/sla.py ServiceLevel",
+        "6b2ea30948": "origin: added the test",
+        "5ddd4ffc46": "first SLA per user tests; added helpers only (git -L noise)",
+        "e3aebb142c": "file-level: class added to next_gating",
+        "2ec6395909": "file-level: removed enterprise marker"
+      },
+      "relevance": "Live: range check SHARES_MIN_VAL..SHARES_MAX_VAL with that message in cql3/statements/sl_prop_defs.cc:63-64.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_user_based_sla_queries",
+          "coverage": "partial",
+          "note": "SHARES = 0 hits the same `shares < SHARES_MIN_VAL` branch; no scylla test uses a negative literal"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same branch (sl_prop_defs.cc:63) as SHARES = 0, covered by cqlpy test_user_based_sla_queries; only unique bit is parsing a negative literal for SHARES. Cheap (4s); candidate to fold into a cqlpy case (add SHARES = -1) and drop."
+    },
+    "TestSLANegativeTests::test_update_not_existing_sla": {
+      "description": "Single-node auth cluster; ALTER SERVICE_LEVEL sla1 WITH shares = 100 on a never-created SL must raise InvalidRequest matching \"The service level 'sla1' doesn't exist.\". Originally guarded scylla-enterprise#776 (wrong error code, Server Error instead of Invalid).",
+      "origin": {
+        "sha": "6b2ea30948",
+        "date": "2019-03-11",
+        "pr": null,
+        "summary": "Julia Yakovlev 'SLA per user: all tests' in the old enterprise dtest repo (sla_test_per_user.py); data's PR 2530 is the later pytest port, not the origin."
+      },
+      "commits": {
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "ddf491d487": "refactor: docstring, renamed from old drop/update pair; uses expected_error with sl.name",
+        "d8fdfe30c1": "refactor: clearer validation via pytest.raises(match)",
+        "c255ed5102": "refactor: SLATester base class (require marker touched)",
+        "1a65aee612": "fixed require marker to scylladb/scylla-enterprise#776 (marker no longer present on upstream/next)",
+        "aad6175ee9": "pytest port",
+        "68d11bd185": "expected error changed from ServerError to InvalidRequest (scylla fix for error code)",
+        "6b2ea30948": "origin: added the test",
+        "5ddd4ffc46": "helpers only (git -L noise)",
+        "e3aebb142c": "file-level: class added to next_gating"
+      },
+      "relevance": "Live: service/qos/service_level_controller.cc:726 throws invalid_request_exception \"The service level '{}' doesn't exist.\" on alter.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_user_based_sla_queries",
+          "coverage": "full",
+          "note": "ALTER SERVICE_LEVEL <unique_name> WITH shares = 1 -> InvalidRequest (error type; no message match)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (ALTER of non-existing SL -> InvalidRequest, which is the error-code regression of enterprise#776); dtest only adds the message match."
+    },
+    "TestSLATimeouts::test_timeout_valid_values": {
+      "description": "Single-node auth cluster with 1000 rows; CREATE SERVICE_LEVEL with timeout 1000000ms / 5h / 23h2m2s2ms (no shares), attach to a login role, LIST SERVICE_LEVEL must equal the created SL (ServiceLevel.__eq__, tools/sla.py:127, compares timeout Duration), then the role logs in and SELECT * returns rows. Checks timeout parsing/storage for ms, h and compound durations.",
+      "origin": {
+        "sha": "68b8576325",
+        "date": "2022-03-15",
+        "pr": 2662,
+        "summary": "'Sl timeout tests' (Maciek Cisowski): adds TestSLATimeouts/TestSLTimeoutsNegative for the SL timeout attribute; found scylladb/scylla#10285, #10286."
+      },
+      "commits": {
+        "9f6e958fbe": "1ms param -> 1000000ms: 1ms timeout made the role's own SELECT time out (flaky, scylladb/scylladb#19734)",
+        "9ffd273f04": "formatting",
+        "66021f5dff": "formatting (string formatting alignment)",
+        "68b8576325": "origin: added the test",
+        "aad6175ee9": "git -L noise (pre-existing lines)",
+        "6b2ea30948": "git -L noise (pre-existing lines)",
+        "d539551df3": "file-level: class added to dtest_full (was never run before 2023-05-30)"
+      },
+      "relevance": "Live: SL timeout option parsed in cql3/statements/sl_prop_defs.cc:23-42.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_set_service_level_timeouts",
+          "coverage": "partial",
+          "note": "ALTER timeout = 575ms / 2h / null then LIST SERVICE LEVEL asserts Duration"
+        },
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_list_effective_service_level",
+          "coverage": "partial",
+          "note": "CREATE SL WITH timeout = 10s attached to role, LIST EFFECTIVE asserts value"
+        },
+        {
+          "path": "test/boost/auth_test.cc::test_alter_with_timeouts",
+          "coverage": "partial",
+          "note": "SL timeout stored and applied to queries of the attached user (0s -> timeout, null -> ok, 5s)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: create/list of SL timeouts covered by cqlpy test_set_service_level_timeouts + test_list_effective_service_level, and timeout effect on a role's queries by boost auth_test.cc test_alter_with_timeouts; the dtest's extra 'SELECT returns rows' with a large timeout is a low-value assertion. Only unique bit is a compound duration (23h2m2s2ms), which is generic duration parsing. Note: was flaky until 9f6e958fbe (scylladb/scylladb#19734)."
+    },
+    "TestSLTimeoutsNegative::test_invalid_timeout_values": {
+      "description": "Single-node auth cluster; CREATE SERVICE_LEVEL with timeout 1d, 2mo, 1000ns, -1200ms must raise InvalidRequest with the specific messages (days/months, millisecond granularity, nonnegative).",
+      "origin": {
+        "sha": "68b8576325",
+        "date": "2022-03-15",
+        "pr": 2662,
+        "summary": "'Sl timeout tests' (Maciek Cisowski): adds TestSLATimeouts/TestSLTimeoutsNegative for the SL timeout attribute; found scylladb/scylla#10285, #10286."
+      },
+      "commits": {
+        "9ffd273f04": "formatting",
+        "68b8576325": "origin: added the test",
+        "aad6175ee9": "git -L noise (pre-existing lines)",
+        "6b2ea30948": "git -L noise (pre-existing lines)",
+        "d539551df3": "file-level: class added to dtest_full (was never run before 2023-05-30)"
+      },
+      "relevance": "Live: all 3 messages in cql3/statements/sl_prop_defs.cc:33-39 (shared by CREATE and ALTER).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_service_levels.py::test_validate_service_level_timeouts",
+          "coverage": "full",
+          "note": "ALTER with 1ns, -5s, 10d, 5y (months), 0 etc. -> exception (no message match); same sl_prop_defs code path as CREATE"
+        },
+        {
+          "path": "test/boost/auth_test.cc::test_alter_with_timeouts",
+          "coverage": "partial",
+          "note": "5us and 2y6mo5d -> invalid_request_exception"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_validate_service_level_timeouts (days, months/years, sub-ms, negative) and boost auth_test.cc test_alter_with_timeouts; CREATE and ALTER share sl_prop_defs::validate, dtest only adds message text matching."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
