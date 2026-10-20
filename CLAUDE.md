@@ -17,9 +17,8 @@ scripts/gen_data.py       # jenkins/*_long.csv + dtest git + gh → data/<module
 cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
 data/                     # generated, overwritten on refresh
-analysis/<module>.json    # LLM analysis (per-file subagent, analyze_prompt.md)
-analyze_prompt.md         # subagent prompt, {MODULE} / {TESTS} placeholders
-.claude/skills/analyze/   # /analyze skill: pick module, run chunks, validate, commit, push
+analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/analyze/prompt.md)
+.claude/skills/analyze/   # /analyze skill (SKILL.md) + subagent prompt (prompt.md, {MODULE} / {TESTS})
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).

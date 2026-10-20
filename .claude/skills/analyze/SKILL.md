@@ -15,7 +15,7 @@ Run from `~/github/dtest-triage`.
    Nothing pending for it → say so and stop.
 3. Chunks: `python3 scripts/pending.py | grep "^<module> "` → one line per chunk of ≤10 tests.
 4. For each chunk, **one at a time** (they write the same file), spawn a general-purpose subagent:
-   `Read /home/cezar/github/dtest-triage/analyze_prompt.md and follow it with {MODULE} = <module> and {TESTS} = <chunk tests>`.
+   `Read /home/cezar/github/dtest-triage/.claude/skills/analyze/prompt.md and follow it with {MODULE} = <module> and {TESTS} = <chunk tests>`.
    Wait for it, then `python3 scripts/check_analysis.py <module>`; fix/re-run a chunk if it reports problems.
    Check that every issue/bug the subagent reports is in that test's `reason`, and that no test with a
    found issue is GREEN (→ YELLOW). Fix the JSON if not.
