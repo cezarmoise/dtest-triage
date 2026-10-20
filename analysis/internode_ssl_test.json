@@ -1,0 +1,292 @@
+{
+  "file": "internode_ssl_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestInternodeSSL::test_putget_with_internode_ssl": {
+      "description": "4-node cluster (1 DC, 2 racks x 2 nodes, GossipingPropertyFileSnitch) with server_encryption_options internode_encryption='all' and internode_compression='all'; creates NTS RF=2 keyspace and runs putget (100-cell batch at QUORUM, flush, overwrite, read back and validate). Guards that internode TLS (plus RPC compression over TLS) works for writes/reads. Ported from Cassandra CASSANDRA-9884.",
+      "origin": {
+        "sha": "9f97af60bc",
+        "date": "2015-07-29",
+        "pr": null,
+        "summary": "Andrew Hust: added internode ssl test (cassandra-dtest, CASSANDRA-9884); data JSON pr 52 is the 'Merge upstream' PR, not origin"
+      },
+      "commits": {
+        "5d720e4d47": "pass internode_encryption='all' explicitly",
+        "53e961870d": "helper takes internode_compression param; this test uses 'all'",
+        "1b4808a042": "formatting (str % -> format)",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live: server_encryption_options internode_encryption=all (message/messaging_service.cc:422 skips plain port, :454 TLS listener), internode_compression (db/config.cc:1194).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tls.py::test_upgrade_to_ssl",
+          "coverage": "partial",
+          "note": "3 racks, rolling none->transitional->all with background writes + count check; default compression none"
+        },
+        {
+          "path": "scylla-dtest native_transport_ssl_test.py::TestServerEncryption::test_server_encryption_and_restart_node",
+          "coverage": "partial",
+          "note": "internode_encryption=all + putget, plus restarts; no compression"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Encryption=all with data flow covered by test/cluster/test_tls.py::test_upgrade_to_ssl and native_transport_ssl_test TestServerEncryption; only unique bit is compression=all over TLS. Note: only asserts putget succeeds (QUORUM write+read); never checks which connections are actually encrypted/compressed. Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_internode_ssl_without_compression": {
+      "description": "Same putget scenario but internode_compression='none' AND internode_encryption='none' - i.e. no TLS at all despite name/docstring ('with internode ssl enabled'). Certificates are configured but unused. Effectively a plain 4-node putget with default settings.",
+      "origin": {
+        "sha": "53e961870d",
+        "date": "2015-08-04",
+        "pr": null,
+        "summary": "Yuki Morishita: add test for internode_compression 'none' (cassandra-dtest); PR 52 is 'Merge upstream'"
+      },
+      "commits": {
+        "5d720e4d47": "set internode_encryption='none' (removed TLS from this test, PR 1158)",
+        "53e961870d": "origin: putget with internode_compression none",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Config is scylla default (internode_compression none, internode_encryption none) - nothing SSL-specific tested.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest putget_test.py::TestPutGet::test_putget",
+          "coverage": "full",
+          "note": "same putget helper on default cluster"
+        },
+        {
+          "path": "test/cluster/test_tls.py::test_upgrade_to_ssl",
+          "coverage": "full",
+          "note": "covers internode_encryption=none with writes and port check"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: misnamed - since 5d720e4d47 uses internode_encryption='none' (internode_ssl_test.py:49), so no SSL; with compression none it is a default-config putget, fully covered by putget_test.py::test_putget and test/cluster/test_tls.py. Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_internode_rack_ssl": {
+      "description": "putget on 1 DC x 2 racks x 2 nodes with internode_encryption='rack' (encrypt only cross-rack traffic; plain port filtered to same-rack peers) and compression 'all'. Guards rack-mode connection filtering/port selection in messaging_service.",
+      "origin": {
+        "sha": "7364a8d4b8",
+        "date": "2019-11-29",
+        "pr": 1158,
+        "summary": "Amos Kong: add rack/dc internode_ssl variants"
+      },
+      "commits": {
+        "7364a8d4b8": "origin",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live: encrypt_what::rack filter_connection (message/messaging_service.cc:437-441) and must_encrypt selection (:1176-1206).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_rack_ssl_with_dc_compression",
+          "coverage": "partial",
+          "note": "same rack encryption, 2 DCs, compression dc"
+        },
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_dc_ssl",
+          "coverage": "partial",
+          "note": "actually rack encryption too (bug), 2 DCs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test/ coverage for internode_encryption=rack (grep test/ only finds none/transitional/all/dc); overlaps with rack_ssl_with_dc_compression / dc_ssl in this file. Note: only asserts putget succeeds (QUORUM write+read); never checks which connections are actually encrypted/compressed. Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_internode_dc_ssl": {
+      "description": "Intended: putget across 2 DCs x 2 racks x 2 nodes with internode_encryption='dc' and compression 'all'. Actually calls helper with internode_encryption='rack', dcs=2, so it tests rack encryption across 2 DCs.",
+      "origin": {
+        "sha": "084b6dbc35",
+        "date": "2024-06-20",
+        "pr": 4482,
+        "summary": "Benny Halevy: Add test_putget_with_internode_dc_ssl - test internode encryption across DCs"
+      },
+      "commits": {
+        "084b6dbc35": "origin (copy of rack_ssl with dcs=2; encryption left as 'rack')",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live feature; but the 'dc' mode it claims to test is not exercised.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_rack_ssl_with_dc_compression",
+          "coverage": "full",
+          "note": "identical encryption=rack, dcs=2 topology; differs only in compression all vs dc"
+        },
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_ssl_with_dc_compression",
+          "coverage": "partial",
+          "note": "real internode_encryption=dc across 2 DCs"
+        },
+        {
+          "path": "test/cluster/test_replace_with_encryption.py::test_replace_with_encryption",
+          "coverage": "partial",
+          "note": "2 DCs, server_encryption=dc, plus replace"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: passes internode_encryption='rack' (internode_ssl_test.py:41) though name/docstring say 'dc' (since origin 084b6dbc35). As written duplicates test_putget_with_internode_rack_ssl_with_dc_compression (same rack/2-DC setup, only compression differs); intended dc mode already covered by test_putget_with_internode_ssl_with_dc_compression and test/cluster/test_replace_with_encryption.py. Remove (or fix to 'dc' if dc+compression=all combo wanted). Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_internode_ssl_with_dc_compression": {
+      "description": "putget across 2 DCs x 2 racks x 2 nodes with internode_encryption='dc' and internode_compression='dc' (both only for cross-DC traffic). Guards dc-mode plain-port filtering + TLS for remote DC, combined with cross-DC compression.",
+      "origin": {
+        "sha": "7364a8d4b8",
+        "date": "2019-11-29",
+        "pr": 1158,
+        "summary": "Amos Kong: add rack/dc internode_ssl variants"
+      },
+      "commits": {
+        "7364a8d4b8": "origin",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live: encrypt_what::dc filter (message/messaging_service.cc:431-435), compress_what::dc.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_replace_with_encryption.py::test_replace_with_encryption",
+          "coverage": "partial",
+          "note": "2 DCs with server_encryption=dc, replace op; no compression, no data check"
+        },
+        {
+          "path": "test/cluster/test_internode_compression.py::test_internode_compression_between_datacenters",
+          "coverage": "partial",
+          "note": "dc compression verified on wire, but ssl_storage_port=0 (no TLS)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Pieces covered separately (dc encryption by test/cluster/test_replace_with_encryption.py, dc compression by test/cluster/test_internode_compression.py), combination unique. Note: only asserts putget succeeds (QUORUM write+read); never checks which connections are actually encrypted/compressed. Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_internode_rack_ssl_with_dc_compression": {
+      "description": "putget across 2 DCs x 2 racks x 2 nodes with internode_encryption='rack' and internode_compression='dc'. Exercises rack-mode TLS (cross-rack + cross-DC encrypted, same-rack plain) with cross-DC compression.",
+      "origin": {
+        "sha": "7364a8d4b8",
+        "date": "2019-11-29",
+        "pr": 1158,
+        "summary": "Amos Kong: add rack/dc internode_ssl variants"
+      },
+      "commits": {
+        "7364a8d4b8": "origin",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live: encrypt_what::rack, compress_what::dc.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_dc_ssl",
+          "coverage": "full",
+          "note": "due to bug it runs same rack/2-DC config with compression all"
+        },
+        {
+          "path": "scylla-dtest internode_ssl_test.py::TestInternodeSSL::test_putget_with_internode_rack_ssl",
+          "coverage": "partial",
+          "note": "rack encryption, 1 DC"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only scylla-wide coverage of rack encryption across DCs, but test_putget_with_internode_dc_ssl (buggy) runs the same setup; keep one of them. Note: only asserts putget succeeds (QUORUM write+read); never checks which connections are actually encrypted/compressed. Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_putget_with_reloaded_certificates": {
+      "description": "Start 4-node cluster with internode_encryption=all, delete and regenerate keystore/certs in place, wait for each node to log 'messaging_service ... Reloaded internode-ccm_node.pem/.key', then putget. Guards internode TLS certificate hot-reload (scylla PR #6152; seastar#756 / scylladb#6507 fix).",
+      "origin": {
+        "sha": "3dfbe176e2",
+        "date": "2020-04-07",
+        "pr": 1415,
+        "summary": "Calle Wilund: add certificate reloading test; skipped 5bdc762950, re-added via 27f9ccbd0f (PR 1437)"
+      },
+      "commits": {
+        "3dfbe176e2": "origin: reload_certs path in helper",
+        "0c0c637fec": "helper made internode_encryption/dcs configurable",
+        "53e961870d": "helper takes internode_compression",
+        "24ad9f64d8": "file: @require(6507) added (scylladb#6507, CLOSED)",
+        "0fb33c733e": "file: re-enabled after #6507 fixed",
+        "27f9ccbd0f": "file: v2 of reload test, localized wait_for_cert_reload",
+        "3a31930ff7": "file: ignore rpc errors during reload",
+        "f7e59b1062": "file: extend expected messages for reload",
+        "9ffd273f04": "formatting (ruff format, tree-wide)",
+        "3530e8b7d5": "port to pytest (rename *_test -> test_*)",
+        "79e88114c3": "helper: force RBNO for bootstrap/decommission (avoid timeouts with no-RBNO default)",
+        "a7d6f5e6f4": "helper: rack_num=2 so RF (=rack_num) matches racks",
+        "b3d9a72f43": "helper: RF 3->2 for rf-rack-valid keyspaces",
+        "bd293fa236": "helper: topology via generate_cluster_topology (rf-rack-valid)",
+        "e2cc80a945": "helper: TLS ignore_log_patterns moved to common path",
+        "b103c14c83": "helper: start nodes sequentially (no_wait=False) when dcs>1"
+      },
+      "relevance": "Live: messaging_service reloadable credentials log 'Reloaded {}' (message/messaging_service.cc:317).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest native_transport_ssl_test.py::TestNativeTransportSSL::test_reload_certificates",
+          "coverage": "partial",
+          "note": "same mechanism for cql_server (client TLS), not messaging_service"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique internode cert-reload coverage (no scylla test/ hit for messaging_service reload). Note: putget after reload likely reuses existing TLS connections, so new certs' usability isn't proven - only the reload log line. Refs scylladb/scylladb#6507 (CLOSED, decorator already removed). Note: helper ignore_log_patterns 'storage_service -.*fail to update tokens for' / 'fail to update schema_version for' (internode_ssl_test.py:76-77) are dead - messages removed from scylla in 50da142e77 (storage_service: remove unused handle_state_* functions)."
+    },
+    "TestInternodeSSL::test_listen_ports_conf": {
+      "description": "Single node, params internode_encryption in none/all/dc/rack. Restarts node for each storage_port in {0,7003,None} x ssl_storage_port in {0,7004,None} and asserts the 'Starting [Encrypted] Messaging Service on ... port N' log lines and that ports are listening (ss), and no abort/segfault. Expected: none -> plain only; all -> SSL only; dc/rack -> both; None -> default 7000/7001, 0 -> disabled.",
+      "origin": {
+        "sha": "6bbfc5a801",
+        "date": "2020-12-10",
+        "pr": 1811,
+        "summary": "Amos Kong: add two tests for listen ports config"
+      },
+      "commits": {
+        "5cdd41f809": "drop setting internode_compression=all (irrelevant)",
+        "0c33d76c8a": "refactor: param only internode_encryption, loop over all storage/ssl port combos",
+        "6caa9569c3": "lint: noqa PLR0915",
+        "dd3e1a0044": "adjust expectations to current behavior (None = default port), drop require #4211/#7500 skip, parametrize over 4 encryption modes",
+        "9ffd273f04": "formatting",
+        "d7b8cac8db": "parametrize disable_value 0/None, None required scylladb#7500",
+        "3046a15dfc": "expect no plain port with internode_encryption=all",
+        "3530e8b7d5": "port to pytest",
+        "6bbfc5a801": "origin",
+        "910d4f9f19": "file: require mark switched to scylla-dtest#4211 (later removed)",
+        "024af496b5": "file: restart_and_verify_listen_ports join generator (formatting)"
+      },
+      "relevance": "Live: storage_port/ssl_storage_port (db/config.cc:1443, main.cc:1724) and listener logic in message/messaging_service.cc:422-494 including the 'appease dtest' cfg.port==0 special case at :460.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tls.py::test_upgrade_to_ssl",
+          "coverage": "partial",
+          "note": "asserts listen ports for none/transitional/all at default ports only; no dc/rack, no port 0/custom"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of storage/ssl port combos per encryption mode. Bug: initial 'default configuration' check (internode_ssl_test.py:174-175) runs before encryption reaches the node yaml - enable_internode_ssl is called after populate(1) and ccm node.start doesn't re-import config (only set_configuration_options does), so first restart is unencrypted; that's why it expects [7000] even for 'all'. Note: historic skip on scylladb/scylladb#7500 (OPEN) removed in dd3e1a0044."
+    }
+  }
+}
