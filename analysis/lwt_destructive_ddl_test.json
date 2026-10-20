@@ -1,0 +1,192 @@
+{
+  "file": "lwt_destructive_ddl_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestLwtDestructiveDDL::test_drop_table": {
+      "description": "3-node cluster (3 racks), 4 LWT threads (INSERT IF NOT EXISTS / UPDATE IF / DELETE IF EXISTS, also as batches) while 4 threads loop DROP TABLE + CREATE TABLE for 60s. Asserts only that all nodes stay live and no unexpected ERRORs in logs (expected: no_such_column_family, mutation write failures, CAS prune failures). Guards against crashes when paxos/prune hits a dropped table.",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "9f8a4e03ec": "Restored ignore patterns (Can't find a column family, exception during mutation write, mutation_write_failure_exception) next to 'prune: failed' (scylladb#27943).",
+        "ef6df22c65": "Replaced ignore patterns with only 'prune: failed' (scylladb#27849).",
+        "da2b99ec95": "Ignore mutation_write_failure_exception from background CAS prune on dropped table (scylladb#27351).",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "LWT (paxos) is live, also on tablets; tests pass 32/32 (~79s) in next-dtest-tablets and next-dtest-consistent-topology. Recent fixes (Dec 2025-Jan 2026, scylladb#27351/#27849/#27943) show it still exercises paxos prune vs dropped table.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation",
+          "coverage": "partial",
+          "note": "single LWT + table recreate via injection, tablets, dev/debug only; no sustained load"
+        },
+        {
+          "path": "test/cluster/test_strong_consistency_table_load_during_random_schema_changes.py::test_sc_linearizability_with_schema_changes",
+          "coverage": "partial",
+          "note": "DROP+RECREATE under load but for strongly-consistent tables, not paxos LWT"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Live behavior, only partial scylla overlap (test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation), recently found real log-level issues. Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    },
+    "TestLwtDestructiveDDL::test_drop_keyspace": {
+      "description": "Same LWT load while DDL threads loop DROP KEYSPACE ks + CREATE KEYSPACE (RF3) + CREATE TABLE for 60s. Asserts nodes live and no unexpected log ERRORs (ignores missing cf/keyspace, 'Column family test exists' schema races, mutation write failures, prune failures). Guards crash-freedom of paxos when the whole keyspace vanishes.",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "ef6df22c65": "Added 'prune: failed' to ignore patterns (scylladb#27849).",
+        "da2b99ec95": "Added mutation_write_failure_exception to ignore patterns (scylladb#27351).",
+        "4ca6196ffc": "Ignore 'Column family test exists' migration_manager error from concurrent CREATE TABLE.",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "LWT (paxos) is live, also on tablets; tests pass 32/32 (~79s) in next-dtest-tablets and next-dtest-consistent-topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_strong_consistency_table_load_during_random_schema_changes.py::test_sc_linearizability_with_schema_changes",
+          "coverage": "partial",
+          "note": "DROP+RECREATE KEYSPACE under load, SC tables not LWT"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test does LWT load + DROP/CREATE KEYSPACE; live behavior. Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    },
+    "TestLwtDestructiveDDL::test_rename_column": {
+      "description": "LWT load while DDL threads loop ALTER TABLE test RENAME pk TO pk1 / back for 60s; prepared LWT statements become invalid mid-flight. Asserts nodes live and no unexpected log ERRORs.",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "LWT (paxos) is live, also on tablets; tests pass 32/32 (~79s) in next-dtest-tablets and next-dtest-consistent-topology. RENAME of pk columns still supported.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique coverage (no scylla/dtest test renames columns under LWT load). Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    },
+    "TestLwtDestructiveDDL::test_drop_column": {
+      "description": "LWT load while DDL threads loop ALTER TABLE test DROP v / ADD v int for 60s (v used in LWT conditions). Asserts nodes live and no unexpected log ERRORs.",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "LWT (paxos) is live, also on tablets; tests pass 32/32 (~79s) in next-dtest-tablets and next-dtest-consistent-topology.",
+      "duplicates": [
+        {
+          "path": "lwt_schema_modification_test.py::TestLWTSchemaModification::test_table_alter_delete",
+          "coverage": "partial",
+          "note": "DropAddColumn vs LWT deletes, but skipped (issue #6174), as is test_all"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only overlapping dtests (lwt_schema_modification_test test_table_alter_delete/test_all) are skipped; no scylla equivalent. Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    },
+    "TestLwtDestructiveDDL::test_ks_netw_topology_set_nonexistent_dc": {
+      "description": "Intended: LWT load while DDL threads loop ALTER KEYSPACE ks to NTS {'dc2':3} (nonexistent DC) and back to datacenter1:3, tolerating Unavailable. In practice the first ALTER is always rejected, so the DDL never changes anything and the test is just 60s of LWT load.",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "Altering NTS to a nonexistent DC is rejected since scylla b6fb5ee912 (2021-02-09, 'locator: Check DC names in NTS', fixes scylladb#7595); today locator/network_topology_strategy.cc:291 throws 'Unrecognized strategy option {dc2}'. ConfigurationException is a DriverException, swallowed in _ddl_run, revert never runs; tolerate_unavailable is dead.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testAlterKeyspaceWithNTSOnlyAcceptsConfiguredDataCenterNames",
+          "coverage": "full",
+          "note": "rejection of unknown DC in ALTER KEYSPACE"
+        },
+        {
+          "path": "lwt_destructive_ddl_test.py::TestLwtDestructiveDDL (other tests)",
+          "coverage": "full",
+          "note": "same LWT load runs in every sibling test"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario impossible since scylla b6fb5ee912 (scylladb#7595): ALTER to nonexistent DC is rejected (network_topology_strategy.cc:291), error swallowed, so test = plain LWT load already run by sibling tests; rejection covered by cqlpy alter_test.py::testAlterKeyspaceWithNTSOnlyAcceptsConfiguredDataCenterNames. Note: docstring copy-pasted from test_drop_column. Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    },
+    "TestLwtDestructiveDDL::test_revoke_permissions": {
+      "description": "Auth-enabled cluster (permissions_validity_in_ms=1); non-superuser 'jon' runs LWT load while superuser threads loop REVOKE ALL / GRANT ALL ON TABLE test FROM/TO jon for 60s. Unauthorized errors swallowed; asserts nodes live and no unexpected log ERRORs. Guards crashes from permission-cache churn with prepared LWT (cf. scylladb#6164).",
+      "origin": {
+        "sha": "9494be41fc",
+        "date": "2020-03-27",
+        "pr": 1393,
+        "summary": "Pavel Solodovnikov: new file with concurrent LWT load + destructive DDL nemesis tests (6 DDL ops); no scylla issue linked."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "af8a47ebe5": "Port to pytest: class rename, logger, create_ks/wait_for_any_log helpers; no behavior change.",
+        "c3471a97e4": "formatting (autopep8)",
+        "6fde27d9c7": "File-level: added DELETE + single-statement conditional BATCH to LWT workload, removed DDL sleeps, dropped experimental lwt flag.",
+        "937b761690": "File-level: random.choice for LWT stmt, class docstring.",
+        "f4642d80bf": "File-level: class marked next_gating.",
+        "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
+        "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
+        "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380)."
+      },
+      "relevance": "LWT (paxos) is live, also on tablets; tests pass 32/32 (~79s) in next-dtest-tablets and next-dtest-consistent-topology. PasswordAuthenticator/CassandraAuthorizer and permissions cache live. scylladb#6164 (crash with permissions_validity_in_ms=0 + prepared stmts) closed COMPLETED 2026-10-17 (fixed by scylla 918130befd).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_permissions.py",
+          "coverage": "partial",
+          "note": "GRANT/REVOKE semantics, no concurrent LWT load"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique concurrency coverage (auth churn vs LWT). Note: FIXME in prepare() (lwt_destructive_ddl_test.py:51) refs scylladb#6164, now fixed by 918130befd - can set permissions_validity_in_ms=0. Bug: _case_template (lwt_destructive_ddl_test.py:178-191) never checks ThreadPoolExecutor futures, so any worker exception (incl. the deliberate Unavailable re-raise in _lwt_load_run/_ddl_run) is silently dropped; all DriverExceptions are swallowed too, so the only checks are node.is_live() + teardown log scan (crash/ERROR smoke). Note: node_idx=(len(nodes)%(i+1))-1 yields nodes 3,1,3,3 - node2 never coordinates."
+    }
+  }
+}
