@@ -1,0 +1,57 @@
+{
+  "file": "read_repair_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestReadRepair::test_alter_rf_and_run_read_repair": {
+      "description": "3 nodes (dc1: rack1=2, rack2=1), NTS RF=1 keyspace, insert row (1,1,1), flush on the replica found via nodetool getendpoints, check CL ONE read from every coordinator returns full row. ALTER RF to 2 (rack list if RF is auto-expanded) without repair, then SELECT a single column at CL ALL from a non-initial replica to trigger read repair; asserts the result has only the column, then CL ONE reads from every node must return the full row. Guards CASSANDRA-10655 (column-filtered data responses causing empty values in repair mutations), i.e. read repair must repair whole row even for partial-column selects.",
+      "origin": {"sha": "b0e22e9273539606be323a05af0091de43bba0dc", "date": "2015-11-05", "pr": 52, "summary": "Cassandra-dtest commit 'Add read repair test for CASSANDRA-10655' (Sam Tunnicliffe), imported via scylla-dtest PR #52 'Merge upstream'; not Scylla-specific."},
+      "commits": {
+        "8181232c51153aa28761f9bae346d17f0532ceae": "Removed temporary marker-filter comment (no-op).",
+        "7e582d9118795c784e756480cdd3b27f16457382": "Added temporary marker-filter comment (no-op, reverted by 8181232c).",
+        "ff08858f981049dab24130d662e2cf8beb8b07cc": "ALTER to rack list ['rack1','rack2'] when RF is already a rack list (auto-expanded), else numeric 2.",
+        "dc2cab4b2deb5f1ffed86390d7a50fecc9043bc1": "RF-rack-valid: 2 racks [2,1], single ALTER RF 1->2 instead of stepping to 3.",
+        "2e4ee98466b116d995a8613437dd6bc80bfa8f1a": "prepare_cluster(dc, racks) helper with per-node rackdc properties; dc renamed to dc1.",
+        "4d143d9634be03266c14f6db3c41707e287ae099": "Fixture replaced by explicit prepare_cluster() call.",
+        "4f0fa1b68b2ca40e43da9b3a6c63b60cb27cf708": "File-level: class marked next_gating (runs in gating).",
+        "26094d60d5b5c0fb51d211d63ee371bda0e40f2d": "File-level: rackdc file writing replaced by tools.rackdc.update_properties.",
+        "efddbd8f01cae901b820f0d015fe22024c6f0ea7": "Tablets: SimpleStrategy -> NTS, RF increased in single steps, change_schema_safely.",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "ed7d93281b9b4888b921fde981b75a052f468493": "Port to pytest (fixture, asserts).",
+        "1761f6fac2a7104df392a918ef5fdee13ef01173": "formatting (cursor -> session rename, pre-dates this test in history range)",
+        "94f8e34ed67e8c6cad00ca51c69c6ebe352235cf": "File creation (CASSANDRA-9502 test); not this test."
+      },
+      "relevance": "Read repair on digest mismatch is live in scylla (service/storage_proxy.cc 'digest mismatch, starting read repair', read_repair_write_attempts). But with tablets (next-dtest-tablets job) ALTER KEYSPACE RF increase triggers tablet rebuild/streaming to the new replica before the ALTER completes (test/cluster/test_tablets.py::test_singledc_alter_tablets_rf), so the new replica already has the full row and read repair is not exercised; only meaningful in vnodes mode. Only runs in next-* gating jobs (100% pass, 32 runs, ~15s).",
+      "duplicates": [
+        {"path": "test/cluster/test_read_repair.py::test_incremental_read_repair", "coverage": "partial", "note": "Read repair at CL ALL with replica missing data, verifies rows on both nodes afterwards; no partial-column select / RF change."},
+        {"path": "test/cluster/test_read_repair.py::test_read_repair_with_trace_logging", "coverage": "partial", "note": "Missing writes on one replica (injection), CL ALL read triggers read repair (trace check)."}
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test/cluster/test_read_repair.py; the specific angle (partial-column select repairs whole row, CASSANDRA-10655) is not covered there, but under tablets the ALTER RF rebuild streams data so read repair is never exercised — evidence for vnodes-only value is thin. Note: unused var num_nodes (read_repair_test.py:37); identify_initial_placement ignores its keyspace/table/key args and hardcodes 'getendpoints alter_rf_test t1 1' (read_repair_test.py:91-93); CL ALL assertion only checks the selected column."
+    },
+    "TestReadRepair::test_range_slice_query_with_tombstones": {
+      "description": "3 nodes, NTS RF=2, insert 2499 rows, flush, restart cluster, delete keys 1..999, flush node1, then traced 'SELECT * LIMIT 100' at LOCAL_QUORUM. Asserts no trace event contains 'Appending to commitlog', 'Adding to cf memtable' or 'Acquiring switchLock read lock', i.e. range scans over tombstones must not trigger unnecessary read-repair writes (CASSANDRA-8989 / CASSANDRA-9502).",
+      "origin": {"sha": "94f8e34ed67e8c6cad00ca51c69c6ebe352235cf", "date": "2015-05-28", "pr": null, "summary": "Cassandra-dtest commit 'dtest for 9502' (Robert Stupp), imported into scylla-dtest via PR #52 'Merge upstream'."},
+      "commits": {
+        "dc2cab4b2deb5f1ffed86390d7a50fecc9043bc1": "RF-rack-valid: cluster layout [3] -> [2,1].",
+        "2e4ee98466b116d995a8613437dd6bc80bfa8f1a": "Uses prepare_cluster('dc1', [3]); keyspace DC renamed datacenter1 -> dc1.",
+        "4d143d9634be03266c14f6db3c41707e287ae099": "Fixture replaced by explicit prepare_cluster() call.",
+        "4f0fa1b68b2ca40e43da9b3a6c63b60cb27cf708": "File-level: class marked next_gating.",
+        "26094d60d5b5c0fb51d211d63ee371bda0e40f2d": "File-level: rackdc file writing replaced by update_properties.",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "b68206e19952d7ffc309e43d0b9eb8adaa5acbc6": "formatting (rename builtin-shadowing var str -> some_string)",
+        "ed7d93281b9b4888b921fde981b75a052f468493": "Port to pytest.",
+        "b0e22e9273539606be323a05af0091de43bba0dc": "Shared setup moved into fixture when adding CASSANDRA-10655 test.",
+        "2bed89563aa08da3769a17e3d8ebc851f5425882": "Added cluster.flush() before restart.",
+        "1761f6fac2a7104df392a918ef5fdee13ef01173": "formatting (cursor -> session)",
+        "94f8e34ed67e8c6cad00ca51c69c6ebe352235cf": "Origin: test added."
+      },
+      "relevance": "The three asserted strings are Cassandra trace messages; none exist anywhere in scylla source (grep of *.cc/*.hh at 814c05a00f finds no 'Appending to commitlog', 'Adding to ... memtable', 'switchLock'). Scylla's read-repair trace events are e.g. 'digest mismatch, starting read repair' and 'Creating write handler for read repair token' (service/storage_proxy.cc:3921). So the assertions can never fail on scylla.",
+      "duplicates": [
+        {"path": "test/cluster/test_read_repair.py::test_incremental_read_repair", "coverage": "partial", "note": "Read repair over row/partition tombstones with paging; checks diff_found vs digest mismatch counters."}
+      ],
+      "decision": "RED",
+      "reason": "Tests Cassandra-only behavior: asserts absence of Cassandra trace strings that scylla never emits (no match in scylla source), so the test is vacuous and always passes while costing ~31s in gating. Bug: no-op asserts at read_repair_test.py:157-159; time.sleep(1) x2 instead of waits."
+    }
+  }
+}
