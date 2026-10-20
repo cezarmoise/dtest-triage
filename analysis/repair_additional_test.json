@@ -1,0 +1,1679 @@
+{
+  "file": "repair_additional_test.py",
+  "tests": {
+    "TestRepairAdditional::test_no_streaming_on_second_repair": {
+      "description": "Runs _repair_disjoint_row_3nodes_test (each of 3 RF=3 replicas gets 1000 distinct keys, repair from node3, check tx=4000/rx=2000 rows from 'stats: repair_reason=repair' log lines, all nodes have 3000 rows), then restarts all nodes and repairs node3 again. Asserts the summed tx/rx row counts in the log did not grow, i.e. the second repair synced nothing. Guards row-level repair not re-sending already-synced data. vnodes only.",
+      "origin": {
+        "sha": "04346c497c60d86e70aebd38103438f29ed5e70d",
+        "date": "2023-01-04",
+        "pr": 2961,
+        "summary": "Added test: second repair after a syncing repair must not stream additional rows."
+      },
+      "commits": {
+        "36a75a3da5": "re-land of nodetool cluster repair change (PR 5925): node.repair(keyspace=...); added skip_if(tablets)",
+        "d0e55d7e63": "revert of 44ed3fa059 (PR 5911)",
+        "44ed3fa059": "use nodetool cluster repair (PR 5801): self._repair(node, opts) -> node.repair(keyspace=...)",
+        "9ffd273f04": "formatting (ruff format)",
+        "04346c497c": "origin"
+      },
+      "relevance": "Live: row-level repair for vnode keyspaces, 'stats: repair_reason=repair ... tx_row_nr/rx_row_nr' log line still emitted (repair/repair.cc:830). Skipped with tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_test.py::TestRepair::test_two_consecutive_repair",
+          "coverage": "full",
+          "note": "vnodes; first repair fixes missing rows, second repair asserts scylla_repair_tx_row_bytes == 0 (no streaming)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "full",
+          "note": "Identical first phase (same helper _repair_disjoint_row_3nodes_test)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~86s) and redundant: phase 1 is exactly test_repair_disjoint_row_3nodes, phase 2 (second repair streams nothing) is covered by repair_test.py::test_two_consecutive_repair (both vnode-only). Note: relies on self.expected_tx_row_nr set as side effect in helper (repair_additional_test.py:2303)."
+    },
+    "TestRepairAdditional::test_postpone_reshape_sstables_created_by_repair": {
+      "description": "2-node RF=2 cluster, 10000 rows; delete node1 sstables, restart node1, repair from node2 (checks repair/off-strategy updater log lines), restart node1 and assert 'Starting off-strategy compaction for ks.cf' and a 'Reshape ks.cf' compaction appear on boot, then row count 10000 at QUORUM. Guards scylla b6828e899a (reshape of repair-created sstables postponed to off-strategy so boot is not blocked).",
+      "origin": {
+        "sha": "9fdbe770dc9d2c736e2ce62669ce4e262c467e8a",
+        "date": "2022-04-26",
+        "pr": 2704,
+        "summary": "Off-strategy tests for scylla b6828e899a: reshape of repair-created sstables via off-strategy during boot."
+      },
+      "commits": {
+        "36a75a3da5": "re-land of nodetool cluster repair change (PR 5925): node.repair(keyspace=...); added skip_if(tablets)",
+        "d0e55d7e63": "revert of 44ed3fa059 (PR 5911)",
+        "44ed3fa059": "use nodetool cluster repair (PR 5801): self._repair(node, opts) -> node.repair(keyspace=...)",
+        "c7fca1b0c2": "with tablets assert reshape is NOT started (whole range repaired in one job)",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "9fdbe770dc": "origin"
+      },
+      "relevance": "Live for vnodes: off-strategy log 'Starting off-strategy compaction for' (compaction/compaction_manager.cc:1806) and repair off-strategy updater logs (repair/repair.cc:1585). Tablets: not applicable (test skipped).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::test_offstrategy_sstable_compaction",
+          "coverage": "partial",
+          "note": "Unit-level off-strategy compaction of sstables added with offstrategy::yes; no repair/restart flow."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique end-to-end coverage of repair->restart->off-strategy reshape, but vnode-only. Bug: tablets branch at repair_additional_test.py:3147-3150 (from c7fca1b0c2) is dead since 36a75a3da5 added skip_if(tablets)."
+    },
+    "TestRepairAdditional::test_repair_abort": {
+      "description": "3 nodes RF=3, 3000 distinct keys written to each node alone; starts nodetool repair on node3 in a thread, waits for 'Repair 5 out of|Started to repair 1 out of' log, POSTs /storage_service/force_terminate_repair, waits for the repair thread (exceptions swallowed), then counts rows per node and asserts count <= 9000. Intended to check repair abort stops streaming and leaves some keys unsynced.",
+      "origin": {
+        "sha": "20517bacf9773e8c5c48addd4abf744999c57e8d",
+        "date": "2017-12-25",
+        "pr": 558,
+        "summary": "introduce repair_abort_test: abort repair mid-way, verify streaming stops."
+      },
+      "commits": {
+        "36a75a3da5": "re-land of nodetool cluster repair change (PR 5925): node.repair(keyspace=...) (repair_thread signature); added skip_if(tablets)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "1ff606e3dc": "added to next-gating",
+        "20517bacf9": "origin"
+      },
+      "relevance": "force_terminate_repair still exists (api/storage_service.cc:353, api-doc storage_service.json:1636); 'Started to repair {} out of {} tables' log at repair/repair.cc:1252. vnodes only (skipped with tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/tasks/test_tablet_tasks.py::check_and_abort_repair_task",
+          "coverage": "partial",
+          "note": "Aborting tablet repair via task manager; not vnode force_terminate_repair."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only dtest/scylla test hitting force_terminate_repair, but assertions are vacuous: 'len(result) <= keys_unit*3' (repair_additional_test.py:2058, called at :2093) can never fail since only 9000 keys exist; repair_thread swallows exceptions (:2063-2070), so it only checks abort doesn't hang. ~122s. Bug: no-op assert; 'Before Repair' check asserts nothing."
+    },
+    "TestRepairAdditional::test_repair_cell_delete": {
+      "description": "2 nodes RF=2 (2 racks), one row inserted at CL=ALL; with node2 down delete cell c1 on node1; verify node1 sees c1=null and node2 alone still sees 'hello'; repair from node2 and verify node2 alone now has c1=null. Guards repair propagating a cell tombstone (scylla issue #121, 2016).",
+      "origin": {
+        "sha": "0eb6777994bf6e3febb21745bfa9631d6f08faf8",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "repair_cell_delete_test: repair propagates a deleted cell (Fixes #121)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase (_repair_cell_delete_test) for reuse",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace='ks') (cluster repair with tablets)",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: basic repair of cell tombstones, runs on vnodes and tablets (32 runs, 100%, ~24s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
+          "coverage": "partial",
+          "note": "Repair propagates a row tombstone (debug/dev only, error injections); not a cell tombstone."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_row_delete",
+          "coverage": "partial",
+          "note": "Same structure with row deletion."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheap, runs on vnodes+tablets, no other test checks repair of a cell-level tombstone; scylla tests only cover row tombstones in debug mode."
+    },
+    "TestRepairAdditional::test_repair_cell_update": {
+      "description": "2 nodes RF=2, one row inserted at CL=ALL; with node2 down overwrite c1,c2 on node1; verify node2 alone still has old values; repair from node2 and verify node2 alone has new values. Guards repair syncing an updated cell (scylla issue #119, 2016).",
+      "origin": {
+        "sha": "36fe383af6a8318b7c56e70fdf721ac223ffb01a",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "repair_cell_update_test: repair fixes a cell updated on the other node (Fixes #119)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase (_repair_cell_update_test) for reuse",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace='ks') (cluster repair with tablets)",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: basic repair, runs on vnodes and tablets (32 runs, 100%, ~23s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_repair_timtestamp_difference",
+          "coverage": "partial",
+          "note": "Same cell written with different timestamps on 2 nodes, repair makes both have newest; debug/dev only (error injection)."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows_merge_fragments_nr",
+          "coverage": "partial",
+          "note": "Tablets: rows overwritten with different values across replicas, repair converges to newest (debug/dev only)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test/cluster/test_repair.py::test_repair_timtestamp_difference and tablet repair merge tests, which only run in debug/dev; this one is cheap and runs in release. Keep-or-drop is a judgement call."
+    },
+    "TestRepairAdditional::test_repair_compacts_data": {
+      "description": "2 nodes RF=2, NullCompactionStrategy table; with node2 down write 10 rows then a partition tombstone covering them on node1 (separate flushes). Repair from node1 and assert scylla tx_row_nr metric grew by <=1 (only the tombstone sent, i.e. repair compacts data). Then disable enable_compacting_data_for_streaming_and_repair via system.config, repeat with another partition, assert tx grew by <=21. Guards scylla PR #14756 (compact data before streaming/repair).",
+      "origin": {
+        "sha": "03ba45306b20ac83462944f56515ddbe4aa26701",
+        "date": "2023-07-21",
+        "pr": 3321,
+        "summary": "Test that repair compacts its data and doesn't send dead rows; and doesn't compact when disabled (scylla PR 14756)."
+      },
+      "commits": {
+        "2ae0479db1": "RF-rack-valid topology (2 racks)",
+        "36a75a3da5": "re-land of nodetool cluster repair change (PR 5925): node.repair(keyspace=...) (node1.repair(keyspace, tables))",
+        "d0e55d7e63": "revert of 44ed3fa059 (PR 5911)",
+        "44ed3fa059": "use nodetool cluster repair (PR 5801): self._repair(node, opts) -> node.repair(keyspace=...)",
+        "87e1106448": "fix expected tx after disabling compaction: 10 -> 21 (2x10 rows + tombstone); test passed before only due to broken live-update",
+        "6054398b58": "disable hinted handoff (flaky, scylla#15719)",
+        "9ffd273f04": "formatting (ruff format)",
+        "03ba45306b": "origin"
+      },
+      "relevance": "Live: enable_compacting_data_for_streaming_and_repair config, repair row metrics tx_row_nr; runs on vnodes and tablets (32 runs, 100%, ~22s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_enable_compacting_data_for_streaming_and_repair_live_update",
+          "coverage": "partial",
+          "note": "Checks the config is live-updatable and reaches maybe_compact_for_streaming (injection params); doesn't measure rows sent. debug/dev only."
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
+          "coverage": "partial",
+          "note": "Compaction during repair with tombstone GC; debug/dev only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test asserting the effect (fewer rows sent) of repair compaction, and runs in release; scylla tests cover config plumbing only. Bug: verify_repair_tx_rx_rows (repair_additional_test.py:177-188) checks only tx <= expected and tx > 0 on cumulative counter, so the disabled-compaction phase (:3194-3205) can't detect that rows were not sent (any tx in (0, base+21] passes; see 87e1106448 where it passed wrongly)."
+    },
+    "TestRepairAdditional::test_repair_disjoint_row_2nodes": {
+      "description": "2 nodes RF=2 (2 racks); 1000 distinct keys written to each node while the other is down; repair from node2; on vnodes assert exactly tx=1000/rx=1000 rows from 'stats: repair_reason=repair' log; check both nodes (alone) have 2000 rows. Row-level repair correctness for bidirectional differences.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Add tests for row level repair (missing/deleted/disjoint/joint rows, same and different shard counts)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "1ff606e3dc": "added to next-gating",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: row-level repair; runs on vnodes and tablets (tablets: row counts only).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Same scenario with 3 nodes RF=3, also exact tx/rx check."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows",
+          "coverage": "partial",
+          "note": "Tablets: one replica missing rows, repair, verify that replica has all rows (one direction only)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Largely subsumed by test_repair_disjoint_row_3nodes (same helper style, RF=3, exact tx/rx counts); RF=2 variant adds little. Cheap (~33s)."
+    },
+    "TestRepairAdditional::test_repair_disjoint_row_2nodes_diff_shard_count": {
+      "description": "Same as test_repair_disjoint_row_2nodes but node1 smp=2, node2 smp=3, exercising row-level repair between nodes with different shard counts (sharding differs between master and follower).",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Add tests for row level repair (incl. diff shard count variants)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "47efc21a9e": "marked dtest-heavy",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: row-level repair handles different shard counts (repair/row_level.cc:81, :1236). Runs on vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Same scenario, 3 nodes with smp 2/2/3."
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between nodes with smp 2 vs 3, vnodes and tablets (#27666); 2 nodes, no tx/rx check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant: test_repair_disjoint_row_3nodes_diff_shard_count covers the same mixed-shard path (RF=3, exact tx/rx) and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count covers 2-node smp 2 vs 3 repair."
+    },
+    "TestRepairAdditional::test_repair_disjoint_row_3nodes": {
+      "description": "3 nodes RF=3 (3 racks); 1000 distinct keys written to each node while the other two are down; repair from node3; on vnodes assert exactly tx=4000/rx=2000 rows from 'stats: repair_reason=repair' log; check each node (alone) has 3000 rows. Row-level repair correctness and exact data-transfer accounting for multi-way differences.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Add tests for row level repair (missing/deleted/disjoint/joint rows)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "04346c497c": "file-level: helper stores expected_tx/rx_row_nr on self for test_no_streaming_on_second_repair",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)"
+      },
+      "relevance": "Live: row-level repair; runs on vnodes and tablets (tablets: row counts only).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_option_seq",
+          "coverage": "partial",
+          "note": "Same disjoint-data scenario via _repair_disjoint_data_test, vnodes only, no tx/rx check."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows",
+          "coverage": "partial",
+          "note": "Tablets: one replica missing rows, one direction only."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique exact tx/rx row accounting for row-level repair (vnodes) plus multi-way sync on tablets; cheap (~61s). Overlapping tests are weaker subsets."
+    },
+    "TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count": {
+      "description": "Same as test_repair_disjoint_row_3nodes but with smp 2/2/3, exercising row-level repair when master and followers have different shard counts; exact tx/rx check on vnodes, row counts on all nodes.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Add tests for row level repair (incl. diff shard count variants)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "47efc21a9e": "marked dtest-heavy",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)"
+      },
+      "relevance": "Live: row-level repair with different sharding between nodes (repair/row_level.cc:81, :1236). Runs on vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between nodes with smp 2 vs 3, vnodes and tablets (#27666); 2 nodes, no tx/rx check."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Keep as the representative diff_shard_count variant: only test with exact tx/rx row counts across smp 2/2/3; scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count covers only 2-node smp 2 vs 3 without tx/rx. ~69s, 100% pass."
+    },
+    "TestRepairAdditional::test_repair_kill_1": {
+      "description": "2 nodes RF=2, 1000 keys written only on node1 and 1000 only on node2; nodetool repair on node1 in a thread (NodetoolError swallowed), wait for 'starting user-requested repair', sleep 0-0.5s, gracefully stop node1 (master). Asserts node2 (exclusive conn) returns between 1000 and 2000 rows, then restarts node1. Guards that killing the repair master doesn't break the follower (dtest #124).",
+      "origin": {
+        "sha": "3e83ef52f1",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Nadav: test killing of repair master node (fixes dtest #124); pre-GitHub-PR."
+      },
+      "commits": {
+        "36a75a3da5": "skip_if(tablets) added; node1.repair(keyspace='ks') instead of list args (nodetool cluster repair change, PR 5925)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved body into RepairAdditionalBase._repair_kill_*_test (mgmt reuse)",
+        "1ff606e3dc": "added to next-gating",
+        "e13f5e85ba": "file-level: run repair kill tests once instead of 5x (24 min runtime)"
+      },
+      "relevance": "Live for vnode keyspaces: 'starting user-requested repair' log at repair/repair.cc:1337; vnodes only (skip_if tablets).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_shutdown_during_repair_master_write",
+          "coverage": "partial",
+          "note": "Graceful stop of repair master mid-repair (deterministic via repair_finish_wait injection), tablets, asserts repair finishes + data; debug/dev only."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_kill_3",
+          "coverage": "partial",
+          "note": "Same setup/action (stop master right after repair start)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Assertion near-vacuous: node2 always holds its own 1000 keys and only 2000 exist, so 1000<=count<=2000 (repair_additional_test.py:1573) only fails on data loss; with 1000 tiny keys repair may finish before the 0-0.5s stop, so 'mid-repair' is not guaranteed. Real value = teardown crash/error log check. Note: NodetoolError swallowed (:1550)."
+    },
+    "TestRepairAdditional::test_repair_kill_2": {
+      "description": "Same as test_repair_kill_1 but stops the participant node2 instead of the master; asserts node1 returns 1000-2000 rows. Docstring claims repair 'stops with an error', but the NodetoolError is swallowed so this is never asserted. Guards master handling a dying follower (dtest #125).",
+      "origin": {
+        "sha": "428af5c301",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Nadav: kill repair participant; 82602f89ab made it pass by ignoring expected RPC ERROR logs."
+      },
+      "commits": {
+        "36a75a3da5": "skip_if(tablets) added; node1.repair(keyspace='ks') instead of list args (nodetool cluster repair change, PR 5925)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved body into RepairAdditionalBase._repair_kill_*_test (mgmt reuse)",
+        "82602f89ab": "file-level: ignore expected ERROR logs from RPC failures (fixes #125)",
+        "e13f5e85ba": "file-level: run repair once instead of 5x"
+      },
+      "relevance": "Live for vnode keyspaces (repair/repair.cc:1337); vnodes only.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Only test stopping a repair follower mid-repair, but: repair error not asserted (NodetoolError swallowed, repair_additional_test.py:1550, contrary to docstring), count check 1000-2000 near-vacuous (:1573), and with 1000 keys repair may already be done before the stop. Effectively only checks no crash/hang."
+    },
+    "TestRepairAdditional::test_repair_kill_3": {
+      "description": "2 nodes RF=2 with disjoint 1000-key sets; repair on node1 in a thread, stop node1 immediately after 'starting user-requested repair', then assert node1 log has no 'Assertion .* failed.'. Reproducer for scylla #699 (assertion on local_is_initialized() when shutting down during repair, 2016).",
+      "origin": {
+        "sha": "26de7b72a3",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Nadav: check graceful shutdown of repairing node (scylla #699 reproducer)."
+      },
+      "commits": {
+        "36a75a3da5": "skip_if(tablets) added; node1.repair(keyspace='ks') instead of list args (nodetool cluster repair change, PR 5925)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved body into RepairAdditionalBase._repair_kill_*_test (mgmt reuse)"
+      },
+      "relevance": "Repair master shutdown path still live for vnodes; #699 fixed in 2016.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_kill_1",
+          "coverage": "full",
+          "note": "Identical setup and master stop (with 0-0.5s random sleep incl. ~0); its teardown runs the same check."
+        },
+        {
+          "path": "scylla-dtest dtest_setup.py::check_errors_all_nodes",
+          "coverage": "full",
+          "note": "Teardown already fails on r'Assertion.*failed|Aborting on shard' for every test."
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_shutdown_during_repair_master_write",
+          "coverage": "partial",
+          "note": "Graceful stop of repair master mid-repair (deterministic via repair_finish_wait injection), tablets, asserts repair finishes + data; debug/dev only."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: same scenario as test_repair_kill_1 (repair_additional_test.py:1518 vs :1589), and its only assertion (grep 'Assertion .* failed.', :1635) is already done by the teardown critical-error check (dtest_setup.py check_errors_all_nodes, pattern 'Assertion.*failed'). Scylla test_shutdown_during_repair_master_write covers master shutdown deterministically."
+    },
+    "TestRepairAdditional::test_repair_during_update": {
+      "description": "2 nodes RF=2 (2 racks), 10000 keys only on node1 and 10000 only on node2 (1000 in debug); nodetool repair on node1 in background while inserting batches of 1000 keys (1 in debug) at CL=TWO until repair finishes; then each node alone must have all keys. Guards repair correctness with concurrent writes (dtest #126; flaky earlier due to scylla #4394).",
+      "origin": {
+        "sha": "b7ea11a15c",
+        "date": "2016-01-20",
+        "pr": null,
+        "summary": "Nadav: test repair in parallel with adding data (fixes dtest #126)."
+      },
+      "commits": {
+        "36a75a3da5": "re-land: node1.repair(keyspace='ks')",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "node1.repair(keyspace='ks') instead of list args (reverted, re-landed in 36a75a3da5)",
+        "c35eab0e6f": "removed more_options=None mutable default (ruff B006)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "1ff606e3dc": "re-added to next-gating after scylla #4394 fix",
+        "1992917584": "removed from next-gating, flaky due to scylla #4394",
+        "d4781470ff": "added to next-gating",
+        "98a2360a18": "moved body into RepairAdditionalBase",
+        "b7962720d8": "file-level: fewer keys in debug mode (timeouts)",
+        "a7861dbf82": "file-level: insert 1 key per iteration in debug (was 309000 keys during repair)",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: user repair with concurrent writes; runs on vnodes and tablets (32 runs, 100% pass, ~40s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_two_tablets_concurrent_repair_and_migration_repair_writer_level",
+          "coverage": "partial",
+          "note": "Concurrency of repair with migration, not with client writes."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique concurrent-write + repair end-to-end check, cheap, but weak: concurrent writes use CL=TWO so they never need repair, and if repair ends before the loop's first check no writes overlap (only logged, :1694). Note: NodetoolError swallowed in do_repair (:1677), so repair failure isn't reported directly (data check partly compensates)."
+    },
+    "TestRepairAdditional::test_repair_ignore_nodes": {
+      "description": "3 nodes RF=3 (3 racks), HH off; node2 down while 1000 keys written at CL=TWO; node2 up, node3 down; REST repair_async on node2 with ignore_nodes=node3, wait SUCCESSFUL; read on node2 at CL=ONE expects 1000 rows. Guards the repair ignore_nodes option (scylla PR 8233): repair succeeds with a dead node ignored.",
+      "origin": {
+        "sha": "c3248ca9d6",
+        "date": "2021-07-08",
+        "pr": 2224,
+        "summary": "Added repair ignore_nodes param tests for scylladb PR 8233 (data JSON's PR 2359 is the pytest port, wrong)."
+      },
+      "commits": {
+        "ab99447454": "skip_if(tablets): repair_async refuses tablet keyspaces since scylladb PR 24678",
+        "c3248ca9d6": "origin (dtest PR 2224, cherry-pick of 3f376f3ca6)",
+        "b866c65bce": "file-level: REST calls use node.api_port (affects run_rest_api used by _run_repair_api)"
+      },
+      "relevance": "Live for vnode keyspaces: ignore_nodes parsed at repair/repair.cc:1062/1118, applied in get_neighbors (:421). vnodes only (repair_async rejects tablets).",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Only test of repair ignore_nodes (no scylla test; ignore_nodes in test/cluster is removenode/replace only). Bug: final check reads at CL=ONE via non-exclusive patient_cql_connection while node1 (which has all data) is still up (repair_additional_test.py:2966-2968), so it can pass without node2 being repaired; test_repair_ignore_nodes_errors does this properly (stops node1 first)."
+    },
+    "TestRepairAdditional::test_repair_ignore_nodes_errors": {
+      "description": "3 nodes RF=3; node2 down while 1000 keys written at CL=TWO; node3 down, node2 up; repair_async on node2 with ignore_nodes=[node1,node3] (no peers -> short-circuit), stop node1, assert node2 alone has 0 rows; then node1 up, repair ignoring only node3, stop node1, assert node2 alone has 1000 rows. Despite the name, no error is asserted; it checks ignore_nodes really excludes peers and that a later repair syncs.",
+      "origin": {
+        "sha": "c3248ca9d6",
+        "date": "2021-07-08",
+        "pr": 2224,
+        "summary": "Added repair ignore_nodes param tests for scylladb PR 8233."
+      },
+      "commits": {
+        "ab99447454": "skip_if(tablets): repair_async refuses tablet keyspaces since scylladb PR 24678",
+        "c3248ca9d6": "origin (dtest PR 2224, cherry-pick of 3f376f3ca6)",
+        "b866c65bce": "file-level: REST calls use node.api_port (affects run_rest_api used by _run_repair_api)"
+      },
+      "relevance": "Live for vnode keyspaces (repair/repair.cc:421, :1062); vnodes only.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_ignore_nodes",
+          "coverage": "partial",
+          "note": "Same option, weaker check."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique coverage of repair ignore_nodes semantics (no scylla test of this option for repair); reads only from node2 with peers down, so both assertions are meaningful. ~37s, 100% pass. Superset of test_repair_ignore_nodes."
+    },
+    "TestRepairAdditional::test_repair_joint_row_3nodes_1": {
+      "description": "3 nodes RF=3 (3 racks); keys 10-15 only on node1, 25-30 only on node2, 20-25 on node2+3, 15-20 on node1+3 (identical writes); repair from node3; on vnodes asserts exact tx=20/rx=10 rows from 'stats: repair_reason=repair' logs; each node alone must have 20 rows. Checks row-level repair transfers only differing rows when replicas partially overlap with identical data.",
+      "origin": {
+        "sha": "d35c44db6c",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias: tests for row level repair (missing/deleted/disjoint/joint rows, diff shard count)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace='ks'); tx/rx check skipped with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)",
+        "1ff606e3dc": "added to next-gating"
+      },
+      "relevance": "Live: row-level repair hash-based diff; runs on vnodes (tx/rx) and tablets (row counts only).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Same 3-node row-level repair with exact tx/rx, but no overlapping rows."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows",
+          "coverage": "partial",
+          "note": "Tablets, one replica missing rows."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique exact tx/rx accounting for partially overlapping identical rows (proves identical rows aren't re-sent); no scylla test checks tx/rx row counts. ~49s, 100% pass."
+    },
+    "TestRepairAdditional::test_repair_joint_row_3nodes_2": {
+      "description": "3 nodes RF=3; keys 10-20 only on node1, 20-30 only on node2, 15-25 only on node3, each written separately at CL=ONE so overlapping keys differ by write timestamp (insert_c1c2 writes the same values); repair from node3; vnodes: exact tx=40/rx=20; each node alone has 20 rows. Checks row-level repair re-syncs rows whose hashes differ.",
+      "origin": {
+        "sha": "d35c44db6c",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias: tests for row level repair."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace='ks'); tx/rx check skipped with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)",
+        "1ff606e3dc": "added to next-gating"
+      },
+      "relevance": "Live: row-level repair; vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Same 3-node row-level repair with exact tx/rx, but no overlapping rows."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_same_row_diff_value_3nodes",
+          "coverage": "partial",
+          "note": "Same-key different-value rows, vnodes only."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique exact tx/rx check for overlapping rows with differing hashes (complements _1 which has identical overlaps); ~50s, 100% pass. Docstring 'diff value' really means diff timestamp (insert_c1c2 constant values, tools/data.py:27)."
+    },
+    "TestRepairAdditional::test_repair_joint_row_3nodes_1_diff_shard_count": {
+      "description": "Same as test_repair_joint_row_3nodes_1 but with smp 2/2/3 (node3 = master has 3 shards), exercising row-level repair between nodes with different shard counts; vnodes: exact tx=20/rx=10; row counts on all nodes.",
+      "origin": {
+        "sha": "d35c44db6c",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias: tests for row level repair incl. diff shard count variants."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace='ks'); tx/rx check skipped with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)",
+        "47efc21a9e": "marked dtest-heavy"
+      },
+      "relevance": "Live: different-sharding repair path (multishard writer, repair/row_level.cc). vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_joint_row_3nodes_1",
+          "coverage": "partial",
+          "note": "Same data scenario, equal smp."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Same smp 2/2/3 3-node repair with exact tx/rx (one of 6 diff_shard_count variants)."
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between nodes with smp 2 vs 3, vnodes and tablets (#27666); 2 nodes, disjoint data, no tx/rx."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Diff-shard path is covered by 5 sibling dtest diff_shard_count variants (same smp 2/2/3 setup) and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count (vnodes+tablets); overlap pattern adds little over the base test. Cheap (~52s), 100% pass; candidate to keep only one or two diff_shard_count variants."
+    },
+    "TestRepairAdditional::test_repair_joint_row_3nodes_2_diff_shard_count": {
+      "description": "Same as test_repair_joint_row_3nodes_2 but with smp 2/2/3 (node3 = master has 3 shards), exercising row-level repair between nodes with different shard counts; vnodes: exact tx=40/rx=20; row counts on all nodes.",
+      "origin": {
+        "sha": "d35c44db6c",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias: tests for row level repair incl. diff shard count variants."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node3.repair(keyspace='ks'); tx/rx check skipped with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)",
+        "47efc21a9e": "marked dtest-heavy"
+      },
+      "relevance": "Live: different-sharding repair path (multishard writer, repair/row_level.cc). vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_joint_row_3nodes_2",
+          "coverage": "partial",
+          "note": "Same data scenario, equal smp."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Same smp 2/2/3 3-node repair with exact tx/rx (one of 6 diff_shard_count variants)."
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between nodes with smp 2 vs 3, vnodes and tablets (#27666); 2 nodes, disjoint data, no tx/rx."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Diff-shard path is covered by 5 sibling dtest diff_shard_count variants (same smp 2/2/3 setup) and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count (vnodes+tablets); overlap pattern adds little over the base test. Cheap (~52s), 100% pass; candidate to keep only one or two diff_shard_count variants."
+    },
+    "TestRepairAdditional::test_repair_large_partition_new_rows": {
+      "description": "3 nodes RF=3 (3 racks); table with 50 int columns + list/set/map, prefilled with 100 partitions x 20 rows plus one 10000-row partition. node2 stopped, 50 rows inserted in 50 new partitions via node1, node2 restarted and repaired. Asserts node2's scylla_repair rx_row_nr <= 50 (and > 0), tx_row_nr <= 0 via Prometheus metrics, and that node1 and node2 (each alone) have 12050 rows.",
+      "origin": {
+        "sha": "4d401110d56e802b9aeacccf3ccbc6b9f8f0c8af",
+        "date": "2019-08-06",
+        "pr": 1074,
+        "summary": "Yaron Gilor: added 2 row-level-repair tests repair_large_partition_new_rows/existing_rows (data JSON's earliest commit c3248ca9d6 is a line-range artifact)."
+      },
+      "commits": {
+        "36a75a3da5": "repair via node.repair(keyspace=...) (cluster repair with tablets)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "c71950aacb": "moved test from RepairAdditionalBase into TestRepairAdditional",
+        "c3248ca9d6": "no change to this test (ignore_nodes tests appended after it)",
+        "2ae0479db1": "file-level: create_cluster_and_keyspace uses RF-rack-valid layout (3 racks)"
+      },
+      "relevance": "Live: row-level repair and scylla_repair_{tx,rx}_row_nr metrics (repair/row_level.cc). Runs on vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_one_missing_row",
+          "coverage": "partial",
+          "note": "Rows missing on one replica, repair from it, exact tx/rx check (vnodes); narrow table."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows",
+          "coverage": "partial",
+          "note": "Tablets: one replica misses 10000 rows, repair, verify; debug/dev only (error injection)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scenario (rows missing on one replica, repair it) is covered by test_repair_one_missing_row with exact counts. Note: the 50 new rows go into 50 new partitions (pk=big_partition+i, repair_additional_test.py:2869-2874), so the large partition is never touched by the diff. Note: verify_repair_tx_rx_rows (:177-188) only asserts <= expected and > 0."
+    },
+    "TestRepairAdditional::test_repair_large_partition_existing_rows": {
+      "description": "Same 3-node RF=3 setup with 100x20 rows + a 10000-row partition (wide table with collections). node2 stopped, 50 random cell updates/NULL-deletes on small partitions and 50 on the big partition via node1, node2 restarted and repaired. Asserts node2 rx_row_nr <= 100 (> 0) and tx_row_nr <= 200 (> 0) from metrics, and row counts (12000) on node1 and node2.",
+      "origin": {
+        "sha": "4d401110d56e802b9aeacccf3ccbc6b9f8f0c8af",
+        "date": "2019-08-06",
+        "pr": 1074,
+        "summary": "Yaron Gilor: added 2 row-level-repair tests for large partitions."
+      },
+      "commits": {
+        "36a75a3da5": "repair via node.repair(keyspace=...) (cluster repair with tablets)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "c71950aacb": "moved test from RepairAdditionalBase into TestRepairAdditional",
+        "c3248ca9d6": "no change to this test (ignore_nodes tests appended after it)",
+        "2ae0479db1": "file-level: create_cluster_and_keyspace uses RF-rack-valid layout (3 racks)"
+      },
+      "relevance": "Live: row-level repair of updated rows inside a large (10000-row) partition, vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_cell_update",
+          "coverage": "partial",
+          "note": "Repair of a cell updated on one replica, values verified; tiny table."
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows_merge_fragments_nr",
+          "coverage": "partial",
+          "note": "Tablets: rows with different values across replicas, merge, values verified; debug/dev only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test repairing diffs inside a large partition, but its checks are weak. Note: updates don't change the row count and values are never read, so verify_num_of_rows_on_nodes (:2939) can't detect an unrepaired update; the only real check is metrics with <= / > 0 bounds (:177-188). Note: redundant local big_partition_rows = 10000 (:2910) duplicates BIG_PARTITION_ROWS."
+    },
+    "TestRepairAdditional::test_repair_multiple": {
+      "description": "3 nodes RF=3 (3 racks); 1000 distinct keys written to each node while the other two are down. Vnodes: full repair started concurrently on all 3 nodes (parallel_repair_on_nodes); tablets: a single node1.repair. Checks each node alone has 3000 rows. Guards that concurrent overlapping repairs are harmless and correct (dtest issue #131).",
+      "origin": {
+        "sha": "29e21be37dc0fe40f3abdf8559e5c68be254010c",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Nadav Har'El: test multiple concurrent repairs (with and without -pr), Fixes dtest #131; pre-GitHub-PR. Data JSON's PR 552 is the base-class refactor."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase as _repair_multiple_test",
+        "36a75a3da5": "file-level: helper uses parallel_repair_on_nodes on vnodes, single node1.repair on tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)"
+      },
+      "relevance": "Live: concurrent vnode repairs. With tablets the test does a single repair, the same as test_repair_disjoint_row_3nodes (tablet manual repair rejects parallel requests, test/cluster/test_tablet_repair_scheduler.py::test_tablet_manual_repair_reject_parallel_requests).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Same data setup, single repair; full duplicate of the tablets variant."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_while_table_is_dropped",
+          "coverage": "partial",
+          "note": "Parallel repairs from 2 nodes on vnodes, but about a table being dropped."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of concurrent full vnode repairs from all replicas on the same data; no scylla equivalent. The tablets run (~72s in next-dtest-tablets) duplicates test_repair_disjoint_row_3nodes and could be skipped."
+    },
+    "TestRepairAdditional::test_repair_multiple_pr": {
+      "description": "Same as test_repair_multiple but each of the 3 concurrent repairs uses -pr (primary range). Checks that parallel -pr repairs from all nodes together cover the whole ring (each node then has 3000 rows). Vnodes only.",
+      "origin": {
+        "sha": "29e21be37dc0fe40f3abdf8559e5c68be254010c",
+        "date": "2016-01-18",
+        "pr": null,
+        "summary": "Nadav Har'El: test multiple concurrent repairs incl. -pr, Fixes dtest #131."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; pass partitioner_range=True instead of ['-pr']",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase",
+        "2ae0479db1": "file-level: RF-rack-valid topology (3 racks)"
+      },
+      "relevance": "Live: -pr for vnode keyspaces (tools/scylla-nodetool.cc repair_operation, primaryRange). Vnodes only.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_option_pr",
+          "coverage": "partial",
+          "note": "-pr on each node sequentially covers the ring, also checks partial (~half) result after the first -pr (stronger -pr semantics)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_multiple",
+          "coverage": "partial",
+          "note": "Same setup, concurrent repairs without -pr."
+        },
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_options_primary_range",
+          "coverage": "partial",
+          "note": "Only nodetool -> REST parameter mapping (mocked)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant: -pr ring coverage is tested more strictly by test_repair_option_pr and concurrency by test_repair_multiple; the only extra is -pr + concurrency combined (~65s, vnodes only)."
+    },
+    "TestRepairAdditional::test_repair_one_missing_row": {
+      "description": "2 nodes RF=2 (2 racks); 9999 keys written at ALL, then 1 more key with node2 down. Repair node2; on vnodes asserts exactly tx=0/rx=1 rows from 'stats: repair_reason=repair' logs; checks both nodes alone have 10000 rows. Guards row-level repair transferring only the differing row.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias He: tests for row level repair (missing/deleted/disjoint/joint rows, diff shard counts)."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "1ff606e3dc": "re-added to next-gating (was removed for scylla#4394)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: row-level repair, 'stats: repair_reason=repair' log (repair/row_level.cc). Runs on vnodes and tablets (tablets: row counts only).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows",
+          "coverage": "partial",
+          "note": "Tablets: missing rows repaired, no transfer accounting, debug/dev only."
+        },
+        {
+          "path": "scylla-dtest repair_test.py::TestRepair::test_simple_sequential_repair",
+          "coverage": "partial",
+          "note": "Weaker version (RED in repair_test analysis, citing this test as full coverage)."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheap (~25s), exact tx/rx accounting for a single missing row on vnodes; repair_test.py simple-repair tests were marked RED relying on this one."
+    },
+    "TestRepairAdditional::test_repair_one_deleted_row": {
+      "description": "2 nodes RF=2; 10000 keys at ALL, then with node2 down `DELETE FROM cf WHERE key='key1'` on node1. Repair node2; on vnodes asserts tx=0/rx=1 (the tombstone); checks both nodes alone have 10000 rows. Intended to guard repair of a deleted row.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias He: tests for row level repair."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: repair of a partition tombstone. Runs on vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_partition_delete",
+          "coverage": "full",
+          "note": "Partition tombstone of an existing key on one replica, repaired, verified on the other node."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_row_delete",
+          "coverage": "partial",
+          "note": "Row (clustering) tombstone repaired."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: deletes key 'key1' but insert_c1c2 writes keys 'k<N>' (tools/data.py:51), so it tombstones a nonexistent partition; the expected 10000 rows on both nodes (repair_additional_test.py:2191-2193; DELETE at :2177) is right only because nothing was deleted (since origin d35c44db6c). On tablets (no tx/rx check) it verifies nothing that wasn't already true. Repair of a real partition delete is covered by test_repair_partition_delete."
+    },
+    "TestRepairAdditional::test_repair_one_deleted_row_diff_shard_count": {
+      "description": "Same as test_repair_one_deleted_row with node1 smp=2 and node2 smp=3 (repair between nodes with different shard counts). Marked dtest_heavy.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias He: tests for row level repair incl. diff shard count variants."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "47efc21a9e": "marked dtest-heavy",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: row-level repair across different shard counts (repair/row_level.cc).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Representative mixed-shard repair test with exact tx/rx."
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between smp 2 vs 3 nodes, vnodes and tablets; 2 nodes, no tx/rx check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with test_repair_disjoint_row_3nodes_diff_shard_count and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count. Bug: same as test_repair_one_deleted_row, deletes nonexistent key 'key1' (keys are 'k<N>'), so no existing row is deleted."
+    },
+    "TestRepairAdditional::test_repair_one_missing_row_diff_shard_count": {
+      "description": "Same as test_repair_one_missing_row with node1 smp=2 and node2 smp=3; on vnodes asserts tx=0/rx=1 for the single missing row. Marked dtest_heavy.",
+      "origin": {
+        "sha": "d35c44db6cfeadb19a3449f43d8cdf0414249fe2",
+        "date": "2019-01-02",
+        "pr": 803,
+        "summary": "Asias He: tests for row level repair incl. diff shard count variants."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "47efc21a9e": "marked dtest-heavy",
+        "d35c44db6c": "origin",
+        "36a75a3da5": "file-level: helper uses node2.repair(keyspace=...) and skips tx/rx check with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: row-level repair across different shard counts.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Representative mixed-shard repair test with exact tx/rx."
+        },
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "Repair between smp 2 vs 3 nodes, vnodes and tablets; 2 nodes, no tx/rx check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with sibling test_repair_one_missing_row plus test_repair_disjoint_row_3nodes_diff_shard_count (mixed-shard path) and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count."
+    },
+    "TestRepairAdditional::test_repair_one_node": {
+      "description": "3 nodes RF=3 (single rack, vnodes only), hinted handoff off, NullCompactionStrategy. 100 keys written exclusively to each node (others stopped), verified per node, then `nodetool repair` on a random node; checks each node alone returns all 300 keys with correct values. Intended to verify a single-node repair syncs all ranges it replicates, primary or not.",
+      "origin": {
+        "sha": "931a69c17b16a5434d3aae75da8874c98a17839c",
+        "date": "2023-09-13",
+        "pr": 3580,
+        "summary": "Benny Halevy: tests for repairing a single node in the cluster (primary and secondary ranges)."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "931a69c17b": "origin"
+      },
+      "relevance": "Live: vnode repair (nodetool repair). Vnodes only.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "full",
+          "note": "Same scenario: 3 nodes RF=3, distinct keys written to each node alone, repair one node, each node alone has all rows; plus exact tx/rx (GREEN)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_multiple",
+          "coverage": "partial",
+          "note": "Same data setup, repairs from all nodes."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~121s) and redundant: with 3 nodes RF=3 every node replicates every range, so this is the same scenario as test_repair_disjoint_row_3nodes (also exact tx/rx). Random node choice and value checks add little."
+    },
+    "TestRepairAdditional::test_repair_one_node_alter_rf": {
+      "description": "3 nodes (dc1: r1=2, r2=1), keyspace RF=1, 300 keys; verifies each key is on exactly one node. ALTER KEYSPACE to RF=3 (single steps 1->2->3 with tablets), then plain `nodetool repair` on a random node; checks each node alone has all 300 keys with correct values. On vnodes it guards that repairing one node after an RF increase syncs data to replicas that never had it.",
+      "origin": {
+        "sha": "931a69c17b16a5434d3aae75da8874c98a17839c",
+        "date": "2023-09-13",
+        "pr": 3580,
+        "summary": "Benny Halevy: tests for repairing a single node in the cluster."
+      },
+      "commits": {
+        "70b4dbca91": "request_timeout=300 for the RF-change ALTER (tablet rebuilds can be slow)",
+        "526ade33b2": "force_capacity_based_balancing=true to avoid tablet migration during the per-node PK count",
+        "68b718f8d6": "rf_rack_valid_keyspaces=false (RF 1->2->3 can't be rack-valid), until scylladb#23525",
+        "2ae0479db1": "populate dc1 with racks r1=2, r2=1",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "8c40d8b6b1": "formatting (join concatenated f-strings)",
+        "0523fae4e5": "enable with tablets: drop skip for scylla#16129, ALTER RF in single steps",
+        "9ffd273f04": "formatting (ruff format)",
+        "fb3dfc9ea9": "lint fix (ruff pylint checks)",
+        "931a69c17b": "origin"
+      },
+      "relevance": "Vnodes: live (ALTER RF doesn't stream, repair must fill new replicas). Tablets: `nodetool repair` with no keyspace repairs only vnode keyspaces and just warns about tablet ones (tools/scylla-nodetool.cc:1830-1833), so ks is never repaired; new replicas get data from the tablet rebuild done by ALTER KEYSPACE (see 70b4dbca91).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_rf_change",
+          "coverage": "partial",
+          "note": "Tablets RF change up/down, checks replica allocation (fragments checked only on down)."
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_multi_rf_change_0_N",
+          "coverage": "partial",
+          "note": "Tablets RF changes."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique on vnodes (repair after RF increase), but in next-dtest-tablets the repair step is a no-op: plain `nodetool repair` skips tablet keyspaces (tools/scylla-nodetool.cc:1830-1833), so it only tests the RF-change rebuild. Should use node.repair()/cluster repair or skip with tablets. Note: rf_rack_valid_keyspaces=false workaround (68b718f8d6) says to remove after scylladb#23525, which was closed 2025-10-21."
+    },
+    "TestRepairAdditional::test_repair_option_cf": {
+      "description": "2 nodes RF=2; 3 tables, each gets one key only on node1 and another only on node2. Repair with tables=[cf1,cf3]; asserts each node alone has 2 rows in cf1/cf3 but only 1 in cf2 (unlisted table untouched); then full keyspace repair and cf2 on node2 has 2 rows. Guards repair table-list option (scylla #137).",
+      "origin": {
+        "sha": "1f385830f5ed4cf7b14147aa9bbf31beb32671af",
+        "date": "2016-01-13",
+        "pr": null,
+        "summary": "Nadav Har'El: test for cf list option, Refs #137."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse",
+        "36a75a3da5": "file-level: node.repair(keyspace, tables) -> cluster repair for tablet keyspaces",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: nodetool repair <ks> <tables> -> columnFamilies (tools/scylla-nodetool.cc:1850); on tablets ccm uses nodetool cluster repair with tables. Runs vnodes+tablets (32 runs, 100%, ~39s).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_two_tables",
+          "coverage": "partial",
+          "note": "Only nodetool -> REST mapping (mocked server)."
+        },
+        {
+          "path": "test/nodetool/test_cluster_repair.py::test_repair_two_tables_tablets",
+          "coverage": "partial",
+          "note": "Same, cluster repair, mocked."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only real-cluster check that repair restricted to a table list repairs exactly those tables and leaves others untouched, on vnodes and tablets; scylla tests only check argument mapping with a mock."
+    },
+    "TestRepairAdditional::test_repair_option_invalid_ks_cf": {
+      "description": "2 nodes RF=2; expects NodetoolError for repair of a missing table in a valid ks, a missing keyspace, and (intended) a valid+invalid table list; then a valid single-table repair succeeds. Guards error reporting for bad ks/cf (scylla #137).",
+      "origin": {
+        "sha": "783e6878f7e32088255c614cd659240224841ee3",
+        "date": "2016-01-14",
+        "pr": null,
+        "summary": "Nadav Har'El: test invalid ks and cf, Refs #137."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse",
+        "36a75a3da5": "file-level: node.repair routes non-vnode keyspaces (incl. 'badks') to nodetool cluster repair",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: scylla-nodetool parse_keyspace_and_tables validation (tools/scylla-nodetool.cc:1822); cluster repair path on tablets. Cheap (~11s).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_compact.py::test_nonexistent_keyspace",
+          "coverage": "partial",
+          "note": "Same shared keyspace validation, for compact (mocked)."
+        },
+        {
+          "path": "test/nodetool/test_repair.py",
+          "coverage": "partial",
+          "note": "Repair option/failure tests with mocked REST; no nonexistent ks/cf case."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: third case 'one of the cfs being invalid' uses keyspace='badks' (repair_additional_test.py:1265, since origin 783e6878) so it repeats the bad-keyspace case and never tests a valid ks with a mixed valid/invalid table list. Otherwise cheap, real-cluster error-path check."
+    },
+    "TestRepairAdditional::test_repair_option_dc": {
+      "description": "4 nodes: dc1 (2 nodes, 2 racks), dc2 (1), dc3 (1), NTS dc1:2,dc2:1,dc3:1. One key written only on node1; repair with dcs=[dc1,dc3] -> node2,node4 get it, node3 (dc2) not; full repair -> node3 gets it. Vnodes only: invalid dc and dc list without local dc must fail; '-local' repair syncs only dc1. Guards -dc / -local options (scylla #134).",
+      "origin": {
+        "sha": "eb51c9060ac2d1860c7af93a6a51b7b8803eed11",
+        "date": "2016-01-17",
+        "pr": null,
+        "summary": "Nadav Har'El: test -dc and -local repair options, Fixes #134."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse",
+        "36a75a3da5": "file-level: node.repair(dcs=...) -> cluster repair with dc filter on tablets; error and -local parts skipped on tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (explicit racks)"
+      },
+      "relevance": "Live: --in-dc/--in-local-dc -> dataCenters (tools/scylla-nodetool.cc:592-596, 1876); tablet repair dcs_filter. Runs vnodes+tablets (32 runs, 100%, ~101s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_dcs_filter",
+          "coverage": "partial",
+          "note": "Tablets dc filter with real data, debug/dev only (error injection)."
+        },
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_options_datacenter",
+          "coverage": "partial",
+          "note": "Argument mapping only (mocked)."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only release-mode real-data check that -dc/-local restrict which replicas get repaired (vnodes) and dc filter on tablets; scylla coverage is mocked or debug/dev only."
+    },
+    "TestRepairAdditional::test_repair_option_pr": {
+      "description": "2 nodes RF=2 (vnodes); 1000 keys only on node1, 1000 only on node2. '-pr' repair on node1 -> each node alone has 1200-1800 rows (only its primary ranges repaired); '-pr' on node2 -> both have 2000. Guards primary-range repair semantics (scylla #133).",
+      "origin": {
+        "sha": "f46545451deebeb7661d828d58d0c7abf6e7ed8d",
+        "date": "2016-01-13",
+        "pr": null,
+        "summary": "Nadav Har'El: test -pr repair option, Fixes #133."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; pass partitioner_range=True instead of ['-pr']",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse"
+      },
+      "relevance": "Live for vnode keyspaces: --partitioner-range -> primaryRange (tools/scylla-nodetool.cc:1886), repair/repair.cc:1448 get_primary_ranges. Vnodes only (16 runs, 100%, ~48s).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_options_primary_range",
+          "coverage": "partial",
+          "note": "Argument mapping only (mocked)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_multiple_pr",
+          "coverage": "partial",
+          "note": "-pr from all nodes concurrently, only checks final full coverage."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking -pr repairs exactly the primary share (partial result after first -pr) and full coverage after -pr on all nodes; no scylla equivalent."
+    },
+    "TestRepairAdditional::test_repair_option_pr_dc_host": {
+      "description": "3 DCs x 2 nodes, RF=2 per dc (vnodes). Asserts '-pr' with -dc [dc1,dc3], -hosts, and -dc dc1 fail; '-pr -local' succeeds. Then 1000 keys only on node1_1 and 1000 only on node1_2; '-pr -local' on node1_1 -> each dc1 node has 1200-1800 rows; on node1_2 too -> both 2000. Guards -pr primary ranges computed within local dc (scylla #3557).",
+      "origin": {
+        "sha": "c24e8ff357771d7725416462a80d2366030d8a4d",
+        "date": "2018-08-02",
+        "pr": 671,
+        "summary": "Nadav Har'El: test combination of -pr with -dc/-hosts/-local (Refs scylla #3557)."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; use partitioner_range/dcs/hosts/local kwargs instead of option lists",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "c3471a97e4": "formatting (autopep8)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "fa9bc5b7ec": "mark for dtest-debug",
+        "c24e8ff357": "origin"
+      },
+      "relevance": "Live for vnodes: scylla-nodetool rejects -pr with --in-dc/--in-hosts (tools/scylla-nodetool.cc:1836-1838); -pr -local uses get_primary_ranges_within_dc (repair/repair.cc:1440-1444). Comments still refer to Java Repair.java. Vnodes only (16 runs, 100%, ~101s).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_pr_and_dcs",
+          "coverage": "full",
+          "note": "Same nodetool rejection of -pr with -dc (that part of the test)."
+        },
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_pr_and_hosts",
+          "coverage": "full",
+          "note": "Same rejection of -pr with -hosts."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "The rejection checks are duplicated by test/nodetool mocks, but the -pr -local data check (primary ranges within dc, #3557) is unique; vnodes only."
+    },
+    "TestRepairAdditional::test_repair_option_pr_multi_dc": {
+      "description": "3 DCs x 2 nodes (2 DCs in debug), RF=2 per dc (vnodes). num_keys only on node1_1 and num_keys only on node1_2; '-pr' (no -local) on node1_1 -> node1_1 alone has 1.05x-1.667x num_keys; '-pr' on every other node -> all 6 nodes have 2*num_keys. Checks -pr across dcs needs to run on every node of every dc.",
+      "origin": {
+        "sha": "c24e8ff357771d7725416462a80d2366030d8a4d",
+        "date": "2018-08-02",
+        "pr": 671,
+        "summary": "Nadav Har'El: -pr repair tests incl. multi-dc without -local."
+      },
+      "commits": {
+        "36a75a3da5": "use partitioner_range=True kwarg",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "0262de2d55": "skip with tablets (fails with tablets)",
+        "e63f5e571e": "scale down for debug mode (2 dcs, 1000 keys)",
+        "0c2d585d40": "pytest-timeout default (file-level marker)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "8f383790dc": "mark for dtest-debug",
+        "c24e8ff357": "origin"
+      },
+      "relevance": "Live for vnodes (primaryRange, repair/repair.cc:1448). Vnodes only; slowest of the -pr tests (16 runs, 100%, ~187s).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_option_pr",
+          "coverage": "partial",
+          "note": "Same -pr partial-then-full semantics, single dc."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_option_pr_dc_host",
+          "coverage": "partial",
+          "note": "Same 3-dc setup with -pr -local."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant with test_repair_option_pr (-pr semantics) and test_repair_option_pr_dc_host (multi-dc -pr), at ~187s. Bug: `nodes = [[]] * num_dcs` (repair_additional_test.py:1104) aliases one list, harmless only because just nodes[0][0..1] are used; comments say 'dc-local' and '1050-1300' but code runs -pr without -local and asserts 1.05x-1.667x."
+    },
+    "TestRepairAdditional::test_repair_option_seq": {
+      "description": "Meant to check the '-seq' repair option doesn't break repair. Now just calls _repair_disjoint_data_test: 3 nodes RF=3, 1000 distinct keys per node, plain repair from node3, each node alone has 3000 rows. Vnodes only.",
+      "origin": {
+        "sha": "f878681a37580dd3ab4f840b7b2db7683a1e7058",
+        "date": "2017-01-04",
+        "pr": null,
+        "summary": "Calle Wilund: change -par test to -seq (repair_option_par_test from 2016)."
+      },
+      "commits": {
+        "36a75a3da5": "dropped the ['-seq'] option (now _repair_disjoint_data_test() with no options); skip with tablets",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse"
+      },
+      "relevance": "-seq still accepted by scylla-nodetool (tools/scylla-nodetool.cc:1872-1873) but the test no longer passes it: ccm vnode_repair has no sequential option (scylla-ccm/ccmlib/scylla_node.py:2050-2069).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "full",
+          "note": "Same disjoint-data 3-node repair plus exact tx/rx checks, vnodes+tablets."
+        },
+        {
+          "path": "test/nodetool/test_repair.py::test_repair_options_parallelism",
+          "coverage": "partial",
+          "note": "-seq/--sequential -> parallelism=sequential mapping (mocked)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Since 36a75a3da5 (PR #5925) it no longer passes -seq, so it tests nothing about the option; what remains is a plain disjoint-data repair fully covered (more strictly) by test_repair_disjoint_row_3nodes. -seq mapping is covered by test/nodetool/test_repair.py::test_repair_options_parallelism."
+    },
+    "TestRepairAdditional::test_repair_partition_delete": {
+      "description": "2 nodes RF=2; partitions k1,k2,k3 at CL=ALL; with node2 down delete partitions k1 and k3 on node1; verify node2 alone still has 3; repair from node2 and verify node2 alone has only k2. Guards repair of partition tombstones (scylla #120).",
+      "origin": {
+        "sha": "c79d8056ec48d775efbcd3140eb54e6b90227af9",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "Nadav Har'El: repair_partition_delete_test, Fixes #120."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse",
+        "36a75a3da5": "file-level: node2.repair(keyspace='ks') -> cluster repair with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: basic repair of partition tombstones; runs vnodes+tablets (32 runs, 100%, ~23s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_incremental_repair.py",
+          "coverage": "partial",
+          "note": "Partition deletes + tablet incremental repair, but about tombstone GC/resurrection, mostly debug/dev only."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_one_deleted_row",
+          "coverage": "partial",
+          "note": "Intended partition delete, but deletes a nonexistent key (bug), so weaker."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Verified: deletes real partitions k1/k3 (repair_additional_test.py:699-701) and checks they're gone on the other replica after repair; cheap, vnodes+tablets, no scylla release-mode equivalent."
+    },
+    "TestRepairAdditional::test_repair_row_delete": {
+      "description": "2 nodes RF=2; partition 'nadav' with 2 clustering rows at CL=ALL; with node2 down delete one clustering row on node1; verify node2 alone still has 2 rows; repair from node2 and verify node2 alone has only the remaining row. Guards repair of row deletions (originally range tombstone, scylla #122).",
+      "origin": {
+        "sha": "4f7f80d5143f656edb7772c020ceea26ca912429",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "Nadav Har'El: repair_row_delete_test, Fixes #122."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "c3471a97e4": "formatting (autopep8)",
+        "98a2360a18": "moved into RepairAdditionalBase for reuse",
+        "36a75a3da5": "file-level: node2.repair(keyspace='ks') -> cluster repair with tablets",
+        "2ae0479db1": "file-level: RF-rack-valid topology (2 racks)"
+      },
+      "relevance": "Live: basic repair of row tombstones (single-row DELETE is a row tombstone in current scylla, not a range tombstone as the docstring says). Runs vnodes+tablets (32 runs, 100%, ~24s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
+          "coverage": "partial",
+          "note": "Row tombstone (pk=0, ck=0) propagated by repair; debug/dev only (error injections)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_cell_delete",
+          "coverage": "partial",
+          "note": "Same structure for cell tombstone."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheap, release-mode, vnodes+tablets check that a row tombstone is repaired; the scylla equivalent only runs in debug/dev."
+    },
+    "TestRepairAdditional::test_repair_same_row_diff_value_3nodes": {
+      "description": "3 nodes RF=3 (vnodes); same 3 rows (pk=0, ck=0..2) written with different values on each node while others are down; repair from node3, compact, assert exact tx=12/rx=6 rows from 'stats: repair_reason=repair' log. Meant to ensure the repair master doesn't write duplicate rows with the same key from several followers (likely after single writer for all followers, scylla 998b153f86, #7525).",
+      "origin": {
+        "sha": "0c245b668d840d28be3c27dab1038a5facad27f9",
+        "date": "2020-11-19",
+        "pr": 1770,
+        "summary": "Asias He: add repair_same_row_diff_value_3nodes_test."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets (file-level repair call kwargs)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
+        "0c245b668d": "origin"
+      },
+      "relevance": "Live: row-level repair with one writer for all followers (repair/row_level.cc). Vnodes only, dtest_heavy (16 runs, 100%, ~39s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_multiple_rows_merge_fragments_nr",
+          "coverage": "partial",
+          "note": "Tablets: same rows with 3 different values on 3 replicas, repair merges; debug/dev only."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_joint_row_3nodes_2",
+          "coverage": "partial",
+          "note": "Overlapping rows differing by timestamp, exact tx/rx + data checks."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Note: no post-repair data check; config sets only hinted_handoff_enabled (repair_additional_test.py:2507), so enable_sstable_key_validation stays off in release (db/config.cc:704-706) and the 'no duplicate keys in writer' goal is checked only via exact tx/rx counts. Partial overlap with test_repair_joint_row_3nodes_2 and the tablet merge tests."
+    },
+    "TestRepairAdditional::test_repair_same_row_diff_value_3nodes_diff_shard_count": {
+      "description": "Same as test_repair_same_row_diff_value_3nodes (3 nodes RF=3, pk=0 ck=0..2 written with different values on each node while the others are down, repair from node3, compact, exact tx=12/rx=6 from 'stats: repair_reason=repair' log) but with smp 2/2/3 so repair crosses different shard counts.",
+      "origin": {
+        "sha": "0c245b668d840d28be3c27dab1038a5facad27f9",
+        "date": "2020-11-19",
+        "pr": 1770,
+        "summary": "Asias He: add repair_same_row_diff_value_3nodes_test (+ diff_shard_count variant)."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; repair call via node.repair(keyspace=...) instead of options list",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper"
+      },
+      "relevance": "Live: row-level repair between nodes with different shard counts. Vnodes only (skip_if tablets), dtest_heavy; 16 runs, 100%, ~43s, next-dtest-consistent-topology only.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count",
+          "coverage": "partial",
+          "note": "smp 2 vs 3 repair, no tx/rx counts."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes_diff_shard_count",
+          "coverage": "partial",
+          "note": "Representative diff_shard_count variant (GREEN), same smp 2/2/3 setup with exact tx/rx + data checks."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Diff-shard path already covered by test_repair_disjoint_row_3nodes_diff_shard_count and scylla test_incremental_repair.py::test_repair_sigsegv_with_diff_shard_count. Note: same as base test: no post-repair data check, config sets only hinted_handoff_enabled (repair_additional_test.py:2507) so enable_sstable_key_validation is off in release; duplicate-key goal only checked via exact tx/rx."
+    },
+    "TestRepairAdditional::test_repair_schema": {
+      "description": "3 nodes (3 racks) RF=3; with node2 down, create table cf and write 1000 keys at QUORUM (node1+node3). Start node2, repair from node1 (a node that has the table), check 1000 rows on each node alone. Originally guarded scylla #117/#118 (repair of a CF missing on a replica).",
+      "origin": {
+        "sha": "1e9ba78ccd637c8ec4fed56d2b810c4a35a6e6a0",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "Nadav Har'El: two tests for repairing missing CFs (Fixes #117, #118); pre-PR era."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*",
+        "6b5a3275e4": "add dtest-debug attr",
+        "c758e26239": "add next-gating attr",
+        "98a2360a18": "move into RepairAdditionalBase (reuse by mgmt tests)",
+        "8a93a6e4da": "raft fix: write at QUORUM (data on node1+3), also check node3",
+        "462d09ea8c": "raft: 3 nodes RF=3 instead of 2 nodes RF=2",
+        "5f4a7a412c": "config via default_config_options (HH off, sstable key validation on)"
+      },
+      "relevance": "Schema part is obsolete: with raft group0 schema, node2 catches up schema on boot, so the 'table missing on replica' case can't arise; scylla removed schema pull (02fc4ad0a9, 2026-02-10). What remains is plain repair of rows missing on one replica. Runs vnodes+tablets (node.repair -> cluster repair on tablets); 32 runs, 100%, ~47s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Rows missing on replicas repaired, exact tx/rx + data checks, 3 nodes RF=3."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_schema_2",
+          "coverage": "partial",
+          "note": "Same scenario, repair started from the node that was down."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Missing-CF scenario (#117/#118) no longer reachable with raft schema; remaining check (missing rows repaired) overlaps test_repair_disjoint_row_3nodes. Note: ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:444) is dead, scylla removed migration_task/schema pull (02fc4ad0a9)."
+    },
+    "TestRepairAdditional::test_repair_schema_2": {
+      "description": "Like test_repair_schema but repair is started from node2, the node that was down when the table was created (harder case: repair must handle a CF the initiator didn't know about). Checks 1000 rows on each node alone.",
+      "origin": {
+        "sha": "1e9ba78ccd637c8ec4fed56d2b810c4a35a6e6a0",
+        "date": "2016-01-11",
+        "pr": null,
+        "summary": "Nadav Har'El: two tests for repairing missing CFs (Fixes #117, #118); pre-PR era."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest: rename to test_*",
+        "c758e26239": "add next-gating attr; fix debug msg to say node2",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "8a93a6e4da": "raft fix: write at QUORUM, also check node3",
+        "462d09ea8c": "raft: 3 nodes RF=3",
+        "5f4a7a412c": "config via default_config_options"
+      },
+      "relevance": "Same as test_repair_schema: with raft group0 node2 learns the table at boot before repair, so 'unknown CF on initiator' no longer happens (schema pull removed, scylla 02fc4ad0a9). Runs vnodes+tablets; 32 runs, 100%, ~46s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_schema",
+          "coverage": "full",
+          "note": "Same setup; only repair initiator differs, which only mattered for pre-raft schema."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_disjoint_row_3nodes",
+          "coverage": "partial",
+          "note": "Missing rows repaired, stricter checks."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Initiator-without-CF case is obsolete under raft schema, making it nearly a copy of test_repair_schema (which itself overlaps test_repair_disjoint_row_3nodes); candidate to keep only one of the pair. Note: dead ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:491)."
+    },
+    "TestRepairAdditional::test_repair_small_table_optimization": {
+      "description": "6 nodes in 3 DCs, RF 2 per DC, empty table. Repair via REST repair_async from node1 without and from node2 with small_table_optimization=true; sums rpc_call_nr and max duration from 'stats: repair_reason=repair' logs and asserts the optimized repair has >10x fewer RPC calls and is >10x faster. Guards scylla PR #15974 (small_table_optimization).",
+      "origin": {
+        "sha": "3284b9600bb30508b194b92a0a1cdb04175a3538",
+        "date": "2023-11-29",
+        "pr": 3756,
+        "summary": "Asias He: test small_table_optimization repair option (scylla PR #15974), originally on system_auth."
+      },
+      "commits": {
+        "e496f7a7e8": "skip with tablets",
+        "e6a071560b": "repair a normal test_repair table instead of system_auth; drop dtest_heavy",
+        "56d3afbb71": "don't alter system_auth RF in consistent-topology mode",
+        "9ffd273f04": "formatting",
+        "3284b9600b": "origin"
+      },
+      "relevance": "Live: small_table_optimization REST param (api/storage_service.cc:275), reduced buffers in repair/row_level.cc. Vnodes only (tablets skipped). 16 runs, 100%, ~43s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_repair",
+          "coverage": "partial",
+          "note": "Runs repair with the option (all modes) but only checks one repair_history row, not that work is reduced."
+        },
+        {
+          "path": "test/cluster/test_repair.py::test_small_table_optimization_for_rbno_auto_detect_by_size",
+          "coverage": "partial",
+          "note": "RBNO auto-enable by size, not user repair."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking the effect of small_table_optimization (>10x fewer RPCs/duration vs normal repair); scylla test only checks the option is accepted. Timing-based 10x duration assert is a potential flake source but 16/16 passed."
+    },
+    "TestRepairAdditional::test_repair_streams_data_from_closest_node": {
+      "description": "2 DCs x 2 racks, RF {dc1:2, dc2:2}, 1000 keys at ALL. Delete node1_2 sstables, restart, repair it (vnodes) and assert from debug 'Started Row Level Repair (Master) ... peers=' that the first peer is the same-DC node (sort_by_proximity). Then replace node2_2 with RBNO and assert repair peers are only node2_1 (vnodes) or, with tablets, that only node2_1 logs stream_blob 'Finished sending' (file-based streaming from local DC, scylla #18514).",
+      "origin": {
+        "sha": "df96364165f8d42d151abaa94bdb961a7f4bf61f",
+        "date": "2022-03-30",
+        "pr": 2676,
+        "summary": "soyacz: test repair gets data from near node first."
+      },
+      "commits": {
+        "b866c65bce": "use node.api_port for REST logger call",
+        "e4414e365f": "drop #18514 skip, generate_cluster_topology 2 dc x 2 racks; repair part only for vnodes; tablets checks stream_blob senders",
+        "36a75a3da5": "_run_repair_and_check_completed uses node.repair(keyspace,tables)",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "2ec6395909": "remove enterprise marker in tablets sibling test (stream_blob path)",
+        "b0b51ea786": "tablets sibling test: require->skip_if",
+        "8745e85383": "use class PEERS_RE",
+        "dadeff6cd1": "accept host ids in peers lists",
+        "0e77db93be": "tablets sibling: adjust for file-based streaming",
+        "78c3fbe419": "split tablets case into separate test, skip on #18514",
+        "40a2f701b3": "stop/start node around removing table dir",
+        "47220cb91d": "stricter peers regex",
+        "af6dea3e1a": "split peers with regex (strip spaces)",
+        "b2892932b6": "tablets: check Tablet rebuild peers",
+        "5b87037a4b": "replace by host id; tablets regex",
+        "d14957a334": "tolerate small_vector/vector formatting",
+        "9ffd273f04": "formatting",
+        "bfbd92f341": "enable repair=debug on new node",
+        "2e7236db8c": "wait for repair completion properly"
+      },
+      "relevance": "Live: peer ordering by proximity in repair/row_level.cc:3332; RBNO replace peers log repair/repair.cc:937; stream_blob Finished sending streaming/stream_blob.cc:902. #18514 closed. Runs vnodes+tablets; 32 runs, 100%, ~89s.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No scylla or other dtest checks repair peer ordering by DC proximity or that replace streams only from the local DC (vnodes RBNO and tablets file streaming). Tablets path skips the repair part and the no-send assertion for node1_2 is trivially true (its data was deleted)."
+    },
+    "TestRepairAdditional::test_repair_triggering_off_strategy_compaction": {
+      "description": "2 nodes RF=2, two tables; node2 down while 1000 keys written to each; start node2, repair cf1 (assert off-strategy updater shutdown + completion logs), repair cf2, then force off-strategy via REST keyspace_offstrategy_compaction and wait for 'Starting/Done with off-strategy compaction for ks.cf1'. Guards scylla 72cc596842 (repair triggers off-strategy).",
+      "origin": {
+        "sha": "5e677dd4abec84dc1ef3a28612831995899c42c4",
+        "date": "2021-12-11",
+        "pr": 2431,
+        "summary": "dkropachev: test off-strategy compaction triggered after repair (scylla 72cc596842)."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; helpers use node.repair(keyspace,tables)",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "9ffd273f04": "formatting",
+        "5e677dd4ab": "origin",
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "85809235": "helper: force off-strategy via REST instead of waiting 5 min timer"
+      },
+      "relevance": "Live for vnodes: off-strategy updater (repair/repair.cc:1585-1594), trigger_offstrategy_compaction; tablets disable off-strategy for repair (repair/row_level.cc:585), test skipped there. 16 runs, 100%, ~24s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest compaction_additional_test.py::TestCompactionAdditional::test_streaming_on_repair",
+          "coverage": "partial",
+          "note": "Repair then REST off-strategy; checks TWCS window segregation, not the log."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_postpone_reshape_sstables_created_by_repair",
+          "coverage": "partial",
+          "note": "Repair sstables + off-strategy reshape on restart."
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_storage_service_keyspace_offstrategy_compaction",
+          "coverage": "partial",
+          "note": "REST endpoint only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Note: docstring says repair triggers off-strategy 'on a timer', but since 85809235 the helper forces it via REST (repair_additional_test.py:337) and swallows REST errors, so the timer path isn't what's tested; the aux_cf repair 'doesn't affect timer' claim (:327-329) is never asserted. Still the only check that repair-created sstables are off-strategy candidates (vnodes)."
+    },
+    "TestRepairAdditional::test_repair_ttl_update": {
+      "description": "2 nodes RF=2; with node2 down, UPDATE ... USING TTL 1234 on node1; verify via sstable dump that node1 cell has ttl=1234s and node2 has old value without expiry; repair from node2, then verify (node1 down) that node2 returns the new value and has an sstable cell identical to node1's (same value, ttl, expiry). Guards scylla #123 (repair must preserve TTL/expiry).",
+      "origin": {
+        "sha": "b1b803bfd4efed1e0ddf923d15bfa06828a262a4",
+        "date": "2016-01-13",
+        "pr": null,
+        "summary": "Nadav Har'El: add repair_ttl_update_test (Fixes #123); pre-PR era."
+      },
+      "commits": {
+        "32ecea636f": "read sstables via scylla sstable dump (_cells_with_name) instead of sstable2json; stop disabling uuid sstable ids",
+        "bcce67b823": "rename uuid_sstable_identifiers_enabled option",
+        "18b8381c90": "disable uuid sstable identifiers (for sstabledump)",
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "6b5a3275e4": "add dtest-debug attr",
+        "d4781470ff": "add next-gating attr",
+        "98a2360a18": "move into RepairAdditionalBase"
+      },
+      "relevance": "Live: repair of expiring cells. Runs vnodes+tablets; 32 runs, 100%, ~27s. The commitlog.cleanup workaround for sstable2json (CASSANDRA-8616) is stale since 32ecea636f but harmless.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Only test asserting repair preserves cell TTL/expiry byte-exactly (sstable dump comparison); no scylla repair test uses TTL. Cheap, both vnodes and tablets."
+    },
+    "TestRepairAdditional::test_repair_while_table_is_dropped": {
+      "description": "3 nodes RF=3; node2 down while cf and 8 cf_del* tables are created and filled (2000 keys QUORUM); start node2, run 3 concurrent full repairs (node1, node2 x2), drop the cf_del* tables once node2 logs repair start, assert repairs don't fail and the repair with that uuid logs completed, cf_del* are gone, and cf has 2000 rows on node1 and node2 (other stopped). Guards scylla change to ignore dropped tables during repair.",
+      "origin": {
+        "sha": "e938b7029c7f96889ae1507932de633fdf58085c",
+        "date": "2020-11-05",
+        "pr": 1746,
+        "summary": "Amos Kong: repair ignores errors for tables dropped during repair."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (rename unused node3)",
+        "36a75a3da5": "skip with tablets",
+        "9ffd273f04": "formatting",
+        "fb3dfc9ea9": "formatting (lint)",
+        "0c99d73bf9": "relax 'not found' cqlsh message to regex",
+        "8a93a6e4da": "write at QUORUM (raft)",
+        "462d09ea8c": "3 nodes RF=3 (raft)",
+        "0a9d8ba678": "match completion by repair uuid",
+        "98832bb5fa": "migrate to pytest",
+        "26c606eaea": "don't rely only on 'ignoring dropped tables' log; verify tables gone and data per node",
+        "5f4a7a412c": "use default_config_options().update(...) (introduces None bug)",
+        "e938b7029c": "origin"
+      },
+      "relevance": "Live: repair ignores dropped tables (repair/repair.cc:842-843). Vnodes only; 16 runs, 100%, ~138s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py::test_keyspace_drop_during_data_sync_repair",
+          "coverage": "partial",
+          "note": "Keyspace (not table) drop via error injection; debug/dev only."
+        },
+        {
+          "path": "test/cluster/test_table_drop.py::test_drop_table_during_streaming_receiver_side",
+          "coverage": "partial",
+          "note": "Table drop during streaming (RBNO off), debug/dev only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: `config_options = self.default_config_options().update({...})` (repair_additional_test.py:2771, since 5f4a7a412c) is None, so no config is applied: hinted handoff stays on (hints can fill node2, weakening the data check) and enable_repair_based_node_ops/sstable key validation are not set. Note: completion regex '...completed successfully$' (:2816) matches the generic task log (repair/repair.cc:705), so the 'ignoring dropped tables' path (:843) is never asserted to have been hit. Slow (~138s), vnodes only."
+    },
+    "TestRepairAdditional::test_repair_with_down_nodes_1": {
+      "description": "3 nodes (one rack) RF=2, empty table; stop node3 and assert node2.repair(keyspace='ks') raises NodetoolError, since some ranges' only other replica is down. Guards scylla #127.",
+      "origin": {
+        "sha": "74ea7582351d26d495e006852e7d5568f9a95a23",
+        "date": "2016-01-20",
+        "pr": null,
+        "summary": "Nadav Har'El: repair fails if needed replicas are down (Fixes #127); pre-PR era."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; node.repair(keyspace=)",
+        "44ed3fa059": "first version of 36a75a3da5 (reverted)",
+        "d0e55d7e63": "revert of 44ed3fa059",
+        "c35eab0e6f": "formatting (mutable default arg)",
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase"
+      },
+      "relevance": "Live: repair marks ranges with down peers partial and fails at the end (repair/repair.cc:915-929, :832-840). Vnodes only; 16 runs, 100%, ~17s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_1a",
+          "coverage": "full",
+          "note": "Same 3 nodes RF=2 node3-down setup; asserts the same NodetoolError on vnodes (repair_additional_test.py:1782-1784) and then checks partial repair."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2",
+          "coverage": "partial",
+          "note": "Repair fails when one of two peers is down."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully subsumed by test_repair_with_down_nodes_1a (same NodetoolError assertion with node3 down, :1782-1784) and by _2b (same assertion, 4 nodes, real partial-repair check); zero unique coverage, ~17s."
+    },
+    "TestRepairAdditional::test_repair_with_down_nodes_1a": {
+      "description": "3 nodes (racks r1:2, r2:1) RF=2, HH off; write keys 0-999 via node1 (node2 down) and 1000-1999 via node2 (node1 down); stop node3, repair node2 and expect NodetoolError (vnodes), start node3, repair node3 and assert SELECT * via node2 returns 2000 rows. Verifies a repair failing due to a down node still repairs the ranges whose replicas are alive (scylla #127).",
+      "origin": {
+        "sha": "4858c31574ee7486b14ad0f3538a5b2de9f8d31f",
+        "date": "2016-01-21",
+        "pr": null,
+        "summary": "Nadav Har'El: repair with a down node still repairs what it can (#127); pre-PR era."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "c35eab0e6f": "formatting (mutable default arg)",
+        "36a75a3da5": "file-level: tablets branch skips the failing repair; node.repair(keyspace=)",
+        "2ae0479db1": "file-level: RF-rack-valid topology (r1:2, r2:1) makes node3 a replica of every range, voiding the docstring premise"
+      },
+      "relevance": "Live: 'partial' ranges repaired with live peers only (repair/repair.cc:915-929). On tablets the failing-repair step is skipped (:1782) and node3.repair runs a full cluster repair, so the tablets run is a plain repair. 32 runs, 100%, ~56s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_ignore_nodes",
+          "coverage": "partial",
+          "note": "Repair with a down node excluded explicitly via ignore_nodes."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2b",
+          "coverage": "full",
+          "note": "Asserts partial-repair result (2000 rows) with the down node still down; real coverage of repair.cc:915-929."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Assertion can't detect a broken partial repair: since 2ae0479db1 racks are r1:2/r2:1 with RF=2, so node3 replicates every range and its final full repair alone yields 2000 rows (docstring premise void). Partial-repair path is really tested by test_repair_with_down_nodes_2b (vnodes); tablets run is a plain cluster repair."
+    },
+    "TestRepairAdditional::test_repair_with_down_nodes_2": {
+      "description": "4 nodes (single rack) RF=3, empty table; stop node3 and assert node2.repair(keyspace='ks') raises NodetoolError, since 2/3 of node2's ranges have node3 as one of their replicas: repair must fail even when another live replica exists. Vnodes only (skipped on tablets).",
+      "origin": {
+        "sha": "6e6f26c4",
+        "date": "2016-01-20",
+        "pr": null,
+        "summary": "Nadav Har'El: repair fails if one of the replicas is missing (commit msg 'Fixes #128'); pre-PR era."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; node.repair(keyspace=)",
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "44ed3fa059": "file-level: first version of 36a75a3da5 (reverted by d0e55d7e63)",
+        "c35eab0e6f": "formatting (mutable default arg)"
+      },
+      "relevance": "Live: a range with a down peer is marked 'partial' and the repair fails at the end (repair/repair.cc:915-929). Vnodes only; 16 runs, 100%, ~23s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2b",
+          "coverage": "full",
+          "note": "Same 4 nodes RF=3 one-node-down setup (node4 instead of node3); asserts NodetoolError for node2.repair and node3.repair (repair_additional_test.py:1980-1983), then checks the live replicas were reconciled."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2a",
+          "coverage": "partial",
+          "note": "Same NodetoolError assertion with node4 down on vnodes (:1897-1899)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test_repair_with_down_nodes_2b: same 4 nodes / RF=3 / one node down, same NodetoolError assertion (repair_additional_test.py:1980-1983), plus more checks. Cheap (~23s) so little time saved, but no unique coverage."
+    },
+    "TestRepairAdditional::test_repair_with_down_nodes_2a": {
+      "description": "4 nodes (racks r1:2, r2:1, r3:1) RF=3, HH off; write keys 0-999 via node1 (node2 down) and 1000-1999 via node2 (node1 down) at CL=ONE; stop node4, expect node2 repair to fail with NodetoolError (vnodes), start node4, repair node4 and assert SELECT * via node2 returns 2000. Was meant to check that the failed repair still repairs ranges whose replicas are all alive (nodes 1,2,3), like 1a but with RF=3.",
+      "origin": {
+        "sha": "6077f173",
+        "date": "2016-01-25",
+        "pr": null,
+        "summary": "Nadav Har'El: further test of partially-successful repair (4 nodes RF=3, one down); pre-PR era."
+      },
+      "commits": {
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "c35eab0e6f": "formatting (mutable default arg)",
+        "36a75a3da5": "file-level: on tablets skip the failing repair; node.repair(keyspace=) -> cluster repair on tablets",
+        "2ae0479d": "file-level (PR #5999, RF-rack-validity): populate(4) -> racks {r1:2, r2:1, r3:1}; makes every range include node4, see reason"
+      },
+      "relevance": "Repair behavior is live (repair/repair.cc:915-929), but since 2ae0479d (racks r1:2,r2:1,r3:1 with RF=3 NTS, rack-aware placement locator/network_topology_strategy.cc:94) every range has one replica per rack, so node4 (only node in r3) replicates every range. The final full node4.repair therefore repairs all ranges by itself: the 2000-row assertion holds even if the failed repair did nothing. On tablets the failing repair is skipped (:1897) and node4.repair is a plain cluster repair. 32 runs, 100%, ~65s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2b",
+          "coverage": "full",
+          "note": "Same NodetoolError assertion with node4 down on vnodes, and a stronger check that live replicas get reconciled during the failed repair (2000 rows with node4 still down)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_1a",
+          "coverage": "partial",
+          "note": "Same flow with 3 nodes RF=2."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Since 2ae0479d (PR #5999) the rack layout puts node4 in every replica set, so the final full node4 repair makes the 2000-row check pass without the partial repair; what's left (NodetoolError with node4 down, then a basic repair) is covered by test_repair_with_down_nodes_2b. The tablets run is just a plain cluster repair. Slow: 32 runs x ~65s."
+    },
+    "TestRepairAdditional::test_repair_with_down_nodes_2b": {
+      "description": "4 nodes (single rack) RF=3, HH off; write keys 0-999 via node1 (node2 down) and 1000-1999 via node2 (node1 down) at CL=TWO; stop node4, run full repair on node2 and node3, assert both raise NodetoolError, then with node4 still down assert SELECT * via node2 returns 2000. Checks that repair with a down replica still reconciles the live replicas ('partial' ranges) instead of giving up. Vnodes only (skipped on tablets).",
+      "origin": {
+        "sha": "6077f173",
+        "date": "2016-01-25",
+        "pr": null,
+        "summary": "Nadav Har'El: further test of partially-successful repair; stricter 2b fails on Cassandra and old Scylla; pre-PR era."
+      },
+      "commits": {
+        "36a75a3da5": "skip with tablets; node.repair(keyspace=)",
+        "98832bb5fa": "migrate to pytest",
+        "c3471a97e4": "formatting",
+        "98a2360a18": "move into RepairAdditionalBase",
+        "44ed3fa059": "file-level: first version of 36a75a3da5 (reverted by d0e55d7e63)",
+        "c35eab0e6f": "formatting (mutable default arg)"
+      },
+      "relevance": "Live: when some neighbors are down, repair goes on with the live ones (status 'partial', neighbors.swap(live_neighbors), repair/repair.cc:915-929) and fails at the end. Vnodes only; 16 runs, 100%, ~69s.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_1a",
+          "coverage": "partial",
+          "note": "Also checks a failed repair repairs what it can, with RF=2; its final repair of the revived node covers everything anyway (racks r1:2,r2:1 put node3 in every range)."
+        },
+        {
+          "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_ignore_nodes",
+          "coverage": "partial",
+          "note": "Repair with a down node excluded on purpose via ignore_nodes."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking that a vnode repair which fails because a replica is down still syncs the live replicas (2000 rows with node4 down after the failed repairs). No scylla test/cluster test covers 'partial' status (grep: test/cluster/test_repair.py has none). Also covers the NodetoolError assertion of test_repair_with_down_nodes_2."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
