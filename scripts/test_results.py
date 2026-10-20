@@ -16,7 +16,7 @@ def get(url):
     return json.loads(out)
 
 
-def report(job_url, number):
+def report(job_url, number, stage=None):
     try:
         data = get(f"{job_url}/{number}/testReport/api/json?tree={CASES}")
     except subprocess.CalledProcessError:
@@ -26,6 +26,8 @@ def report(job_url, number):
     # same test may run in several suites (separate pytest runs); key by occurrence
     seen, res = {}, {}
     for s in data["suites"]:
+        if stage and not any(stage in b for b in s.get("enclosingBlockNames") or []):
+            continue
         for c in s["cases"]:
             t = f"{c['className']}.{c['name']}"
             seen[t] = seen.get(t, 0) + 1
@@ -39,12 +41,13 @@ def main():
     p.add_argument("--job", default="scylla-master/dtest-release")
     p.add_argument("-n", "--builds", type=int, default=10)
     p.add_argument("-o", "--out", default="results")
+    p.add_argument("--stage", help="only suites from pipeline stages containing this, e.g. 'dtest with tablets'")
     a = p.parse_args()
 
     job_url = f"{JENKINS}/job/" + "/job/".join(a.job.split("/"))
     builds = [b["number"] for b in get(f"{job_url}/api/json?tree=builds[number]{{0,{a.builds}}}")["builds"]]
     with ThreadPoolExecutor(8) as ex:
-        reports = dict(ex.map(lambda n: report(job_url, n), builds))
+        reports = dict(ex.map(lambda n: report(job_url, n, a.stage), builds))
 
     tests = sorted({t for r in reports.values() for t in r})
     for kind, idx in (("status", 0), ("runtime", 1)):

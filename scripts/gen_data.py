@@ -64,7 +64,9 @@ def locate(path, cls, func):
         if func in funcs:
             return path, c, funcs[func]
         todo += bases
-    for hit in git("grep", "-l", f"def {func}(", REV, "--", "*.py").split():
+    hits = subprocess.run(["git", "-C", DTEST, "grep", "-l", f"def {func}(", REV, "--", "*.py"],
+                          capture_output=True, text=True).stdout
+    for hit in hits.split():
         other = hit.split(":", 1)[1]
         for c, (_, funcs) in classes(other).items():
             if func in funcs:
@@ -81,8 +83,9 @@ def load_stats():
             if r["status"] == "SKIPPED":
                 continue
             base, bracket, param = r["test"].partition("[")
+            base, at, variant = base.partition("@")  # e.g. test_x@high_memory
             mod, cls, func = base.rsplit(".", 2)
-            stats[mod][(cls, func)][bracket + param][job].append((int(r["build"]), r["status"], float(r["duration"])))
+            stats[mod][(cls, func)][at + variant + bracket + param][job].append((int(r["build"]), r["status"], float(r["duration"])))
     return stats
 
 
@@ -133,9 +136,16 @@ def main():
     prs = PRs()
     for mod in mods or sorted(stats):
         path = mod.replace(".", "/") + ".py"
+        if not git("ls-tree", "--name-only", REV, "--", path).strip():
+            print(f"skip {mod}: not in {REV}", file=sys.stderr)
+            continue
         tests = []
         for (cls, func), params in sorted(stats[mod].items()):
-            src, owner, (start, end) = locate(path, cls, func)
+            try:
+                src, owner, (start, end) = locate(path, cls, func)
+            except KeyError:
+                print(f"skip {mod}.{cls}.{func}: not in {REV}", file=sys.stderr)
+                continue
             commits = parse_log(git("log", REV, LOG_FMT, "--no-patch", "-L", f"{start},{end}:{src}"))
             all_runs = defaultdict(list)
             for by_job in params.values():

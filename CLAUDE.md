@@ -29,18 +29,26 @@ Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy
 ```bash
 for j in dtest-release dtest-release-with-raft; do
   python3 scripts/test_results.py --job scylla-master/$j -n 20 -o jenkins/$j; done
+python3 scripts/test_results.py --job scylla-master/next -n 20 --stage 'dtest with tablets' -o jenkins/next-dtest-tablets
+python3 scripts/test_results.py --job scylla-master/next -n 20 \
+  --stage 'dtest with consistent topology changes' -o jenkins/next-dtest-consistent-topology
 git -C ~/github/worktrees/scylla-dtest/test-triage fetch upstream next
 python3 scripts/gen_data.py [module ...]     # default: all modules in jenkins/*_long.csv
 ```
 
 ## Jenkins data
 
-- Jobs: `scylla-master/dtest-release`, `scylla-master/dtest-release-with-raft`, last 20 builds each (fetched 2026-10-20).
+- Jobs (last 20 builds each, fetched 2026-10-20), name = `jenkins/<name>_*.csv` = key in `stats.by_job`:
+  - `dtest-release`, `dtest-release-with-raft` — full dtest runs.
+  - `next-dtest-tablets`, `next-dtest-consistent-topology` — gating dtest, stages of `scylla-master/next`
+    (filtered by `--stage`). Old `gating-dtest-release-with-{tablets,consistent-topology-changes}` jobs are stale
+    since 2026-08-23. Builds that fail before the dtest stages have no results (16/20 had them).
 - `*_status.csv` test × build: PASSED / FAILED / SKIPPED / N/A. `*_runtime.csv` duration s.
   `*_long.csv` one row per run (build, split, test, status, duration) — lossless, used by scripts.
 - Builds run 4 parallel splits; some tests run twice per build. Skipped runs excluded from stats.
 - Plugin RPC (`getExportCSV`) returns 500 via curl, hence REST API.
-- Scope: test functions with ≥1 non-skipped run in either job: 513 functions, 48 modules.
+- Scope: test functions with ≥1 non-skipped run in any job: 1670 functions, 114 modules (~2000 test defs in repo); tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
+  Tests only ever skipped are excluded (e.g. `migration_test.TestTTLWithMigrate.test_big_table_with_ttls`).
 
 ## data/<module>.json
 

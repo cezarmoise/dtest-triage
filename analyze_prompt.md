@@ -3,10 +3,12 @@ Triage dtest tests in module `{MODULE}` (file path = `file` in the data JSON) â€
 Inputs:
 - dtest repo: /home/cezar/github/worktrees/scylla-dtest/test-triage. Read code at `upstream/next` (`git show upstream/next:<path>`, path = `file` in the data JSON), not the working tree.
 - Generated data: /home/cezar/github/dtest-triage/data/{MODULE}.json â€” tests in scope (class, name, line range,
-  Jenkins stats from dtest-release + dtest-release-with-raft, last 20 builds each, function-level commits with PRs) + file-level commits.
+  Jenkins stats, last 20 builds per job, per-job breakdown in `stats.by_job`, function-level commits with PRs) + file-level commits.
 - Scylla source: ~/github/scylladb (read-only). Unit/cluster tests in `test/` (cluster, cqlpy, alternator, boost, nodetool, rest_api, ...).
 
-For EACH test in the JSON `tests` list:
+Tests to analyze: {TESTS} (`all` = every test in the JSON `tests` list; otherwise only these `Class::test` keys).
+
+For EACH of those tests:
 1. Read the test + helpers/fixtures it uses. Origin: the function history may stop at a refactor
    (e.g. "port to pytest"); find the real origin in file-level commits / `git log -S'<name>' upstream/next`.
    Read origin commit + PR (`gh pr view <n> -R scylladb/scylla-dtest --json title,body`) and any linked scylla issue.
@@ -46,4 +48,6 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if need
   }
 }
 ```
-Do not modify any repo other than writing that file. Reply with a short table: test, decision, reason.
+If the file already exists, load it and add/replace only your tests; keep the other entries.
+Write it after every few tests (valid JSON each time), so progress survives interruption.
+Do not modify any repo other than writing that file; do not commit. Reply with a short table: test, decision, reason.
