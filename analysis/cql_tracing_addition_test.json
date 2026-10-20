@@ -1,0 +1,296 @@
+{
+  "file": "cql_tracing_addition_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestTracingReadAccess::test_tracing_info_for_all_partitions": {
+      "description": "1 node, cache disabled; insert 1 row, flush, cqlsh 'TRACING ON; SELECT * FROM ks.cf'. Intends to assert trace output contains 'Reading partition range ... from sstable <Data>' and 'scheduling/finished bulk DMA read' for the Data/Index file from the node. Guards sstable read tracing (traced_file).",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "dtest:read_amplification_test.py::ReadAmplificationTest (get_reader_shards)",
+          "coverage": "partial",
+          "note": "greps system_traces.events for 'scheduling bulk DMA read'/'Reading partition range' to infer shards; not sstable filenames, different purpose."
+        },
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Would be GREEN (unique coverage of live sstable-read tracing, no scylla test) but the test cannot fail. no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_for_mv": {
+      "description": "1 node, cache disabled, MV cf_by_rate; insert 1 row, flush, cqlsh TRACING ON SELECT * from the view. Intends to assert partition-range sstable read + DMA trace lines for the view's sstables.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446). MVs live.",
+      "duplicates": [
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (trace for MV sstable reads) but assertion is vacuous. no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_selecting_by_one_key": {
+      "description": "1 node, cache disabled; insert 5 rows, flush, cqlsh TRACING ON SELECT by one random key. Intends to assert 'Reading key ... from sstable' + DMA trace lines (single-partition read path, sstable_set.cc:941).",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "9ffd273f04": "formatting (ruff format)",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of single-partition 'Reading key' trace, but one-key verify regexes had '| {} |' since origin c0f3286997, so this test has never asserted anything. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_for_index_read_range": {
+      "description": "1 node, cache disabled, secondary index on rate; insert 5 rows, flush, cqlsh TRACING ON SELECT ... WHERE rate > 0 ALLOW FILTERING. Intends to assert partition-range sstable read trace lines on base table.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "1bc5b4be6a": "file-level: removed @require('#5529') (scylladb/scylla#5529 closed) \u2014 re-enabled this test",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446). Note: SI only serves equality; 'rate > 0 ALLOW FILTERING' is a filtered full scan, not an index read.",
+      "duplicates": [
+        {
+          "path": "dtest:cql_tracing_addition_test.py::TestTracingReadAccess::test_tracing_info_for_all_partitions",
+          "coverage": "full",
+          "note": "same trace path (full scan) and same verify function; index unused."
+        },
+        {
+          "path": "dtest:read_amplification_test.py::ReadAmplificationTest (get_reader_shards)",
+          "coverage": "partial",
+          "note": "greps system_traces.events for 'scheduling bulk DMA read'/'Reading partition range' to infer shards; not sstable filenames, different purpose."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with test_tracing_info_for_all_partitions: range on indexed column is a filtering full scan, same verify call; name misleading. no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190). Note: refs closed scylladb/scylla#5529 (1bc5b4be6a)."
+    },
+    "TestTracingReadAccess::test_tracing_info_for_index_read_one": {
+      "description": "1 node, cache disabled, SI on rate; insert 5 rows, flush, cqlsh TRACING ON SELECT ... WHERE rate = <existing> ALLOW FILTERING (index lookup). Intends to assert 'Reading key ... from sstable' + DMA lines for base-table sstables.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446). SI live.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py:90",
+          "coverage": "partial",
+          "note": "checks index name appears in trace events; not sstable reads."
+        },
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "one-key verify regexes had '| {} |' since origin c0f3286997, so this test has never asserted anything. Only checks base table sstables, not index table's. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_read_from_several_sstables": {
+      "description": "1 node, cache disabled, LCS; two insert+flush rounds plus update+flush (3 sstables), cqlsh TRACING ON SELECT *. Intends to assert trace lines for every Data sstable.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "11371fb579": "added single_node mark",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "375ab7e54b": "nodetool settraceprobability -> set_trace_probability helper",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "dtest:cql_tracing_addition_test.py::TestTracingReadAccess::test_tracing_info_for_all_partitions",
+          "coverage": "partial",
+          "note": "same verify, 1 sstable vs several."
+        },
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Multi-sstable variant of all_partitions; no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Note: set_trace_probability(1.0) unnecessary \u2014 cqlsh 'TRACING ON' already traces the query. Note: LCS may compact sstables before read; harmless given verify iterates actual files. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_sstables_locally_on_each_node_from_replica": {
+      "description": "3 nodes in 3 racks, RF=3, cache disabled; insert 50 rows, flush all, then on each node cqlsh TRACING ON SELECT * and verify that node's sstables appear in trace with that node's address.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "375ab7e54b": "nodetool settraceprobability -> set_trace_probability helper",
+        "d26a91ee36": "3 racks via generate_cluster_topology, rf=3 (rf-rack-valid)",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "dtest:cql_tracing_addition_test.py::TestTracingReadAccess::test_tracing_info_for_all_partitions",
+          "coverage": "partial",
+          "note": "same check x3 nodes; adds multi-node trace sources."
+        },
+        {
+          "path": "dtest:read_amplification_test.py::ReadAmplificationTest (get_reader_shards)",
+          "coverage": "partial",
+          "note": "greps system_traces.events for 'scheduling bulk DMA read'/'Reading partition range' to infer shards; not sstable filenames, different purpose."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "18.6s, essentially all_partitions x3 nodes; the per-node address check is in the dead '| addr |' part. no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Note: set_trace_probability(1.0) unnecessary \u2014 cqlsh 'TRACING ON' already traces the query. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_for_sstables_on_each_node_from_replica_with_cache_enabled": {
+      "description": "3 nodes (3 racks), RF=3, cache ENABLED; insert 50 rows, flush, then per node restart (cold cache) and cqlsh TRACING ON SELECT *, verify that node's sstable reads traced. Checks tracing when reads go through row cache miss path.",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "375ab7e54b": "nodetool settraceprobability -> set_trace_probability helper",
+        "492425dfdf": "rack_num=3 topology + rf=3 (rf-rack-valid)",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "dtest:read_amplification_test.py::ReadAmplificationTest (get_reader_shards)",
+          "coverage": "partial",
+          "note": "greps system_traces.events for 'scheduling bulk DMA read'/'Reading partition range' to infer shards; not sstable filenames, different purpose."
+        },
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slowest (31.5s, 3 restarts); cache-miss variant is the only distinct angle, but no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Note: set_trace_probability(1.0) unnecessary \u2014 cqlsh 'TRACING ON' already traces the query. Note: set_trace_probability is lost after restart anyway. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    },
+    "TestTracingReadAccess::test_tracing_info_from_remote_sstables": {
+      "description": "2 nodes, RF=1, cache disabled; insert 10 rows, flush only node1, query from node2 with cqlsh TRACING ON; verify node1's sstable reads appear in trace (remote replica trace events).",
+      "origin": {
+        "sha": "c0f3286997",
+        "date": "2019-12-26",
+        "pr": 1215,
+        "summary": "Aleksandr Bykov: tests for tracing I/O reads from sstable (TRACING ON in cqlsh, check sstable read + DMA trace lines); c70fe43417 (same PR) added first version under old names, c0f3286997 split/renamed into the current 9 tests."
+      },
+      "commits": {
+        "c70fe43417": "original version (test_tracing_one_node_one_sstable etc., later renamed/split)",
+        "c0f3286997": "added test in current form",
+        "047420a389": "file-level: unified verify into _verify_tracing_info, allowing Data|Index; introduced unescaped '| addr |' for range verify -> asserts became no-ops",
+        "fa0e7515b8": "pytest port: assertRegexpMatches(re.search) -> PytestRegex(re.match), attr -> pytest marks",
+        "9922cda8fe": "file-level: class added to next_gating",
+        "d22c82e604": "file-level: removed 'assert not err' from cqlsh helpers (cqlsh-rs)"
+      },
+      "relevance": "Live: 'Reading partition range {} from sstable {}' (sstables/sstable_set.cc:737), 'Reading key {} from sstable {}' (sstable_set.cc:941), 'scheduling/finished bulk DMA read' (tracing/traced_file.cc:218,222); enable_cache config live (db/config.cc:1446).",
+      "duplicates": [
+        {
+          "path": "dtest:read_amplification_test.py::ReadAmplificationTest (get_reader_shards)",
+          "coverage": "partial",
+          "note": "greps system_traces.events for 'scheduling bulk DMA read'/'Reading partition range' to infer shards; not sstable filenames, different purpose."
+        },
+        {
+          "path": "test/boost/tracing_test.cc",
+          "coverage": "partial",
+          "note": "tracing infra only (events, slow query); no sstable read trace checks. No scylla test checks sstable-read trace events."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Coherent unique scenario (remote replica sstable trace), same dead assert. no-op since 047420a3 (PR 1818, 2020-12-15; before that, 'Reading partition range' regex had no '|' and was a real check). Note: 2 nodes in one rack with RF=1 \u2014 fine for rf-rack-valid. Bug: all 3 regexes in _verify_tracing_info (cql_tracing_addition_test.py:188-191) end in unescaped '| {addr} |' -> top-level alternation with an empty alternative, so PytestRegex (re.match) always returns True; verified empirically. The test cannot fail on missing trace output; 32/32 pass in next_gating is meaningless. Bug: even with '|' escaped, PytestRegex uses re.match (anchored at pos 0, no DOTALL) vs old assertRegexpMatches (re.search) since pytest port fa0e7515 \u2014 cqlsh output never starts with 'Reading ...', so naive fix fails; needs re.search or rewrite via driver trace=True + system_traces.events. Note: d22c82e604 (PR 6887, cqlsh-rs) removed 'assert not err' from all run_cqlsh helpers, the only remaining real check; unverified whether cqlsh-rs prints TRACING output the same way. Note: sstable path interpolated into regex unescaped (:188-190)."
+    }
+  }
+}
