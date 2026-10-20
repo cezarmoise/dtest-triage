@@ -1,0 +1,1612 @@
+{
+  "file": "migration_test.py",
+  "tests": {
+    "TestLoadAndStream::test_load_and_stream_decrease_cluster": {
+      "description": "2-node (2 racks) RF=2 cluster; sstables from a 4-node source cluster (node1,node2 -> node1; node3,node4 -> node2) are loaded with nodetool refresh --load-and-stream. Asserts refresh start/done log lines and reads all 1000 rows at QUORUM via query_c1c2. Guards L&S of sstables whose token ranges don't match the local ring (scylla df3ef800c2).",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables",
+          "coverage": "partial",
+          "note": "L&S of shuffled sstables (scope=rack), asserts all keys present"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same flow, opposite topology change"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Vnodes L&S of sstables from a different-size cluster; scylla cluster tests cover L&S mostly with tablets and same-cluster sstables (test_refresh.py), so only partial overlap. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_decrease_cluster_with_mv": {
+      "description": "Same as decrease_cluster (4-node sstables -> 2-node RF=2 vnode cluster) but base table has a materialized view created before loading. Asserts base rows at QUORUM and MV rows (count on each node with 60s retry + per-key assert_one). Guards view update generation for L&S sstables (scylla#9205, #9262).",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "7d5559699c": "file-level: removed skip #9262 after scylla fix eaf4d2afb4 (scylla#9205, #9262: L&S with views)",
+        "e814cd582d": "view row count now retried up to 60s (SCYLLADB-658); same change made base-table count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)",
+        "eccda80e42": "formatting (ruff 0.9.4)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_generates_view_updates",
+          "coverage": "partial",
+          "note": "L&S into table with MV + secondary index already built; asserts view/index row counts on every host; vnodes and tablets. Commit 9038e37107 says dtest coverage was incidental"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster_with_mv",
+          "coverage": "partial",
+          "note": "same MV check, increase topology"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_decrease_cluster_with_index_view",
+          "coverage": "partial",
+          "note": "same flow, index instead of MV"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "View-update generation from L&S (MV+index, vnodes+tablets) now directly covered by test/cluster/test_refresh.py::test_refresh_generates_view_updates (9038e37107); remaining value is topology mismatch, which 4 MV/index dtest variants duplicate among themselves - keep at most one. Note: docstring says 'secondary index' (migration_test.py:1073). Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_decrease_cluster_with_index_view": {
+      "description": "Same as decrease_cluster but with secondary index on c2 created before loading. Asserts base rows at QUORUM, index view row count per node (retry), and SELECT ... WHERE c2=... returns each key. Guards index view updates from L&S sstables (scylla#9205, #9262).",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "7d5559699c": "file-level: removed skip #9262 after scylla fix eaf4d2afb4 (scylla#9205, #9262: L&S with views)",
+        "e814cd582d": "view row count now retried up to 60s (SCYLLADB-658); same change made base-table count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_generates_view_updates",
+          "coverage": "partial",
+          "note": "L&S into table with MV + secondary index already built; asserts view/index row counts on every host; vnodes and tablets. Commit 9038e37107 says dtest coverage was incidental"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster_with_index",
+          "coverage": "partial",
+          "note": "same index check, increase topology"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_decrease_cluster_with_mv",
+          "coverage": "partial",
+          "note": "same flow with MV"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Index view updates from L&S covered by test/cluster/test_refresh.py::test_refresh_generates_view_updates (index + MV, vnodes + tablets); dtest adds only foreign-topology sstables, shared with 3 sibling MV/index variants. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_increase_cluster_with_index": {
+      "description": "2-node source sstables loaded into a 4-node (2 racks) RF=2 vnode cluster via node1 and node4, with secondary index on c2 created first. Asserts base rows at QUORUM, index view counts (retry) and index queries for all 1000 keys.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "7d5559699c": "file-level: removed skip #9262 after scylla fix eaf4d2afb4 (scylla#9205, #9262: L&S with views)",
+        "e814cd582d": "view row count now retried up to 60s (SCYLLADB-658); same change made base-table count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_generates_view_updates",
+          "coverage": "partial",
+          "note": "L&S into table with MV + secondary index already built; asserts view/index row counts on every host; vnodes and tablets. Commit 9038e37107 says dtest coverage was incidental"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_decrease_cluster_with_index_view",
+          "coverage": "partial",
+          "note": "same index check, decrease topology"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same flow without index"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Index view updates from L&S covered by test_refresh.py::test_refresh_generates_view_updates; topology part duplicated by increase_cluster. Note: docstring says 'materialized view' (migration_test.py:1163). Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_increase_cluster_test_data_with_smp2": {
+      "description": "Sstables from a 2-node cluster run with smp=2 (c-s schema, 2 sstables per node) loaded into a 4-node (3 racks) RF=3 cluster via node3/node4. Only assertions: refresh start/done log lines and check_number_of_rows on each node, which is a no-op for base tables. Intended to guard L&S of multi-shard-origin sstables.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same topology change with real per-key QUORUM validation"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_asymmetric_cluster",
+          "coverage": "partial",
+          "note": "shard-count mismatch"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Asserts no data at all: only data check is check_number_of_rows which is a no-op for non-view tables since e814cd582d (migration_test.py:97), so the test only verifies nodetool succeeds and logs appear. Loading sstables into nodes with different shard layout is exercised by test.py cluster tests (default --smp 2, test/pylib/scylla_server.py:153) e.g. test_refresh.py::test_refresh_with_streaming_scopes, and the topology change by increase_cluster. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_increase_cluster": {
+      "description": "2-node RF=2 source sstables loaded into a 4-node (2 racks x 2) RF=2 vnode cluster: node1's files via node4, node2's via node1. Asserts refresh log lines and all 1000 rows readable at QUORUM.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables",
+          "coverage": "partial",
+          "note": "L&S of shuffled sstables (scope=rack), asserts all keys present"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_from_one_node_increase_cluster",
+          "coverage": "partial",
+          "note": "same topology, all files via one node"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_decrease_cluster",
+          "coverage": "partial",
+          "note": "opposite direction"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Vnodes L&S with foreign-topology sstables; scylla tests only partially overlap (tablets/same-cluster). Overlaps heavily with from_one_node_increase_cluster. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_from_one_node_increase_cluster": {
+      "description": "Both source nodes' sstables (2-node RF=2) loaded sequentially through node3 of a 4-node RF=2 vnode cluster. Asserts refresh log lines and all 1000 rows at QUORUM. Checks a node can stream data it doesn't own to all owners.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same topology/data; differs only in which nodes run refresh"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: identical setup/assertions to test_load_and_stream_increase_cluster, only loading node differs; streaming non-owned data to owners also covered by test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables (shuffled sstables) and test_refresh_with_streaming_scopes. Note: source node1 alone already holds all rows (RF=2 on 2 nodes), so loading node2's files adds nothing. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_increase_cluster_with_mv": {
+      "description": "2-node source sstables loaded into a 4-node RF=2 vnode cluster (via node1/node4) with an MV created first. Asserts base rows at QUORUM, MV counts per node (retry) and per-key MV lookups.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "7d5559699c": "file-level: removed skip #9262 after scylla fix eaf4d2afb4 (scylla#9205, #9262: L&S with views)",
+        "e814cd582d": "view row count now retried up to 60s (SCYLLADB-658); same change made base-table count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)",
+        "eccda80e42": "formatting (ruff 0.9.4)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_generates_view_updates",
+          "coverage": "partial",
+          "note": "L&S into table with MV + secondary index already built; asserts view/index row counts on every host; vnodes and tablets. Commit 9038e37107 says dtest coverage was incidental"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_decrease_cluster_with_mv",
+          "coverage": "partial",
+          "note": "same MV check, decrease topology"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same flow without MV"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "MV update generation from L&S covered by test_refresh.py::test_refresh_generates_view_updates (vnodes+tablets); topology part duplicated by increase_cluster. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_asymmetric_cluster": {
+      "description": "4-node RF=2 vnode cluster where nodes 2-4 are restarted with smp 2/3/4; 2-node source sstables loaded and all 1000 rows read at QUORUM. Intended to load via node1 (smp1) and node3 (smp3) to cover L&S across nodes with different shard counts.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "migration_test.py::TestLoadAndStream::test_load_and_stream_increase_cluster",
+          "coverage": "partial",
+          "note": "same data/topology, uniform smp"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: both iterations copy sstables to node1 (migration_test.py:1345, copy_to_node=node1) but the second refresh runs on node3, whose upload dir is empty; node2's files sit unloaded in node1/upload. Passes only because node1's source sstables hold all rows. Streaming from smp1 to smp2-4 receivers still exercised; no scylla test with mixed smp L&S found. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_primary_replica_only": {
+      "description": "3-node (2 racks) RF=2 vnode cluster; source node1 sstables loaded on node2 with refresh --load-and-stream --primary-replica-only, then nodetool repair -pr on all nodes, then all rows read at QUORUM. Meant to verify pro streams only to primary replicas and repair completes replication.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched to nodetool refresh --load-and-stream; added skip scylla-tools-java#282",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)",
+        "1514842262": "file-level: fixed --primary-replica-only flag syntax for scylla nodetool and removed skip scylla-tools-java#282 (2026-04-20)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        },
+        {
+          "path": "test/cluster/test_tablets2.py::test_tablet_load_and_stream",
+          "coverage": "partial",
+          "note": "tablets L&S into new table during migration, pro True/False"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_primary_replica",
+          "coverage": "partial",
+          "note": "pro restore asserts streaming targets from sstables_loader logs (tablets)"
+        },
+        {
+          "path": "nodetool_additional_test.py::TestNodetool::test_nodetool_refresh_with_load_and_stream_with_primary_replica_only",
+          "coverage": "partial",
+          "note": "dtest; log line only"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Assertions can't tell primary-only from full streaming: QUORUM reads + repair -pr succeed either way and per-node counts are no-ops; scylla tests verify pro target placement (test_backup.py::check_streaming_directions via test_refresh_with_streaming_scopes) but with tablets only. Only vnodes pro coverage, weak. Was skipped until 1514842262. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_frozen_pk": {
+      "description": "3-node (2 racks) RF=2 vnode cluster, table with frozen<UDT> partition key + clustering key; sstables from a 4-node source loaded via node1 (2 sets), node2, node3. Validates v1/v2 of all 1000 rows at QUORUM by UDT pk lookup. Guards token computation / streaming for frozen UDT partition keys.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)",
+        "eccda80e42": "formatting (ruff 0.9.4)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test does L&S with UDT/frozen partition keys (test_refresh*/test_tablets2 use simple int/text pk) - unique coverage, would be GREEN; downgraded for class bug. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestLoadAndStream::test_load_and_stream_2_columns_pk": {
+      "description": "3-node RF=2 vnode cluster, table with composite partition key (pk1 text, pk2 int); sstables from 4-node source loaded via node1 (2 sets), node2, node3. Validates all 1000 rows at QUORUM by composite key. Guards L&S token/partition handling for composite partition keys.",
+      "origin": {
+        "sha": "46cd7e37f1",
+        "date": "2021-08-29",
+        "pr": 2245,
+        "summary": "Julia Yakovlev: add TestLoadAndStream tests for scylla load-and-stream feature (scylla df3ef800c2); data JSON PR #2351 is wrong, commit subject references #2245"
+      },
+      "commits": {
+        "46cd7e37f1": "origin: test added (initially via REST API storage_service/sstables load_and_stream)",
+        "ccd2b8d526": "switched from REST call to `nodetool refresh --load-and-stream`; assert is now just log-line match",
+        "7c5524c00e": "added wait_for_finish_load_and_stream (wait for 'Done loading new SSTables' log)",
+        "9ffd273f04": "formatting (ruff format)",
+        "63b7de4240": "rf-rack-valid topology (racks instead of plain node count)",
+        "e814cd582d": "file-level (BaseHelpers.check_number_of_rows): made non-view row count check a no-op (see Bug)",
+        "63a350247f": "file-level: removed module from next_gating (low detection rate)",
+        "eccda80e42": "formatting (ruff 0.9.4)"
+      },
+      "relevance": "Live: sstables_loader.cc:702/726 still logs 'Loading new SSTables ... load_and_stream=..., primary_replica_only=...' / 'Done loading ... status=succeeded'; nodetool refresh --load-and-stream/--primary-replica-only supported. Runs only in dtest-release(+raft) with vnodes (enable_tablets=false, dtest_setup.py:908); removed from gating 63a350247f. Fixture sstables are Scylla-written md format (Scylla.db component), not Cassandra.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py::test_refresh_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "L&S of all nodes' sstables with scopes all/dc/rack/node, pro True/False, 5 topologies; tablets only, same-cluster sstables, checks replica placement"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla L&S test with composite partition key found - unique coverage, would be GREEN; downgraded for class bug. Bug: BaseHelpers.check_number_of_rows (migration_test.py:84-105) only queries/asserts when is_view=True since e814cd582d; all per-node base-table count checks in TestLoadAndStream are no-ops. Note: wait_for_finish_load_and_stream (migration_test.py:1509) captures status=(.*) but never checks it (nodetool failure would raise anyway); dead try/except NodetoolError: raise (migration_test.py:1502)."
+    },
+    "TestMigration::test_migrate_sstable_without_compression": {
+      "description": "Creates ks.cf(key,c1,c2) without compression, copies Cassandra uncompressed sstable (INSERT key='abc',c2='cde') into upload/, runs nodetool refresh; asserts COUNT=1 (MigrationTestBase.check_number_of_rows:619 override does assert) and key/c1=None/c2 values. Guards basic Cassandra sstable import across ka/la/mc/md.",
+      "origin": {
+        "sha": "d48d423c16",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "introduce dtest for testing data migration from Cassandra"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "6b5a3275e4": "added dtest-debug attr",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "b2225f880a": "added content check of migrated row",
+        "8de783f311": "refactor into _run_basic_migration_test with compression arg",
+        "d48d423c16": "origin: initial migration test"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_simple_read",
+          "coverage": "partial",
+          "note": "reader-level, Cassandra-written mc sstable, no refresh/CQL"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_without_compression": {
+      "description": "Creates ks.cf(key,c1,c2) without compression, copies Cassandra uncompressed sstable (INSERT key='abc',c2='cde') into upload/, runs nodetool refresh; asserts COUNT=1 (MigrationTestBase.check_number_of_rows:619 override does assert) and key/c1=None/c2 values. Guards basic Cassandra sstable import across ka/la/mc/md. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "d48d423c16",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "introduce dtest for testing data migration from Cassandra"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "6b5a3275e4": "added dtest-debug attr",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "b2225f880a": "added content check of migrated row",
+        "8de783f311": "refactor into _run_basic_migration_test with compression arg",
+        "d48d423c16": "origin: initial migration test",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_simple_read",
+          "coverage": "partial",
+          "note": "reader-level, Cassandra-written mc sstable, no refresh/CQL"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_lz4_compression": {
+      "description": "Same as without_compression with LZ4-compressed Cassandra sstable (key='a',c1='abc',c2='cde'); asserts count and values.",
+      "origin": {
+        "sha": "8de783f311",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_lz4_compression_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "b2225f880a": "added content check",
+        "8de783f311": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_lz4_partition_key_with_values_of_different_types_read",
+          "coverage": "partial",
+          "note": "reader-level LZ4 mc sstable"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_lz4_compression": {
+      "description": "Same as without_compression with LZ4-compressed Cassandra sstable (key='a',c1='abc',c2='cde'); asserts count and values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "8de783f311",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_lz4_compression_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "b2225f880a": "added content check",
+        "8de783f311": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_lz4_partition_key_with_values_of_different_types_read",
+          "coverage": "partial",
+          "note": "reader-level LZ4 mc sstable"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_compact_storage": {
+      "description": "Enables enable_create_table_with_compact_storage, creates COMPACT STORAGE ks.cf(key,c1,c2), loads Cassandra compact sstable via refresh; asserts count=1 and values.",
+      "origin": {
+        "sha": "a006130bb7",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_compact_storage_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "a006130bb7": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param. COMPACT STORAGE still supported behind enable_create_table_with_compact_storage.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_write_compact_table",
+          "coverage": "partial",
+          "note": "mc compact table write/compare, not Cassandra->refresh"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc",
+          "coverage": "partial",
+          "note": "ka sstable reads (compact_sparse/compact_dense resources)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_compact_storage": {
+      "description": "Enables enable_create_table_with_compact_storage, creates COMPACT STORAGE ks.cf(key,c1,c2), loads Cassandra compact sstable via refresh; asserts count=1 and values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "a006130bb7",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_compact_storage_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "a006130bb7": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param. COMPACT STORAGE still supported behind enable_create_table_with_compact_storage.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_write_compact_table",
+          "coverage": "partial",
+          "note": "mc compact table write/compare, not Cassandra->refresh"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc",
+          "coverage": "partial",
+          "note": "ka sstable reads (compact_sparse/compact_dense resources)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_compact_storage_and_composite_key": {
+      "description": "Creates COMPACT STORAGE table (pk, ck1, v1, PK(pk,ck1)), loads Cassandra sstable via refresh; asserts count=1 and pk/v1 values.",
+      "origin": {
+        "sha": "1c714c36be",
+        "date": "2019-02-07",
+        "pr": 819,
+        "summary": "Adding a new migration test - clustering key with compact storage"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "8b4537f62c": "removed 2_2_x skip for scylla#3395 (fixed)",
+        "b6cb5cb29f": "collapsed body into _run_basic_migration_test with row_content dict (dropped explicit ck1 assert)",
+        "b7ed4ebf4c": "added 2_2_x skip (scylla#3395)",
+        "1c714c36be": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_write_compact_table",
+          "coverage": "partial",
+          "note": "mc compact table write/compare, not Cassandra->refresh"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc",
+          "coverage": "partial",
+          "note": "ka sstable reads (compact_sparse/compact_dense resources)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: row_content key 'ck1' is never checked - _run_basic_migration_test (migration_test.py:162-190) only checks key/c1/c2/pk/ck/v1, so clustering key value unasserted since b6cb5cb29f."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_compact_storage_and_composite_key": {
+      "description": "Creates COMPACT STORAGE table (pk, ck1, v1, PK(pk,ck1)), loads Cassandra sstable via refresh; asserts count=1 and pk/v1 values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "1c714c36be",
+        "date": "2019-02-07",
+        "pr": 819,
+        "summary": "Adding a new migration test - clustering key with compact storage"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "8b4537f62c": "removed 2_2_x skip for scylla#3395 (fixed)",
+        "b6cb5cb29f": "collapsed body into _run_basic_migration_test with row_content dict (dropped explicit ck1 assert)",
+        "b7ed4ebf4c": "added 2_2_x skip (scylla#3395)",
+        "1c714c36be": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_write_compact_table",
+          "coverage": "partial",
+          "note": "mc compact table write/compare, not Cassandra->refresh"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc",
+          "coverage": "partial",
+          "note": "ka sstable reads (compact_sparse/compact_dense resources)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: row_content key 'ck1' is never checked - _run_basic_migration_test (migration_test.py:162-190) only checks key/c1/c2/pk/ck/v1, so clustering key value unasserted since b6cb5cb29f. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_expired_ttl": {
+      "description": "Loads Cassandra sstable whose only row was inserted with TTL 1 (long expired), sleeps 10s, asserts COUNT(*)=0 (row_content=None -> no content check).",
+      "origin": {
+        "sha": "8e9eacc400",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_expired_ttl_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "6094419e00": "added sleep=10 (for sstableloader case)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "8e9eacc400": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc",
+          "coverage": "partial",
+          "note": "expiring/expired cells read at reader level"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: sleep=10 added in 6094419e00 'for sstable loader case'; sstableloader path removed in d4f0cd9d -> dead 10s (avg 14.2s vs ~4s for siblings)."
+    },
+    "TestMigration::test_migrate_sstable_with_cell_tombstone": {
+      "description": "Loads Cassandra sstables with a row and a later cell deletion of c2; asserts count=1 and c2 is None.",
+      "origin": {
+        "sha": "5395810d7a",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_cell_tombstone_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "5395810d7a": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_deleted_cells_read",
+          "coverage": "partial",
+          "note": "reader-level mc"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_cell_tombstone": {
+      "description": "Loads Cassandra sstables with a row and a later cell deletion of c2; asserts count=1 and c2 is None. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "5395810d7a",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_cell_tombstone_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "5395810d7a": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_deleted_cells_read",
+          "coverage": "partial",
+          "note": "reader-level mc"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_row_tombstone": {
+      "description": "Loads Cassandra sstables with a row and a later partition delete; asserts COUNT(*)=0.",
+      "origin": {
+        "sha": "5395810d7a",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "added with cell tombstone test series (Migration dtest v2)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "5395810d7a": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_deleted_cells_read",
+          "coverage": "partial",
+          "note": "reader-level mc"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigration::test_migrate_sstable_with_range_boundary_tombstone": {
+      "description": "mc/md only (skips 2_1_x/2_2_x). Table (pk,ck); Cassandra sstable with rows ck 1..5 and two adjacent range deletes (ck>=2&<3, ck>=3) producing a range tombstone boundary marker; asserts count=1 and remaining row ck=1. Ref scylla-tools-java#205.",
+      "origin": {
+        "sha": "b65f3e0260",
+        "date": "2020-09-16",
+        "pr": 1700,
+        "summary": "sstableloader: Add range boundary tombstone test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "b65f3e0260": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_range_tombstones_simple_read",
+          "coverage": "partial",
+          "note": "reader-level mc range tombstones"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_read_range_tombstone_boundaries_index",
+          "coverage": "partial",
+          "note": "mc RT boundaries"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_range_boundary_tombstone": {
+      "description": "mc/md only (skips 2_1_x/2_2_x). Table (pk,ck); Cassandra sstable with rows ck 1..5 and two adjacent range deletes (ck>=2&<3, ck>=3) producing a range tombstone boundary marker; asserts count=1 and remaining row ck=1. Ref scylla-tools-java#205. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "b65f3e0260",
+        "date": "2020-09-16",
+        "pr": 1700,
+        "summary": "sstableloader: Add range boundary tombstone test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "b65f3e0260": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_range_tombstones_simple_read",
+          "coverage": "partial",
+          "note": "reader-level mc range tombstones"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_read_range_tombstone_boundaries_index",
+          "coverage": "partial",
+          "note": "mc RT boundaries"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_range_tombstone": {
+      "description": "Loads Cassandra sstable with 3 partitions a,b,c then DELETE key IN ('a','b'); asserts count=1 and row c values.",
+      "origin": {
+        "sha": "7f9942bb08",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_range_tombstone_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "7f9942bb08": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_deleted_cells_read",
+          "coverage": "partial",
+          "note": "reader-level mc"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: misnamed - DELETE ... WHERE key IN (..) on a single-PK table writes partition tombstones, not range tombstones."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_range_tombstone": {
+      "description": "Loads Cassandra sstable with 3 partitions a,b,c then DELETE key IN ('a','b'); asserts count=1 and row c values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "7f9942bb08",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_range_tombstone_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "7f9942bb08": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_deleted_cells_read",
+          "coverage": "partial",
+          "note": "reader-level mc"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: misnamed - DELETE ... WHERE key IN (..) on a single-PK table writes partition tombstones, not range tombstones. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_clustering_key_range_tombstone": {
+      "description": "mc/md only. Table (pk,ck,v); Cassandra sstable with ck 1..5 then DELETE ck>=2 AND ck<=4; asserts count=2 and rows ck=1,5 with v. Ref scylla-tools-java#204.",
+      "origin": {
+        "sha": "d7ccea7638",
+        "date": "2020-09-14",
+        "pr": 1691,
+        "summary": "sstableloader: Add clustering key tombstone test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "d7ccea7638": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_range_tombstones_simple_read",
+          "coverage": "partial",
+          "note": "reader-level mc range tombstones"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_read_range_tombstone_boundaries_index",
+          "coverage": "partial",
+          "note": "mc RT boundaries"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_clustering_key_range_tombstone": {
+      "description": "mc/md only. Table (pk,ck,v); Cassandra sstable with ck 1..5 then DELETE ck>=2 AND ck<=4; asserts count=2 and rows ck=1,5 with v. Ref scylla-tools-java#204. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "d7ccea7638",
+        "date": "2020-09-14",
+        "pr": 1691,
+        "summary": "sstableloader: Add clustering key tombstone test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "d7ccea7638": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_range_tombstones_simple_read",
+          "coverage": "partial",
+          "note": "reader-level mc range tombstones"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_read_range_tombstone_boundaries_index",
+          "coverage": "partial",
+          "note": "mc RT boundaries"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_wide_row": {
+      "description": "Default table (key,c,v PK(key,c)) via create_cf; loads Cassandra sstable with 3 rows across 2 partitions; asserts count=3 and all values.",
+      "origin": {
+        "sha": "9d8458fcc5",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_wide_rows_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "f8d2aa32f0": "helper changes (create_ks_and_cf columns) touching this test",
+        "9d8458fcc5": "origin",
+        "a006130bb7": "create_ks_and_cf compact_storage arg",
+        "b2225f880a": "content check helper",
+        "8de783f311": "helper refactor",
+        "d48d423c16": "file origin (helpers)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_compound_ck_read",
+          "coverage": "partial",
+          "note": "reader-level mc clustering rows"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: create_cf default uses read_repair=0.0 -> obsolete read_repair_chance option."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_wide_row": {
+      "description": "Default table (key,c,v PK(key,c)) via create_cf; loads Cassandra sstable with 3 rows across 2 partitions; asserts count=3 and all values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "9d8458fcc5",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_wide_rows_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "f8d2aa32f0": "helper changes (create_ks_and_cf columns) touching this test",
+        "9d8458fcc5": "origin",
+        "a006130bb7": "create_ks_and_cf compact_storage arg",
+        "b2225f880a": "content check helper",
+        "8de783f311": "helper refactor",
+        "d48d423c16": "file origin (helpers)",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_compound_ck_read",
+          "coverage": "partial",
+          "note": "reader-level mc clustering rows"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: create_cf default uses read_repair=0.0 -> obsolete read_repair_chance option. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_collection_set": {
+      "description": "Creates ks.cf(key, messages set<text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection.",
+      "origin": {
+        "sha": "f8d2aa32f0",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_set_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "md param + content comments",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "helper change",
+        "7ba9fc9106": "helper change",
+        "f8d2aa32f0": "added collection_set test + _run_migration_test_for_collection"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_collection_set": {
+      "description": "Creates ks.cf(key, messages set<text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "f8d2aa32f0",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_set_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "md param + content comments",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "helper change",
+        "7ba9fc9106": "helper change",
+        "f8d2aa32f0": "added collection_set test + _run_migration_test_for_collection",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_collection_list": {
+      "description": "Creates ks.cf(key, messages list<text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection.",
+      "origin": {
+        "sha": "7ba9fc9106",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_list_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "md param + content comments",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "helper change",
+        "7ba9fc9106": "added collection_list test",
+        "f8d2aa32f0": "introduced _run_migration_test_for_collection"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_collection_list": {
+      "description": "Creates ks.cf(key, messages list<text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "7ba9fc9106",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_list_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "ca22614f7f": "md param + content comments",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "helper change",
+        "7ba9fc9106": "added collection_list test",
+        "f8d2aa32f0": "introduced _run_migration_test_for_collection",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_collection_map": {
+      "description": "Creates ks.cf(key, messages map<varchar,text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection.",
+      "origin": {
+        "sha": "74575116ad",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_map_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "added collection_map test (+helper)",
+        "7ba9fc9106": "helper change",
+        "f8d2aa32f0": "introduced _run_migration_test_for_collection"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_collection_map": {
+      "description": "Creates ks.cf(key, messages map<varchar,text>); loads Cassandra sstable with one partition 'a' holding the collection; asserts count=1 and collection equality via _run_migration_test_for_collection. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "74575116ad",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_collection_map_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "50fdfe6bf2": "made collection_content dict for _run_migration_test_for_collection",
+        "74575116ad": "added collection_map test (+helper)",
+        "7ba9fc9106": "helper change",
+        "f8d2aa32f0": "introduced _run_migration_test_for_collection",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_frozen_collection_map": {
+      "description": "Creates ks.cf(key, messages frozen<map<varchar,text>>); loads Cassandra sstable with 2 partitions; asserts count=2 and map values.",
+      "origin": {
+        "sha": "2ad0127413",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_frozen_collection_map_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "46cd7e37f1": "file-level/func: moved helpers to BaseHelpers + MigrationTestBase for load-and-stream tests, PR #2245 (data JSON pr 2351 is wrong)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "2ad0127413": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_frozen_collection_map": {
+      "description": "Creates ks.cf(key, messages frozen<map<varchar,text>>); loads Cassandra sstable with 2 partitions; asserts count=2 and map values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "2ad0127413",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_frozen_collection_map_test"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "46cd7e37f1": "file-level/func: moved helpers to BaseHelpers + MigrationTestBase for load-and-stream tests, PR #2245 (data JSON pr 2351 is wrong)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "2af1be543d": "renamed run_basic_migration_test -> _run_basic_migration_test (call site only)",
+        "2ad0127413": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "reader-level mc collections"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_static_cell": {
+      "description": "Table (key, s STATIC, i, PK(key,i)); Cassandra sstable with 2 rows updating static s; asserts count=2 and both rows see s='new'.",
+      "origin": {
+        "sha": "d7b4f1c9fe",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_static_cell"
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "46cd7e37f1": "file-level/func: moved helpers to BaseHelpers + MigrationTestBase for load-and-stream tests, PR #2245 (data JSON pr 2351 is wrong)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "1c714c36be": "whitespace only",
+        "5558b8af28": "no behavior change (neighbor test added)",
+        "d7b4f1c9fe": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_static_row_read",
+          "coverage": "partial",
+          "note": "reader-level mc static row"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: CREATE uses read_repair_chance, obsolete/ignored in scylla (cql3/statements/cf_prop_defs.cc obsolete_keywords)."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_static_cell": {
+      "description": "Table (key, s STATIC, i, PK(key,i)); Cassandra sstable with 2 rows updating static s; asserts count=2 and both rows see s='new'. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "d7b4f1c9fe",
+        "date": "2016-02-25",
+        "pr": 240,
+        "summary": "add migrate_sstable_with_static_cell"
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "46cd7e37f1": "file-level/func: moved helpers to BaseHelpers + MigrationTestBase for load-and-stream tests, PR #2245 (data JSON pr 2351 is wrong)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "c3471a97e4": "formatting (autopep8)",
+        "1c714c36be": "whitespace only",
+        "5558b8af28": "no behavior change (neighbor test added)",
+        "d7b4f1c9fe": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_static_row_read",
+          "coverage": "partial",
+          "note": "reader-level mc static row"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: CREATE uses read_repair_chance, obsolete/ignored in scylla (cql3/statements/cf_prop_defs.cc obsolete_keywords). Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_overlapping_tombstones": {
+      "description": "Table (pk,ck1,ck2,data); Cassandra sstable with a range tombstone on ck1='aaa' overlapped by a row tombstone (aaa,bbb) with newer ts; asserts count=1 and surviving row (bbb,aaa,fff).",
+      "origin": {
+        "sha": "5558b8af28",
+        "date": "2016-04-27",
+        "pr": null,
+        "summary": "migration_test/sstableloader_test: Add overlapping tombstones case (Calle Wilund)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "5558b8af28": "origin",
+        "d7b4f1c9fe": "listed by git log -L (neighbor static_cell test), no change"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_mutation_test.cc (tombstone_overlap ka sstable, line ~477)",
+          "coverage": "partial",
+          "note": "reader-level overlapping tombstones from ka sstable"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_overlapping_tombstones": {
+      "description": "Table (pk,ck1,ck2,data); Cassandra sstable with a range tombstone on ck1='aaa' overlapped by a row tombstone (aaa,bbb) with newer ts; asserts count=1 and surviving row (bbb,aaa,fff). In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "5558b8af28",
+        "date": "2016-04-27",
+        "pr": null,
+        "summary": "migration_test/sstableloader_test: Add overlapping tombstones case (Calle Wilund)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e6fac6a50e": "formatting (PEP8)",
+        "5558b8af28": "origin",
+        "d7b4f1c9fe": "listed by git log -L (neighbor static_cell test), no change",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_mutation_test.cc (tombstone_overlap ka sstable, line ~477)",
+          "coverage": "partial",
+          "note": "reader-level overlapping tombstones from ka sstable"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_user_defined_types": {
+      "description": "Creates nested UDTs ut1/ut2 and table (id uuid, c frozen<ut2>); loads Cassandra sstable with 2 rows; asserts count=2 and nested tuple values.",
+      "origin": {
+        "sha": "da0cbf4fce",
+        "date": "2016-05-11",
+        "pr": 331,
+        "summary": "migration_test/sstableloader_test: Add user types case"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "28a99dae8c": "fixed method name typo (*_tests -> *_test) so it actually ran",
+        "da0cbf4fce": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "no direct UDT-from-Cassandra read test found; 3.x/legacy_udt_in_collection resource exists"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_user_defined_types": {
+      "description": "Creates nested UDTs ut1/ut2 and table (id uuid, c frozen<ut2>); loads Cassandra sstable with 2 rows; asserts count=2 and nested tuple values. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "da0cbf4fce",
+        "date": "2016-05-11",
+        "pr": 331,
+        "summary": "migration_test/sstableloader_test: Add user types case"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "28a99dae8c": "fixed method name typo (*_tests -> *_test) so it actually ran",
+        "da0cbf4fce": "origin",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_collections_read",
+          "coverage": "partial",
+          "note": "no direct UDT-from-Cassandra read test found; 3.x/legacy_udt_in_collection resource exists"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_to_check_consistency": {
+      "description": "Regression for scylla#1212 (fix c2fa3b796d 'db: fix read consistency after refresh'): refresh sstable with key1 r1=1, read (populate cache), refresh second Cassandra sstable updating r1=2, assert read returns 2 (cache invalidated on refresh).",
+      "origin": {
+        "sha": "baf9c8ef1f",
+        "date": "2016-05-20",
+        "pr": 337,
+        "summary": "migration: check that refresh will properly invalidate row cache entries"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "ca22614f7f": "added 3_0_md param + content comments (md-format sstables), PR #1638",
+        "baf9c8ef1f": "origin"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param. scylla#1212 fix c2fa3b796d had no unit test; only this dtest guards cache invalidation on refresh.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py",
+          "coverage": "partial",
+          "note": "refresh with scylla-written sstables; no cache-invalidation check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: CREATE uses read_repair_chance, obsolete/ignored in scylla (cql3/statements/cf_prop_defs.cc obsolete_keywords)."
+    },
+    "TestMigration::test_migrate_sstable_with_counter": {
+      "description": "Body MigrationTestBase:568, TestMigration:703-706 re-declares it (wrapper adding dtest_debug + same skip_if). Starts node with enable_dangerous_direct_import_of_cassandra_counters=true, creates counter table, loads Cassandra counter sstable via refresh. Only asserts refresh succeeds (scylla#2119).",
+      "origin": {
+        "sha": "e9aafcb0",
+        "date": "2016-02-26",
+        "pr": 240,
+        "summary": "migration_test: add migrate_sstable_with_counter test"
+      },
+      "commits": {
+        "2fb588840d": "added skip_if(tablets & issue_open #18180)",
+        "aedaa57c4e": "formatting (pyupgrade/isort; f-strings)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "6b5a3275e4": "added dtest-debug attr",
+        "8a8643f8f4": "added next-gating attr",
+        "4ec2dfa348": "removed 2_2_x skip (scylla#3395 fixed)",
+        "c5897ee2bc": "2_2_x support / version param"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param. enable_dangerous_direct_import_of_cassandra_counters still in db/config.cc.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_counters_read",
+          "coverage": "partial",
+          "note": "reader-level Cassandra mc counters; dangerous direct import flag only grep-hit in source (db/config.cc, sstables/sstable_directory.cc)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: no data assertion after load - expected counter values in docstring never checked; only that nodetool refresh does not throw (migration_test.py:568-585). Note: skip_if(with_feature('tablets') & issue_open('#18180')) dead - scylladb#18180 'Tablets: support counters' CLOSED 2025-11-04; module not run with tablets anyway (dropped from next_gating 63a35024)."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_counter": {
+      "description": "Body MigrationTestBase:568, TestMigration:703-706 re-declares it (wrapper adding dtest_debug + same skip_if). Starts node with enable_dangerous_direct_import_of_cassandra_counters=true, creates counter table, loads Cassandra counter sstable via refresh. Only asserts refresh succeeds (scylla#2119). In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "e9aafcb0",
+        "date": "2016-02-26",
+        "pr": 240,
+        "summary": "migration_test: add migrate_sstable_with_counter test"
+      },
+      "commits": {
+        "2fb588840d": "added skip_if(tablets & issue_open #18180)",
+        "aedaa57c4e": "formatting (pyupgrade/isort; f-strings)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "6b5a3275e4": "added dtest-debug attr",
+        "8a8643f8f4": "added next-gating attr",
+        "4ec2dfa348": "removed 2_2_x skip (scylla#3395 fixed)",
+        "c5897ee2bc": "2_2_x support / version param",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param. enable_dangerous_direct_import_of_cassandra_counters still in db/config.cc.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_counters_read",
+          "coverage": "partial",
+          "note": "reader-level Cassandra mc counters; dangerous direct import flag only grep-hit in source (db/config.cc, sstables/sstable_directory.cc)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Bug: no data assertion after load - expected counter values in docstring never checked; only that nodetool refresh does not throw (migration_test.py:568-585). Note: skip_if(with_feature('tablets') & issue_open('#18180')) dead - scylladb#18180 'Tablets: support counters' CLOSED 2025-11-04; module not run with tablets anyway (dropped from next_gating 63a35024). Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    },
+    "TestMigration::test_migrate_sstable_with_variant_data_types": {
+      "description": "Body MigrationTestBase:461, TestMigration:708-709 is a pass-through wrapper. Table with 18 column types (ascii..varint, list/map/set) keyed (aascii,abigint); loads Cassandra sstable with 3 rows; asserts count=3 and every column value.",
+      "origin": {
+        "sha": "b0b41384",
+        "date": "2017-06-18",
+        "pr": 506,
+        "summary": "add a new test that check variant data types while migrating"
+      },
+      "commits": {
+        "aedaa57c4e": "formatting (pyupgrade/isort; f-strings)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e86cbb0f98": "removed 2_2_x skip (scylla#3395 fixed)",
+        "c5897ee2bc": "2_2_x support / version param"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_partition_key_with_values_of_different_types_read",
+          "coverage": "partial",
+          "note": "reader-level mc, many types"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: CREATE uses read_repair_chance, obsolete/ignored in scylla (cql3/statements/cf_prop_defs.cc obsolete_keywords). Note: TestMigration wrapper (708-709) is redundant pass-through."
+    },
+    "TestMigrationUpgradeSSTables::test_migrate_sstable_with_variant_data_types": {
+      "description": "Body MigrationTestBase:461, TestMigration:708-709 is a pass-through wrapper. Table with 18 column types (ascii..varint, list/map/set) keyed (aascii,abigint); loads Cassandra sstable with 3 rows; asserts count=3 and every column value. In this class load_migrated_tables additionally runs `nodetool upgradesstables ks cf` + flush and asserts the sstable version increased before the content checks.",
+      "origin": {
+        "sha": "b0b41384",
+        "date": "2017-06-18",
+        "pr": 506,
+        "summary": "add a new test that check variant data types while migrating"
+      },
+      "commits": {
+        "aedaa57c4e": "formatting (pyupgrade/isort; f-strings)",
+        "29a308c4ed": "migrate to pytest (renamed *_test -> test_*, assertEqual -> assert)",
+        "e86cbb0f98": "removed 2_2_x skip (scylla#3395 fixed)",
+        "c5897ee2bc": "2_2_x support / version param",
+        "da8333a0": "file-level: origin of TestMigrationUpgradeSSTables (load_migrated_tables override running nodetool upgradesstables + sstable version check), PR #1008, scylla#4245",
+        "e3390377": "file-level: pytest fixture for version params in TestMigrationUpgradeSSTables",
+        "d4f0cd9d": "file-level: removed sstableloader path; load_migrated_tables now only refresh (test_migrate_sstable_with_large_row_number removed)"
+      },
+      "relevance": "Live: scylla still reads ka/la/mc/md (sstables/version.hh: ka..mt), nodetool refresh from upload/ is the documented Cassandra->Scylla path besides sstableloader. Fixtures cassandra-sstables/migration/{2_1_x(ka),2_2_x(la),3_0_mc,3_0_md} are Cassandra-written (generated by create_cassandra_sstables_for_migration.py). Runs only in dtest-release(-with-raft) since module dropped from next_gating in 63a35024 (2026-02-09); 100% pass, ~5s/param.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_uncompressed_partition_key_with_values_of_different_types_read",
+          "coverage": "partial",
+          "note": "reader-level mc, many types"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial coverage only: boost tests parse Cassandra-written sstables at reader level, nothing covers upload/+nodetool refresh(+upgradesstables) end-to-end with Cassandra files; feature live, fast, stable.  Note: class-level dead config start_rpc=true in TestMigration.fixture_dtest_setup_overrides (migration_test.py:680; db/config.cc:1288 value_status::Unused) -> GREEN downgraded. Note: CREATE uses read_repair_chance, obsolete/ignored in scylla (cql3/statements/cf_prop_defs.cc obsolete_keywords). Note: TestMigration wrapper (708-709) is redundant pass-through. Bug: TestMigrationUpgradeSSTables.get_sstable_version regex (migration_test.py:647) parses 2_1_x names 'ks-cf-ka-1-*' as version 'ks' (keyspace), check passes only because 'me'/'ms' > 'ks' lexically; Note: version check `after > before or (before==after and after in [mc,md])` tolerates no-op upgrade of mc/md. Class adds only one `nodetool upgradesstables`+flush on top of the identical TestMigration body -> could be one param."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
