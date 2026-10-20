@@ -1,0 +1,261 @@
+{
+  "file": "cql_system_clients_test.py",
+  "tests": {
+    "TestSystemClients::test_system_client_not_none": {
+      "description": "1-node cluster with client TLS on 9142 and password auth; user1 (superuser) connects over TLS with dict_factory rows, and the test intends to check that system.clients row has non-null address, port, client_type, connection_stage, protocol_version, shard_id, username, driver_name, driver_version. Guards population of system.clients columns (trello 1545 connected-clients table).",
+      "origin": {
+        "sha": "cb5d09b5be",
+        "date": "2021-03-10",
+        "pr": 2310,
+        "summary": "Added _system_client_content and content tests (not_none, hostname, ssl) to cql_system_clients.py."
+      },
+      "commits": {
+        "e5f611026d": "_system_client_content: 2 nodes -> 1 node, connect to node 0, honour ssl_enabled arg, add single_node mark.",
+        "9ffd273f04": "formatting (ruff format).",
+        "38dcedcc0d": "file-level: added wait_anonymous_connections_purged before reading system.clients (scylla-driver support).",
+        "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
+        "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
+        "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
+        "cb5d09b5be": "origin: test added (nodes=2, TLS)."
+      },
+      "relevance": "system.clients virtual table live (scylladb db/virtual_tables.cc:935-1055 sets shard_id, connection_stage, driver_name/version, protocol_version, username).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_clients",
+          "coverage": "partial",
+          "note": "selects all columns, checks address/client_type and driver_name/version == client_options; no non-null check."
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_connection_stage.py::test_connection_stage_ready_after_auth",
+          "coverage": "partial",
+          "note": "connection_stage READY after auth."
+        },
+        {
+          "path": "test/cluster/test_proxy_protocol.py::test_proxy_protocol_shard_aware",
+          "coverage": "partial",
+          "note": "address/port/shard_id."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. Intended non-null check of driver/username/protocol_version only partially covered in scylla (test_virtual_tables.py::test_clients); fix (row['username']) or move to cqlpy. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_client_not_none_non_ssl": {
+      "description": "Same as test_system_client_not_none but with client TLS disabled, connecting to plain 9042: intends to assert the same 9 system.clients columns are non-null for a non-TLS connection.",
+      "origin": {
+        "sha": "87ae715c81",
+        "date": "2021-03-14",
+        "pr": 2310,
+        "summary": "Added ssl/non-ssl variants (ssl_enabled/ssl_optional params) of the content tests."
+      },
+      "commits": {
+        "e5f611026d": "_system_client_content: 2 nodes -> 1 node, connect to node 0, honour ssl_enabled arg, add single_node mark.",
+        "9ffd273f04": "formatting (ruff format).",
+        "38dcedcc0d": "file-level: added wait_anonymous_connections_purged before reading system.clients (scylla-driver support).",
+        "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
+        "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
+        "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
+        "87ae715c81": "origin: non-SSL variant added."
+      },
+      "relevance": "system.clients virtual table live (scylladb db/virtual_tables.cc:935-1055 sets shard_id, connection_stage, driver_name/version, protocol_version, username).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_clients",
+          "coverage": "partial",
+          "note": "selects all columns, checks address/client_type and driver_name/version == client_options; no non-null check."
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_connection_stage.py::test_connection_stage_ready_after_auth",
+          "coverage": "partial",
+          "note": "connection_stage READY after auth."
+        },
+        {
+          "path": "test/cluster/test_proxy_protocol.py::test_proxy_protocol_shard_aware",
+          "coverage": "partial",
+          "note": "address/port/shard_id."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. Near-duplicate of test_system_client_not_none (only transport differs); intended check only partially covered in scylla (test/cqlpy/test_virtual_tables.py::test_clients, which runs non-TLS). Merge with the TLS variant or move to cqlpy. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_client_hostname": {
+      "description": "1-node TLS cluster; user1 connects over TLS and the test intends to assert system.clients.hostname is non-null. Marked @require('#9216') (system.clients missing hostname/ssl_* columns), so it was deselected until scylladb#9216 closed on 2025-09-18.",
+      "origin": {
+        "sha": "cb5d09b5be",
+        "date": "2021-03-10",
+        "pr": 2310,
+        "summary": "Added with @skip('#6946'); converted to require mark."
+      },
+      "commits": {
+        "e5f611026d": "_system_client_content: 2 nodes -> 1 node, connect to node 0, honour ssl_enabled arg, add single_node mark.",
+        "9ffd273f04": "formatting (ruff format).",
+        "38dcedcc0d": "file-level: added wait_anonymous_connections_purged before reading system.clients (scylla-driver support).",
+        "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
+        "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
+        "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
+        "cb5d09b5be": "origin: test added.",
+        "87ae715c81": "require('#6946') mark; _system_client_content gains ssl params.",
+        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508)."
+      },
+      "relevance": "hostname column exists in schema (db/virtual_tables.cc:938) but client_data::hostname (client_data.hh:58) is never assigned anywhere in scylla; scylladb#9216 (closed 2025-09-18) comment by ptrsmrn: decided NOT to populate hostname (costly rDNS), see scylladb PR #22961 discussion.",
+      "duplicates": [],
+      "decision": "RED",
+      "reason": "Tested behavior intentionally not implemented: scylla decided not to fill hostname (scylladb#9216 closing comment); grep shows no writer of client_data::hostname. Test only passes (32/32) because it is vacuous: Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. If fixed it would always fail. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_client_hostname_non_ssl": {
+      "description": "Non-TLS (9042) variant of test_system_client_hostname: intends to assert system.clients.hostname is non-null. @require('#9216').",
+      "origin": {
+        "sha": "87ae715c81",
+        "date": "2021-03-14",
+        "pr": 2310,
+        "summary": "Added non-SSL variants of content tests."
+      },
+      "commits": {
+        "e5f611026d": "_system_client_content: 2 nodes -> 1 node, connect to node 0, honour ssl_enabled arg, add single_node mark.",
+        "9ffd273f04": "formatting (ruff format).",
+        "38dcedcc0d": "file-level: added wait_anonymous_connections_purged before reading system.clients (scylla-driver support).",
+        "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
+        "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
+        "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
+        "87ae715c81": "origin: test added with require('#6946').",
+        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508)."
+      },
+      "relevance": "hostname column exists in schema (db/virtual_tables.cc:938) but client_data::hostname (client_data.hh:58) is never assigned anywhere in scylla; scylladb#9216 (closed 2025-09-18) comment by ptrsmrn: decided NOT to populate hostname (costly rDNS), see scylladb PR #22961 discussion.",
+      "duplicates": [],
+      "decision": "RED",
+      "reason": "Tested behavior intentionally not implemented: scylla decided not to fill hostname (scylladb#9216 closing comment); grep shows no writer of client_data::hostname. Test only passes (32/32) because it is vacuous: Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. If fixed it would always fail. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_client_ssl": {
+      "description": "1-node TLS cluster; user1 connects over TLS on 9142 and the test intends to assert ssl_cipher_suite, ssl_enabled, ssl_protocol are non-null in system.clients. @require('#9216'); scylla started filling these in bdb90ee15c (2025-07-22, 'set ssl_* columns in system.clients').",
+      "origin": {
+        "sha": "cb5d09b5be",
+        "date": "2021-03-10",
+        "pr": 2310,
+        "summary": "Added with @skip('#6946')."
+      },
+      "commits": {
+        "e5f611026d": "_system_client_content: 2 nodes -> 1 node, connect to node 0, honour ssl_enabled arg, add single_node mark.",
+        "9ffd273f04": "formatting (ruff format).",
+        "38dcedcc0d": "file-level: added wait_anonymous_connections_purged before reading system.clients (scylla-driver support).",
+        "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
+        "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
+        "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
+        "cb5d09b5be": "origin: test added.",
+        "87ae715c81": "require('#6946') mark; ssl params.",
+        "ba3e39f59c": "require mark #6946 -> #9216.",
+        "4f1ee87394": "file-level: removed sibling test_system_client_ssl_non_ssl as redundant with scylladb PR #22961."
+      },
+      "relevance": "Live: ssl_* columns populated since scylla bdb90ee15c (db/virtual_tables.cc:1045-1052).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_ssl.py::test_system_clients_stores_tls_info",
+          "coverage": "partial",
+          "note": "asserts ssl_enabled/ssl_protocol=TLS1.2/cipher for all rows, but TLS branch runs only with cqlpy '--ssl' (not in test/cqlpy/test_config.yaml); non-TLS branch checks nulls/false."
+        },
+        {
+          "path": "test/cluster/test_proxy_protocol.py::test_proxy_protocol_ssl_shard_aware",
+          "coverage": "partial",
+          "note": "asserts ssl_enabled true for TLS connections."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. Scylla's own stronger check (test/cqlpy/test_ssl.py::test_system_clients_stores_tls_info) exists but its TLS branch needs '--ssl'; nothing in test.py/test/pylib passes '--ssl' to cqlpy, so that TLS check is not exercised in scylla CI; fix this test or enable --ssl cqlpy and drop it. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_clients": {
+      "description": "3-node cluster with TLS on 9142 and plain 9042. Connects user1 via TLS to node 1 and intends to check its system.clients record appears and disappears after close; then, inspecting from node 1 and node 0 via exclusive connections, intends to check that failed connections (TLS to plain port, plain to TLS port, bad credentials) raise and leave the system.clients record count unchanged.",
+      "origin": {
+        "sha": "81c26dd725",
+        "date": "2020-02-22",
+        "pr": 1323,
+        "summary": "Adding tests on system.clients (trello 1545 connected-clients table); single large test_system_clients."
+      },
+      "commits": {
+        "81c26dd725": "origin: big test_system_clients (ledger, failure, shutdown/decommission/drain).",
+        "09e15af38a": "port to pytest (dtest PR #1920).",
+        "cc9037a3c4": "stability: always ALTER system_auth RF + repair; expect_system_clients connects to any working node.",
+        "ca0b4c9044": "pass system_auth_rf=len(users)+1 to prepare.",
+        "38dcedcc0d": "scylla-driver support: wait_anonymous_connections_purged before counting records.",
+        "fb3dfc9ea9": "formatting (ruff pylint noqa).",
+        "9ffd273f04": "formatting (ruff format).",
+        "80982c39a3": "ssl_opts dict -> ssl.SSLContext.",
+        "202cfea77f": "split: this test keeps 3 nodes + failure cases; ledger/shutdown moved to test_system_clients_large.",
+        "c0bda85c73": "failure checks run against node 1 and node 0 with patient_exclusive_cql_connection inspector.",
+        "13ac34a793": "added timeout=10 to failing node_session calls - but node_session has no timeout param -> TypeError (see Bug).",
+        "0c802c1aa3": "count with get_total_records_in_system_clients(allow_anonymous=False) instead of purge wait.",
+        "56d3afbb71": "file-level: prepare skips ALTER system_auth RF under consistent topology (auth-v2).",
+        "3053d6bf22": "file-level: ALLOW FILTERING appended only when filters present."
+      },
+      "relevance": "system.clients live; TLS port 9142 / client_encryption_options live.",
+      "duplicates": [
+        {
+          "path": "native_transport_ssl_test.py::TestNativeTransportSSL::test_connect_to_ssl",
+          "coverage": "partial",
+          "note": "dtest: plain client to TLS port fails, TLS client succeeds (the only parts this test effectively checks)."
+        },
+        {
+          "path": "test/cqlpy/test_ssl.py::test_non_tls_on_tls",
+          "coverage": "partial",
+          "note": "plain CQL to TLS port rejected (needs --ssl)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: all three negative checks are no-ops since 13ac34a793 (2025-08-14): node_session() has no `timeout` kwarg (cql_system_clients_test.py:152-162) so calls at :314,:319,:324 raise TypeError before connecting, satisfying pytest.raises(Exception); count waits then trivially pass. Effective coverage = one TLS connect to a 3-node cluster (redundant with native_transport_ssl_test). Intended scenario (failed connections leave no system.clients rows) is unique but needs fixing. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_clients_large": {
+      "description": "6-node cluster; opens nested sessions for 5 users on nodes 1-5 and intends to check each appears in system.clients and disappears after close (ledger); then kills node 5 with a live session, decommissions node 4 and drains node 3 with live sessions, intending to check sessions are gone from system.clients.",
+      "origin": {
+        "sha": "81c26dd725",
+        "date": "2020-02-22",
+        "pr": 1323,
+        "summary": "Part of original test_system_clients."
+      },
+      "commits": {
+        "81c26dd725": "origin (as part of test_system_clients).",
+        "09e15af38a": "port to pytest (dtest PR #1920).",
+        "9ffd273f04": "formatting (ruff format).",
+        "202cfea77f": "split out of test_system_clients into its own test (dtest PR #6131).",
+        "cc9037a3c4": "file-level: expect_system_clients helper / system_auth RF changes.",
+        "56d3afbb71": "file-level: no system_auth RF change under consistent topology."
+      },
+      "relevance": "system.clients live; decommission/drain live, but the test never actually executes them.",
+      "duplicates": [],
+      "decision": "RED",
+      "reason": "Slow (avg 62s, 6 nodes) and asserts nothing: the first statement in every `with node_session` block is expect_system_clients(), whose check_if_in_system_clients always fails (protocol_version=null filter) and is swallowed by __exit__, so the rest of each block never runs: sessions for users 2-5 are never opened, target_node.stop(gently=False) never runs, and the latent bugs `nodelist()[4].decomission()` (typo, cql_system_clients_test.py:366), `nodelist()[3].node.nodetool('drain')` (:378, ccm Node has no .node) and stale `forget_session(session)` (:380) are never reached. Only connects plus two plain nodelist()[4]/[3].stop() calls execute. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    },
+    "TestSystemClients::test_system_clients_ssl_authentication": {
+      "description": "1-node cluster with client TLS and require_client_auth=true. Connects user1 with a client cert on 9142 (must succeed; system.clients check inside the with is vacuous), then connects without a client cert and asserts NoHostAvailable containing 'certificate required' and that the system.clients record count returns to the original value.",
+      "origin": {
+        "sha": "81c26dd725",
+        "date": "2020-02-22",
+        "pr": 1323,
+        "summary": "Adding tests on system.clients."
+      },
+      "commits": {
+        "81c26dd725": "origin.",
+        "09e15af38a": "port to pytest (dtest PR #1920).",
+        "38dcedcc0d": "wait_anonymous_connections_purged before counting; scylla-driver support.",
+        "9ffd273f04": "formatting (ruff format).",
+        "80982c39a3": "ssl_opts -> SSLContext with load_cert_chain/CERT_REQUIRED; 'certificate required' assertion on failure.",
+        "0c802c1aa3": "count via get_total_records_in_system_clients(allow_anonymous=False).",
+        "564481c1d5": "failing connect uses cql_connection (patient=False) - no 20-30s retry (dtest PR #7565).",
+        "56d3afbb71": "file-level: no system_auth RF change under consistent topology."
+      },
+      "relevance": "Live: client_encryption_options.require_client_auth, system.clients.",
+      "duplicates": [
+        {
+          "path": "native_transport_ssl_test.py::TestNativeTransportSSL::test_connect_to_ssl_client_auth",
+          "coverage": "partial",
+          "note": "dtest: require_client_auth=true, connect with cert succeeds, without cert fails (NoHostAvailable), plus revocation; no 'certificate required' text or system.clients count."
+        },
+        {
+          "path": "test/cluster/test_auth_certificate_or_password.py::test_cql_optional_client_cert",
+          "coverage": "partial",
+          "note": "require_client_auth=optional only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Effective checks (mTLS connect ok, no-cert connect fails with 'certificate required', record count unchanged) mostly overlap native_transport_ssl_test.py::test_connect_to_ssl_client_auth; only the count-unchanged check on system.clients is unique. Bug: successful-session system.clients check is vacuous (see class bugs). Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:270, uses non-existent self._opened_sessions)."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
