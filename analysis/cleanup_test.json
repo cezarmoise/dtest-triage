@@ -1,0 +1,225 @@
+{
+  "file": "cleanup_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestCleanup::test_cleanup": {
+      "description": "Single-node cluster, inserts 100k keys (10k in debug) at CL=ALL, restarts the node, runs nodetool cleanup, and asserts count(*) == num_keys. Smoke test that cleanup does not drop owned data; since the single node owns the whole ring there is nothing to clean up.",
+      "origin": {
+        "sha": "3b9cb09111",
+        "date": "2018-10-19",
+        "pr": 743,
+        "summary": "cleanup tests: initial cleanup_test/cluster_cleanup_test (PR body: wait for Avi's fix)"
+      },
+      "commits": {
+        "ed0107f294": "use rows.one() for count result",
+        "143a1f8130": "pytest migration (rebase): prepare() helper, cf0 naming",
+        "3199df4937": "migrate to pytest",
+        "2dcd969ca5": "add range_request_timeout and query timeout for count(*)",
+        "c3471a97e4": "formatting",
+        "427595c636": "reduce keys to 10k in debug mode",
+        "b65dee3d0f": "use scoped session for inserts",
+        "4b5d65f803": "add debug log messages",
+        "36747e4c1d": "shutdown insert session before restart, reconnect after",
+        "3b9cb09111": "origin"
+      },
+      "relevance": "nodetool cleanup / storage_service/keyspace_cleanup still live for vnode keyspaces (api/tasks.cc:66). For tablet keyspaces the API returns immediately ('Keyspace ks does not support cleanup', api/tasks.cc:69-73), so in next-dtest-tablets the cleanup step is a no-op. Single node owns all ranges, so even with vnodes cleanup has nothing to remove.",
+      "duplicates": [
+        {
+          "path": "test/rest_api/test_storage_service.py::test_storage_service_keyspace_cleanup",
+          "coverage": "full",
+          "note": "single-node keyspace cleanup via REST, success path"
+        },
+        {
+          "path": "test/nodetool/test_cleanup.py::test_cleanup_keyspace",
+          "coverage": "partial",
+          "note": "nodetool cleanup command mapping"
+        },
+        {
+          "path": "cleanup_test.py::TestCleanup::test_cluster_cleanup",
+          "coverage": "full",
+          "note": "same cleanup+count(*) check but after a real topology change"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Single node, no topology change: cleanup has nothing to remove (and is a no-op with tablets, api/tasks.cc:69-73); scenario subsumed by test_cluster_cleanup in this file plus test/rest_api/test_storage_service.py::test_storage_service_keyspace_cleanup. Note: stop/start step is a 2018 leftover (3b9cb09111) with no assertion tied to it; count(*) runs at dtest default CL=ONE."
+    },
+    "TestCleanup::test_cluster_cleanup": {
+      "description": "3-node cluster (3 racks, RF=3), 100k keys at CL=ALL, bootstrap a 4th node in rack r1, run cleanup on all nodes, assert count(*) == num_keys. Guards that cleanup after bootstrap only removes non-owned data.",
+      "origin": {
+        "sha": "3b9cb09111",
+        "date": "2018-10-19",
+        "pr": 743,
+        "summary": "cleanup tests: initial cluster_cleanup_test"
+      },
+      "commits": {
+        "c3bc4b7fda": "RF-rack-validity: explicit {'dc1': r1,r2,r3} topology, node4 in dc1/r1 (left generate_cluster_topology import unused)",
+        "d34fc72da8": "use generate_cluster_topology with 3 racks, rf=3, node4 in rack4",
+        "53ec0f5fbf": "add @next_gating",
+        "ed0107f294": "use rows.one()",
+        "f99742280d": "drop flush+cluster restart after bootstrap",
+        "143a1f8130": "pytest migration (rebase)",
+        "3199df4937": "migrate to pytest",
+        "2dcd969ca5": "query timeout for count(*)",
+        "c3471a97e4": "formatting",
+        "36747e4c1d": "shutdown insert session, reconnect before count",
+        "3b9cb09111": "origin"
+      },
+      "relevance": "Vnode cleanup after bootstrap is live (api/tasks.cc:66, compaction/task_manager_module.cc). In next-dtest-tablets the cleanup call is a no-op (api/tasks.cc:69-73) and the test only verifies data survives tablet migration.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_data_resurrection_after_cleanup.py::test_data_resurrection_after_cleanup",
+          "coverage": "partial",
+          "note": "add node + cleanup + check remaining keys; uses default keyspace mode (tablets enabled in test/cluster/test_config.yaml) so may not exercise vnode cleanup"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_storage_service_keyspace_cleanup",
+          "coverage": "partial",
+          "note": "single node, success path only"
+        },
+        {
+          "path": "cleanup_test.py::TestCleanup::test_cluster_cleanup_no_resurrection",
+          "coverage": "partial",
+          "note": "same add-node+cleanup flow, different assertion"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap only; useful smoke for vnode cleanup after bootstrap. Note: count(*) runs at dtest default CL=ONE (dtest_class.py:94) with RF=3, so over-deletion on node1 is only detected if node1 happens to serve the ranges. Note: cleanup is a no-op in the tablets job (api/tasks.cc:69-73). Note: c3bc4b7fda left `from tools.cluster_topology import generate_cluster_topology` unused (cleanup_test.py:16)."
+    },
+    "TestCleanup::test_cleanup_space_amplification": {
+      "description": "1 node with 100k keys, bootstrap node2, flush, restart cluster, then run cleanup on node1 while polling Data.db block usage; asserts usage stays <= 2x the pre-cleanup size during cleanup and decreases after. Guards cleanup temporary disk space amplification (incremental release of input sstables).",
+      "origin": {
+        "sha": "143a1f8130",
+        "date": "2021-11-10",
+        "pr": 2313,
+        "summary": "pytest migration (rebase); test added there with 100 tables and a 1.02x bound (no earlier history on upstream/next)"
+      },
+      "commits": {
+        "eccda80e42": "formatting",
+        "787f081ff9": "@required_features('!tablets') (PR 4430 titled 'adjust for tablets', merged as skip)",
+        "9ffd273f04": "formatting",
+        "294b268fd5": "measure st_blocks of Data.db instead of logical size, return per-file sizes",
+        "f41e7fbe0c": "use 1 table instead of 100, bound changed from 1.02x to 2x",
+        "143a1f8130": "origin"
+      },
+      "relevance": "Vnode cleanup compaction still live; tablets skip (tablet cleanup is per-tablet, not this path). Runs only in dtest-release-with-raft (19 runs, 100%).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::cleanup_incremental_compaction_test",
+          "coverage": "partial",
+          "note": "asserts input sstables are closed incrementally during cleanup (>= half during), i.e. space amplification bound at unit level"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with boost cleanup_incremental_compaction_test; vnodes-only. Note: since f41e7fbe0c the input is ~1 sstable per shard, so cleanup output cannot exceed input and the <=2x bound (cleanup_test.py:134) is nearly tautological; only the final 'size decreases' check has teeth. Note: PR 4430 'adjust for tablets' landed as a plain skip (787f081ff9)."
+    },
+    "TestCleanup::test_cluster_cleanup_no_resurrection": {
+      "description": "Reproducer for scylladb/scylladb#1239: 2 nodes (2 racks, RF=2), 1000 keys, gc_grace_seconds=0; add node3 in r1, cleanup, delete all keys, sleep, major compact, removenode node3, assert count(*)==0. Intended to catch stale data left by cleanup being resurrected when node1 regains the ranges.",
+      "origin": {
+        "sha": "f89d575c2d",
+        "date": "2022-11-06",
+        "pr": 2897,
+        "summary": "add test_cluster_cleanup_no_resurrection, reproduces scylladb/scylladb#1239"
+      },
+      "commits": {
+        "056f5dc7a8": "ruff: rename unused node2 to _node2",
+        "c3bc4b7fda": "RF-rack-validity: {'dc1': r1,r2} topology, new node in r1",
+        "d34fc72da8": "use racks, rf=2",
+        "9ffd273f04": "formatting",
+        "53ec0f5fbf": "add @next_gating",
+        "f89d575c2d": "origin"
+      },
+      "relevance": "Cleanup live for vnodes; no-op for tablets (api/tasks.cc:69-73). #1239 closed. Key problem: RF=2 tables default to tombstone_gc mode 'repair' (tombstone_gc.cc:339), where gc_grace_seconds is ignored and tombstones are purged only up to the last repair time (tombstone_gc.cc:97+); the test never repairs, so tombstones written after bootstrap survive compaction and would shadow any stale data. dtest PR 7584 (068022d716) pinned 'immediate' mode only for RF=1 tests, not this one.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_data_resurrection_after_cleanup.py::test_data_resurrection_after_cleanup",
+          "coverage": "partial",
+          "note": "same idea (cleanup, delete, purge, decommission, check) with RF=1 and gc_grace_seconds=0; uses default keyspace mode (tablets enabled per test/cluster/test_config.yaml)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: test is vacuous - RF=2 table defaults to tombstone_gc mode 'repair' (scylla tombstone_gc.cc:339), gc_grace_seconds=0 has no effect and no repair runs, so tombstones are never purged and stale data could not resurrect; needs `tombstone_gc = {'mode': 'immediate'}` like 068022d716 did for test_cluster_restore_no_resurrection. Note: `node1.nodetool('snapshot ks -t after_removenode')` (cleanup_test.py:187) is unused debug leftover; cleanup step is a no-op in the tablets job."
+    },
+    "TestCleanup::test_cluster_restore_no_resurrection": {
+      "description": "Reproducer for scylladb/scylladb#11933: 2 nodes RF=1, 1000 keys, snapshot on both, bootstrap node3, cleanup, record readable keys with node3 down, delete all, flush, purge via compaction (tombstone_gc immediate), restore snapshots via nodetool refresh, removenode node3, assert readable keys == recorded set. Guards that refresh/upload cleans up sstables to owned ranges so un-owned stale data is not resurrected.",
+      "origin": {
+        "sha": "0cd7754a41",
+        "date": "2022-12-28",
+        "pr": 2955,
+        "summary": "add test_cluster_restore_no_resurrection, reproduces scylladb/scylladb#11933"
+      },
+      "commits": {
+        "068022d716": "pin tombstone_gc mode 'immediate' instead of gc_grace_seconds=0 (RF=1 repair-mode change, SCYLLADB-4629)",
+        "a1ae8eb62f": "@required_features('!tablets') (flaky with tablets, scylladb/scylladb#25080); docstring clarified",
+        "9ffd273f04": "formatting",
+        "fb3dfc9ea9": "noqa PLR0915 (lint)",
+        "47d85a7e6f": "flush nodes before compaction so tombstones can be purged after #14870 fix",
+        "0cd7754a41": "origin"
+      },
+      "relevance": "Vnode refresh with owned-range filtering is live (scylla ecbd112979 'distributed_loader: reshard: consider sstables for cleanup', 3ccbb28f2a). #11933 closed. Tablets: refresh is auto-promoted to load-and-stream, so test is vnodes-only. Runs in dtest-release-with-raft, 128s avg, 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_refresh.py",
+          "coverage": "partial",
+          "note": "refresh tests (streaming scopes, view updates, shard claims) but none checks filtering of non-owned ranges on vnode refresh"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique end-to-end coverage of scylladb#11933 (vnode refresh must drop non-owned data); no scylla test found for this. Slow (128s) but vnodes-only path still supported; recently maintained (068022d716)."
+    },
+    "TestCleanup::test_drop_table_during_cleanup": {
+      "description": "Reproducer for scylladb/scylladb#12007: single node, 3 tables with 30k/40k/50k keys flushed into many sstables (autocompaction disabled), start nodetool cleanup ks, wait until all per-shard 'Starting force_keyspace_cleanup' task_manager logs appear, then DROP KEYSPACE concurrently. Expects cleanup to succeed or fail only with compaction_stopped_exception for cf2 due to truncate.",
+      "origin": {
+        "sha": "a4602f5a54",
+        "date": "2022-11-17",
+        "pr": null,
+        "summary": "add test_drop_table_during_cleanup (no PR found), reproduces scylladb/scylladb#12007"
+      },
+      "commits": {
+        "921be1d2c0": "accept both exception text formats (regex) in ignore pattern and ToolError check",
+        "df80b32187": "drop xfail; accept ToolError/log from compaction stopped by truncate on cf2 (SCYLLADB-122)",
+        "9ba45fd39d": "mark xfail for scylladb/scylladb#25988",
+        "e2279588d5": "wait for num_tables*smp 'Starting force_keyspace_cleanup' debug logs instead of 'Cleanup ks' before dropping",
+        "0c90d31ef2": "@required_features('!tablets')",
+        "9ffd273f04": "formatting",
+        "846b754b22": "STCS thresholds 1 -> 2",
+        "212332ce7b": "add min_threshold to compaction options",
+        "53ec0f5fbf": "add @next_gating",
+        "a4602f5a54": "origin"
+      },
+      "relevance": "Vnode cleanup task path live; log 'Starting {} on {}.{}' exists (compaction/task_manager_module.cc:207), run_on_table('force_keyspace_cleanup') at :674. #12007 and #25988 closed. Skipped with tablets (cleanup unsupported). Runs only in next-dtest-consistent-topology (16 runs, 100%).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets2.py::test_schema_change_during_cleanup",
+          "coverage": "partial",
+          "note": "schema change during tablet cleanup, not vnode keyspace cleanup + drop"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "No scylla test covers dropping a keyspace during vnode keyspace cleanup; valuable coverage. Downgraded only for issues: Note: drop_keyspace() busy-polls node1.grep_log() with no sleep for up to 600s (cleanup_test.py:430-438) and ignores its `node` argument (uses node1); Note: STCS min/max_threshold options are dead since autocompaction is disabled right after create (cleanup_test.py:415-417)."
+    },
+    "TestCleanup::test_no_resurrection_by_replaying_stale_commitlog": {
+      "description": "Reproducer for scylladb/scylladb#4734: 1 node, two tables (cf1 keeps commitlog segments pinned), add node2, cleanup cf0 on node1 (with tablets: wait for tablet migration + 'Cleaned up tablet' logs), kill -9 node1, compute expected keys = total - partitions on node2, remove node2, restart node1 (commitlog replay), assert node1 partition count == expected. Guards that cleanup makes stale commitlog content unreplayable.",
+      "origin": {
+        "sha": "4b7ddd4e68",
+        "date": "2024-01-17",
+        "pr": 3859,
+        "summary": "add test verifying no data resurrection from stale commitlog after cleanup, refs scylladb/scylladb#4734"
+      },
+      "commits": {
+        "83d81b56a3": "tablets: skip nodetool cleanup, wait for tablet migration streaming + tablet cleanup logs before kill (flaky fix)",
+        "4b7ddd4e68": "origin (also added unused _num_keys_on_node helper)"
+      },
+      "relevance": "Fix is scylla 33794eca19 (flush_all_tables waits for commitlog reclaim) and follow-ups; #4734 closed. Log messages used for tablets exist: 'Streaming for tablet migration of ... finished table=' (service/storage_service.cc:5852) and 'Cleaned up tablet ... successfully.' (replica/table.cc:5988). Runs in dtest-release and dtest-release-with-raft, 14s, 100%.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_commitlog_segment_data_resurrection.py::test_pinned_cl_segment_doesnt_resurrect_data",
+          "coverage": "partial",
+          "note": "pinned commitlog segment replay resurrection, but for delete+compaction (#14870), not cleanup"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of #4734 (cleanup vs commitlog replay), cheap and stable - candidate for gating. Downgraded for issues: Note: `ALTER TABLE ks.cf0 WITH gc_grace_seconds=0` with comment about tombstones is dead config - the test does no deletes (cleanup_test.py:341-344). Note: helper `_num_keys_on_node` (cleanup_test.py:288-302), added in the same commit 4b7ddd4e68, is never called."
+    }
+  }
+}
