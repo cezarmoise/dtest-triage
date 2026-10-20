@@ -1,0 +1,150 @@
+{
+  "file": "lwt_random_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestRandomPaxos::test_topology_add_decommission_reboot": {
+      "description": "Random but repeatable sequence of 5 actions (decommission+remove, add node w/ bootstrap, graceful reboot) on a 3..8 node cluster (NTS RF=3) while one LWT loader per node runs INSERT IF NOT EXISTS / UPDATE IF EXISTS at QUORUM. At the end all keys are read back (QUORUM/SERIAL) and compared against loader-tracked expected values; mismatches/missing/extra rows fail. Guards Paxos correctness under concurrent topology changes (no specific issue).",
+      "origin": {
+        "sha": "d04afee397",
+        "date": "2020-04-01",
+        "pr": 1403,
+        "summary": "Dmitry Kropachev: added dsr (deterministic state-aware randomness) toolset + 4 randomized paxos topology tests (PR 1403, merged 2020-05-10)."
+      },
+      "commits": {
+        "78574afcfb": "SimpleStrategy -> NetworkTopologyStrategy (tablets compat)",
+        "5a1454d922": "db_configuration rf_rack_valid_keyspaces=False (dtest default is True, dtest_config.py:40)",
+        "b63523ab1b": "initial/min node counts 2 -> 3, max 7/4 -> 8/5 (RF=3 needs 3 nodes with tablets)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e1615011be": "max_node_count 7 -> 4 in debug mode",
+        "8d91b5dfee": "self.test_info -> local test_info + request.addfinalizer(test_info.cleanup) to stop loader threads",
+        "77c52abacc": "removed experimental_features=['lwt'] from db_configuration (LWT GA)",
+        "d04afee397": "origin: test added with SimpleStrategy RF=3, experimental lwt flag",
+        "7799f9654a": "added scylla_mode('!debug') (timeouts in debug, dtest#3275)",
+        "02daf19c87": "file-level: added required_features('!consistent-topology-changes') (skipped in raft topology)",
+        "45ebd8eb93": "file-level: removed that mark, re-enabled for raft topology",
+        "d0984f2c56": "file-level: class marked next_gating",
+        "0d5275e3": "dsr helper: loader retries failed LWT write, validation accepts old/new value for unsettled key (fixes SCYLLADB-5055 false mismatches)",
+        "88985aa7": "dsr helper: validation reported via pytest.fail (tester.fail did not exist -> AttributeError hid breakdown, SCYLLADB-4119)",
+        "94162ade": "dsr helper: dropped invalid `nodetool rebuild --full` in validation (broke this test after scylladb#16827)"
+      },
+      "relevance": "Live: LWT/Paxos + topology ops (bootstrap, decommission, replace via replace_node_host_id, reboot) all exist; runs under vnodes+raft topology and tablets jobs. rf_rack_valid_keyspaces still a used option (scylla db/config.cc:1825).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild",
+          "coverage": "partial",
+          "note": "LWT state survives node replace with tablets, single LWT, no concurrent workload, no vnodes"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py::test_multi_column_lwt_during_migration",
+          "coverage": "partial",
+          "note": "LWT workload + validation during tablet migration, not node add/decommission"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py",
+          "coverage": "partial",
+          "note": "execute_lwt_transaction is one sequential event among topology events; no concurrent LWT load across topology ops"
+        },
+        {
+          "path": "paxos_tests.py::TestPaxos::test_topology_change_in_presence_of_down_node",
+          "coverage": "partial",
+          "note": "LWT load + removenode of down nodes, no data validation"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage: no scylla test runs continuous LWT load with data validation across vnode/tablets add+decommission+reboot; 32 runs 100% pass, ~295s, in next gating (tablets + consistent-topology). Would be GREEN but downgraded for issues. Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+    },
+    "TestRandomPaxos::test_topology_grow": {
+      "description": "Grows a 3-node (NTS RF=3) cluster with AddNode(auto_bootstrap) under LWT loaders, randomly choosing: plain grow with CL QUORUM or ALL; grow after decommissioning an added node4; or grow after decommissioning seed node3 (4-node start). Final validation reads every key and checks expected values. Guards LWT correctness during bootstrap/streaming.",
+      "origin": {
+        "sha": "d04afee397",
+        "date": "2020-04-01",
+        "pr": 1403,
+        "summary": "Dmitry Kropachev: added dsr (deterministic state-aware randomness) toolset + 4 randomized paxos topology tests (PR 1403, merged 2020-05-10)."
+      },
+      "commits": {
+        "78574afcfb": "SimpleStrategy -> NetworkTopologyStrategy (tablets compat)",
+        "5a1454d922": "db_configuration rf_rack_valid_keyspaces=False (dtest default is True, dtest_config.py:40)",
+        "b63523ab1b": "initial/min node counts 2 -> 3, max 7/4 -> 8/5 (RF=3 needs 3 nodes with tablets)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e1615011be": "max_node_count 7 -> 4 in debug mode",
+        "8d91b5dfee": "self.test_info -> local test_info + request.addfinalizer(test_info.cleanup) to stop loader threads",
+        "77c52abacc": "removed experimental_features=['lwt'] from db_configuration (LWT GA)",
+        "d04afee397": "origin: test added with SimpleStrategy RF=3, experimental lwt flag",
+        "641c2f68a3": "added scylla_mode('!debug') (debug build #688: gossip sched group starvation, 61% keys unreadable)",
+        "d0984f2c56": "class put in next_gating, this test unmarked (ran >40 min)",
+        "0d5275e3": "dsr helper: loader retries failed LWT write, validation accepts old/new value for unsettled key (fixes SCYLLADB-5055 false mismatches)",
+        "88985aa7": "dsr helper: validation reported via pytest.fail (tester.fail did not exist -> AttributeError hid breakdown, SCYLLADB-4119)",
+        "94162ade": "dsr helper: dropped invalid `nodetool rebuild --full` in validation (broke this test after scylladb#16827)"
+      },
+      "relevance": "Live: LWT/Paxos + topology ops (bootstrap, decommission, replace via replace_node_host_id, reboot) all exist; runs under vnodes+raft topology and tablets jobs. rf_rack_valid_keyspaces still a used option (scylla db/config.cc:1825). Not in next_gating (unmark), runs only in dtest-release / dtest-release-with-raft.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild",
+          "coverage": "partial",
+          "note": "LWT state survives node replace with tablets, single LWT, no concurrent workload, no vnodes"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py::test_multi_column_lwt_during_migration",
+          "coverage": "partial",
+          "note": "LWT workload + validation during tablet migration, not node add/decommission"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py",
+          "coverage": "partial",
+          "note": "execute_lwt_transaction is one sequential event among topology events; no concurrent LWT load across topology ops"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of LWT under node bootstrap incl. after seed decommission; 37 runs 100% pass, ~200s. Downgraded for issues. Note: docstring case 2 'less than QUORUM nodes' (line 103) and comment at line 136 are stale since b63523ab1b raised initial nodes to 3: cluster never drops below RF, so CL=ALL branch never sees unmet consistency. Note: module-level random.choice (lines 107-122) not captured by dsr save/load -> branch not reproducible. Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+    },
+    "TestRandomPaxos::test_topology_replace": {
+      "description": "3-node cluster (NTS RF=3) grows to 5 via two AddNode, then 5 random ReplaceNode actions: stop a non-seed node, start a new node with replace_node_host_id, move loader, remove old node; LWT loaders run throughout. Final validation of all keys vs expected values. Guards Paxos correctness across node replace.",
+      "origin": {
+        "sha": "d04afee397",
+        "date": "2020-04-01",
+        "pr": 1403,
+        "summary": "Dmitry Kropachev: added dsr (deterministic state-aware randomness) toolset + 4 randomized paxos topology tests (PR 1403, merged 2020-05-10)."
+      },
+      "commits": {
+        "78574afcfb": "SimpleStrategy -> NetworkTopologyStrategy (tablets compat)",
+        "5a1454d922": "db_configuration rf_rack_valid_keyspaces=False (dtest default is True, dtest_config.py:40)",
+        "b63523ab1b": "initial nodes 2 -> 3, pre-actions AddNode(3),AddNode(4)... -> AddNode(4),AddNode(5); max 8/5",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e1615011be": "max_node_count 7 -> 4 in debug mode",
+        "8d91b5dfee": "self.test_info -> local test_info + request.addfinalizer(test_info.cleanup) to stop loader threads",
+        "77c52abacc": "removed experimental_features=['lwt'] from db_configuration (LWT GA)",
+        "d04afee397": "origin: test added with SimpleStrategy RF=3, experimental lwt flag",
+        "7799f9654a": "added scylla_mode('!debug') (timeouts in debug, dtest#3275)",
+        "d0984f2c56": "file-level: class marked next_gating",
+        "0d5275e3": "dsr helper: loader retries failed LWT write, validation accepts old/new value for unsettled key (fixes SCYLLADB-5055 false mismatches)",
+        "88985aa7": "dsr helper: validation reported via pytest.fail (tester.fail did not exist -> AttributeError hid breakdown, SCYLLADB-4119)",
+        "94162ade": "dsr helper: dropped invalid `nodetool rebuild --full` in validation (broke this test after scylladb#16827)",
+        "45e0149c": "dsr helper: ReplaceNode uses replace_node_host_id instead of deprecated replace_address"
+      },
+      "relevance": "Live: LWT/Paxos + topology ops (bootstrap, decommission, replace via replace_node_host_id, reboot) all exist; runs under vnodes+raft topology and tablets jobs. rf_rack_valid_keyspaces still a used option (scylla db/config.cc:1825).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild",
+          "coverage": "partial",
+          "note": "LWT state survives node replace with tablets, single LWT, no concurrent workload, no vnodes"
+        },
+        {
+          "path": "test/cluster/lwt/test_lwt_during_tablets_migration.py::test_multi_column_lwt_during_migration",
+          "coverage": "partial",
+          "note": "LWT workload + validation during tablet migration, not node add/decommission"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py",
+          "coverage": "partial",
+          "note": "execute_lwt_transaction is one sequential event among topology events; no concurrent LWT load across topology ops"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of repeated replace under continuous LWT load with validation (scylla test_lwt_state_is_preserved_on_tablet_rebuild covers only a single LWT on tablets); 32 runs 100% pass, ~368s, next gating. Downgraded for issues. Note: only non-seed nodes (added 4,5 and their replacements) can be replaced, seed replace is 'TBD' (line 154, dsr actions.py ReplaceNode is_seed branch dead). Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+    }
+  }
+}
