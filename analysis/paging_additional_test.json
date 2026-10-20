@@ -1,0 +1,425 @@
+{
+  "file": "paging_additional_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestAggregatePaging::test_paged_count_with_limit": {
+      "description": "5001 rows, RF=3, 3 nodes. Runs `SELECT count(*) ... LIMIT 1` with fetch sizes 10..5000 at CL=ALL and asserts a single page with a single row {count: 5001}. Guards scylla#650 (count(*) broken with paging) and the LIMIT-applies-to-result-set semantics after scylla#2028. Release/dev only; debug twin test_paged_count_with_limit_debug.",
+      "origin": {
+        "sha": "dfcfbba444",
+        "date": "2016-01-19",
+        "pr": null,
+        "summary": "Calle Wilund: add test for aggregate paging (count(*) + paging + limit, scylla#650)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "4bb12d8ece": "@scylla_mode('release') -> '!debug'",
+        "57576665be": "split into release/debug variants with smaller sizes for debug",
+        "037dc70a50": "file-level: limit now applies to result rows (scylla#2028) -> LIMIT 1, expect count 5001",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)"
+      },
+      "relevance": "Live: paged aggregation (count(*) full scan, parallelized aggregation path) still core CQL behavior.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "partial",
+          "note": "count(*) with paging, but via index"
+        },
+        {
+          "path": "test/cqlpy/test_select_from_mutation_fragments.py::test_aggregate_paging",
+          "coverage": "partial",
+          "note": "aggregate returned in single page regardless of fetch_size, but MUTATION_FRAGMENTS only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test checks count(*) over a multi-page full scan with LIMIT and varying fetch_size on a multi-node cluster; only partial overlap (index/mutation_fragments variants). Cheap (~17s), 32/32 pass."
+    },
+    "TestAggregatePaging::test_paged_count_with_clustering_key": {
+      "description": "1234 rows in one partition (pk=0, ck1=1, random ck2). `SELECT count(*) WHERE pk=0 AND ck1=1 ORDER BY ck1 asc, ck2 asc` with fetch_size=100 at CL=ALL; asserts one page with count 1234. Guards scylla#1684 (aggregate with clustering-key restriction stopping at page/100-row boundary).",
+      "origin": {
+        "sha": "da8a11edc5",
+        "date": "2016-09-30",
+        "pr": null,
+        "summary": "Pawel Dziepak: add test with clustering key restrictions (refs scylla#1684)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6b5a3275e4": "add dtest-debug attr",
+        "5e2de0b4a2": "add next-gating attr",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "da8a11edc5": "origin",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)"
+      },
+      "relevance": "Live: aggregation over clustering-restricted (and reversed) single-partition slices with internal paging.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "partial",
+          "note": "count(*) with paging, but via index"
+        },
+        {
+          "path": "test/cqlpy/test_select_from_mutation_fragments.py::test_aggregate_paging",
+          "coverage": "partial",
+          "note": "aggregate returned in single page regardless of fetch_size, but MUTATION_FRAGMENTS only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test found counting a CK-restricted slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass."
+    },
+    "TestAggregatePaging::test_paged_count_with_clustering_key_reversed": {
+      "description": "1234 rows in one partition (pk=0, ck1=1, random ck2). `SELECT count(*) WHERE pk=0 AND ck1=1 ORDER BY ck1 desc, ck2 desc` with fetch_size=100 at CL=ALL; asserts one page with count 1234. Guards scylla#1684 (aggregate with clustering-key restriction stopping at page/100-row boundary); reversed-order variant exercises reverse reads under aggregation.",
+      "origin": {
+        "sha": "da8a11edc5",
+        "date": "2016-09-30",
+        "pr": null,
+        "summary": "Pawel Dziepak: add test with clustering key restrictions (refs scylla#1684)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "da8a11edc5": "origin",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)"
+      },
+      "relevance": "Live: aggregation over clustering-restricted (and reversed) single-partition slices with internal paging.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_indexing_paging_and_aggregation",
+          "coverage": "partial",
+          "note": "count(*) with paging, but via index"
+        },
+        {
+          "path": "test/cqlpy/test_select_from_mutation_fragments.py::test_aggregate_paging",
+          "coverage": "partial",
+          "note": "aggregate returned in single page regardless of fetch_size, but MUTATION_FRAGMENTS only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test found counting a CK-restricted reversed slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass."
+    },
+    "TestLargePaging::test_large_page_range_queries": {
+      "description": "1000 partitions each with one 64KiB row, RF=3. Full scan at CL=ALL with fetch_size=1000; asserts total rows=1000 and every page <= fetch_size. Exercises byte-size-limited short pages (pages cut by result-size limit, not row count) on range scans across 3 nodes.",
+      "origin": {
+        "sha": "fcd7b92dc1",
+        "date": "2016-11-29",
+        "pr": 416,
+        "summary": "Pawel Dziepak: add tests for large page fetches ([V2] Short queries tests)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "b79c45662f": "file-level: validate_data allows misses/resource-based evictions",
+        "c21c68c411": "file-level: validate_data asserts misses == resource_based_evictions",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "c35eab0e6f": "file-level: fill_data mutable default arg fix (no behavior change)",
+        "6b5a3275e4": "add dtest-debug attr",
+        "5e2de0b4a2": "add next-gating attr",
+        "fd053457de": "class refactor: shared fill_data/validate_data helpers"
+      },
+      "relevance": "Live: result-size-limited paging (max_result_size / short reads) in range scans.",
+      "duplicates": [
+        {
+          "path": "test/boost/multishard_query_test.cc::test_read_all",
+          "coverage": "partial",
+          "note": "range-scan paging/querier reuse at unit level, single node"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc",
+          "coverage": "partial",
+          "note": "querier cache lookup/eviction unit tests"
+        },
+        {
+          "path": "test/boost/database_test.cc::max_result_size_for_query_selection_test",
+          "coverage": "partial",
+          "note": "selection of page size limit, no end-to-end scan"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique end-to-end multi-node check that large-value range scans are split into size-limited pages without losing rows; scylla tests cover pieces only. Note: `page <= fetch_size` assert is weak (pages are far smaller due to 1MB limit); 32/32 pass, ~20s."
+    },
+    "TestLargePaging::test_large_page_range_queries_static_columns": {
+      "description": "1000 partitions with only a 64KiB static cell and no clustering rows. Full scan at CL=ALL, fetch_size=1000; asserts 1000 results and page sizes <= fetch_size. Guards size-limited paging when partitions contain only static rows (no live clustering row).",
+      "origin": {
+        "sha": "5ba81ed67c",
+        "date": "2016-12-02",
+        "pr": 416,
+        "summary": "Pawel Dziepak: test for large results with just static columns ([V2] Short queries tests)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "b79c45662f": "file-level: validate_data allows misses/resource-based evictions",
+        "c21c68c411": "file-level: validate_data asserts misses == resource_based_evictions",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "c35eab0e6f": "file-level: fill_data mutable default arg fix (no behavior change)",
+        "6b5a3275e4": "add dtest-debug attr",
+        "5e2de0b4a2": "add next-gating attr",
+        "fd053457de": "class refactor: shared fill_data/validate_data helpers"
+      },
+      "relevance": "Live: static-only partitions in paged range scans with short reads.",
+      "duplicates": [
+        {
+          "path": "test/boost/multishard_query_test.cc::test_read_all",
+          "coverage": "partial",
+          "note": "range-scan paging/querier reuse at unit level, single node"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc",
+          "coverage": "partial",
+          "note": "querier cache lookup/eviction unit tests"
+        },
+        {
+          "path": "scylla-dtest paging_test.py::TestPagingData::test_static_columns_paging",
+          "coverage": "partial",
+          "note": "static column paging but small values, no size-limited pages"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique coverage of static-only partitions in size-limited paged range scans; only partial overlaps. Note: weak `page <= fetch_size` assert. 32/32 pass, ~20s."
+    },
+    "TestLargePaging::test_large_page_single_partition": {
+      "description": "One partition with 1000 rows of 32KiB each, RF=3. `SELECT * WHERE pk=0` at CL=ALL with fetch_size=400; asserts 1000 rows, pages <= fetch_size, and on every node querier_cache_lookups == pages-1 with drops/time-based evictions 0 and misses == resource_based_evictions. Verifies querier (reader) reuse across pages of a large single partition (scylla#1865 cache partially consumed readers).",
+      "origin": {
+        "sha": "fcd7b92dc1",
+        "date": "2016-11-29",
+        "pr": 416,
+        "summary": "Pawel Dziepak: add tests for large page fetches ([V2] Short queries tests)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "b79c45662f": "file-level: validate_data allows misses/resource-based evictions",
+        "c21c68c411": "file-level: validate_data asserts misses == resource_based_evictions",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "c35eab0e6f": "file-level: fill_data mutable default arg fix (no behavior change)",
+        "03406e92c0": "file-level: expected metrics now all nodes (rf=3), removed skip_if(scylladb#23399)",
+        "fd053457de": "added validate_metrics=True (querier cache lookups)"
+      },
+      "relevance": "Live: querier cache metrics (scylla_database_querier_cache_*) and querier reuse on single-partition paging still exist.",
+      "duplicates": [
+        {
+          "path": "test/boost/multishard_query_test.cc::test_read_all",
+          "coverage": "partial",
+          "note": "range-scan paging/querier reuse at unit level, single node"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc",
+          "coverage": "partial",
+          "note": "querier cache lookup/eviction unit tests"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass."
+    },
+    "TestLargePaging::test_small_page_single_partition": {
+      "description": "One partition with 1000 rows of 32KiB each, RF=3. `SELECT * WHERE pk=0` at CL=ALL with fetch_size=15; asserts 1000 rows, pages <= fetch_size, and on every node querier_cache_lookups == pages-1 with drops/time-based evictions 0 and misses == resource_based_evictions. Verifies querier (reader) reuse across pages of a large single partition (scylla#1865 cache partially consumed readers).",
+      "origin": {
+        "sha": "fd053457de",
+        "date": "2018-04-01",
+        "pr": 587,
+        "summary": "Larisa Ustalov: large partitions with paging test added (scylla#1865); added small-page variant + metrics validation"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "b79c45662f": "file-level: validate_data allows misses/resource-based evictions",
+        "c21c68c411": "file-level: validate_data asserts misses == resource_based_evictions",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "c35eab0e6f": "file-level: fill_data mutable default arg fix (no behavior change)",
+        "03406e92c0": "file-level: expected metrics now all nodes (rf=3), removed skip_if(scylladb#23399)",
+        "fd053457de": "origin; also added validate_metrics"
+      },
+      "relevance": "Live: querier cache metrics (scylla_database_querier_cache_*) and querier reuse on single-partition paging still exist.",
+      "duplicates": [
+        {
+          "path": "test/boost/multishard_query_test.cc::test_read_all",
+          "coverage": "partial",
+          "note": "range-scan paging/querier reuse at unit level, single node"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc",
+          "coverage": "partial",
+          "note": "querier cache lookup/eviction unit tests"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass."
+    },
+    "TestPagingSavedQueryStateSingularRanges::test_replica_usage": {
+      "description": "6-row partition, RF=3, CL=ONE, fetch_size=1, speculative_retry=NONE. Pages through 7 pages while the driver round-robins coordinators; asserts every node coordinated at least once (storage_proxy_coordinator_reads) and querier_cache metrics show exactly one replica with lookups=pages-1 and the others untouched, i.e. coordinators honor paging_state last_replicas and stick to the same replica.",
+      "origin": {
+        "sha": "97f6eb305c",
+        "date": "2018-01-15",
+        "pr": 580,
+        "summary": "Botond Denes: add tests specific to reader-reuse in paging queries"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "97f6eb305c": "origin",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)"
+      },
+      "relevance": "Live: paging_state last_replicas / preferred_replicas in storage_proxy (service/storage_proxy.cc query_singular preferred_replicas).",
+      "duplicates": [
+        {
+          "path": "test/boost/querier_cache_test.cc",
+          "coverage": "partial",
+          "note": "cache only; no coordinator replica stickiness"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of replica stickiness across pages from different coordinators. Note: passes dead table option dclocal_read_repair_chance=0.0 (obsolete/ignored since scylla c323c93fa4, scylla 6.0, cql3/statements/cf_prop_defs.cc obsolete_keywords) at paging_additional_test.py:356; test self-documents it relies on driver round-robin (line 371-375)."
+    },
+    "TestPagingSavedQueryStateSingularRanges::test_per_query_read_repair_decision": {
+      "description": "Same 6-row partition, CL=ONE, fetch_size=1, with dclocal_read_repair_chance=0.5 and tombstone_failure_threshold=500. Asserts 7 pages, correct data, and querier metrics consistent with a read-repair decision made once on page 1 and kept for all pages (scylla commit eee9bda85b 'Make the read-repair decision only once').",
+      "origin": {
+        "sha": "3ca4b1d455",
+        "date": "2018-03-19",
+        "pr": 583,
+        "summary": "Botond Denes: add dtest for per-query read repair decision (scylla eee9bda85b)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "3ca4b1d455": "origin",
+        "f85138181d": "file-level: next_gating moved to class level (whole class gated)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)"
+      },
+      "relevance": "Removed: scylla c323c93fa4 (#3502, scylla-6.0) dropped {dclocal_,}read_repair_chance and storage_proxy::new_read_repair_decision; query_singular now always uses read_repair_decision::NONE unless carried in paging state. The option is accepted only as obsolete keyword and ignored; tombstone_failure_threshold is value_status::Unused (db/config.cc:1143).",
+      "duplicates": [
+        {
+          "path": "scylla-dtest paging_additional_test.py::TestPagingSavedQueryStateSingularRanges::test_replica_usage",
+          "coverage": "full",
+          "note": "with RR chance ignored this is the same query/assertions minus the coordinator check"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Tested feature removed: read_repair_chance options removed in scylla c323c93fa4 (scylladb/scylladb#3502), RR decision always NONE, so the test degenerates into a subset of test_replica_usage. Bug: dead options dclocal_read_repair_chance=0.5 (line 392) and tombstone_failure_threshold (Unused, line 389)."
+    },
+    "TestPagingQueryAlternativeConsistencyLevel::test_consistency_level_quorum": {
+      "description": "Inserts 1000 rows at CL=QUORUM, reads full table once with default fetch size (5000, so effectively one page) and once with fetch_size=100, asserts both non-empty and sorted results identical. Written to reproduce scylla#10049 (missing row with paged select, SCT paged_query).",
+      "origin": {
+        "sha": "7daa5ab9c2",
+        "date": "2022-02-28",
+        "pr": 2628,
+        "summary": "Ilya Rarov: new paging query test with cl=quorum (scylla#10049)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "eccda80e42": "formatting (ruff 0.9.4 string joins)",
+        "8be4114a8a": "rf 2->3 to satisfy rf==#racks (base prepare now 1dc/3 racks)",
+        "7daa5ab9c2": "origin"
+      },
+      "relevance": "Live behavior (QUORUM paged range scan), but the motivating issue scylladb/scylladb#10049 was closed INVALID.",
+      "duplicates": [
+        {
+          "path": "scylla-dtest paging_test.py::TestPagingSize::test_with_more_results_than_page_size",
+          "coverage": "partial",
+          "note": "multi-page full scan with data comparison (CL=ALL)"
+        },
+        {
+          "path": "scylla-dtest paging_test.py::TestPagingData::test_paging_across_multi_wide_rows",
+          "coverage": "partial",
+          "note": "multi-page with data comparison"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Generic paged-vs-unpaged scan equality; motivating issue scylladb/scylladb#10049 closed INVALID and many paging_test.py tests cover multi-page scans (mostly CL=ALL). Note: 'without paging' query is actually paged with default fetch_size 5000 (1000 rows fit one page), line 425."
+    },
+    "TestPagingSavedQueryStateSingularRanges::test_single_partition": {
+      "description": "RF=3 (1 dc/3 racks), 4-row partition pk=1, SELECT at CL=ALL with fetch_size=3 -> 2 pages. Asserts returned rows and page count, and that every node's querier_cache metrics show lookups=1 (=pages-1) and zero misses/drops/evictions, i.e. the replica-side querier saved after page 1 is found and reused on page 2. Guards scylla's paging reader-reuse (querier cache, 2018).",
+      "origin": {
+        "sha": "97f6eb305c",
+        "date": "2018-01-15",
+        "pr": 580,
+        "summary": "Botond Denes: add tests specific to reader-reuse in paging queries (single partition + IN queries)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "8be4114a8a": "setup_simple_table RF 2->3 (rf==#racks); added skip_if(issue_open scylladb#23399) since metric expectations broke",
+        "03406e92c0": "expected querier metrics changed from ({lookups},{}) to same dict for all 3 nodes (RF=3), skip for #23399 removed",
+        "f85138181d": "file-level: next_gating moved to class level",
+        "97f6eb305c": "origin"
+      },
+      "relevance": "Live: querier cache (replica/querier.cc) and metrics scylla_database_querier_cache_{lookups,drops,...} registered in replica/database.cc:707-726. No other dtest checks querier_cache_lookups/drops (git grep: only paging_additional_test.py).",
+      "duplicates": [
+        {
+          "path": "test/boost/querier_cache_test.cc::singular_range_lookup_with_stop_at_clustering_row",
+          "coverage": "partial",
+          "note": "unit-level cache hit on saved querier; no CQL paging/coordinator path"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc::lookup_with_original_range_drops",
+          "coverage": "partial",
+          "note": "unit-level drop on position mismatch"
+        },
+        {
+          "path": "test/cluster/test_tablets.py (querier_cache_population check)",
+          "coverage": "partial",
+          "note": "only checks population>0 / cleared, not lookups/drops across pages"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end check that paged CQL reads hit the querier cache on every replica; scylla coverage is unit-level only (test/boost/querier_cache_test.cc). Fast (~15s), 100% pass in 32 runs. Does not use dead options (setup_simple_table called without kwargs, no tombstone_failure_threshold)."
+    },
+    "TestPagingSavedQueryStateSingularRanges::test_two_partitions": {
+      "description": "RF=3, SELECT ... WHERE pk IN (1,2) at CL=ALL with fetch_size=5 over 4+6 rows -> 3 pages. Asserts data and page count, and that every node shows querier_cache lookups=2 and drops=1: when a page boundary crosses partitions the coordinator discards part of the replica result, replica detects position mismatch on lookup and drops the cached querier instead of reusing it.",
+      "origin": {
+        "sha": "97f6eb305c",
+        "date": "2018-01-15",
+        "pr": 580,
+        "summary": "Botond Denes: add tests specific to reader-reuse in paging queries (single partition + IN queries)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (rename CL alias to ConsistencyLevel)",
+        "2d32833b1b": "port to pytest (self.assert* -> assert, attrs -> marks)",
+        "8be4114a8a": "setup_simple_table RF 2->3 (rf==#racks); added skip_if(issue_open scylladb#23399) since metric expectations broke",
+        "03406e92c0": "expected querier metrics changed from ({lookups},{}) to same dict for all 3 nodes (RF=3), skip for #23399 removed",
+        "f85138181d": "file-level: next_gating moved to class level",
+        "97f6eb305c": "origin",
+        "5e2de0b4a2": "added next-gating attr",
+        "6b5a3275e4": "added dtest-debug attr"
+      },
+      "relevance": "Live: querier cache (replica/querier.cc) and metrics scylla_database_querier_cache_{lookups,drops,...} registered in replica/database.cc:707-726. No other dtest checks querier_cache_lookups/drops (git grep: only paging_additional_test.py).",
+      "duplicates": [
+        {
+          "path": "test/boost/querier_cache_test.cc::singular_range_lookup_with_stop_at_clustering_row",
+          "coverage": "partial",
+          "note": "unit-level cache hit on saved querier; no CQL paging/coordinator path"
+        },
+        {
+          "path": "test/boost/querier_cache_test.cc::lookup_with_original_range_drops",
+          "coverage": "partial",
+          "note": "unit-level drop on position mismatch"
+        },
+        {
+          "path": "test/cluster/test_tablets.py (querier_cache_population check)",
+          "coverage": "partial",
+          "note": "only checks population>0 / cleared, not lookups/drops across pages"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique end-to-end coverage of querier drop on position mismatch for multi-partition IN paging; scylla only has unit-level lookup_with_original_range_drops (test/boost/querier_cache_test.cc). Fast (~16s), 100% pass in 32 runs. No dead options used."
+    }
+  }
+}
