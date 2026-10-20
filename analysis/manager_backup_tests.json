@@ -1,0 +1,28 @@
+{
+  "file": "manager_backup_tests.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestBackupWithEaR::test_basic_backup_with_encryption_at_rest": {
+      "description": "2-node cluster with encryption-at-rest (param over key providers local/replicated/kmip/kms/kms_real), creates encrypted table ks.cf1, inserts 20 rows RF=2, runs a Scylla Manager backup to minio (s3) or fake-gcs (gcs) using --method native|rclone (20 combos). Then truncates tables, downloads the backed-up sstables into upload/ dirs and runs nodetool refresh, and asserts all rows are readable. Guards that encrypted sstables survive a manager backup round-trip and are still decryptable on reload; no specific scylla bug.",
+      "origin": {"sha": "97684834352164ea2e3f43605583674663e7f28f", "date": "2023-07-19", "pr": 3315, "summary": "manager_backup_tests: simple backup test with KMS (merged 2023-11-13); EaR + basic manager backup, keys unchanged"},
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "add s3/gcs backend fixture to class; backup location uses self.backend instead of hardcoded s3",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: node2 -> _node2)",
+        "f15418dba31e175cbb7d0d5502b307cab27590a2": "param over all_providers() so kmip is unmarked from next_gating",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade/isort)",
+        "97684834352164ea2e3f43605583674663e7f28f": "origin: test added",
+        "d78e11ed751540e884ded6abc8fe0f4b917aa9cd": "file-level: class gets ManagerMethodMixin (native/rclone params) and setup_object_storage() in config_and_create_cluster"
+      },
+      "relevance": "Live: scylla EaR providers (KeyProviderEnum in encryption_at_rest_test.py), native backup API (object_storage_endpoints, s3 + gs), nodetool refresh, Scylla Manager --method native|rclone all current. Encryption is transparent to the backup path (sstables copied as opaque files); the meaningful check is that refreshed encrypted sstables decrypt.",
+      "duplicates": [
+        {"path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore[encrypt]", "coverage": "partial", "note": "scylla native backup+restore of encrypted sstables over s3 and gs (conftest params), LocalFileSystem provider only, no manager/rclone"},
+        {"path": "test/cluster/test_encryption.py (key_provider fixture over all KeyProvider)", "coverage": "partial", "note": "provider matrix for reboot/alter/streaming of encrypted sstables, no backup"},
+        {"path": "manager_restore_tests.py::TestRestoreWithEaR::test_basic_restore_with_kms_rotate_key", "coverage": "partial", "note": "same manager backup of EaR table (kms only) + manager restore after key rotation"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: native-path backup of encrypted sstables over s3/gs covered by scylla test_backup.py::test_simple_backup_and_restore[encrypt]; manager+EaR also in TestRestoreWithEaR. Unique bits are rclone path and non-local providers, but encryption is transparent to backup, and the 20-combo matrix costs ~150s each (~50 min/run); candidate for trimming params rather than full removal. Note: origin PR claims to test manager restore, but restore is manual download + nodetool refresh (clean_restore_and_verify_backup, manager_backup_tests.py:325)."
+    }
+  }
+}
