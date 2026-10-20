@@ -1,0 +1,39 @@
+{
+  "file": "distributed_queries_test.py",
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestDistributedAggregations::test_distributed_count_all": {
+      "description": "3-node cluster (vnodes, num_tokens=3, murmur3_ignore_msb_bits=1, smp 4), rf=2, counter table filled with 100K c-s user-profile inserts (10K in debug/coverage). Runs SELECT count(*) with enable_parallelized_aggregation=false, restarts the whole cluster with it set to true, reruns. Asserts both counts equal OPS, the non-parallel trace has no 'Dispatching mapreduce_request to 3 endpoints' / 'Dispatching N ranges' event, and the parallel trace has one. Guards the parallelized aggregation (mapreduce_service) feature, scylladb commit fe65122c.",
+      "origin": {"sha": "d2cafef387e2ac03d638059d61938cef1a2e5db1", "date": "2022-09-26", "pr": 2876, "summary": "Distributed aggregation tests (qa-tasks#779): count(*) with/without enable_parallelized_aggregation, compare results, trace forwarding, and (per PR body) timing."},
+      "commits": {
+        "6f6d048b96acaf5488e828402a68d0bec739e6fd": "revert skip marker back to issue_open('#16709') for tablets",
+        "dc874853c38f02eb0694710d6d605a53919324d0": "skip marker on tablets switched to #18180 (2025.x skip labels); reverted later",
+        "2e529da8e73348498c8852e1ffc2edbd0f82a672": "file-level: OPS 1M -> 100K (runtime)",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff): unused vars prefixed with _ (incl. the never-asserted durations)",
+        "e886060a2b58a0bf80f00a1cf434cb14200c1d23": "tablets skip now tied to scylladb#16709 (driver pool empty after restart, flaky) instead of #18180",
+        "bb1a2574806e48953fcf4c8b197c75fa38c98638": "trace regex also accepts tablets form 'Dispatching N ranges'",
+        "efd75aba6911a5b78674f562925960e0dad79286": "file-level: prepare() uses rf-rack-valid topology (generate_cluster_topology_based_rf)",
+        "6f303700c6de5bfe23421fe14191938f78fd9eb5": "file-level: class marked use_cassandra_stress",
+        "2fb588840d0bb9987ca935c835e368f58b7c7572": "skip on tablets while #18180 (counters w/ tablets) open",
+        "d27db185c37fad20a00cca686f250e08d225136f": "pass JVM_ARGS (smp 4, 4G) to restart_cluster too",
+        "1b530c54fd3e91053918cd7a987cd3cfcc3e55fa": "regex accepts forward_request or mapreduce_request (scylla rename, scylladb#19444)",
+        "45b912d09d95e315d105a4c7f8c49dcf953d50a4": "file-level: reduce OPS under coverage builds",
+        "4d7f1b6337a9580a7790fe5e92d9e26296c00fa0": "enable under raft topology: restart via tools.cluster.restart_cluster (parallel start), drop !consistent-topology-changes mark",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "f86cd1a5ec825982b92a35e46dde430122777b17": "drop no_boot_speedups mark, add wait_reconnection after restart",
+        "635a592d7f31a8b05792d9e73df17e77ae2e81b5": "file-level: OPS 2M -> 1M, 10K in debug",
+        "d2cafef387e2ac03d638059d61938cef1a2e5db1": "origin"
+      },
+      "relevance": "Live. enable_parallelized_aggregation still in db/config.cc:1642 (Used, LiveUpdate, default true). Trace messages still emitted in service/mapreduce_service.cc:621 ('Dispatching mapreduce_request to {} endpoints', vnodes) and :660 ('Dispatching {} ranges', tablets). Option is LiveUpdate, so the full cluster restart is unnecessary (could toggle via system.config).",
+      "duplicates": [
+        {"path": "test/cqlpy/test_cql_query.py::test_parallelized_select_count", "coverage": "partial", "note": "single node; enables flag live, checks count(*) result and scylla_cql_select_parallelized metric; no disabled-vs-enabled comparison, no multi-node dispatch"},
+        {"path": "test/cluster/test_aggregation.py::test_cancel_mapreduce", "coverage": "partial", "note": "multi-node mapreduce dispatch of count(*) to another node verified via log 'dispatching mapreduce_request'"},
+        {"path": "test/cluster/dtest/bypass_cache_test.py::test_parallelized_aggregation_range_scan_no_bypass_cache", "coverage": "partial", "note": "count(*) is parallelized (select_parallelized metric) vs SELECT * not"},
+        {"path": "test/cqlpy/test_cql_query.py::test_parallelized_select_counter_type", "coverage": "partial", "note": "parallelized aggregation over counter columns"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Live feature; only unique part is flag=false => no mapreduce dispatch on a 3-node vnode cluster, while parallel count(*) correctness/dispatch is covered by cqlpy test_parallelized_select_* and test/cluster/test_aggregation.py::test_cancel_mapreduce. Bug: docstring check #3 (parallel faster) never asserted since origin d2cafef3; durations unused (056f5dc7 just renamed them to _). Note: full cluster restart unneeded (option LiveUpdate); skipped on tablets via issue_open('#16709') (OPEN, driver issue); only runs in next-dtest-consistent-topology (16/16 pass, ~60s), absent from dtest-release jobs."
+    }
+  }
+}
