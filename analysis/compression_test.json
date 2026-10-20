@@ -1,0 +1,51 @@
+{
+  "file": "compression_test.py",
+  "tests": {
+    "TestCompressionChunkSize::test_sstable_compression_chunk_size_positive": {
+      "description": "Single node; parametrized over Deflate/LZ4/Snappy. CREATE TABLE with chunk_length_in_kb=256 must fail ('Query invalid because of configuration issue'), CREATE with 128 succeeds and driver schema metadata shows class + chunk 128; ALTER to 256 fails, ALTER to 64 succeeds and metadata shows 64. Guards the 128 KB max chunk length added in scylla 8a9de08510 (issue scylladb/scylladb#9933).",
+      "origin": {
+        "sha": "37c14adb88479f1ab8ec782e423e34653228d79c",
+        "date": "2023-08-15",
+        "pr": 3505,
+        "summary": "QA task (scylladb/qa-tasks#1400): positive/negative tests for 128KB chunk size cap."
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "37c14adb88479f1ab8ec782e423e34653228d79c": "origin: test added",
+        "2fc5f638f1f7bb347add33795ff2b4b4f3b3c986": "file-level: TestHelper base class copied from removed scrub_test.py (copied without its imports; test uses none of its helpers)"
+      },
+      "relevance": "Live: sstables/compressor.cc validate() rejects chunk_length > 128*1024 ('chunk_length_in_kb/chunk_length_kb must be 128 or less.'); check is compressor-independent, so the 3 params exercise the same code path.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_sstable_compression.py::test_huge_chunk_length",
+          "coverage": "full",
+          "note": "CREATE and ALTER with chunk_length_in_kb over max rejected with ConfigurationException (LZ4; value 1048576 vs dtest's 256, same `> 128*1024` check)."
+        },
+        {
+          "path": "test/boost/sstable_compression_config_test.cc::test_compression_with_yaml_config",
+          "coverage": "partial",
+          "note": "CREATE LZ4 chunk 128 accepted, ALTER Deflate chunk 64 accepted, options read back."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/create_test.py::testCreateTableWithCompression",
+          "coverage": "partial",
+          "note": "CREATE with Snappy/LZ4/Deflate + chunk_length_in_kb, schema options read back."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testAlterTableWithCompression",
+          "coverage": "partial",
+          "note": "ALTER compression class + chunk_length_in_kb, schema read back."
+        },
+        {
+          "path": "test/cluster/test_sstable_compression_config.py::test_chunk_size_beyond_max",
+          "coverage": "partial",
+          "note": "256 KB rejected via yaml/cmdline default table options (same validator)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Pure CQL schema-validation test, fully covered by scylla tests: test/cqlpy/test_sstable_compression.py::test_huge_chunk_length (CREATE+ALTER over-max rejected), boost sstable_compression_config_test (128/64 accepted + readback), cqlpy create_test/alter_test (all 3 compressors with chunk_length_in_kb). No cluster/dtest-specific aspect. Note: class TestHelper (compression_test.py:6-170, copied in 2fc5f638f) references undefined os/glob/re/shutil/tempfile/logger/common/KEYSPACE \u2014 dead code that would NameError if called; unused by this test."
+    }
+  },
+  "analyzed_at": "2026-10-20",
+  "scylla_rev": "814c05a00f"
+}
