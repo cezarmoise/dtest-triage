@@ -1,0 +1,2214 @@
+{
+  "file": "update_cluster_layout_tests.py",
+  "tests": {
+    "TestLargeScaleCluster::test_add_many_nodes_under_load": {
+      "description": "Starts 3 nodes in 3 racks (RF=3), then adds nodes one by one up to 40 (10 in debug) while a background thread does QUORUM read-modify-write style inserts into ks.test via random coordinators. After each join it inserts 100 keys at CL=ALL via the new node and asserts SELECT count over ks.cf (CL=ALL) == i*100+1000 (no data loss). At the end runs cleanup on all nodes and verifies every tracked key in ks.test has the last written value at QUORUM. Guards scale-out data integrity; found scylladb/scylladb#22244 (RBNO small_table_optimization memory amplification, node40 OOM).",
+      "origin": {
+        "sha": "16e5ab47ae",
+        "date": "2017-03-27",
+        "pr": 466,
+        "summary": "add_50_nodes_test moved into new TestLargeScaleCluster (large cluster of 50 nodes while writing with c-s)."
+      },
+      "commits": {
+        "b866c65bce": "formatting (f-string log only in this test)",
+        "68ac8df5d9": "rf-rack-valid: populate 3 racks, add nodes round-robin into RACK1..3; docstring 50->40",
+        "cd5fc0e7f6": "add @require('#22244') skip until scylla#22244 fixed",
+        "d664c1d394": "re-enable with tablets (drop !tablets mark for scylla#17573)",
+        "c6e90cf7d4": "tablets adjustments (marked !tablets)",
+        "21a7cc081e": "stop background stress loop via threading.Event",
+        "9ffd273f04": "formatting",
+        "fb3dfc9ea9": "formatting",
+        "c6ff3381cb": "background writes and final reads use prepared stmts at QUORUM",
+        "52c82fbe62": "formatting",
+        "d4c4053ff4": "replace c-s with python writer to ks.test across random nodes, track values and verify each at end",
+        "c78dd2012a": "rf 1->3, executor sized to node_count, run cleanup on all nodes before verification",
+        "35c5e716c5": "keep adding nodes until stress done; batches of 1000 keys",
+        "39160d244c": "inline add_multi_nodes helper, scale down for debug mode",
+        "0c2d585d40": "set explicit timeout(4200) (default 2700s)",
+        "95e22e7566": "port to pytest",
+        "5a3895d9f5": "adjust timeout",
+        "ba6ec10bb4": "enable_sstable_key_validation in config",
+        "ce57b95896": "remove allow_log_errors",
+        "39f69f63fd": "verification read CL changed to ONE",
+        "b2117686ab": "add -rate threads to c-s read",
+        "a461138c15": "propagate exceptions from writer thread",
+        "fefad70e5b": "gather errors from stress thread"
+      },
+      "relevance": "Live: bootstrap (vnodes and tablets), cleanup, RBNO all present. Runs in dtest-release/-with-raft (37 runs, 100% pass, avg 649s). Class is dtest_long/dtest_heavy.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_iterative_add_decommission_nodes",
+          "coverage": "partial",
+          "note": "repeated add/decommission with data checks, small cluster"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "background writes during topology ops, 3-4 nodes only"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test growing a cluster to 40 nodes under load with exact data verification; no scylla test.py equivalent (test/cluster tests use <=~6 nodes) and it found real bug scylla#22244. But costly (~650s, heavy) and large-scale coverage arguably belongs to SCT. Note: @pytest.mark.require('#22244') (update_cluster_layout_tests.py:3208) is stale - scylla#22244 closed 2025-07-09; docstring says '12 in debug mode' but code uses 10 (:3222)."
+    },
+    "TestStopNodeEarly::test_stop_node_while_restarting": {
+      "description": "2 nodes in 2 racks, RF=2, 1000 rows at CL=ALL. Restarts node1 with no_wait and stops it early: either after other nodes see it UP (wait_other_notice=True) or at the 'starting view update generator' startup checkpoint (before gossip), gently or with kill. Asserts SELECT * FROM cf via node2 returns 1000 rows and no unexpected log errors. Regression for scenarios from scylladb/scylladb#9894 (node stopped early left in limbo), which turned out invalid.",
+      "origin": {
+        "sha": "1fed38e475",
+        "date": "2022-01-10",
+        "pr": 2531,
+        "summary": "add TestStopNodeEarly for early-stop scenarios discussed in scylla#9894 (issue invalid, tests kept as regression)."
+      },
+      "commits": {
+        "117badf096": "rf-rack-valid: populate 2 racks, rf fixed 2, drop num_nodes param",
+        "66a909f40f": "UP log regex accepts host id or IP",
+        "9bebe5a7dc": "ignore 'Failed to start a Raft group' errors",
+        "3bd5e7ad71": "parameterize gently/wait_other_notice into one test",
+        "9ffd273f04": "formatting",
+        "420101a8ac": "relax 'InetAddress ... is now UP' regex",
+        "52c82fbe62": "formatting",
+        "1fed38e475": "origin"
+      },
+      "relevance": "Live: 'starting view update generator' checkpoint (main.cc:1998) and 'is now UP' (gms/gossiper.cc:1782) still logged. scylla#9894 closed (invalid).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_stop_before_starting_compaction_manager.py::test_stop_before_starting_compaction_manager",
+          "coverage": "partial",
+          "note": "stop during boot at a different point (error injection), single node, checks no crash"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Weak assertion: data check reads via node2 which holds a full replica (2 nodes, RF=2), so the row-count assert can't fail due to node1; real value is only 'no crash/no unexpected log errors' when stopping a node early. Origin issue scylla#9894 was invalid; partial overlap with test_stop_before_starting_compaction_manager. Cheap (17s x4 params)."
+    },
+    "TestUpdateClusterLayout::test_add_new_node_while_add_new_table": {
+      "description": "3 nodes/3 racks, RF=1, 4000 rows. Bootstraps node4 and creates keyspace ks1 + table cf1 and inserts 1000 rows at CL=ALL before / during / after the bootstrap (param). Waits for node4 to be alive and serving CQL, then asserts SELECT from ks1.cf1 at CL=ONE returns >= 1000 rows. Guards schema changes concurrent with bootstrap being propagated to the joining node.",
+      "origin": {
+        "sha": "c2c9a07e57",
+        "date": "2016-03-04",
+        "pr": null,
+        "summary": "Asias He: add add_new_node_while_add_new_table_{before,during,after}_bootstrapping tests."
+      },
+      "commits": {
+        "40f87b9deb": "[after]: wait for driver to discover node4 before CREATE TABLE (workaround scylla#21371 / python-driver#604)",
+        "4b8a9a3403": "writes at CL=ALL (fix scylla#27100 flake), remove no-op stop_run loop condition",
+        "bb9e9348ab": "revert of 9ec3fcce5f (not in this test's body)",
+        "9ec3fcce5f": "skip_wait_for_gossip_to_settle for gossip mode (adjacent test, reverted)",
+        "aa710cf2bc": "rf-rack-valid: 3 racks, node4 in node1's rack, CL fixed ONE",
+        "670b5567f4": "generalize raft_topology_cmd ignore regex",
+        "732d922aa2": "log message in run(); wait_for_node_streaming tablets support",
+        "f639db670b": "turn helper into parametrized first-class test",
+        "0fb1c6b529": "remove no_boot_speedups / extra node4 connection",
+        "be022ad6da": "wait for nodes to see each other alive via REST",
+        "9bebe5a7dc": "ignore benign raft_topology streaming/abort errors",
+        "21a7cc081e": "add stop_run event (bug: 'range(n) or ...' made it a no-op)",
+        "3bd5e7ad71": "FIXME comment for parametrization",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "c1fa17619a": "adjust bootstrap log message",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "426398c8c8": "streaming-start regex also matches repair sync",
+        "fa43234b60": "adjust to repair-based bootstrap log",
+        "ce57b95896": "remove allow_log_errors",
+        "84d8e3083b": "explicit no_wait start",
+        "29646f1956": "py3 port",
+        "a461138c15": "propagate exceptions from thread",
+        "81316aedf7": "stream_session debug logging",
+        "08a5888e51": "formatting",
+        "31d4ac1cc2": "fix Event.wait usage on failure",
+        "17e5d67cf6": "use list() for ResultSet length",
+        "e6fac6a50e": "formatting",
+        "c2c9a07e57": "origin"
+      },
+      "relevance": "Live: schema changes during bootstrap (group0 schema + topology coordinator), runs in next-dtest-tablets and -consistent-topology (96 runs, 100%). Recently fixed flakes (scylla#27100, scylla#21371) show it's maintained.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_schema.py::test_topology_schema_changes",
+          "coverage": "partial",
+          "note": "schema change after (not during) node add"
+        },
+        {
+          "path": "test/cluster/test_group0_snapshot_schema_race.py::test_snapshot_transfer_before_enable_sm_causes_no_such_keyspace",
+          "coverage": "partial",
+          "note": "joining node schema race via injection"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique end-to-end coverage of DDL+writes concurrent with bootstrap at 3 timings; scylla tests only cover schema changes after join or specific injected races. Note: assert uses '>=' min_keys (update_cluster_layout_tests.py:1887) though exactly 1000 rows expected - can't hide loss but can't catch extra/resurrected rows; tighten to '==' and it's GREEN."
+    },
+    "TestUpdateClusterLayout::test_add_new_node_while_adding_data": {
+      "description": "3 nodes (rack1:1, rack2:2), RF 1 or 2, bootstrap via streaming or RBNO (param). Inserts 2000 keys, starts node4 and once streaming starts inserts 2000 more at CL=ONE/TWO; after node4 serves CQL asserts full scan returns exactly 4000 rows and every key readable at that CL. Guards that writes arriving during bootstrap reach the pending replica (no data loss).",
+      "origin": {
+        "sha": "0ef261a0d9",
+        "date": "2015-11-09",
+        "pr": 37,
+        "summary": "Shlomi Livne: add simple_add_new_node_while_adding_info tests (rf=1 CL=ONE, rf=2 CL=TWO)."
+      },
+      "commits": {
+        "79e88114c3": "prepare for no-RBNO bootstrap default (explicit config per method)",
+        "21ea1c0474": "rf-rack-valid topology (2 racks), node4 in node1's rack",
+        "732d922aa2": "wait_for_node_streaming tablets support",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "aedaa57c4e": "formatting",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "b90c85aee4": "rename to test_add_new_node_while_adding_data",
+        "3994b2b60e": "parametrize rf/bootstrap_method",
+        "c0413bbeb6": "consistency per rf",
+        "166abab805": "wait for streaming before inserting second half",
+        "c1fa17619a": "adjust bootstrap log message",
+        "9303f16725": "harden (shared helper)",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "b20b27bc9c": "test both repair- and streaming-based bootstrap",
+        "c3471a97e4": "formatting",
+        "426398c8c8": "streaming-start regex",
+        "fa43234b60": "adjust to RBNO bootstrap",
+        "ce57b95896": "remove allow_log_errors",
+        "84d8e3083b": "explicit no_wait start",
+        "29646f1956": "py3 port",
+        "a461138c15": "propagate thread exceptions",
+        "81316aedf7": "stream_session debug logging",
+        "31d4ac1cc2": "Event.wait fix",
+        "17e5d67cf6": "list() for ResultSet",
+        "aa0159fd31": "shared helper update",
+        "d50a6a73f5": "shared helper update",
+        "84484760f0": "cursor->session",
+        "cd5a685202": "insert_ helper args",
+        "03befb0043": "formatting",
+        "fb923d73af": "helper rename/spelling",
+        "0ef261a0d9": "origin"
+      },
+      "relevance": "Live: enable_repair_based_node_ops / allowed_repair_based_node_ops (db/config.cc:1465-1466), pending-replica writes during bootstrap. Runs in next-dtest-tablets/-consistent-topology (128 runs, 100%).",
+      "duplicates": [
+        {
+          "path": "replace_address_test.py::TestReplaceAddress::test_serve_writes_during_bootstrap",
+          "coverage": "partial",
+          "note": "writes during bootstrap (replace path)"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping_with_parallel_writes",
+          "coverage": "partial",
+          "note": "parallel writes but with bootstrap killed"
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_topology_ops.py::test_zero_token_nodes_topology_ops",
+          "coverage": "partial",
+          "note": "background writes across bootstraps, mostly zero-token nodes"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Exact count + per-key verification of writes during bootstrap for streaming vs RBNO and RF 1/2; scylla tests only partially cover (background writes around other ops). Cheap (27s)."
+    },
+    "TestUpdateClusterLayout::test_add_node_when_cluster_is_filled": {
+      "description": "3 nodes/3 racks, runs cassandra-stress write 1M keys (10k in debug) at QUORUM with 700 threads, then bootstraps node4 with wait_for_binary_proto. No data verification; only asserts implicitly that node4 starts and no log errors. Added for scylla#1144 ('add node failing on EC2').",
+      "origin": {
+        "sha": "9705e498eb",
+        "date": "2016-04-15",
+        "pr": 332,
+        "summary": "add test for issue 1144."
+      },
+      "commits": {
+        "bbdbf48ca7": "add high_memory marker",
+        "aa710cf2bc": "rf-rack-valid: 3 racks, node4 in node1's rack",
+        "6f303700c6": "mark use_cassandra_stress",
+        "9ffd273f04": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation, config options",
+        "2b75f021c8": "reduce key count in debug mode",
+        "9705e498eb": "origin"
+      },
+      "relevance": "Bootstrap live, but scylla#1144 is closed (2016, EC2-specific). Runs next-dtest-tablets/-consistent-topology (32 runs, 100%, avg 229s).",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_new_node_while_adding_data",
+          "coverage": "full",
+          "note": "bootstrap into populated cluster with exact data verification"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestLargeScaleCluster::test_add_many_nodes_under_load",
+          "coverage": "partial",
+          "note": "bootstrap under load with data checks"
+        },
+        {
+          "path": "bootstrap_test.py::TestBootstrap::test_simple_bootstrap",
+          "coverage": "partial",
+          "note": "bootstrap with data, verified"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (229s, high_memory, c-s) and low value: no assertion beyond node4 starting (update_cluster_layout_tests.py:1983-1998), 1M small keys is not a 'filled' cluster; guarded issue scylla#1144 (EC2) closed since 2016. Bootstrap into a populated cluster is covered with real data verification by test_add_new_node_while_adding_data and bootstrap_test."
+    },
+    "TestUpdateClusterLayout::test_add_node_with_large_partition1": {
+      "description": "Inserts 100 single-row partitions with c1=100KB, c2=300KB (~400KB rows) into 1-node cluster with RF=2, bootstraps node2, then verifies each node alone returns all 100 rows. Guards streaming/RBNO of large cells/rows during bootstrap (2016 large-partition streaming work). Vnodes-only (@required_features('!tablets'), only next-dtest-consistent-topology runs). 1 node RF=2, insert data, add node2 in rack2, check_rows_on_node (update_cluster_layout_tests.py:95) stops the other node and asserts exact row count at CL=ONE on each node.",
+      "origin": {
+        "sha": "4fdabb37ae",
+        "date": "2016-07-29",
+        "pr": 375,
+        "summary": "Asias He: add node with large partition tests (streaming large partitions)."
+      },
+      "commits": {
+        "aa710cf2bc": "rf-rack-valid: node2 in rack2",
+        "c62ab32258": "insert concurrency 10 to avoid ConnectionBusy",
+        "c6e90cf7d4": "mark !tablets (rf > nodes not allowed)",
+        "9ffd273f04": "formatting",
+        "0273e647a0": "drop scylla_tools import",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "498e4ea793": "dtest-full attr",
+        "08a5888e51": "formatting",
+        "e6fac6a50e": "formatting",
+        "4fdabb37ae": "origin"
+      },
+      "relevance": "Live for vnode keyspaces (bootstrap streaming/RBNO). Tablets path not exercised (test skipped with tablets).",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_node",
+          "coverage": "partial",
+          "note": "same check_rows_on_node flow with small rows"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_node_with_large_partition3",
+          "coverage": "partial",
+          "note": "near-identical, mixed sizes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only vnodes; misnomer - each partition is a single ~400KB row (large cells, not large partitions). No scylla test.py test streams large rows on bootstrap, but 4 near-identical variants exist (partition1-4); keep at most one or two. Cheap (18s)."
+    },
+    "TestUpdateClusterLayout::test_add_node_with_large_partition2": {
+      "description": "Like partition1 but table has 250 text columns x 1KB (250KB row), 100 single-row partitions; bootstrap node2 and verify each node has all rows. Vnodes-only (@required_features('!tablets'), only next-dtest-consistent-topology runs). 1 node RF=2, insert data, add node2 in rack2, check_rows_on_node (update_cluster_layout_tests.py:95) stops the other node and asserts exact row count at CL=ONE on each node.",
+      "origin": {
+        "sha": "b408f0a5c3",
+        "date": "2016-07-29",
+        "pr": 375,
+        "summary": "Asias He: add_node_with_large_partition2_test (250 columns x 1KB)."
+      },
+      "commits": {
+        "b866c65bce": "formatting (f-string column names)",
+        "aa710cf2bc": "rf-rack-valid: node2 in rack2",
+        "c62ab32258": "insert concurrency 10",
+        "c6e90cf7d4": "mark !tablets",
+        "9ffd273f04": "formatting",
+        "0273e647a0": "drop scylla_tools import",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "498e4ea793": "dtest-full attr",
+        "08a5888e51": "formatting",
+        "e6fac6a50e": "formatting",
+        "b408f0a5c3": "origin"
+      },
+      "relevance": "Live for vnode keyspaces only.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_node_with_large_partition1",
+          "coverage": "partial",
+          "note": "same flow, 2 large columns instead of 250 small"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Variant of partition1 with many columns (wide row, not large partition); distinct row shape but same bootstrap/verify path, vnodes only. Candidate to merge/drop with partition1/3. Cheap (19s)."
+    },
+    "TestUpdateClusterLayout::test_add_node_with_large_partition3": {
+      "description": "Like partition1 but alternates rows of 10KB+300KB and 1KB+3KB (100 single-row partitions); bootstrap node2 and verify each node has all rows. Vnodes-only (@required_features('!tablets'), only next-dtest-consistent-topology runs). 1 node RF=2, insert data, add node2 in rack2, check_rows_on_node (update_cluster_layout_tests.py:95) stops the other node and asserts exact row count at CL=ONE on each node.",
+      "origin": {
+        "sha": "ca39713c9e",
+        "date": "2016-07-29",
+        "pr": 375,
+        "summary": "Asias He: add_node_with_large_partition3_test (mixed large/small)."
+      },
+      "commits": {
+        "aa710cf2bc": "rf-rack-valid: node2 in rack2",
+        "c62ab32258": "insert concurrency 10",
+        "c6e90cf7d4": "mark !tablets",
+        "9ffd273f04": "formatting",
+        "0273e647a0": "drop scylla_tools import",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "29646f1956": "py3 port",
+        "498e4ea793": "dtest-full attr",
+        "08a5888e51": "formatting",
+        "e6fac6a50e": "formatting",
+        "ca39713c9e": "origin"
+      },
+      "relevance": "Live for vnode keyspaces only.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_node_with_large_partition1",
+          "coverage": "full",
+          "note": "identical schema/flow/helpers; partition1 already streams 300KB+ rows, small rows covered by test_simple_add_node"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Near-duplicate of test_add_node_with_large_partition1 (same 2-column table, insert_c1c2, check_rows_on_node; only half the rows are smaller), small rows covered by test_simple_add_node. Vnodes only; misnomer (single-row partitions)."
+    },
+    "TestUpdateClusterLayout::test_add_node_with_large_partition4": {
+      "description": "Inserts 100 partitions x 3000 clustering rows (10 partitions in debug) one-by-one via prepared statement into (pk varchar, ck varchar) table, RF=2, bootstraps node2, verifies 300k rows on each node alone with long range timeout. Originally (PR 379) used c-s profile with ~5KB rows (~15MB partitions); since f70495d9bc rows carry only pk/ck so partitions are ~tens of KB. Vnodes-only (@required_features('!tablets'), only next-dtest-consistent-topology runs). 1 node RF=2, insert data, add node2 in rack2, check_rows_on_node (update_cluster_layout_tests.py:95) stops the other node and asserts exact row count at CL=ONE on each node.",
+      "origin": {
+        "sha": "84b7ed126f",
+        "date": "2016-08-11",
+        "pr": 379,
+        "summary": "Asias He: add_node_with_large_partition4_test (3000 x 5KB rows per partition, ~15MB)."
+      },
+      "commits": {
+        "aa710cf2bc": "rf-rack-valid: node2 in rack2",
+        "c6e90cf7d4": "mark !tablets",
+        "9ffd273f04": "formatting",
+        "f70495d9bc": "replace c-s large-partition profile with explicit CQL inserts of (pk,ck) only - rows no longer large",
+        "ec43e05074": "count rows by iterating, not count()",
+        "645d1b203c": "deterministic pk",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "enable_sstable_key_validation",
+        "c0fa15b68d": "range_request_timeout for long queries",
+        "08a5888e51": "formatting",
+        "e6fac6a50e": "formatting",
+        "345d359742": "longer select timeout, c-s threads 10->1 (scylla#1394)",
+        "84b7ed126f": "origin"
+      },
+      "relevance": "Live for vnode keyspaces only. Original purpose (15MB partitions) lost since f70495d9bc (PR 3676).",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_node",
+          "coverage": "partial",
+          "note": "same bootstrap + check_rows_on_node flow"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_node_with_large_partition1",
+          "coverage": "partial",
+          "note": "same flow, single-row partitions"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only variant with multi-row partitions, but after f70495d9bc the rows are tiny (pk/ck only), so it no longer tests large partitions as named/intended, and 300k serial inserts make it slow (118s). Bug: name/docstring claim large partitions; data is ~60KB partitions. Either restore large rows or drop."
+    },
+    "TestUpdateClusterLayout::test_change_node_ip": {
+      "description": "rf racks (2 or 3), 1 node each; writes 1000 rows to ks1 (RF=1) and ks{rf} (RF=rf). Stops last node, changes listen/rpc/api address to prefix.33, restarts it. Asserts nodetool status on all nodes maps new IP to same host id, system.peers/system.local consistent across nodes (retry 20x), and all rows readable at CL=ONE (RF=1) and CL=rf. Guards IP change without replace.",
+      "origin": {
+        "sha": "b623860fad",
+        "date": "2022-07-27",
+        "pr": 2777,
+        "summary": "Asias He: validate changing a node's IP without replace ops."
+      },
+      "commits": {
+        "6464e189a5": "split into rack=rf=2/3 params for rf-rack-valid keyspaces",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "61752a4a72": "extend: data reads with RF 1/2/3, peers/local table checks",
+        "d78b911bfc": "use shared nodetool_status helper",
+        "b623860fad": "origin"
+      },
+      "relevance": "Live: IP change handled via host-id based topology / raft address map. Runs next-dtest-tablets/-consistent-topology (64 runs, 100%, 25s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_change_ip.py::test_change_two",
+          "coverage": "partial",
+          "note": "changes 2 nodes' IPs; stronger checks of system.local/peers, alive/down endpoints, host-id map, crash injection; only 1 row data check"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_change_node_ip_full_cluster_down",
+          "coverage": "partial",
+          "note": "IP change with whole cluster down"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Metadata side (peers/local/host-id mapping) is covered more thoroughly by test/cluster/test_change_ip.py::test_change_two; unique part is reading pre-existing data at RF=1 and RF=N after the change. Note: nodetool status check (update_cluster_layout_tests.py:2650-2655) is vacuous if new IP is missing, but check_peer_and_local_table asserts broadcast_address == new IP."
+    },
+    "TestUpdateClusterLayout::test_change_node_ip_full_cluster_down": {
+      "description": "3 nodes in 3 racks, RF=3 ks with 1000 rows; stops whole cluster, changes listen/rpc/api address of every node (+10 on last octet), restarts all. Then for each node parses nodetool status and, for rows whose address equals a node's new IP, asserts host id matches and is unchanged from before. Guards IP change of all nodes while the whole cluster is down (no peer knows new IPs).",
+      "origin": {
+        "sha": "75501a18b1",
+        "date": "2022-08-03",
+        "pr": 2799,
+        "summary": "Test change ip address for nodes after whole cluster shutdown"
+      },
+      "commits": {
+        "641efed48f": "rf-rack-valid: 3-rack topology, ks RF 2->3",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff pyupgrade)",
+        "75501a18b1": "origin"
+      },
+      "relevance": "Live: IP change handled via host_id/raft address map (gms, service/raft). Runs in next-dtest-tablets/-consistent-topology (32 runs, 100%, ~22s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_change_ip.py::test_change_two",
+          "coverage": "partial",
+          "note": "changes IPs of 2 of 3 nodes with one node up; checks system.local/peers, alive/down endpoints, host id map; no full-cluster-down case"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_change_node_ip",
+          "coverage": "partial",
+          "note": "single node IP change, checks peers/local tables and data"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Full-cluster-down IP change not covered by scylla test_change_ip.py (one node always up), but assertions are weak. Bug: asserts at update_cluster_layout_tests.py:2882-2890 run only if a status row's address equals the new IP, so the test never checks that new IPs appear or old IPs are gone; a status still showing old IPs passes. Inserted data never read back."
+    },
+    "TestUpdateClusterLayout::test_decommission_after_changing_node_ip": {
+      "description": "3 nodes/3 racks; stops node3, changes its IP (old+'3'), restarts it and decommissions it (retry_till_success), waits until old IP is absent or in shutdown state in every node's gossipinfo, then bootstraps node4 into the same rack. Reproducer for scylladb/scylladb#11355 (new node learned stale gossip entry of old IP and blocked joining). Only assertion: operations succeed.",
+      "origin": {
+        "sha": "c1c1e7003f",
+        "date": "2022-08-23",
+        "pr": 2836,
+        "summary": "reproducer for scylladb/scylladb#11355 (fixed by scylla 6134fe4d1f 'Prevent removed node to rejoin in handle_state_normal')"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused var rename)",
+        "641efed48f": "node4 dc from node3",
+        "3e31f1a9de": "rf-rack-valid: 3-rack topology, node4 in node3's rack",
+        "7f5b7aaaee": "restart node3 with wait_other_notice=True to avoid 'Dead nodes' decommission failures",
+        "9ffd273f04": "formatting",
+        "52c82fbe62": "formatting/boot options",
+        "314c2fd7d1": "wait for old IP gossip status=shutdown before adding node4",
+        "0438b7869f": "decommission timeout via cql_timeout",
+        "c1c1e7003f": "origin"
+      },
+      "relevance": "Gossip-mode bug #11355 (closed); scylla now always runs raft topology in these jobs where IP->host_id mapping replaces the code path. IP change + decommission + bootstrap still live behavior.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_change_ip.py::test_change_two",
+          "coverage": "partial",
+          "note": "IP change, no subsequent decommission/bootstrap"
+        },
+        {
+          "path": "test/cluster/test_no_removed_node_event_on_ip_change.py::test_no_removed_node_event_on_ip_change",
+          "coverage": "partial",
+          "note": "IP change side effects"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_replace_after_changing_node_ip",
+          "coverage": "partial",
+          "note": "same setup, replace instead of decommission"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Original bug (#11355) is in gossip-mode handle_state_normal; under raft topology the scenario only checks ops succeed. Note: is_shutdown (update_cluster_layout_tests.py:2688) returns True when old IP is absent from gossipinfo, which is the normal case with host-id-based gossip, so the wait is likely a no-op. No data assertions."
+    },
+    "TestUpdateClusterLayout::test_decommission_after_decreasing_rf": {
+      "description": "3 nodes in rack1..3, ks RF=3 (rack list with tablets), 500 keys; ALTER to RF=2 (drops rack3), decommission node3, verify data at QUORUM, add node4 in rack3, ALTER back to RF=3 (vnodes: repair node4), then for each of node1/2/4 stop the others and read all keys at CL=ONE. Guards RF decrease enabling decommission (tablets) and RF increase re-populating replicas.",
+      "origin": {
+        "sha": "4a1b708846",
+        "date": "2024-08-06",
+        "pr": 4767,
+        "summary": "Added test_decommission_after_decreasing_rf (decrease RF needed to decommission with tablets)"
+      },
+      "commits": {
+        "e96d1bf76b": "num_keys 2000->500, ALTER timeout 300s (tablet migrations, DTEST-275)",
+        "10822c01ff": "use rack-list RF with tablets (scylla 380f243986), assert node3 in rack3",
+        "641efed48f": "node4 dc from node3",
+        "082e22658c": "skip_if tablets & scylla#23525 open",
+        "3e31f1a9de": "rf-rack-valid: 3-rack topology, fixed RF 3/2",
+        "36a75a3da5": "node4.repair(keyspace='ks')",
+        "d0e55d7e63": "revert of repair change",
+        "44ed3fa059": "node4.repair(keyspace='ks')",
+        "eccda80e42": "formatting",
+        "4a1b708846": "origin"
+      },
+      "relevance": "Live: rack-list RF (scylla 380f243986), tablet RF change, decommission. Runs in both gating jobs (32 runs, 100%, ~51s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops_with_rf_rack_valid.py::test_remove_node_violating_rf_rack_with_rack_list",
+          "coverage": "partial",
+          "note": "decommission of node in unlisted rack allowed, listed rack rejected; no RF change/data check"
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_multi_rf_change_0_N",
+          "coverage": "partial",
+          "note": "RF changes with rack lists, no decommission"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "End-to-end RF-decrease -> decommission -> RF-increase with per-node data check is not covered as a whole in scylla (only partial). Note: skip_if references scylladb/scylladb#23525 which is CLOSED (update_cluster_layout_tests.py:2706, dead marker); dtest_config fixture param unused (2707)."
+    },
+    "TestUpdateClusterLayout::test_decommission_last_node_in_rack": {
+      "description": "3 nodes in rack1; in gossip mode only, ALTERs system_auth to NetworkTopologyStrategy RF=3; adds node4 in rack2 and decommissions it. No assertions besides decommission succeeding. Reproducer for scylladb/scylladb#14184 (topology::unindex_node corrupted _dc_endpoints so NTS saw zero replicas -> abort), scylla-enterprise#3106, scylla-operator#1271.",
+      "origin": {
+        "sha": "071db884cb",
+        "date": "2023-07-11",
+        "pr": 3299,
+        "summary": "introduce test_decommission_last_node_in_rack (scylla fix 3737bf8fa2 'topology.cc: unindex_node: _dc_racks removal fix')"
+      },
+      "commits": {
+        "9102b5b610": "rf-rack-valid: generate_cluster_topology + rackdc per node",
+        "56d3afbb71": "skip system_auth ALTER under consistent-topology-changes (auth-v2)",
+        "9ffd273f04": "formatting",
+        "03c2b5e473": "ALTER uses explicit dc name instead of replication_factor",
+        "26094d60d5": "use update_properties helper",
+        "071db884cb": "origin"
+      },
+      "relevance": "Bug fixed in 2023 (#14184 closed). The NTS keyspace precondition is gone: ALTER system_auth only runs if 'consistent-topology-changes' not in features (update_cluster_layout_tests.py:334), but conftest.py:734 always includes it unless --force-gossip-topology-changes; both gating jobs use raft topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "bootstrap + decommission under topology coordinator"
+        },
+        {
+          "path": "test/cluster/test_topology_ops_with_rf_rack_valid.py::test_remove_node_violating_rf_rack",
+          "coverage": "partial",
+          "note": "decommission nodes across racks"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Reproducer precondition (NTS keyspace spanning the rack) is dead: system_auth ALTER skipped under consistent topology (update_cluster_layout_tests.py:334) which is always on in the jobs running it, and no user keyspace is created. What remains is a no-data add+decommission with no assertions, covered by test/cluster/test_topology_ops.py::test_topology_ops."
+    },
+    "TestUpdateClusterLayout::test_decommission_node_while_gossip_partly_blocked": {
+      "description": "Nodes rack1:1, rack2:2. Kills node3, adds iptables DROP rules for TCP 7000 from node1/node2 to node3, restarts node3; waits until node1/2 see node3 DN, asserts decommission of node3 fails with 'Rejected decommission operation' / 'Cannot start' / 'raft_operation_timeout_error'. Removes rules, waits for node1/2 to see node3 alive, decommission succeeds, node4 bootstraps. Reproducer for scylladb/scylladb#11302 (decommission succeeded in split-brain, node stuck DL) and scylla-operator#982.",
+      "origin": {
+        "sha": "9fb54158ed",
+        "date": "2022-08-23",
+        "pr": 3040,
+        "summary": "reproducer for scylladb/scylladb#11302 (scylla fix 58c65954b8 'Reject decommission if nodes are down')"
+      },
+      "commits": {
+        "1a4280701b": "wait watch_rest_for_alive before 2nd decommission (SCYLLADB-1018 on_restart race)",
+        "1800df7092": "require jira:SCYLLADB-608 (iptables cleanup leaks)",
+        "641efed48f": "rack topology rack1:1/rack2:2",
+        "de60a3eb80": "skip under podman",
+        "e9123413c3": "rules drop only traffic to node3; wait for DN status (scylla#23027)",
+        "16fa23e640": "enable under raft topology; accept raft_operation_timeout_error",
+        "9ffd273f04": "formatting",
+        "15c8b16975": "ignore decommission failed log",
+        "aa8c9ec145": "accept 'Cannot start' error (scylla 6373452b31)",
+        "3b66b065e4": "split removenode variant out",
+        "5c86edab31": "expect first decommission to fail after #11302 fix",
+        "faa9360d6b": "add removenode variant (separate test)",
+        "efde5448ad": "(file) unique iptables chain names; ip_tables fixture",
+        "9fb54158ed": "origin"
+      },
+      "relevance": "Live: raft topology rejects/cancels decommission when a node is seen dead. 'Rejected decommission operation' no longer exists in scylla source (gossip-mode node_ops). Slow: avg 345s (waits for raft op timeout). Runs in both gating jobs (32 runs, 100%).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_parallel_decommission.py",
+          "coverage": "partial",
+          "note": "line 329: decommission fails with 'Canceled. Dead nodes'"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_removenode_while_gossip_partly_blocked",
+          "coverage": "partial",
+          "note": "same setup, removenode; require scylladb#12892 (open)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Asymmetric gossip partition via iptables is not reproduced in scylla tests (only dead-node cancel, test_tablets_parallel_decommission.py:329), but test is slow (~345s) and needs iptables (SCYLLADB-608 leaks). Note: expected-error check (update_cluster_layout_tests.py:2961) accepts 'Rejected decommission operation', a gossip-mode message gone from scylla; any raft_operation_timeout_error passes."
+    },
+    "TestUpdateClusterLayout::test_decommission_with_multi_rack": {
+      "description": "5 nodes RACK1:2, RACK2:1, RACK3:2, RF=3, 500 keys at ALL. Decommissions node5 (RACK3), then node4 (last in RACK3): with vnodes it must succeed; with tablets it must fail with one of 4 accepted errors (no candidate nodes / unable to find replica / RF-rack-invalid). Then asserts row count == 500 via node1.",
+      "origin": {
+        "sha": "042d18ad62",
+        "date": "2024-07-18",
+        "pr": 4626,
+        "summary": "Add tests for tablets and rack decommission (refs scylladb/scylladb#19475)"
+      },
+      "commits": {
+        "ec5f5f02e2": "accept 'No candidate nodes' error (parallel decommission)",
+        "3df825b56f": "accept RF-rack-invalid rejection error (scylla#23345)",
+        "bc0f89ef05": "accept 'no candidate nodes in DC' drain error; restructure error check",
+        "042d18ad62": "origin"
+      },
+      "relevance": "Live: RF-rack validity enforcement on decommission (scylla#23345), tablet draining. Runs in both gating jobs (32 runs, 100%, ~32s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops_with_rf_rack_valid.py::test_remove_node_violating_rf_rack",
+          "coverage": "partial",
+          "note": "same 3-rack/2-per-rack shape, RF=3 tablets: 1st decommission ok, 2nd (empties rack) rejected with exact error; skipped in release mode; no data check, no vnode path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Tablets path is essentially covered by test/cluster/test_topology_ops_with_rf_rack_valid.py::test_remove_node_violating_rf_rack[decommission] (stricter error match), except release mode and the row-count check; vnode full-rack decommission path remains unique. Note: accepts 4 alternative error strings (update_cluster_layout_tests.py:~300-312), some from older scylla behavior."
+    },
+    "TestUpdateClusterLayout::test_increment_decrement_counters_in_threads_nodes_restarted": {
+      "description": "3 nodes/3 racks, RF=3 counter table. With node3 down, 120 threads do 500x inc/dec (1 in 3 threads decrement) of 2 counters at CL=ONE; restart node3, stop node1+node2, repeat the 120-thread workload via node3 only; restart all, read at CL=ALL from node1/2/3 and assert identical results equal to client-side expected sums. Guards counter shard merging after divergent replica writes.",
+      "origin": {
+        "sha": "0cd931d1b2",
+        "date": "2017-03-01",
+        "pr": 458,
+        "summary": "add increment_decrement_counters_in_threads_node_restarted_test"
+      },
+      "commits": {
+        "4fc7115907": "disable hints (default_config_options) to avoid overload rejections",
+        "d0cbdd7589": "rf-rack-valid: 3-rack topology",
+        "9b293cbe51": "re-create session to node3 after restart (deflake NoHostAvailable)",
+        "4c770c6d85": "enable driver debug logs (dtest#3686)",
+        "2fb588840d": "skip_if tablets & scylla#18180 open",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "fb3dfc9ea9": "formatting",
+        "7be75e998b": "stop with wait_other_notice",
+        "9a1a253c70": "pre-created per-node sessions (fd exhaustion)",
+        "20908a47e2": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (sstable key validation)",
+        "c3471a97e4": "formatting",
+        "77c52abacc": "drop experimental flags",
+        "29646f1956": "python3 port",
+        "a461138c15": "ThreadPoolExecutor propagates thread exceptions",
+        "6c917bf216": "rework: stop nodes between (not during) writes, read at CL=ALL",
+        "37bc2ea96a": "formatting",
+        "b20099ea65": "stop 2 more nodes, verify only if no failures",
+        "0cd931d1b2": "origin"
+      },
+      "relevance": "Live: counters, now also with tablets (scylla 9208b2f317; #18180 closed). Runs in both gating jobs (32 runs, 100%, ~81s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/counter_test.py::test_increment_decrement_counters_in_threads",
+          "coverage": "partial",
+          "note": "same threaded inc/dec workload, all nodes up, QUORUM"
+        },
+        {
+          "path": "test/cluster/dtest/counter_test.py::test_counter_consistency",
+          "coverage": "partial",
+          "note": "writes at ONE, read at ALL, no node restarts"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Divergent counter writes with replicas down then CL=ALL merge is not covered by scylla ported counter_test.py (no restarts). Note: skip_if refs closed scylladb#18180 (update_cluster_layout_tests.py:2190, dead marker); docstring says CL=QUORUM and stopping during ops (2195) but code uses CL=ONE and stops between phases (since 6c917bf216); leftover driver DEBUG logging TODO for dtest#3686."
+    },
+    "TestUpdateClusterLayout::test_iterative_add_decommission_nodes": {
+      "description": "Parametrized (iterations,node_count,rf) in {(3,1,1),(2,3,1),(3,1,2),(2,3,2)}: rf racks with 1 node, 1000 rows; each iteration adds node_count nodes to one rack (inserting 100 rows at CL=ALL via each), asserts total row count at CL=ALL, decommissions all other nodes of that rack except the last added, re-checks count; finally decommissions node1 and checks count. Guards no data loss across repeated grow/shrink.",
+      "origin": {
+        "sha": "520f56e5d2",
+        "date": "2015-12-23",
+        "pr": 101,
+        "summary": "Add an iterative test for adding and decommissioning nodes"
+      },
+      "commits": {
+        "b866c65bce": "formatting (f-string logs)",
+        "e58a33e461": "rf-rack-valid: rf racks, add/decommission within one rack",
+        "d06bed122f": "use self.scylla_features for tablets check",
+        "c6e90cf7d4": "merge per-case tests into parametrized test; tablets initial nodes",
+        "9ffd273f04": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "sstable key validation config",
+        "ce57b95896": "drop allow_log_errors",
+        "08a5888e51": "formatting",
+        "eb27acfaec": "formatting/refactor (helper moved)",
+        "17e5d67cf6": "list() for ResultSet length",
+        "e6fac6a50e": "formatting",
+        "520f56e5d2": "origin"
+      },
+      "relevance": "Live: bootstrap/decommission with vnodes and tablets. Runs 4 params in both gating jobs (128 runs, 100%, ~50s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "single bootstrap/decommission/replace/remove sequence with background writes"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestLargeScaleCluster::test_add_many_nodes_under_load",
+          "coverage": "partial",
+          "note": "scale-out only, long job"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Repeated add/decommission cycles within a rack with exact row-count checks after each step; scylla tests cover single ops only (test_topology_ops.py). Cheap (~50s) and stable."
+    },
+    "TestUpdateClusterLayout::test_remove_node_from_gossip": {
+      "description": "3 nodes (rack1:2, rack2:1), RF=2, 2000 rows. Starts node4 in rack2, waits for bootstrap streaming to begin, hard-kills it; waits on node1 for the node to be dropped (raft: 'Finished to force remove node <ip|hostid>'; gossip: 'FatClient ... removing from gossip'), then checks node1's own gossip heartbeat increases over 3s (no deadlock in on_remove callback, original purpose).",
+      "origin": {
+        "sha": "caae93602c",
+        "date": "2016-03-10",
+        "pr": 257,
+        "summary": "Add remove_node_from_gossip_test: check gossip on_remove callback doesn't deadlock"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting",
+        "b79a1434fb": "rf-rack-valid: rack topology",
+        "eb859a9fed": "force remove msg accepts ip or host id",
+        "66a909f40f": "FatClient msg accepts ip or host id",
+        "7f06182f73": "enable with tablets; stream keyspace system_distributed",
+        "d06bed122f": "use self.scylla_features",
+        "1bc85a15c7": "enable under raft topology with 'Finished to force remove node' msg",
+        "9ffd273f04": "formatting",
+        "2980e37e1b": "formatting",
+        "aedaa57c4e": "formatting",
+        "f817d6c0ba": "FatClient regex tweak",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "c1fa17619a": "bootstrap log msg update",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "sstable key validation config",
+        "c3471a97e4": "formatting",
+        "551ae631d8": "hard-stop node4, FatClient regex with address",
+        "a0bbae7e78": "ignore Startup failed",
+        "426398c8c8": "streaming start check",
+        "fa43234b60": "RBNO streaming log",
+        "ce57b95896": "drop allow_log_errors",
+        "84d8e3083b": "explicit wait flags",
+        "81316aedf7": "streaming log update",
+        "08a5888e51": "formatting",
+        "f066efa2e4": "parallel execution support",
+        "caae93602c": "origin"
+      },
+      "relevance": "Raft path live ('Finished to force remove node', gms/gossiper.cc:880). Gossip-mode 'FatClient ... has been silent' message no longer in scylla source. Runs in both gating jobs (32 runs, 100%, ~33s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap failure during streaming -> rollback to left token ring (error injection, not kill)"
+        },
+        {
+          "path": "test/cluster/test_gossiper_orphan_remover.py::test_crashed_node_substitution",
+          "coverage": "partial",
+          "note": "crashed joining node force-removed from gossip ('Finished to force remove node'), before group0 join"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Kill-during-bootstrap-streaming cleanup partly covered by test_topology_streaming_failure and test_crashed_node_substitution. Note: gossip-mode branch (update_cluster_layout_tests.py:1961, FatClient msg) is dead, message removed from scylla; heartbeat check (~1966-1979) only proves gossiper still ticks; _get_gossipinfo uses bare except (1917)."
+    },
+    "TestUpdateClusterLayout::test_removenode_rejoin": {
+      "description": "Nodes rack1:1, rack2:2. Stops node3, removenode it from node1, restarts node3 (no_wait); in raft mode waits for 'received notification of being banned from the cluster from' in node3's log, then asserts node3's address is absent from node1's nodetool status. Guards removed nodes cannot rejoin (scylladb/scylladb#11217, PR 11244).",
+      "origin": {
+        "sha": "d452e69afc",
+        "date": "2022-09-26",
+        "pr": 2874,
+        "summary": "Add test_removenode_rejoin (refs scylladb/scylladb#11217)"
+      },
+      "commits": {
+        "b866c65bce": "formatting",
+        "4db80f4c2d": "drop compat path for old scylla (pre-ban notification)",
+        "056f5dc7a8": "formatting",
+        "f68155c9cb": "wait for banned notification",
+        "b79a1434fb": "rf-rack-valid: rack topology",
+        "8de2f2bafc": "expected msg accepts ip or host id",
+        "f65e75e3fa": "deflake: wait for node3 join attempt messages before status check",
+        "d06bed122f": "use self.scylla_features",
+        "0486c45bb0": "enable under raft topology: check node not in status",
+        "9ffd273f04": "formatting",
+        "d452e69afc": "origin"
+      },
+      "relevance": "Live: banned-node notification (service/storage_service.cc:7396). Gossip-mode message 'Can not restart the removed node' no longer in scylla. Runs in both gating jobs (32 runs, 100%, ~32s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_node_isolation.py::test_banned_node_notification",
+          "coverage": "partial",
+          "note": "removenode a paused (not stopped) node, unpause, expects same banned log; does not restart the node"
+        },
+        {
+          "path": "test/cluster/test_decommission.py::test_decommissioned_node_cant_rejoin",
+          "coverage": "partial",
+          "note": "same for decommissioned node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Removed-node ban largely covered by test/cluster/test_node_isolation.py::test_banned_node_notification; restart-after-removenode variant is the only difference. Note: gossip-mode branch (update_cluster_layout_tests.py:1798-1799) dead, message removed from scylla."
+    },
+    "TestUpdateClusterLayout::test_replace_after_changing_node_ip": {
+      "description": "3 nodes in 3 racks; node3 is stopped, restarted with a new listen/rpc/api IP, then stopped again. Waits (is_shutdown) until node1/node2 gossipinfo no longer shows the old IP as non-shutdown, then replaces node3 by host id with a new node4 and only asserts node4 starts (CQL up). Guards scylladb/scylladb#13775 (cannot replace a node after its IP changed). No data is written or verified.",
+      "origin": {
+        "sha": "a6cdce217c",
+        "date": "2023-05-04",
+        "pr": 3067,
+        "summary": "Added (based on test_decommission_after_changing_node_ip) as reproducer for scylla#13775, marked @require('#13775')."
+      },
+      "commits": {
+        "641efed48f": "rf-rack-valid: populate 3 racks x 1 node via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "52c82fbe62": "formatting (file-wide boot speedup commit; no change to this test's logic)",
+        "a6cdce217c": "add test",
+        "d5fbd75c": "(file) run only with consistent-topology-changes due to scylla#13775",
+        "04ec88a6": "(file) switch to skip_if(~raft & issue_open(#13775))",
+        "84f69595": "(file) require consistent-topology-changes",
+        "72e2204c": "(file) drop raft-only marker, allow with gossip topology (scylla#13775 fixed)"
+      },
+      "relevance": "Live: replace by host id and IP change are supported under raft topology (host-id based). Issue scylla#13775 closed 2025-04-14. Runs in both gating jobs (32 runs, 100% pass, ~44s).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_change_ip.py::test_change_two",
+          "coverage": "partial",
+          "note": "IP change and metadata, but no replace afterwards"
+        },
+        {
+          "path": "test/cluster/test_replace.py::test_replace_different_ip_using_host_id",
+          "coverage": "partial",
+          "note": "replace by host id, without prior IP change"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_decommission_after_changing_node_ip",
+          "coverage": "partial",
+          "note": "same setup, decommission instead of replace"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of replace-after-IP-change (no scylla test.py equivalent), but it asserts nothing beyond node4 starting. Note: is_shutdown (update_cluster_layout_tests.py:2810-2818) returns True when the old IP is absent from gossipinfo, which is the normal case with host-id gossip, so the wait is likely a no-op; no data written/verified after replace."
+    },
+    "TestUpdateClusterLayout::test_simple_add_new_node_while_query_info": {
+      "description": "Cluster with rf racks (1 or 2), 2000 rows at CL=ONE/TWO. Starts node4 and, once it starts streaming, runs a background loop of full-table SELECTs at the same CL asserting exactly 2000 rows each time, until node4 listens for CQL; then asserts the full count and reads every key with query_c1c2. Guards read availability/correctness during bootstrap streaming.",
+      "origin": {
+        "sha": "e0d299dc03",
+        "date": "2015-11-10",
+        "pr": 44,
+        "summary": "Add query tests while adding/decommissioning a node."
+      },
+      "commits": {
+        "d5a1059b62": "rf-rack-valid: rack_num=rf topology, node4 added to node1's rack",
+        "21a7cc081e": "background SELECT loop runs until stop event (node4 CQL up) instead of 99 iterations; prepared stmt",
+        "3bd5e7ad71": "parametrize rf [1,2] (was _1/_2 wrappers)",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "c1fa17619a": "adjust 'Starting to bootstrap' log pattern",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "c3471a97e4": "formatting",
+        "426398c8c8": "wait for stream session or RBNO sync start",
+        "fa43234b60": "adjust start-of-bootstrap pattern for RBNO",
+        "ce57b95896": "remove allow_log_errors",
+        "84d8e3083b": "node4.start no_wait=True",
+        "29646f1956": "python3 (xrange->range)",
+        "a461138c15": "propagate background-thread exceptions via executor",
+        "81316aedf7": "enable stream_session debug logging",
+        "31d4ac1cc2": "fix Event.wait usage on failure",
+        "17e5d67cf6": "list() for result length",
+        "84484760f0": "cursor->session rename",
+        "eaceab0c66": "fix while->for loop bug",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "fb923d73af": "rename/spelling",
+        "e0d299dc03": "add test"
+      },
+      "relevance": "Live: bootstrap streaming/RBNO (vnodes). In next-dtest-tablets ks is tablets, so streaming of ks happens via tablet migration after join, i.e. after the read loop stops; the tablets run effectively covers only join-time reads. 64 runs, 100% pass, ~15s.",
+      "duplicates": [
+        {
+          "path": "bootstrap_test.py::TestBootstrap::test_simple_bootstrap",
+          "coverage": "partial",
+          "note": "random single-key reads during bootstrap, num_tokens=1"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "background writes during bootstrap, no read verification"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Continuous exact-count reads at CL=ONE/TWO throughout bootstrap streaming plus per-key verification; no scylla test verifies read results during bootstrap. Cheap (15s), stable."
+    },
+    "TestUpdateClusterLayout::test_simple_add_new_node_while_schema_changes": {
+      "description": "3 nodes in 1 rack, vnode keyspace ks (tablets=0, RF=1) with 4000 rows. Starts node4 (RBNO or streaming) and, once streaming starts, concurrently DROPs ks, creates ks1.cf1 and inserts rows. For RBNO waits for ks sync success/failed/skipped log. Asserts node4 joins, ks no longer exists, and ks1.cf1 has >= 100 rows. Guards bootstrap tolerating a keyspace dropped mid-stream (RBNO 'keyspace does not exist any more, ignoring it').",
+      "origin": {
+        "sha": "7b5ae88e13",
+        "date": "2015-11-11",
+        "pr": 46,
+        "summary": "Add a test for schema change while node bootstrapping."
+      },
+      "commits": {
+        "537e1e46cf": "rf-rack-valid: 3 nodes in rack1, node4 in rack1, CL fixed to ONE",
+        "6d16e5fd96": "accept 'keyspace ks does not exist, skipping' skip message",
+        "b7d1c1a38a": "accept no_such_keyspace failure message, ignore raft_topology/Startup failed errors",
+        "c2db1be849": "start node4 in background thread with wait_other_notice, use its session",
+        "c655f9fa3a": "wait for node4 UN on all nodes before verification (later replaced by c2db1be849)",
+        "0988a6a857": "parametrize enable_repair_based_node_ops [False, True]",
+        "28581af446": "accept RBNO skipped message",
+        "46fac0aa49": "create ks with tablets=0 so it streams during bootstrap",
+        "21a7cc081e": "add stop_run event to writer loop (introduced 'range(min_keys) or not stop_run.is_set()' bug)",
+        "3bd5e7ad71": "FIXME comment about parametrizing",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "792b08e145": "fully-qualified ks.cf / ks1.cf1 table names",
+        "52c82fbe62": "formatting (unused result var)",
+        "6e49724b40": "RBNO: accept 'status=failed: keyspace does not exist any more'",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "b150d2c6e4": "ignore no_such_column_family error for ks.cf",
+        "c1fa17619a": "adjust 'Starting to bootstrap' log pattern",
+        "dd61974f71": "configure allowed_repair_based_node_ops",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "9b592bf869": "fix stray comma in RBNO success message",
+        "b20b27bc9c": "run with both RBNO and streaming",
+        "c3471a97e4": "formatting",
+        "426398c8c8": "wait for stream session or RBNO sync start",
+        "fa43234b60": "adjust start-of-bootstrap pattern for RBNO",
+        "ce57b95896": "remove allow_log_errors",
+        "84d8e3083b": "node4.start no_wait=True",
+        "29646f1956": "python3",
+        "a461138c15": "propagate background-thread exceptions",
+        "81316aedf7": "enable stream_session debug logging",
+        "08a5888e51": "formatting/unrelated c-s change in same region",
+        "31d4ac1cc2": "fix Event.wait usage on failure",
+        "17e5d67cf6": "list() for result length",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "159104d081": "rename to *_test suffix",
+        "7b5ae88e13": "add test"
+      },
+      "relevance": "Live: RBNO/streaming bootstrap and its 'does not exist any more, ignoring it' / 'does not exist, skipping' paths still in repair/repair.cc:1751,1853,1900. 64 runs, 100% pass, ~24s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_table_drop.py::test_drop_table_during_streaming_receiver_side",
+          "coverage": "partial",
+          "note": "table dropped during bootstrap streaming via injection, streaming only, non-release"
+        },
+        {
+          "path": "test/cluster/random_failures/cluster_events.py::drop_keyspace",
+          "coverage": "partial",
+          "note": "random DDL concurrent with topology ops"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly unique (keyspace drop during RBNO and streaming bootstrap), scylla only covers table drop via injection. Bug: writer loop 'for i in range(min_keys) or not stop_run.is_set()' (update_cluster_layout_tests.py:1060, since 21a7cc081e) always iterates range(100); stop_run is dead, so exactly 100 rows are written and the '>= min_keys' check is effectively '== 100'."
+    },
+    "TestUpdateClusterLayout::test_simple_add_node": {
+      "description": "1 node, RF=1 ks with 1000 rows; adds node2 in rack2, ALTERs ks to RF=2 (rack list aware), runs repair -pr on vnodes, writes 1000 more at CL=TWO, then check_rows_on_node on each node with the other stopped asserting exactly 2000 rows. Param True sets stream_plan_ranges_fraction=1 (no RBNO) and asserts exactly one 'Streaming plan for Bootstrap-ks-index-' log (single stream plan).",
+      "origin": {
+        "sha": "a5553a6a79",
+        "date": "2015-10-22",
+        "pr": 30,
+        "summary": "Create tests to check add node functionality (simple_add_node_1_test)."
+      },
+      "commits": {
+        "ff08858f98": "ALTER to RF=2 via rack list when ks uses rack lists",
+        "8832b7120c": "rf-rack-valid: start RF=1, add node2 in rack2, ALTER RF=2 + repair (vnodes); re-enable for tablets, skip param True with tablets while scylla#23457 open",
+        "c6e90cf7d4": "mark !tablets",
+        "3bd5e7ad71": "parametrize test_stream_plan_ranges_fraction",
+        "9ffd273f04": "formatting",
+        "5502181fda": "add stream_plan_ranges_fraction variant and log-count assertion",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "e6fac6a50e": "formatting",
+        "133dcaf508": "add 'use ks' before second insert",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "771f6c76c6": "remove wrong comment",
+        "2d11a31b30": "add docstring",
+        "a5553a6a79": "add test"
+      },
+      "relevance": "Live: stream_plan_ranges_fraction (db/config.cc:1050, dht/range_streamer), bootstrap, RF change (tablets rebuild / vnodes repair). [True] skipped in tablets job (scylla#23457 still open). 48 runs, 100% pass, ~33s.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_iterative_add_decommission_nodes",
+          "coverage": "partial",
+          "note": "add node with count checks, no RF change"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "bootstrap, no data verification"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique: bootstrap + RF increase with exact per-node data check (others stopped) and the only test of stream_plan_ranges_fraction (no scylla test references it). Cheap (~33s), stable."
+    },
+    "TestUpdateClusterLayout::test_simple_add_two_nodes_in_parallel": {
+      "description": "1 node, RF=3 vnode ks with 500k rows (10k in debug). Starts node2, then starts node3 at one of 3 timings relative to node2's bootstrap (immediately / 5-30s later / after 'start streaming' + random delay). Under raft topology both joins must succeed: watches logs for 'initialization completed', CQL listening, mutual alive, inserts another 500k rows at CL=THREE and runs check_rows_on_node (exactly 1M rows, others stopped) on all 3 nodes. Originally (gossip) asserted node3 is rejected with 'Other bootstrapping/leaving/moving nodes detected'.",
+      "origin": {
+        "sha": "14c1fdf8f9",
+        "date": "2015-11-08",
+        "pr": 35,
+        "summary": "Add simple_add_two_nodes_in_parallel_test: second concurrent bootstrap must be rejected (consistent_rangemovement)."
+      },
+      "commits": {
+        "f89bc380cf": "rf-rack-valid: generate_cluster_topology, add nodes to node1's dc/rack",
+        "66a909f40f": "expected UNKNOWN-status error matches host id as well as IP",
+        "d06bed122f": "check consistent-topology via self.scylla_features",
+        "c6e90cf7d4": "mark !tablets (RF=3 with 1 node)",
+        "8965337b1f": "raft topology: all 3 cases must succeed for node3; verify data on all 3 nodes",
+        "02daf19c87": "case_0 marked !consistent-topology-changes",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting (ruff)",
+        "aedaa57c4e": "formatting (f-string)",
+        "fb3dfc9ea9": "formatting (noqa)",
+        "61fdc99d1b": "use bootstrap_start_log_pat (raft 'start streaming')",
+        "d63bb98803": "relax UNKNOWN-status expected message",
+        "52c82fbe62": "add @no_boot_speedups",
+        "125896d62f": "wait for 'Gossip settled' before starting node3 in early case",
+        "48dc410e4a": "parametrize test_case [0,1,2] instead of random choice",
+        "1582d40eac": "node3 may not notice node2 when starting late",
+        "2eb6a0d067": "rework late-start timings",
+        "3c1c27fd00": "relax 'Checking bootstrapping/leaving' detect message",
+        "65baac1e0b": "500k keys, random start timing cases",
+        "421780f5d1": "100k keys (10k debug) to deflake",
+        "c1fa17619a": "adjust 'Starting to bootstrap' log pattern",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "ccf791c0ef": "5000 keys",
+        "c3471a97e4": "formatting",
+        "a1f1e4c74c": "add node3 to cluster object (teardown handles it)",
+        "f36242c479": "ignore expected rejection error",
+        "ca5186291e": "deflake: wait for 'Starting to bootstrap'",
+        "eada06e5b9": "node2.start no_wait",
+        "ce57b95896": "remove allow_log_errors",
+        "0619a308ef": "cluster.new_node instead of create_node",
+        "860d4aeb54": "stop node3 at cleanup",
+        "dcb8f4435c": "avoid waiting to timeout on detect message",
+        "a596b922fe": "wait for pending range setup log",
+        "2ed807c91b": "message fix for 2.1",
+        "bc607727d9": "wait for node2 log file",
+        "f066efa2e4": "parallel-execution IP/port helpers",
+        "e6fac6a50e": "formatting",
+        "146fd94d9b": "update expected detect messages",
+        "e5711432a8": "assert node3 detects other bootstrap and fails with reason",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "771f6c76c6": "remove wrong comment",
+        "14c1fdf8f9": "add test"
+      },
+      "relevance": "Concurrent bootstrap is live and the norm under raft topology (requests serialized by topology coordinator). The three timing cases and the rejection/UNKNOWN-status expectations only matter in gossip mode, which the jobs never run. Runs only in next-dtest-consistent-topology (!tablets): 48 runs, 100% pass, avg 243s per case (~12 min per build for 3 cases).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops[False]",
+          "coverage": "partial",
+          "note": "servers_add(3) concurrent bootstraps on vnodes, then writes during ops"
+        },
+        {
+          "path": "test/pylib/scylla_cluster_manager.py::servers_add",
+          "coverage": "partial",
+          "note": "concurrent bootstrap used by many test/cluster tests (143 files call servers_add)"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_tablets_add_three_nodes_in_parallel",
+          "coverage": "partial",
+          "note": "parallel bootstrap, tablets variant"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_node",
+          "coverage": "partial",
+          "note": "bootstrap streaming with exact per-node data check"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~243s x 3 params, much of it from @no_boot_speedups and 500k keys) and redundant: the raft topology coordinator works on one transition node at a time and queues other join requests (service/topology_coordinator.cc:291 get_next_task), so node3's bootstrap streams after node2's - equivalent to sequential adds, and the 3 timing cases are indistinguishable. Concurrent join requests are exercised routinely via servers_add (e.g. test/cluster/test_topology_ops.py::test_topology_ops[False]); streamed-data correctness covered by test_simple_add_node. Note: gossip-only branches/expected errors (update_cluster_layout_tests.py:423-455) are dead. If kept: one case, drop @no_boot_speedups, fewer keys."
+    },
+    "TestUpdateClusterLayout::test_simple_decommission_node_1": {
+      "description": "2 nodes in one rack, RF=1 ks with 1000 rows. Decommissions node2, asserts a new CQL connection to node2 fails with NoHostAvailable, stops node2 and asserts node1 alone has exactly 1000 rows (check_rows_on_node). Guards decommission streaming all data and closing CQL.",
+      "origin": {
+        "sha": "54934d24ae",
+        "date": "2015-11-09",
+        "pr": 39,
+        "summary": "Add simple decommission test."
+      },
+      "commits": {
+        "1849157888": "single cql_connection attempt instead of 30s patient retry for refused connection",
+        "d9d3b867fc": "both nodes in one rack (rack decommission not allowed with rf_rack_valid_keyspaces)",
+        "66bafd413f": "rf-rack-valid: 2 racks x 1 node topology",
+        "9ffd273f04": "formatting",
+        "95e22e7566": "port to pytest (pytest.raises(NoHostAvailable))",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "31f1e528cb": "drop bogus 'fail' statement in connection check",
+        "b6872afefc": "assert new CQL connection to decommissioned node fails",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "fb923d73af": "rename/spelling",
+        "771f6c76c6": "remove wrong comment",
+        "7f183cd4a5": "don't restart nodes after check (restart=False)",
+        "54934d24ae": "add test"
+      },
+      "relevance": "Live: decommission (vnodes and tablets). 32 runs, 100% pass, ~41s (should drop ~30s after 1849157888).",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_iterative_add_decommission_nodes",
+          "coverage": "partial",
+          "note": "[3-1-1] decommissions RF=1 nodes with exact CL=ALL row counts"
+        },
+        {
+          "path": "nodetool_additional_test.py::TestNodetool::test_decommission",
+          "coverage": "partial",
+          "note": "2-node decommission, status only"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "decommission, no data verification"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Basic decommission data check is largely subsumed by test_iterative_add_decommission_nodes (RF=1 cases with exact counts); only unique bit is the 'decommissioned node refuses CQL' check. Cheap, so keep or merge into the iterative test."
+    },
+    "TestUpdateClusterLayout::test_simple_decommission_node_2": {
+      "description": "1 node, RF=1 table with tombstone_gc=immediate, 1000 rows. Adds node2, runs cleanup on node1 (cache not cleared), checks 1000 rows, deletes all rows, flushes, compacts node2 (tombstones purged), restarts node2, decommissions node2 and asserts SELECT returns 0 rows. Guards that ranges returning to node1 do not resurrect cleaned-up data from stale row cache/sstables.",
+      "origin": {
+        "sha": "ebc193ff61",
+        "date": "2015-12-21",
+        "pr": 89,
+        "summary": "Add a decommission test that validates cache invalidation."
+      },
+      "commits": {
+        "068022d716": "tombstone_gc='immediate' instead of gc_grace=0 (RF=1 repair-mode change, SCYLLADB-4629)",
+        "66bafd413f": "rf-rack-valid: explicit topology, node2 in node1's rack",
+        "9ffd273f04": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "c3471a97e4": "formatting",
+        "171d836b84": "delete in batches of 100 keys (cartesian product limit)",
+        "d4827a2705": "add node1.cleanup() step, docstring",
+        "17e5d67cf6": "list() for result length",
+        "e6fac6a50e": "formatting",
+        "ebc193ff61": "add test"
+      },
+      "relevance": "Live: cleanup, tombstone gc, decommission. 32 runs, 100% pass, ~18s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_data_resurrection_after_cleanup.py::test_data_resurrection_after_cleanup",
+          "coverage": "full",
+          "note": "same scenario: bootstrap node2, cleanup node1, delete, compact node2 (gc_grace 0), decommission node2, check no resurrection; plus injection major_compaction_before_cleanup (scylla f07c233ad5); skipped in release mode"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario fully covered by test/cluster/test_data_resurrection_after_cleanup.py::test_data_resurrection_after_cleanup (add node, cleanup, delete, purge on new node, decommission, verify no resurrection), which also checks surviving rows. Only gap: scylla test is skipped in release mode."
+    },
+    "TestUpdateClusterLayout::test_simple_decommission_node_while_adding_info": {
+      "description": "1 dc, rack1: 1 node, rack2: 2 nodes; RF 1 or 2 with 2000 rows. A background thread inserts 2000 more rows and asserts SELECT count == 4000 while node2 (rack2) is decommissioned; afterwards asserts 4000 rows and reads every key at CL=ONE/TWO. Guards no write loss during decommission.",
+      "origin": {
+        "sha": "34f8c5e407",
+        "date": "2015-11-10",
+        "pr": 43,
+        "summary": "Test decommissioning node while data is inserted."
+      },
+      "commits": {
+        "bb9e9348ab": "revert of 9ec3fcce5f (net no change)",
+        "9ec3fcce5f": "added gossip-mode skip_wait_for_gossip_to_settle block referencing undefined bootstrap_method (reverted)",
+        "66bafd413f": "rf-rack-valid: rack1 x1 + rack2 x2 topology",
+        "3bd5e7ad71": "parametrize rf [1,2]",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "ce57b95896": "remove allow_log_errors",
+        "29646f1956": "python3",
+        "a461138c15": "propagate background-thread exceptions",
+        "31d4ac1cc2": "fix Event.wait usage on failure",
+        "17e5d67cf6": "list() for result length",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "fb923d73af": "rename/spelling",
+        "34f8c5e407": "add test"
+      },
+      "relevance": "Live: decommission with streaming/tablet drain. 64 runs, 100% pass, ~23s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "writes during decommission (start_writes, single key, no read-back)"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_decommission_node_while_query_info",
+          "coverage": "partial",
+          "note": "same topology, reads instead of writes"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Write-loss check during decommission is not covered by scylla (start_writes never reads back). Note: overlap is not enforced - 2000 inserts at concurrency 20 (update_cluster_layout_tests.py:1421) likely finish before node2 starts streaming, so the test mostly checks writes before decommission; the in-thread count assert can also run mid-decommission. Make writes loop until decommission ends."
+    },
+    "TestUpdateClusterLayout::test_simple_decommission_node_while_query_info": {
+      "description": "1 dc, rack1: 1 node, rack2: 2 nodes; RF 1 or 2 with 2000 rows. A background loop runs full-table SELECTs at CL=ONE/TWO (idempotent, driver speculative execution, 60s timeout) asserting exactly 2000 rows until node2 decommission completes, then asserts count again. Guards read availability/correctness during decommission (scylla#17124 behavior on connection close).",
+      "origin": {
+        "sha": "e0d299dc03",
+        "date": "2015-11-10",
+        "pr": 44,
+        "summary": "Add query tests while adding/decommissioning a node."
+      },
+      "commits": {
+        "66bafd413f": "rf-rack-valid: rack1 x1 + rack2 x2 topology",
+        "a8abff540a": "require consistent-topology-changes (gossip mode flaky, scylla#17903)",
+        "7278a05fe9": "idempotent SELECT with speculative execution profile (workaround for scylla#3699 / fixed by #17124)",
+        "69ee312123": "query timeout 60s",
+        "21a7cc081e": "SELECT loop runs until decommission done (stop event)",
+        "3bd5e7ad71": "parametrize rf [1,2]; marked !consistent-topology-changes",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "ce57b95896": "remove allow_log_errors",
+        "29646f1956": "python3",
+        "47efc21a9e": "attr tag change",
+        "498e4ea793": "add dtest-full attr",
+        "a461138c15": "propagate background-thread exceptions",
+        "31d4ac1cc2": "fix Event.wait usage on failure",
+        "17e5d67cf6": "list() for result length",
+        "84484760f0": "cursor->session rename",
+        "eaceab0c66": "fix while->for loop bug",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "fb923d73af": "rename/spelling",
+        "159104d081": "rename to *_test suffix",
+        "e0d299dc03": "add test",
+        "34f8c5e407": "(shared region) decommission-while-inserting sibling added"
+      },
+      "relevance": "Live: decommission under raft topology (vnodes and tablets). Marker required_features('consistent-topology-changes') always satisfied in the jobs. 64 runs, 100% pass, ~25s.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "writes during decommission, no reads"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Continuous exact-count reads for the whole decommission (overlap enforced by stop event) at RF 1/2; no scylla test verifies read results during decommission. Cheap (~25s), stable. The '# scylladb/scylladb#17903' comment on required_features('consistent-topology-changes') refs a closed issue but is not a dead skip: it documents why gossip mode was excluded, and the raft-only requirement still holds."
+    },
+    "TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping": {
+      "description": "3 nodes in 3 racks, RF=1 ks with 1000 rows plus 3 c-s keyspaces (5000 rows each, only to lengthen streaming); RBNO enabled. Starts node4, waits for it to start streaming, asserts status UN,UN,UN,UJ, kills node4 (SIGKILL), then waits until node1 status shows exactly 3 UN (joining node removed by rollback) and asserts SELECT returns 1000 rows.",
+      "origin": {
+        "sha": "cf0b94c1d3",
+        "date": "2015-11-08",
+        "pr": 36,
+        "summary": "Add simple_kill_new_node_while_bootstrapping."
+      },
+      "commits": {
+        "79e88114c3": "explicitly enable RBNO for bootstrap (test relies on long bootstrap) ahead of no-RBNO default",
+        "cd411764dc": "rf-rack-valid: 3 racks x 1 node, new node in a rack",
+        "0a8cb670de": "enable_small_table_optimization_for_rbno=False via cluster_options mark",
+        "c07e8662ac": "disable small-table RBNO optimization via jvm arg (dtest#5310)",
+        "6f303700c6": "mark use_cassandra_stress",
+        "d06bed122f": "check consistent-topology via self.scylla_features",
+        "7ca6958da8": "enable for raft topology: ignore stream_ranges teardown error, wait UJ under raft",
+        "9ffd273f04": "formatting",
+        "37922bda96": "use wait_for_node_streaming helper",
+        "d78b911bfc": "use tools.status.wait_for_nodes_status",
+        "c1fa17619a": "adjust 'Starting to bootstrap' log pattern",
+        "95e22e7566": "port to pytest",
+        "ba6ec10bb4": "default_config_options (enable_sstable_key_validation)",
+        "c3471a97e4": "formatting",
+        "426398c8c8": "wait for stream session or RBNO sync start",
+        "fa43234b60": "adjust start-of-bootstrap pattern for RBNO",
+        "ce57b95896": "remove allow_log_errors",
+        "84d8e3083b": "new_node.start no_wait=True",
+        "29646f1956": "python3",
+        "0619a308ef": "cluster.new_node instead of create_node",
+        "81316aedf7": "enable stream_session debug logging",
+        "a399eaee25": "fix comment / nodetool regex",
+        "31f1e528cb": "use wait_for_nodes_status for UJ / removal checks",
+        "f066efa2e4": "parallel-execution IP/port helpers",
+        "17e5d67cf6": "list() for result length",
+        "e6fac6a50e": "formatting",
+        "e0d5617261": "FatClient regex without hard-coded 30000ms",
+        "14e6dbabc3": "assert UJ status in nodetool output",
+        "c6bf708896": "add c-s data to lengthen streaming; loop reduced to one node (range(4,5))",
+        "84484760f0": "cursor->session rename",
+        "cd5a685202": "insert_c1c2 keys= API",
+        "03befb0043": "formatting",
+        "159104d081": "rename to *_test suffix",
+        "771f6c76c6": "remove wrong comment",
+        "cf0b94c1d3": "add test"
+      },
+      "relevance": "Live: raft topology rolls back a bootstrap whose joining node died during streaming. Runs in both gating jobs: 32 runs, 100% pass, ~101s.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping_with_parallel_writes",
+          "coverage": "partial",
+          "note": "same kill-during-streaming with concurrent QUORUM writes and data check, RF=3; accepts DN for killed node instead of requiring removal"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap streaming failure via injection -> rollback to left_token_ring"
+        },
+        {
+          "path": "test/cluster/test_gossiper_orphan_remover.py::test_crashed_node_substitution",
+          "coverage": "partial",
+          "note": "joining node crashes before group0 join"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique part vs the _with_parallel_writes sibling is asserting the killed joining node is removed (3 UN) under RBNO; streaming-failure rollback is also covered by test_topology_streaming_failure via injection. Note: gossip-mode branch with FatClient waits (update_cluster_layout_tests.py:745-760) is dead; docstring promises two kills but loop is range(4,5) (one) since c6bf708896; c-s keyspaces never verified. ~101s."
+    },
+    "TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping_with_parallel_writes": {
+      "description": "3 racks x 1 node, RF=3; 1000 rows at ALL plus 3 tiny c-s keyspaces. A background thread writes new keys at QUORUM (FallthroughRetryPolicy) while node4 bootstraps; node4 is killed once streaming starts. Asserts no write ever ends in a client-side OperationTimedOut (Unavailable/WriteTimeout are tolerated), cluster returns to 3 UN (or 3 UN + DN), and a QUORUM full scan returns exactly the acked keys (+1 for an in-flight timeout). Guards scylla#965 (writes hang forever when a pending/bootstrapping node dies).",
+      "origin": {
+        "sha": "4ed9bc112e",
+        "date": "2016-03-06",
+        "pr": 250,
+        "summary": "add test for scylla#965: write requests may never complete if a bootstrapping node is killed before NORMAL"
+      },
+      "relevance": "Live: writes to pending replicas during raft-topology bootstrap and bootstrap rollback on joining-node death (topology_coordinator rollback to left_token_ring). Runs on both vnodes and tablets jobs. scylla#965 closed 2016 but the pending-replica write path was rewritten for raft topology/tablets, so the regression check is still meaningful.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap failure + rollback via stream_ranges_fail injection; no concurrent writes, debug/dev only"
+        },
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_bootstrap",
+          "coverage": "partial",
+          "note": "kills coordinator, not the joining node; no writes"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping",
+          "coverage": "partial",
+          "note": "same kill, no concurrent writes"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test asserting that writes concurrent with a killed bootstrapping node complete server-side (no client timeouts) with no acked-write loss; scylla tests cover the rollback only via injection without writes. Cheap (~77s), 32/32 pass. Note: single-iteration loop range(4, 5) and nodetool status only logged (update_cluster_layout_tests.py:811,855-857), harmless.",
+      "commits": {
+        "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
+        "cd411764dc": "rf-rack-valid: 3 racks x 1 node topology, c-s RF from var, new node placed in a rack",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "0a8cb670de": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "c07e8662ac": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "6f303700c6": "mark use_cassandra_stress (c-s from docker)",
+        "fb0178790a": "replace keyspace-specific streaming-success wait with wait_for_node_streaming(keyspace=.*); docstring rf",
+        "c6e90cf7d4": "tablets adjustments (RF/keyspace setup for tablets)",
+        "7ca6958da8": "ignore raft_topology stream_ranges teardown error",
+        "21a7cc081e": "background write loop stops on stop_run Event instead of timing",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "fb3dfc9ea9": "formatting (ruff pylint)",
+        "37922bda96": "use new wait_for_node_streaming helper",
+        "80e8bfc7f9": "update repair-based bootstrap log message pattern",
+        "d78b911bfc": "nodetool status helpers moved to tools/status.py",
+        "c1fa17619a": "fix 'JOINING: Starting to bootstrap' log pattern",
+        "0c7e09e913": "kill the bootstrapping node during bootstrap (not after)",
+        "cb5f8fcd87": "log nodetool status before final select",
+        "fa259e24af": "use create_c1c2_table",
+        "9303f16725": "harden: FallthroughRetryPolicy, count only acked writes, tolerate +1 row",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "c3471a97e4": "formatting (autopep8)",
+        "426398c8c8": "adjust start-of-streaming log check",
+        "fa43234b60": "adjust to repair-based bootstrap log messages",
+        "ce57b95896": "drop allow_log_errors, use ignore patterns",
+        "84d8e3083b": "explicit wait_other_notice/wait_for_binary_proto",
+        "29646f1956": "python3 port",
+        "0619a308ef": "cluster.new_node instead of create_node",
+        "498e4ea793": "add dtest-full attr",
+        "a461138c15": "propagate exceptions from child threads to main thread",
+        "81316aedf7": "align with new streaming log messages",
+        "78442b5dcf": "remove default_timeout from sessions",
+        "0a87d12752": "session default_timeout fixes",
+        "08a5888e51": "c-s rate limit / more objects",
+        "c13e347202": "fix parallel-writes test",
+        "68c5550c5e": "misc fixes",
+        "31f1e528cb": "add node status verification (and kill_remained test origin, scylla#2042)",
+        "f066efa2e4": "support parallel test execution",
+        "31d4ac1cc2": "fix threading.Event.wait() usage on failures",
+        "e6fac6a50e": "formatting (PEP8)",
+        "3ba605f540": "stop helper thread asserting (tests hung)",
+        "aa0159fd31": "update parallel-to-bootstrap write kill tests",
+        "4ed9bc112e": "origin: kill bootstrapping node with parallel CL=ONE writes (scylla#965)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping_with_parallel_writes_in_multidc": {
+      "description": "Two DCs x 1 node, keyspace {dc1:1, dc2:1}; background EACH_QUORUM writes while a new dc2 node bootstraps and is killed once streaming starts. Asserts no client-side OperationTimedOut and a QUORUM scan returns exactly the acked keys (+1). Guards scylla#994 (EACH_QUORUM blockfor miscounted with a bootstrapping node present) plus the #965 hang.",
+      "origin": {
+        "sha": "d50a6a73f5",
+        "date": "2016-03-06",
+        "pr": 251,
+        "summary": "multidc EACH_QUORUM variant, ref scylla#994"
+      },
+      "relevance": "Live: per-DC pending-replica accounting for EACH_QUORUM writes during bootstrap/rollback under raft topology, both vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping_with_parallel_writes",
+          "coverage": "partial",
+          "note": "same scenario single-DC QUORUM"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap rollback via injection, no writes, single DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test exercises EACH_QUORUM writes with a pending (then killed) node in another DC (grep EACH_QUORUM in test/cluster: no topology tests). Distinct code path from the single-DC sibling (per-DC blockfor with pending replicas), cheap (~61s), 32/32 pass.",
+      "commits": {
+        "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
+        "ac36787ac7": "rf-rack-valid: explicit dc1/dc2 rack topology, c-s RF=1, new node in dc2 rack1",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "0a8cb670de": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "c07e8662ac": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "6f303700c6": "mark use_cassandra_stress (c-s from docker)",
+        "b6c0483458": "c-s RF=1 under tablets",
+        "fb0178790a": "replace keyspace-specific streaming-success wait with wait_for_node_streaming(keyspace=.*); docstring rf",
+        "c6e90cf7d4": "tablets adjustments (RF/keyspace setup for tablets)",
+        "7ca6958da8": "ignore raft_topology stream_ranges teardown error",
+        "21a7cc081e": "background write loop stops on stop_run Event instead of timing",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "fb3dfc9ea9": "formatting (ruff pylint)",
+        "37922bda96": "use new wait_for_node_streaming helper",
+        "80e8bfc7f9": "update repair-based bootstrap log message pattern",
+        "3994b2b60e": "file-level parametrization commit touching shared lines (no behavior change here)",
+        "d78b911bfc": "nodetool status helpers moved to tools/status.py",
+        "c1fa17619a": "fix 'JOINING: Starting to bootstrap' log pattern",
+        "0c7e09e913": "kill the bootstrapping node during bootstrap (not after)",
+        "cb5f8fcd87": "log nodetool status before final select",
+        "fa259e24af": "use create_c1c2_table",
+        "9303f16725": "harden: FallthroughRetryPolicy, count only acked writes, tolerate +1 row",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "c3471a97e4": "formatting (autopep8)",
+        "426398c8c8": "adjust start-of-streaming log check",
+        "fa43234b60": "adjust to repair-based bootstrap log messages",
+        "ce57b95896": "drop allow_log_errors, use ignore patterns",
+        "84d8e3083b": "explicit wait_other_notice/wait_for_binary_proto",
+        "21ea04d010": "fix typo",
+        "a461138c15": "propagate exceptions from child threads to main thread",
+        "faf2ddd366": "fix multidc test (status expectations)",
+        "2ed807c91b": "fixes for Cassandra 2.1 compat",
+        "81316aedf7": "align with new streaming log messages",
+        "78442b5dcf": "remove default_timeout from sessions",
+        "0a87d12752": "session default_timeout fixes",
+        "08a5888e51": "c-s rate limit / more objects",
+        "31f1e528cb": "add node status verification (and kill_remained test origin, scylla#2042)",
+        "31d4ac1cc2": "fix threading.Event.wait() usage on failures",
+        "e6fac6a50e": "formatting (PEP8)",
+        "3ba605f540": "stop helper thread asserting (tests hung)",
+        "aa0159fd31": "update parallel-to-bootstrap write kill tests",
+        "d50a6a73f5": "origin: multidc EACH_QUORUM writes while bootstrapping node killed (scylla#994)",
+        "03befb0043": "formatting (PEP8)",
+        "fb923d73af": "helper rename/spelling (pre-existing lines)",
+        "0ef261a0d9": "predates test (shared lines from add_new_node_while_adding_info)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_kill_node_while_decommissioning": {
+      "description": "1 rack x 3 nodes, RF=1, ~60MB data with streaming throttled to 1MB/s. Decommission node2 and kill it once streaming (tablet stream_blob or vnode stream/repair) starts; assert nodetool decommission fails, the leave request is marked failed in system.topology_requests, then unthrottle, restart node2, check full scan returns 10000 rows, 3 UN, and quiesce topology. Verifies a decommissioning node killed mid-streaming is rolled back and rejoins with its data.",
+      "origin": {
+        "sha": "a74c6f2dc5",
+        "date": "2015-11-10",
+        "pr": 42,
+        "summary": "test that a killed decommissioning node can rejoin the cluster"
+      },
+      "relevance": "Live: decommission rollback in topology_coordinator (rollback to normal) and tablet drain rollback. Actively maintained: 27f5e7bb8b (SCYLLADB-3955) and 6 more commits after the data rev (4a0bb0a1 throttling, 829be9e6 quiesce, required_features consistent-topology-changes).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_tablet_drain_failure_during_decommission",
+          "coverage": "partial",
+          "note": "drain failure via injection, checks node stays NORMAL; no kill/restart, no data check"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "decommission rollback via stream_ranges_fail injection, debug/dev only"
+        },
+        {
+          "path": "test/cluster/test_decommission_kill_then_replace.py::test_decommission_kill_then_replace",
+          "coverage": "partial",
+          "note": "kills decommissioning node but then replaces it instead of restarting"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test where the leaving node itself crashes mid-drain and is restarted, checking rollback plus no data loss (RF=1 exact count); scylla tests only inject failures or replace. Cheap (~24s), stable, recently fixed for tablets (27f5e7bb8b, 4a0bb0a1).",
+      "commits": {
+        "da4e45ee": "(after data rev) kill node before streaming completes",
+        "39a531a9": "(after data rev) comment cleanup",
+        "4c539c9c": "(after data rev) pause after start_decommission",
+        "22d95fc4": "(after data rev) drop unused node3",
+        "829be9e6": "(after data rev) quiesce_topology before teardown",
+        "4a0bb0a1": "(after data rev) throttle streaming (stream_io_throughput_mb_per_sec=1, ~60MB data) instead of pausing, unthrottle before restart; required_features consistent-topology-changes",
+        "27f5e7bb8b": "kill node2 on tablet draining (stream_blob) not system-ks streaming; wait for leave request error in system.topology_requests (SCYLLADB-3955)",
+        "c3d9db24d6": "ignore patterns accept both exception formats",
+        "66bafd413f": "rf-rack-valid: single rack x 3 nodes",
+        "0a8cb670de": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "c07e8662ac": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "c066673f29": "enable for raft topology; mark-based stream-start wait; read timeout 60",
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "8249572320": "formatting (noqa BLE)",
+        "d32f707618": "unflake: assert decommission raises NodetoolError, cql_cluster_session",
+        "31da581def": "wait_other_notice when restarting node2",
+        "d78b911bfc": "nodetool status helpers moved to tools/status.py",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "c3471a97e4": "formatting (autopep8)",
+        "426398c8c8": "adjust start-of-streaming log check",
+        "fa43234b60": "adjust to repair-based bootstrap log messages",
+        "8699daddf2": "ignore expected error",
+        "ce57b95896": "drop allow_log_errors, use ignore patterns",
+        "a461138c15": "propagate exceptions from child threads to main thread",
+        "a9d1384cea": "fix test (status checks)",
+        "81316aedf7": "align with new streaming log messages",
+        "68c5550c5e": "misc fixes",
+        "31f1e528cb": "add node status verification (and kill_remained test origin, scylla#2042)",
+        "17e5d67cf6": "use list() for ResultSet length",
+        "84484760f0": "session instead of cursor",
+        "cd5a685202": "insert_c1c2 argument passing",
+        "03befb0043": "formatting (PEP8)",
+        "fb923d73af": "helper rename/spelling (pre-existing lines)",
+        "159104d081": "rename to *_test suffix",
+        "a74c6f2dc5": "origin: kill decommissioning node, restart, verify data"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_kill_remained_node_while_decommissioning": {
+      "description": "1 rack x 3 nodes, RF=1, RBNO on; decommission node2 and, once its stream/repair starts and node2 is UL, kill node1 (another replica, typically also the topology coordinator as first node). Waits until node2/node3 see [DN, UN, UN] (decommission rolled back), restarts node1 and asserts a full scan returns 1000 rows. Guards scylla#2042 (node stuck UL after failed decommission).",
+      "origin": {
+        "sha": "31f1e528cb",
+        "date": "2017-02-14",
+        "pr": 450,
+        "summary": "add simple_kill_remained_node_while_decommissioning_test for scylla#2042"
+      },
+      "relevance": "Live: decommission failure/rollback when a peer dies. scylla#2042 closed 2020-04-14. Raft adaptation f0cfa4e8f4 (dtest fixes #17403).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_decommission",
+          "coverage": "partial",
+          "note": "kills topology coordinator during decommission, checks rollback/consistency; injection, debug/dev only, no data check"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "decommission streaming failure rollback via injection"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with test_kill_coordinator_during_decommission (node1 is usually the coordinator); unique bits are real peer kill in release mode plus RF=1 data check. Note: kill trigger 'Beginning stream session|sync data' (update_cluster_layout_tests.py:1374) fires only after tablet draining, the same flaw fixed in the sibling by 27f5e7bb8b (SCYLLADB-3955), so in the tablets job user-data streaming is never interrupted; which node is coordinator is not controlled.",
+      "commits": {
+        "c3d9db24d6": "ignore patterns accept both exception formats",
+        "385421a7b7": "ignore pattern: new abort_requested rendering",
+        "79e88114c3": "explicitly enable RBNO (no-RBNO default prep)",
+        "eff2650a97": "rf-rack-valid: single rack x 3 nodes",
+        "66bafd413f": "rf-rack-valid: single rack x 3 nodes",
+        "0a8cb670de": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "c07e8662ac": "add cluster_options(enable_small_table_optimization_for_rbno=False) (dtest#5310)",
+        "670b5567f4": "generalize ignore pattern for improved error message",
+        "f0cfa4e8f4": "enable under raft topology: check UL, wait node2 back to UN after node1 kill, read after restart",
+        "c066673f29": "enable for raft topology; mark-based stream-start wait; read timeout 60",
+        "9ffd273f04": "formatting (ruff format)",
+        "8249572320": "formatting (noqa BLE)",
+        "5cbd9a4593": "ignore more node-op errors",
+        "d78b911bfc": "nodetool status helpers moved to tools/status.py",
+        "b27584104c": "do not check UL after failed decommission",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "c3471a97e4": "formatting (autopep8)",
+        "1b1c1574d4": "wait_for_nodes_status longer timeout in debug",
+        "166a7ae316": "remove sleep when creating ks/cf",
+        "692416a60a": "restart decommissioned node",
+        "0c86d37c11": "re-enable test (scylla#2042 fixed)",
+        "426398c8c8": "adjust start-of-streaming log check",
+        "fa43234b60": "adjust to repair-based bootstrap log messages",
+        "ce57b95896": "drop allow_log_errors, use ignore patterns",
+        "a461138c15": "propagate exceptions from child threads to main thread",
+        "8d356cdbee": "verify_nodes_status accepts multiple status groups",
+        "81316aedf7": "align with new streaming log messages",
+        "a399eaee25": "fix nodetool regex",
+        "c13e347202": "fix parallel-writes test",
+        "68c5550c5e": "misc fixes",
+        "31f1e528cb": "add node status verification (and kill_remained test origin, scylla#2042)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_removenode_1": {
+      "description": "2 racks x 2 nodes, RF=2, 100 rows at ALL. Stops both rack2 nodes and checks rack1 has all data at CL=ONE, restarts node4, removenode node3, sleeps 2s, checks 100 rows at CL=TWO and inserts 120 keys at TWO. Verifies removenode with RF>1 loses no data.",
+      "origin": {
+        "sha": "b6872afefc",
+        "date": "2015-12-03",
+        "pr": 54,
+        "summary": "add removenode tests (RF>1 no loss, RF=1 loss)"
+      },
+      "relevance": "Live: removenode under raft topology for vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode",
+          "coverage": "full",
+          "note": "tablets: removenode with RF=1/2/3 keyspaces, exact per-row data check after"
+        },
+        {
+          "path": "test/cluster/test_topology_ops.py::test_topology_ops",
+          "coverage": "partial",
+          "note": "removenode with/without tablets under background writes; no read-back"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Tablets path fully covered by test_tablets_removenode.py::test_removenode; vnode removenode data check only partially covered (test_topology_ops has no read-back). Cheap (~51s). Note: time.sleep(2) after removenode and trailing insert of 120 keys with no assertion (update_cluster_layout_tests.py:1539,1543).",
+      "commits": {
+        "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
+        "b79a1434fb": "rf-rack-valid: _prepare_cluster takes topology; removenode_1 uses 2 racks x 2 nodes, stops whole rack2",
+        "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "17e5d67cf6": "use list() for ResultSet length",
+        "b6872afefc": "origin: removenode tests RF=2 (no loss) and RF=1 (loss)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_removenode_2": {
+      "description": "1 rack x 3 nodes, RF=1, 10 rows. Stops node2, attempts a CL=ONE scan (Unavailable swallowed, result unused), removenode node2, re-inserts the 10 keys at ALL and asserts 10 rows at CL=ONE. Checks that after removenode with data loss the ranges are reassigned and writable.",
+      "origin": {
+        "sha": "b6872afefc",
+        "date": "2015-12-03",
+        "pr": 54,
+        "summary": "add removenode tests (RF>1 no loss, RF=1 loss)"
+      },
+      "relevance": "Live: removenode with RF=1 (data loss accepted), vnodes and tablets.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode",
+          "coverage": "partial",
+          "note": "includes RF=1 keyspace only to check no crash; no write-after-removenode"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin assertion (rows re-inserted at ALL then counted), partial overlap with test_tablets_removenode.py::test_removenode RF=1; cheap (~34s). Note: pre-removenode scan in try/except Unavailable (update_cluster_layout_tests.py:1556-1561) is dead code - result unused, nothing asserted.",
+      "commits": {
+        "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
+        "695aacdd62": "rf-rack-valid: single rack x 3 nodes",
+        "b79a1434fb": "rf-rack-valid: _prepare_cluster takes topology; removenode_1 uses 2 racks x 2 nodes, stops whole rack2",
+        "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
+        "9ffd273f04": "formatting (ruff format)",
+        "2b5008f7cb": "3 nodes instead of 2 for raft",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "17e5d67cf6": "use list() for ResultSet length",
+        "e6fac6a50e": "formatting (PEP8)",
+        "b6872afefc": "origin: removenode tests RF=2 (no loss) and RF=1 (loss)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_removenode_3": {
+      "description": "7 nodes in 3 racks, RF=3, 1000 rows. Stops node2 (checks 1000 rows at TWO), then node5 (and node4 if ignore_two_nodes). removenode node2 without ignore list must fail ('Rejected removenode operation' for nodetool, non-200 for REST), then succeeds with ignore_dead_nodes = the other down host ids. Parametrized over REST API vs nodetool and 1 vs 2 ignored nodes.",
+      "origin": {
+        "sha": "ecaadaf47a",
+        "date": "2020-11-19",
+        "pr": 1770,
+        "summary": "test removenode ignore_nodes option (scylla PR #7626)"
+      },
+      "relevance": "Live: rejection of removenode when non-ignored nodes are down (service/storage_service.cc:2918, scylla PR #28572) and ignore_nodes REST param / nodetool --ignore-dead-nodes.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes",
+          "coverage": "full",
+          "note": "reject with 'is down and not ignored' and 'ignored node is alive', then succeed with ignore list, 3 consecutive removenodes"
+        },
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode_with_ignored_node",
+          "coverage": "partial",
+          "note": "removenode with an ignored down node + data check"
+        },
+        {
+          "path": "test/nodetool/test_nodeops.py",
+          "coverage": "partial",
+          "note": "nodetool removenode --ignore-dead-nodes argument translation to REST"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Scenario fully covered by test/cluster/test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes (stricter error matching; dev mode only per test/cluster/test_config.yaml run_in_dev, no release-only code path involved) and the nodetool flag by test/nodetool/test_nodeops.py; 4 params x ~65s. History of flakiness/hang (19b9d8d6b9, scylladb#23456). Note: no data check after removal; _run_removenode_nodetool (update_cluster_layout_tests.py:1585) doesn't itself assert the first call fails.",
+      "commits": {
+        "ef6544879a": "unskip; expected error now \"Rejected removenode operation\" (scylla PR #28572); drop gossip branch",
+        "19b9d8d6b9": "skip via require(scylladb#23456) (flaky/hang)",
+        "056f5dc7a8": "formatting (ruff)",
+        "b79a1434fb": "rf-rack-valid: _prepare_cluster takes topology; removenode_1 uses 2 racks x 2 nodes, stops whole rack2",
+        "f3ae2fc728": "ignore-dead-nodes passed as host ids",
+        "670b5567f4": "generalize ignore pattern for improved error message",
+        "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
+        "9bebe5a7dc": "ignore benign raft_topology errors",
+        "721c20172c": "raft-mode expected error message",
+        "9ffd273f04": "formatting (ruff format)",
+        "573a1e9716": "7 nodes for raft",
+        "91e59b4a93": "re-enable (scylla-tools-java#225)",
+        "8b0935fdf3": "add nodetool variant of ignore_nodes removenode",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ecaadaf47a": "origin: removenode ignore_nodes via REST (scylla PR #7626)"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_removenode_4": {
+      "description": "5 nodes (rack1:2, rack2:1, rack3:2), RF=3, 10000 rows. Stops node2, issues REST removenode via node1 and kills node1 when it logs 'raft_topology - start streaming'. Finds the new topology coordinator among node3-5 and waits for 'complete rollback', restarts node1, checks node2 (banned) cannot run nodetool rebuild, removes node2 again, runs repair on all nodes.",
+      "origin": {
+        "sha": "6b5b18698c",
+        "date": "2020-12-10",
+        "pr": 1770,
+        "summary": "removenode while killing coordinator or peer"
+      },
+      "relevance": "Live: removenode rollback after coordinator crash (topology_coordinator.cc:4587 'complete rollback'), ban of removed node.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode",
+          "coverage": "full",
+          "note": "kill coordinator during removenode, new coordinator elected, rollback, restart, remove again (banned), token ring/group0 consistency; injection, debug/dev only"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "removenode streaming failure rollback"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario fully covered by test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode (only gap: release mode). Slow (~115s). Bug: assumes node1 is the topology coordinator - if not, new_topology_coordinator stays None and .watch_log_for raises AttributeError (update_cluster_layout_tests.py:1730-1738); docstring steps 4/5 (pending checks) only in dead gossip branch (1660-1665, 1755-1756); 10000 rows never read back.",
+      "commits": {
+        "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "6b5b18698c": "origin: removenode_4/5 kill coordinator/peer mid-removenode"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_removenode_5": {
+      "description": "Same setup as removenode_4 but kills peer node5 when it logs 'raft_topology - start streaming' during removenode of node2. Restarts node5, checks node2 is banned (nodetool rebuild fails), removes node2 again and runs repair on all nodes.",
+      "origin": {
+        "sha": "6b5b18698c",
+        "date": "2020-12-10",
+        "pr": 1770,
+        "summary": "removenode while killing coordinator or peer"
+      },
+      "relevance": "Live: removenode streaming failure due to dead peer -> rollback, ban of removed node, retry.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "removenode failure via stream_ranges_fail on a peer, asserts rollback to normal; injection, debug/dev only"
+        },
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode",
+          "coverage": "partial",
+          "note": "re-removenode of banned node after failed attempt"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Rollback on peer streaming failure covered via injection (test_topology_streaming_failure), retry of banned node by test_kill_coordinator_during_removenode; unique is a real peer crash in release mode. Slow (~106s). Note: no assertion that rollback happened or that data survived (10000 rows never read, repair result unchecked); docstring steps 4/5 only in dead gossip branch (update_cluster_layout_tests.py:1660-1665,1755-1756).",
+      "commits": {
+        "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "6b5b18698c": "origin: removenode_4/5 kill coordinator/peer mid-removenode"
+      }
+    },
+    "TestUpdateClusterLayout::test_simple_restart_streaming_node_while_bootstrapping": {
+      "description": "3 racks x 1 node, RF=3, 1000 rows in ks plus 100k rows in vnode ks1 (tablets=0). node4 bootstraps into rack2; node2 (rack2 streaming source) is killed once ks1 streaming starts. Waits up to 900s for node4 stream/startup failure, stops node4, restarts node2, waits for 3 UN, wipes node4 and re-bootstraps it with the same IP, then reads every key at QUORUM.",
+      "origin": {
+        "sha": "e67eb632a3",
+        "date": "2015-11-29",
+        "pr": 50,
+        "summary": "kill a node streaming to a bootstrapping node; extended with restart + wiped re-bootstrap in dec325e1d3 (PR 4680)"
+      },
+      "relevance": "Live: bootstrap failure on streaming source death, rollback (left_token_ring), and rejoin of a wiped node reusing the IP under raft topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "bootstrap failure via stream_ranges_fail injection, rollback asserted; new node never re-joins, debug/dev only"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py::test_random_failures",
+          "coverage": "partial",
+          "note": "random injections during add_new_node etc."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique real-crash-of-source + wiped same-IP rejoin, but slowest of the chunk (~146s, 100k individual QUORUM reads) and rollback is covered by injection in test_topology_streaming_failure. Note: final data check (update_cluster_layout_tests.py:686-689) reads at QUORUM via node1, which holds a full replica, so it cannot detect missing data on node4; gossip-quarantine branch (676-679) is dead under raft topology.",
+      "commits": {
+        "c3d9db24d6": "ignore patterns accept both exception formats",
+        "3d7b8ca2a4": "tablets + rf-rack-valid: 3 racks, RF=3, node4 in node2 rack",
+        "80172d22b8": "ignore another expected startup error",
+        "c3636d9cee": "quarantine log match by IP or host id (gossip branch)",
+        "f925ed6a24": "formatting (pre-commit)",
+        "dec325e1d3": "extend kill_streaming test: restart killed node, wipe and re-bootstrap node4, verify data; rename",
+        "b7aff27ccf": "remove unnecessary sleep",
+        "670b5567f4": "generalize ignore pattern for improved error message",
+        "8172766d57": "deflake with tablets: vnode ks1 with 100k rows (10k debug) instead of c-s; expect bootstrap failure",
+        "cda0684ccf": "adjust for tablets",
+        "bdc3bb8a34": "ignore raft_topology errors",
+        "7ca6958da8": "ignore raft_topology stream_ranges teardown error",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade/isort)",
+        "4a9dfe810f": "ignore expected error",
+        "123acd8627": "ignore two more expected errors",
+        "37922bda96": "use new wait_for_node_streaming helper",
+        "7f666e8bc8": "ignore expected errors",
+        "4b4327b0e3": "ignore stream_exception",
+        "c1fa17619a": "fix 'JOINING: Starting to bootstrap' log pattern",
+        "487d8b700d": "ignore more errors",
+        "95e22e7566": "port to pytest (rename *_test -> test_*)",
+        "ba6ec10bb4": "enable_sstable_key_validation by default (config)",
+        "8457b6e19c": "extend ignored error",
+        "296f904d49": "force-kill streaming node",
+        "d2886ae45c": "ignore sleep_aborted",
+        "4b9aaa50d4": "ignore rpc::closed_error",
+        "0428414a44": "adjust expected error message",
+        "3cc14cfd92": "formatting (autopep8)",
+        "43ea643596": "debug-mode timeout",
+        "97b9c98ed1": "wait for streaming of any ks",
+        "c3471a97e4": "formatting (autopep8)",
+        "2242abd72d": "add expected error",
+        "483b336cc9": "ignore Startup failed error",
+        "426398c8c8": "adjust start-of-streaming log check",
+        "fa43234b60": "adjust to repair-based bootstrap log messages",
+        "ce57b95896": "drop allow_log_errors, use ignore patterns",
+        "84d8e3083b": "explicit wait_other_notice/wait_for_binary_proto",
+        "81316aedf7": "align with new streaming log messages",
+        "e6fac6a50e": "formatting (PEP8)",
+        "180a1252de": "wait longer for stream failure",
+        "a6edc0201b": "fix test",
+        "c6bf708896": "misc update",
+        "f97d0cfde9": "update test",
+        "84484760f0": "session instead of cursor",
+        "cd5a685202": "insert_c1c2 argument passing",
+        "03befb0043": "formatting (PEP8)",
+        "971fc82c0c": "remove delay",
+        "e67eb632a3": "origin: kill streaming source node while bootstrapping new node"
+      }
+    },
+    "TestUpdateClusterLayout::test_tablets_add_three_nodes_in_parallel": {
+      "description": "Tablets-only. 3 racks x 1 node, RF=3 keyspace with 128 tablets, 10k rows at ALL; checks per-node and per-shard tablet counts are balanced (tolerance 1, force_capacity_based_balancing). Starts 3 new nodes (one per rack) with no_wait, waits for CQL on all, calls /storage_service/quiesce_topology, re-checks balance across 6 nodes, writes another 10k rows at ALL via node4 and asserts a CL=ONE full scan returns exactly 20k rows.",
+      "origin": {
+        "sha": "3ab2b949ef",
+        "date": "2024-02-28",
+        "pr": 3994,
+        "summary": "Benny Halevy: add test_tablets_add_two_nodes_in_parallel as tablets counterpart of test_simple_add_two_nodes_in_parallel"
+      },
+      "commits": {
+        "526ade33b2": "Set force_capacity_based_balancing=True since balance check counts tablets (size-based balancing breaks the assumption)",
+        "cdea22cbfe": "Rename two->three nodes; 3-rack topology with one new node per rack for rf_rack_valid keyspaces",
+        "a95d4d9551": "Replace sleep(10) with REST quiesce_topology; tolerance changed from 10% ratio to absolute 1 tablet",
+        "3ab2b949ef": "Test added"
+      },
+      "relevance": "Live: tablets, load balancer, force_capacity_based_balancing (db/config.cc:1839, Used), quiesce_topology REST. Note the topology coordinator serializes join requests (service/topology_coordinator.cc get_next_task), so 'parallel' bootstrap is effectively queued joins; tablet migrations then proceed concurrently.",
+      "duplicates": [
+        {
+          "path": "test/boost/tablets_test.cc::test_load_balancing_with_two_empty_nodes",
+          "coverage": "partial",
+          "note": "Balancer convergence with multiple empty nodes, simulated (no real streaming/data)"
+        },
+        {
+          "path": "test/cluster/test_quiesce_topology.py::test_quiesce_retries_until_balance_plan_is_empty",
+          "coverage": "partial",
+          "note": "Adds two nodes to a tablet cluster and verifies balance after quiesce; no data check, no per-shard check"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_add_two_nodes_in_parallel",
+          "coverage": "partial",
+          "note": "vnodes counterpart (concurrent starts, data check)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (~70s, 16/16 pass, gating tablets job) end-to-end check of tablet balance (node + shard level) and data after several concurrent joins, but balancing logic is covered by boost tablets_test.cc and test_quiesce_topology.py adds nodes + checks balance; the joins are serialized by the coordinator so 'parallel' adds little. Note: stale log/docstring ('Starting node4 and node5', 'both nodes', update_cluster_layout_tests.py:482,552)."
+    },
+    "TestUpdateClusterLayout::test_verify_latest_copy_add_node": {
+      "description": "Vnodes-only (!tablets). 2 nodes (rack1, rack2), RF=3 so both hold all data; with hints disabled writes diverging data: keys 0-499 newer value only on node1, keys 500-999 newer value only on node2. Bootstraps node3 (rack3) with RBNO enabled for bootstrap, stops node1+node2 and reads every key at CL=ONE from node3 alone, asserting the latest values. Guards repair-based bootstrap syncing the latest copy from all replicas (streaming-based bootstrap pulls from one replica).",
+      "origin": {
+        "sha": "97680b0788",
+        "date": "2019-12-20",
+        "pr": 1345,
+        "summary": "Asias He: 'Add tests for repair based node operations' - verify node has latest replica copy after node ops"
+      },
+      "commits": {
+        "d0cbdd7589": "Topology made rack-aware: 2 nodes in rack1/rack2, new node in rack3 (rf_rack_valid)",
+        "c6e90cf7d4": "Mark required_features('!tablets') (RF > nodes not allowed with tablets)",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "0273e647a0": "Import insert/query helpers from tools.data instead of scylla_tools (refactor)",
+        "dd61974f71": "repair_based_node_ops_config_options sets allowed_repair_based_node_ops incl. bootstrap (needed since scylla 4.6)",
+        "95e22e7566": "Port to pytest",
+        "ba6ec10bb4": "default_config_options adds enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "7d65809a5b": "Enable enable_repair_based_node_ops in config",
+        "97680b0788": "Test added"
+      },
+      "relevance": "Live: bootstrap_with_repair under raft topology (service/storage_service.cc:5317-5320), enable_repair_based_node_ops / allowed_repair_based_node_ops (db/config.cc:1465-1466, Used). Vnodes-only, runs in next-dtest-consistent-topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py (small table optimization rbno test)",
+          "coverage": "partial",
+          "note": "Enables RBNO bootstrap but only checks log lines, no divergent-replica data check"
+        },
+        {
+          "path": "repair_based_node_operations_test.py",
+          "coverage": "partial",
+          "note": "dtest RBNO scenarios verify repair ran via logs, not latest-copy data"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test asserting RBNO bootstrap yields the latest copy when replicas diverge (single-replica CL=ONE read with sources down, so the check is real); no scylla test checks divergent data after RBNO bootstrap. Cheap (~29s), 16/16 pass."
+    },
+    "TestUpdateClusterLayout::test_verify_latest_copy_replace_node": {
+      "description": "3 nodes/3 racks, RF=3, all rows written at THREE; node3 stopped, then keys 0-499 updated only on node1 and keys 500-999 only on node2 (CL=ONE, hints off). node4 replaces node3 by host id with RBNO enabled; node1+node2 stopped and node4 alone must return latest values at CL=ONE. Under tablets, exercises the rebuild_v2 rebuild_repair stage.",
+      "origin": {
+        "sha": "85cc439062",
+        "date": "2019-12-20",
+        "pr": 1345,
+        "summary": "Asias He: Add verify_latest_copy_replace_node_test (RBNO series)"
+      },
+      "commits": {
+        "d0cbdd7589": "3-rack topology; replacing node placed in node3's dc/rack",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "97a341adc4": "Replace via replace_node_host_id instead of replace_address",
+        "0273e647a0": "Import helpers from tools.data (refactor)",
+        "dd61974f71": "Configure allowed_repair_based_node_ops",
+        "95e22e7566": "Port to pytest",
+        "ba6ec10bb4": "default_config_options adds enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "7d65809a5b": "Enable enable_repair_based_node_ops",
+        "85cc439062": "Test added"
+      },
+      "relevance": "Live: vnodes replace_with_repair (service/storage_service.cc:5340-5347); tablets replace uses rebuild_v2 with rebuild_repair stage (service/topology_coordinator.cc:2669-2695, added 4a847df55c). Runs in both gating jobs (tablets + consistent-topology).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_rebuild",
+          "coverage": "partial",
+          "note": "Exercises rebuild_repair stage but only checks replica set and non-empty fragments, not latest-value semantics with divergent replicas"
+        },
+        {
+          "path": "test/cluster/test_replace.py",
+          "coverage": "partial",
+          "note": "Replace scenarios without divergent-replica latest-copy check"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique data-level check that replace (vnode RBNO and tablet rebuild_repair) picks the latest copy across diverged replicas; read from new node alone at CL=ONE so the assertion is strong. Cheap (~65s), 32/32 pass across both gating jobs."
+    },
+    "TestUpdateClusterLayout::test_verify_latest_copy_rebuild_node": {
+      "description": "Vnodes-only (skipped with tablets). 3 nodes/3 racks, RF=3; node3 stopped while keys 0-499 get a newer value only on node1 and 500-999 only on node2 (hints off). node3 restarted with its stale data, 'nodetool rebuild' run with RBNO, then node1+node2 stopped and node3 alone must return the latest values at CL=ONE. Guards rebuild_with_repair syncing from all replicas.",
+      "origin": {
+        "sha": "58567755a0",
+        "date": "2019-12-20",
+        "pr": 1345,
+        "summary": "Asias He: Add verify_latest_copy_rebuild_node_test (RBNO series)"
+      },
+      "commits": {
+        "3ddbc7c671": "skip_if(tablets) unconditionally (rebuild not needed for tablet keyspaces) instead of tying to scylladb#17575",
+        "d0cbdd7589": "3-rack topology for rf_rack_valid",
+        "04ec88a64b": "Switch !tablets requirement to skip_if(tablets & issue_open(#17575))",
+        "c6e90cf7d4": "Mark !tablets (rebuild unsupported with tablets, #17575)",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "0273e647a0": "Import helpers from tools.data (refactor)",
+        "dd61974f71": "Configure allowed_repair_based_node_ops",
+        "95e22e7566": "Port to pytest",
+        "ba6ec10bb4": "default_config_options adds enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "7d65809a5b": "Enable enable_repair_based_node_ops",
+        "58567755a0": "Test added"
+      },
+      "relevance": "Live for vnode keyspaces: rebuild_with_repair under raft topology (service/storage_service.cc:5412-5421); rebuild is in the default allowed_repair_based_node_ops (db/config.cc:1466). Runs only in next-dtest-consistent-topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py (small table optimization rbno test, reason=rebuild)",
+          "coverage": "partial",
+          "note": "RBNO rebuild checked via logs only"
+        },
+        {
+          "path": "test/cluster/dtest/rebuild_test.py::test_rebuild_stream_abort_repro",
+          "coverage": "partial",
+          "note": "Non-RBNO rebuild abort race, no divergent data"
+        },
+        {
+          "path": "test/nodetool/test_rebuild.py",
+          "coverage": "partial",
+          "note": "nodetool arg plumbing only (mock REST)"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test asserting RBNO rebuild restores latest values on a stale node (strong single-node CL=ONE read with sources down). Cheap (~39s), 16/16 pass. Becomes irrelevant only once vnode keyspaces are gone."
+    },
+    "TestUpdateClusterLayout::test_verify_latest_copy_decommission_node": {
+      "description": "Vnodes-only (!tablets). 3 nodes/3 racks, RF=3; node3 down while keys 0-499 get a newer value only on node1 and 500-999 only on node2. node3 restarted, node1 decommissioned with RBNO, then reads at CL=TWO via node3 (node2+node3) must see the latest values. Keys 0-499 only had the newest copy on node1, so they check that decommission_with_repair pushed it; keys 500-999 are satisfied by read reconciliation with node2.",
+      "origin": {
+        "sha": "f9c6380908",
+        "date": "2019-12-20",
+        "pr": 1345,
+        "summary": "Asias He: Add verify_latest_copy_decommission_node_test (RBNO series)"
+      },
+      "commits": {
+        "d0cbdd7589": "3-rack topology for rf_rack_valid",
+        "c6e90cf7d4": "Mark !tablets (cannot decommission when RF == number of nodes with tablets)",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "0273e647a0": "Import helpers from tools.data (refactor)",
+        "dd61974f71": "Configure allowed_repair_based_node_ops incl. decommission",
+        "95e22e7566": "Port to pytest",
+        "ba6ec10bb4": "default_config_options adds enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "7d65809a5b": "Enable enable_repair_based_node_ops",
+        "f9c6380908": "Test added"
+      },
+      "relevance": "Live: decommission_with_repair (service/storage_service.cc:3858-3859, repair/repair.cc:2087); decommission is not in the default allowed_repair_based_node_ops (db/config.cc:1466), test enables it explicitly. Vnodes-only, next-dtest-consistent-topology.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_repair.py (small table optimization rbno test, reason=decommission)",
+          "coverage": "partial",
+          "note": "RBNO decommission checked via logs only"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_decommission_node_2",
+          "coverage": "partial",
+          "note": "Decommission data check without divergent replicas"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only data-level check that RBNO decommission propagates a copy held solely by the leaving node (keys 0-499; read at CL=TWO from the two survivors, neither of which had it). Cheap (~30s), 16/16 pass. Covers a non-default RBNO mode (decommission not in default allowed ops)."
+    },
+    "TestUpdateClusterLayout::test_verify_latest_copy_removenode_node": {
+      "description": "4 nodes (rack1: node1,node2; rack2: node3; rack3: node4), RF=3 NTS so each range has one rack1 replica + node3 + node4. Four write phases at CL=TWO each with a different node down create divergent replicas; node2 is stopped and removed via nodetool removenode from node1 (RBNO), node4 stopped, and all keys read at CL=TWO (node1+node3) must have the latest values. The meaningful part is keys 250-499 on ranges whose rack1 replica was node2: latest copy existed only on node2+node4, so node1 must receive it via removenode repair/rebuild_repair.",
+      "origin": {
+        "sha": "86867fd434",
+        "date": "2019-12-20",
+        "pr": 1345,
+        "summary": "Asias He: Add verify_latest_copy_removenode_node_test (RBNO series)"
+      },
+      "commits": {
+        "b866c65bce": "f-string for removenode command (formatting)",
+        "d0cbdd7589": "Rack topology {rack1:2, rack2:1, rack3:1} for rf_rack_valid",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "fb3dfc9ea9": "noqa PLR0915 (formatting)",
+        "1792552dff": "node2.stop(wait_other_notice=True) before removenode",
+        "0273e647a0": "Import helpers from tools.data (refactor)",
+        "dd61974f71": "Configure allowed_repair_based_node_ops",
+        "95e22e7566": "Port to pytest",
+        "ba6ec10bb4": "default_config_options adds enable_sstable_key_validation",
+        "c3471a97e4": "formatting",
+        "7d65809a5b": "Enable enable_repair_based_node_ops",
+        "86867fd434": "Test added"
+      },
+      "relevance": "Live: vnodes removenode_with_repair (service/storage_service.cc:5391-5396); tablets removenode uses rebuild_v2/rebuild_repair (service/topology_coordinator.cc:2669-2695). Runs in both gating jobs.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_tablets_removenode.py::test_removenode",
+          "coverage": "partial",
+          "note": "Removenode data check without divergent replicas"
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_tablet_rebuild",
+          "coverage": "partial",
+          "note": "rebuild_repair stage, no latest-value check"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking removenode (vnode RBNO and tablet rebuild_repair) recovers a latest copy whose holders are the removed node plus a now-down node. Moderate cost (~86s), 32/32 pass. Note: only keys 250-499 on node2-owned ranges can detect a sync failure - other keys always have the latest copy on node1 or node3 and are fixed by CL=TWO read reconciliation."
+    },
+    "TestUpdateClusterLayoutWithRaftTopology::test_no_garbage_members_left_after_abort_removenode_by_kill_coordinator": {
+      "description": "Raft-topology only; params: 6 log stages x {3,5} racks (rack3 has an extra node). Populates with c-s (RF=#racks), stops node3, starts removenode from the topology coordinator, waits for a stage log (start removenode, removenode_with_repair, waiting for completion, non-voter, start/finished streaming), then kills+restarts the coordinator. wait_for_removenode greps all logs for success/rollback/cancel; on success expects ring+group0 consistent with N-1 members, otherwise reruns removenode for the banned node; finally a new node must join and group0/token ring have N members.",
+      "origin": {
+        "sha": "e44d1c8f85",
+        "date": "2023-12-25",
+        "pr": 3806,
+        "summary": "Raft-topology versions of the abort removenode/decommission garbage tests (old gossip variants kept for non-raft)"
+      },
+      "commits": {
+        "ba118bbf82": "Stage 'api - remove_node' replaced by 'removenode: waiting for completion' (request actually submitted to group0); fixes scylladb#28218",
+        "e3729a1971": "Comments/tidy-up of wait_for_removenode",
+        "321b6b677e": "Replace streaming-completed heuristics with wait_for_removenode (success/rollback/cancel over all node logs)",
+        "e6b8e3d17f": "Param num_of_nodes -> num_of_racks with rack topology (extra node in rack3) for rf_rack_valid",
+        "aaf9153f55": "Detect removenode restart on re-elected coordinator and wait longer (tablet stats delay); dtest#5642",
+        "8cf4f8587f": "Docstring typo fix (formatting)",
+        "0a8cb670de": "enable_small_table_optimization_for_rbno=False via cluster_options marker (dtest#5310)",
+        "3292e374f9": "Streaming-done detection switched to 'entered write both read new' log",
+        "c07e8662ac": "Disable small table optimization for rbno via jvm args (dtest#5310)",
+        "6f303700c6": "Mark use_cassandra_stress",
+        "993bcbf5ef": "c-s RF derived from cluster size",
+        "e44d1c8f85": "Test added"
+      },
+      "relevance": "Live: all stage logs exist (service/topology_coordinator.cc:4782 'start removenode', service/storage_service.cc:2962/5134/5186, repair/repair.cc:2096, service/raft/raft_group0.cc:770), outcome logs at topology_coordinator.cc:4443/4587/3725. Runs in dtest-release and dtest-release-with-raft.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode",
+          "coverage": "partial",
+          "note": "Kills coordinator via injection at one point (before streaming), checks rollback, re-removenode and ring/group0 consistency; dev/debug only"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "Removenode rollback via injected streaming failure"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Real coordinator kill at 6 removenode stages in release mode is broader than scylla's single injection point, but cost is high (12 instances x ~140s, 888 runs) and the test is outcome-agnostic (any of success/rollback/cancel passes). 5_racks param likely adds little - candidate to drop. Note: class prepare_cluster sets allow_log_errors=True (update_cluster_layout_tests.py:3341), so unexpected errors/crashes in logs are never checked (conftest.py:483). Note: FIXME comment refs dtest#5310, closed 2026-02-04 (update_cluster_layout_tests.py:3438)."
+    },
+    "TestUpdateClusterLayoutWithRaftTopology::test_no_garbage_members_left_after_abort_removenode_by_kill_peer_node": {
+      "description": "Like the kill_coordinator variant but kills a peer node (not node3, not coordinator) at one of 5 removenode stages x {3,5} racks. wait_for_removenode determines success/rollback/cancel; peer restarted; on success expects N-1 consistent members, else expects 'Removenode failed. See earlier errors' on the coordinator and re-runs removenode; finally a new node joins and group0/token ring have N members.",
+      "origin": {
+        "sha": "e44d1c8f85",
+        "date": "2023-12-25",
+        "pr": 3806,
+        "summary": "Raft-topology versions of the abort removenode/decommission garbage tests"
+      },
+      "commits": {
+        "ca89d77d8f": "Drop 'removenode: waiting for completion' stage - after scylladb#24129 a down node while request pending no longer fails removenode (scylladb#28335)",
+        "ba118bbf82": "Stage 'api - remove_node' -> 'removenode: waiting for completion' (scylladb#28218)",
+        "e3729a1971": "Comments/tidy-up of wait_for_removenode",
+        "321b6b677e": "Use wait_for_removenode outcome detection instead of heuristics",
+        "e6b8e3d17f": "num_of_nodes -> num_of_racks rack topology for rf_rack_valid",
+        "8cf4f8587f": "Docstring typo fix (formatting)",
+        "0a8cb670de": "enable_small_table_optimization_for_rbno=False via marker (dtest#5310)",
+        "3292e374f9": "Streaming-done detection switched to 'write both read new' log",
+        "c07e8662ac": "Disable small table optimization for rbno (dtest#5310)",
+        "46f5d4bb32": "Fix expected member count when early-aborted removenode returns node (dtest#4624)",
+        "6f303700c6": "Mark use_cassandra_stress",
+        "993bcbf5ef": "c-s RF derived from cluster size",
+        "e44d1c8f85": "Test added"
+      },
+      "relevance": "Live: same stage/outcome logs as kill_coordinator variant plus 'Removenode failed. See earlier errors' (service/storage_service.cc:2968). Behaviour recently changed upstream (scylladb#24129), showing the test tracks live semantics.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "Removenode rollback via injected stream failure, not a real peer crash"
+        },
+        {
+          "path": "test/cluster/test_tablets_parallel_decommission.py::test_remove_is_canceled_if_there_is_node_down",
+          "coverage": "partial",
+          "note": "Cancel path when a node is down before removenode starts"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test killing a non-coordinator peer mid-removenode (real crash, release mode) and checking cleanup + rejoin; scylla covers rollback only via injection. But expensive (10 instances x ~134s, 890 runs) and outcome-agnostic; 5_racks param a candidate to drop. Note: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3341) disables log error checking; FIXME refs closed dtest#5310 (:3513)."
+    },
+    "TestUpdateClusterLayoutWithRaftTopology::test_no_garbage_left_after_abort_decommission_by_kill_decommissioned_node": {
+      "description": "Raft-topology only; 4 stages (start streaming, repair completed, streaming completed, DECOMMISSIONING: done) x {3,5} racks. Starts decommission of node3 and kills node3 at the stage. If coordinator logged 'decommissioning: streaming completed' within 60s, expects node3 removed (N-1 members, plus gossip 'Removed endpoint' on vnodes); otherwise expects rollback (N members), restarts node3. Finally a new node joins and group0/token ring membership is verified.",
+      "origin": {
+        "sha": "e44d1c8f85",
+        "date": "2023-12-25",
+        "pr": 3806,
+        "summary": "Raft-topology versions of the abort removenode/decommission garbage tests"
+      },
+      "commits": {
+        "c147c3e8cf": "Stage 'gossip - My status = LEFT' replaced by 'storage_service - DECOMMISSIONING: done' after LEFT state removal (SCYLLADB-1476)",
+        "7c8ba55188": "Explicitly set allowed_repair_based_node_ops incl. decommission (needed for repair-completed stage)",
+        "e6b8e3d17f": "num_of_nodes -> num_of_racks rack topology for rf_rack_valid",
+        "66a909f40f": "'Removed endpoint' regex accepts ip or host id",
+        "0a8cb670de": "enable_small_table_optimization_for_rbno=False via marker (dtest#5310)",
+        "c07e8662ac": "Disable small table optimization for rbno (dtest#5310)",
+        "6f303700c6": "Mark use_cassandra_stress",
+        "993bcbf5ef": "c-s RF derived from cluster size",
+        "bb71da5bdc": "Skip gossip 'Removed endpoint' wait when tablets enabled",
+        "e44d1c8f85": "Test added"
+      },
+      "relevance": "Live: stage logs service/storage_service.cc:2852 (DECOMMISSIONING: done), :5134/:5186, repair/repair.cc:705/845; 'decommissioning: streaming completed for node' (service/topology_coordinator.cc:4218); gossip 'Removed endpoint' (gms/gossiper.cc:924). Runs in dtest-release and dtest-release-with-raft.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_decommission_kill_then_replace.py::test_decommission_kill_then_replace",
+          "coverage": "partial",
+          "note": "Kills decommissioning node (before coordinator processes it, via pause injection) then replaces; dev/debug only"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "Decommission rollback via injected streaming failure"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_node_while_decommissioning",
+          "coverage": "partial",
+          "note": "Kills leaving node mid-drain, checks rollback + data (no stage params)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Stage-parametrized real kill of the leaving node with membership checks is not reproduced in scylla (injection-based only), but overlaps test_simple_kill_node_while_decommissioning and costs 8 x ~114s (592 runs); 5_racks param a candidate to drop. Note: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3341) hides log errors; FIXME refs closed dtest#5310 (:3584)."
+    },
+    "TestUpdateClusterLayoutWithRaftTopology::test_no_garbage_left_after_abort_decomission_by_kill_coordinator": {
+      "description": "Raft-topology only; 4 decommission stages x {3,5} racks. Decommissions node3 and kills the topology coordinator at the stage, probes coordinator log for 'streaming completed' (60s) and node3 log for 'Decommission failed' (90s), restarts the old coordinator, waits for a new coordinator, re-checks streaming. If streaming done and not failed, expects node3 to finish (DECOMMISSIONING: done) and N-1 consistent members; otherwise N members. Finally a new node joins and membership is verified.",
+      "origin": {
+        "sha": "e44d1c8f85",
+        "date": "2023-12-25",
+        "pr": 3806,
+        "summary": "Raft-topology versions of the abort removenode/decommission garbage tests"
+      },
+      "commits": {
+        "c147c3e8cf": "Stage 'gossip - My status = LEFT' replaced by 'storage_service - DECOMMISSIONING: done' after LEFT state removal (SCYLLADB-1476)",
+        "e6b8e3d17f": "num_of_nodes -> num_of_racks rack topology for rf_rack_valid",
+        "66a909f40f": "'Removed endpoint' regex accepts ip or host id",
+        "0a8cb670de": "enable_small_table_optimization_for_rbno=False via marker (dtest#5310)",
+        "3292e374f9": "Use another log message to verify operations done",
+        "c07e8662ac": "Disable small table optimization for rbno (dtest#5310)",
+        "6f303700c6": "Mark use_cassandra_stress",
+        "993bcbf5ef": "c-s RF derived from cluster size",
+        "bb71da5bdc": "Skip gossip 'Removed endpoint' wait when tablets enabled",
+        "e44d1c8f85": "Test added"
+      },
+      "relevance": "Live: same logs as kill_decommissioned_node plus 'Decommission failed. See earlier errors' (service/storage_service.cc:2809). Runs in dtest-release and dtest-release-with-raft.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_decommission",
+          "coverage": "partial",
+          "note": "Coordinator killed via injection before streaming, expects rollback and ring/group0 consistency; dev/debug only, single stage"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_remained_node_while_decommissioning",
+          "coverage": "partial",
+          "note": "Kills a remaining node (often the coordinator) during decommission"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Broader than scylla's single-injection coordinator kill (4 stages, release mode), but slowest of the class (8 x ~175s, 496 runs), much of it probe timeouts: is_streaming_completed_for_decommission greps the just-killed coordinator's log for 60s and is_decommission_failed waits 90s (update_cluster_layout_tests.py:3679-3680). Outcome-agnostic; 5_racks param a candidate to drop. Note: allow_log_errors=True for the class (:3341); FIXME refs closed dtest#5310 (:3647)."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
