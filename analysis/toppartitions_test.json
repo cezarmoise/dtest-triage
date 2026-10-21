@@ -1,0 +1,734 @@
+{
+  "file": "toppartitions_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestTopPartitions::test_help_description": {
+      "description": "Populates (does not start) a 1-node cluster and runs `nodetool help toppartitions`; asserts stderr empty and stdout contains 'Sample and print the most active partitions for'. Smoke test of the native nodetool help text for toppartitions.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "dde3de900e": "relax help msg check to 'Sample and print the most active partitions for' (native nodetool)",
+        "9ffd273f04": "formatting (ruff format)",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: help string at tools/scylla-nodetool.cc:5457. Pure client-side; no server involved.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_help.py::test_help_command",
+          "coverage": "partial",
+          "note": "generic `help <cmd>` non-empty smoke (for version); toppartitions help text not checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Client-only help-text string check, no cluster started (0.9s); help mechanism covered by test/nodetool/test_help.py, toppartitions text itself only here. Low value; trivially portable to test/nodetool or droppable."
+    },
+    "TestTopPartitions::test_any_of_required_parameters_is_missing": {
+      "description": "Starts 1 node with keyspace1.columnfamily1, runs toppartitions with no args (expects success on Scylla>4.5, nothing asserted on output), then with only ks, ks+cf, and cf+duration; asserts via verify_error_message (tools/toppartitions.py:162) non-zero exit and 'toppartitions requires either a keyspace, column family name and duration or no arguments at all'.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: session -> _session)",
+        "9ffd273f04": "formatting (ruff format)",
+        "14552d2cd9": "formatting/tooling (pkg_resources -> packaging.version)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "e66b34da58": "disabled for raft topology (required_features !consistent-topology-changes)",
+        "b23aa4c5f3": "re-enabled for raft topology",
+        "e5e0880860": "strip JMX 'Using /etc/scylla/scylla.yaml' line from output (scylla-tools-java#213; JMX-era)",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: check is client-side in toppartitions_operation (tools/scylla-nodetool.cc:3833) before any REST call, so a real server adds nothing.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions_missing_positional_args",
+          "coverage": "full",
+          "note": "same 3 partial-positional cases (ks0 / ks0 cf0 / ks0 50000), same error string, against real scylla nodetool binary with REST mock"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_missing_positional_args (validation at tools/scylla-nodetool.cc:3833 is client-side). Bug: line 139 calls self.verify_error_message (no such method, it's the module-level helper) in the dead `Version<=4.5`/non-Scylla branch (e4b9bf2045). Note: line 151 'ks is not passed' actually parses as keyspace=columnfamily1 table=100 (2 positional args), not a missing-ks case; no-arg run (142-143) does a real 5s sampling with no assertion."
+    },
+    "TestTopPartitions::test_for_empty_ks_cf": {
+      "description": "Starts 1 node with fresh keyspace1.columnfamily1, runs toppartitions for 500ms with no traffic; verify_empty_result (tools/toppartitions.py:169) asserts both WRITES and READS partition lists are empty.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: session -> _session)",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions[True-*]",
+          "coverage": "partial",
+          "note": "empty-samplings output formatting via REST mock"
+        },
+        {
+          "path": "toppartitions_test.py::TestTopPartitions::test_writes_sample_for_10_partitions_with_100_op_and_empty_reads_sample (and every other single-sampler test)",
+          "coverage": "full",
+          "note": "each asserts the idle sampler is empty via verify_counters_for_sample(..., []) -> len==0 on a real table"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: every write test asserts READS empty and every read test asserts WRITES empty via verify_counters_for_sample(..., expected_results=[]) (tools/toppartitions.py:190 len==0) on the same real-table setup; empty-output formatting covered by test/nodetool/test_toppartitions.py::test_toppartitions[empty_samplings=True]. Costs a cluster start (~6s) for no unique assertion."
+    },
+    "TestTopPartitions::test_writes_sample_for_10_partitions_with_100_op_and_empty_reads_sample": {
+      "description": "Starts toppartitions on ks.cf (10s), waits for server 'toppartitions query:' log (wait_nodetool_toppartitions_start, tools/toppartitions.py:15), then run_operations_c1c2 (tools/toppartitions.py:97) writes 1000x each of k0..k9. Asserts samplers exactly {WRITES,READS} (verify_samples_present_in_result :174), WRITES has exactly k0..k9 each count>=90 and READS empty (verify_counters_for_sample :178). Guards basic write sampling with table filter.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "c13db9aec3": "review fixes: dropped single `key` arg from run_operations_c1c2",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "21df44474f": "re-enabled (removed @require #1090), op delay 1->2s",
+        "54b4c72703": "disabled with @require(scylla-dtest#1090) (flaky counts)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping",
+          "coverage": "partial",
+          "note": "real server, single write sampled with table filter; only presence of pk checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique real-server check of write counting per partition (core of the name: '100 op' counts), but Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 write operation' / '3 seconds' (actual 1000 ops, 10s)."
+    },
+    "TestTopPartitions::test_reads_sample_for_10_partitions_with_100_op_and_empty_writes_sample": {
+      "description": "Pre-writes k0..k9, starts toppartitions on ks.cf (10s), waits for server log, then reads each key 1000x. Asserts samplers {WRITES,READS}, READS exactly k0..k9 each count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards read sampling (read-path data listener).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping",
+          "coverage": "partial",
+          "note": "real server, single write sampled with table filter; only presence of pk checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of read counting per partition with real reads (scylla tests cover writes only, test_toppartitions_pk_needs_escaping), but Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_top_5_partitions_write_samplers_and_empty_read_sample": {
+      "description": "Writes k0..k4 1000x and k5..k9 1500x concurrently after sampling starts, with `-k 5`. Asserts WRITES contains exactly k5..k9 (the hotter ones) with count>=90 and READS empty (verify_counters_for_sample tools/toppartitions.py:178). Guards -k top-count limiting and ranking (scylla #4529, fixed 2019).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "21df44474f": "re-enabled (removed @require #1090), op delay 1->2s",
+        "54b4c72703": "disabled with @require(scylla-dtest#1090) (flaky counts)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping",
+          "coverage": "partial",
+          "note": "real server, single write sampled with table filter; only presence of pk checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server check that -k limits output to the hottest partitions (exact set k5..k9 vs colder k0..k4); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Stable 32/32. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_top_5_partitions_for_read_samplers_and_empty_write_sample": {
+      "description": "Pre-writes k0..k9; reads k0..k4 1500x and k0..k9 1000x concurrently (k0..k4=2500, k5..k9=1000) with `-k 5`. Asserts READS is exactly k0..k4 with count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards -k ranking on the read sampler (scylla #4529).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server read-sampler top-k ranking check (exact set, colder keys excluded); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_top_3_partitions_for_write_samplers_only": {
+      "description": "Three concurrent writers (k0-4, k2-4, k4-9, 1000x each => k4=3000, k2/k3=2000, rest 1000) with `-k 3 -a writes`. Asserts only WRITES sampler printed (verify_samples_present_in_result :174) and WRITES exactly {k4,k3,k2} count>=90 (verify_counters_for_sample :178). Guards top-k ranking and -a sampler selection; this is the DTEST-305 test fixed by 31527e2454.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server top-3 ranking with overlapping writers + -a writes; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_top_3_partitions_for_read_samplers_only": {
+      "description": "Pre-writes k0..k19; three concurrent readers (k0-8, k7-14, k7-9, 1000x each => k7/k8=3000, k9=2000) with `-k 3 -a reads`. Asserts only READS printed and READS exactly {k7,k8,k9} count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Guards read top-k ranking (scylla #4529).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server read top-3 ranking with overlapping readers; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_param_sampler_writes_and_capacity_size": {
+      "description": "Writes 20 keys (evens 1000x, odds 1000x, k5/k10/k15 +2000x) with `-a writes -s 15 -k 3`, i.e. capacity 15 < cardinality 20. Asserts only WRITES printed and WRITES exactly {k5,k10,k15} count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Exercises stream-summary with capacity below cardinality.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique real-server check of top-k under capacity<cardinality, but Bug: name/docstring claim capacity is validated, yet parsed 'capacity' (parse_toppartitions_output tools/toppartitions.py:82) is never asserted; mock test_toppartitions covers -s forwarding/printing. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_param_sampler_read_and_capacity_size": {
+      "description": "Pre-writes k0..k19; reads evens 1000x, odds 1000x, k6/k12/k18 +2000x with `-a reads -s 15 -k 3`. Asserts only READS printed and READS exactly {k6,k12,k18} count>=90 (verify_counters_for_sample tools/toppartitions.py:178).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "c13db9aec3": "review fixes: dropped single `key` arg from run_operations_c1c2",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique real-server read top-k under capacity<cardinality, but Bug: capacity never asserted despite name (parse_toppartitions_output tools/toppartitions.py:82 captures it); variable named expected_write_... for READS (line 410, cosmetic). Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+    },
+    "TestTopPartitions::test_param_k": {
+      "description": "Parametrized size in {5,10,15}: writes k0..k19 1000x each with `--samplers writes --capacity 20 --size N`; asserts only WRITES printed (verify_samples_present_in_result :174) and exactly N partitions returned (len check inline). Guards scylla-enterprise#2859 (JMX nodetool ignored size>10; native forwards list_size).",
+      "origin": {
+        "sha": "73906388f4",
+        "date": "2024-07-26",
+        "pr": 4681,
+        "summary": "add test to verify the param 'k' (Kefu Chai), closes scylla-enterprise#2859"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "73906388f4": "origin: test_param_k added (PR 4681, scylla-enterprise#2859: JMX ignored -k > 10)",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass. list_size honored server-side via q.list_size() (api/storage_service.cc:206).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "verifies -k forwarded as list_size=20 to REST (mock)"
+        },
+        {
+          "path": "toppartitions_test.py::TestTopPartitions::test_top_5_partitions_* / test_top_3_partitions_*",
+          "coverage": "partial",
+          "note": "k=5 and k<10 cases already exercised end-to-end"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only [15] (k>10, the actual scylla-enterprise#2859 case) adds coverage: k=5/k=3 limiting is checked by test_top_5_*/test_top_3_*, k=10 is the default; ~3x15s per run. Original JMX bug is moot (native nodetool forwards list_size, tools/scylla-nodetool.cc:3862). Note: inline `assert size <= 20` should be `<` (nodetool rejects size>=capacity, :3838); harmless for params used. Consider keeping only [15]."
+    },
+    "TestTopPartitions::test_write_by_gaussian_key_distribution": {
+      "description": "Runs c-s (docker) insert with profile cs_normal_distribution.yaml (pk gaussian(1..3000,1500), stddev~1) for up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic. Asserts each returned key is in _calc_expected_top_keys range 1494..1506 via verify_partition_keys (tools/toppartitions.py:196, membership only, no counts/order). Checks toppartitions finds the hot keys of a skewed write workload with cardinality >> capacity.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "5d608edd5c": "replace fixed sleeps by sample_top_keys_while_stress_runs (waits for table, skips empty samples, asserts non-empty after warmup), c-s in docker stopped on block exit",
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "46a7109a47": "pass c-s profiles as absolute path",
+        "cfb9f47089": "fixed stddev formula in _calc_expected_top_keys",
+        "1704e32351": "extracted _calc_expected_top_keys",
+        "cfe5bfb12c": "rename gause -> gaussian",
+        "6a0827e2e2": "doubled width of expected key interval (dtest#4171 flakiness)",
+        "0564452bfa": "expected keys computed from distribution instead of hardcoded",
+        "9ffd273f04": "formatting (ruff format)",
+        "b8f53f4ea1": "fix missing space in expected key strings",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "952a6d3913": "assert c-s thread still running after first sleep",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping",
+          "coverage": "partial",
+          "note": "real server, single write sampled with table filter; only presence of pk checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique skewed-workload check but weak: verify_partition_keys (tools/toppartitions.py:196) is membership-only (no counts, no ordering, 1500 not required top); ~45s; overlaps compound-key variant. Note: unused `with ThreadPoolExecutor(...) as executor` (line 528, dead code); docstring says 30s/'same each time' (code 60s, sameness not asserted); `-port jmx=6868` c-s arg is JMX-era leftover. Consolidation candidate with the other 3 gaussian tests."
+    },
+    "TestTopPartitions::test_read_by_gaussian_key_distribution": {
+      "description": "Inserts with c-s (ccm stress, 3s) using cs_normal_distribution.yaml, then c-s (docker) reads ops(single=1) gaussian keys up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic on READS. Asserts each key in 1494..1506 via verify_partition_keys (tools/toppartitions.py:196, membership only).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "5d608edd5c": "replace fixed sleeps by sample_top_keys_while_stress_runs (waits for table, skips empty samples, asserts non-empty after warmup), c-s in docker stopped on block exit",
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "46a7109a47": "pass c-s profiles as absolute path",
+        "a3c2e413ac": "doubled interval width for read variant too (dtest#4171)",
+        "cfe5bfb12c": "rename gause -> gaussian",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "952a6d3913": "assert c-s thread still running after first sleep",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique skewed-read check but weak assertion (verify_partition_keys (tools/toppartitions.py:196) membership only, no counts/order); ~63s; history of interval-width flakiness (dtest#4171, a3c2e413ac). Note: docstring says 30s/'same each time', not matching code; executor used only to run+join stress synchronously; `-port jmx=6868` leftover. Consolidation candidate with the other gaussian tests."
+    },
+    "TestTopPartitions::test_write_by_gaussian_key_distribution_for_compound_primary_key_and_large_rows_number": {
+      "description": "c-s (docker) insert with cs_large_numbers_rows_per_partition.yaml (PRIMARY KEY((p_key,p_key1),cl_key), both pk parts gaussian(1..3000,1500), up to 1000 rows/partition) for up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic. Asserts each key is in hardcoded 5x5 grid 1498..1502:1498..1502 via verify_partition_keys (tools/toppartitions.py:196, membership only). Covers compound-pk 'a:b' output under skew.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "5d608edd5c": "replace fixed sleeps by sample_top_keys_while_stress_runs (waits for table, skips empty samples, asserts non-empty after warmup), c-s in docker stopped on block exit",
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "46a7109a47": "pass c-s profiles as absolute path",
+        "cfe5bfb12c": "rename gause -> gaussian",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "21df44474f": "re-enabled (removed @require #1090), op delay 1->2s",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partially redundant: compound-pk formatting also checked (with counts) by test_write_into_one_partition_to_different_rows; skew covered by test_write_by_gaussian_key_distribution; ~72s; verify_partition_keys (tools/toppartitions.py:196) membership only. Note: unused ThreadPoolExecutor (line 656, dead code); hardcoded ±2σ grid while single-key tests use _calc_expected_top_keys confidence=6 widened after dtest#4171 - inconsistent; `-port jmx=6868` leftover."
+    },
+    "TestTopPartitions::test_read_by_gaussian_key_distribution_for_compound_primary_key_and_large_rows_number": {
+      "description": "Starts node with `--abort-on-lsa-bad-alloc 0` and ignores 'std::bad_alloc' logs; inserts 15s via ccm stress with cs_large_numbers_rows_per_partition.yaml, then c-s (docker) multi_row reads (LIMIT 10, 2 threads) up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic on READS. Asserts each key in hardcoded 5x5 grid 1498..1502 via verify_partition_keys (tools/toppartitions.py:196).",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "5d608edd5c": "replace fixed sleeps by sample_top_keys_while_stress_runs (waits for table, skips empty samples, asserts non-empty after warmup), c-s in docker stopped on block exit",
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "46a7109a47": "pass c-s profiles as absolute path",
+        "cfe5bfb12c": "rename gause -> gaussian",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "21df44474f": "re-enabled (removed @require #1090), op delay 1->2s",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Slowest test of the module (~97s), membership-only assertion (verify_partition_keys (tools/toppartitions.py:196)), overlaps the other gaussian/compound tests. Bug: `--abort-on-lsa-bad-alloc 0` (line 725) is dead config (abort_on_lsa_bad_alloc default false, db/config.cc:1495) and `ignore_log_patterns += ['std::bad_alloc']` (line 728) silently masks real OOMs, both unexplained since e4b9bf2045. Note: hardcoded ±2σ grid vs widened interval elsewhere; `-port jmx=6868` leftover."
+    },
+    "TestTopPartitions::test_top_count_should_be_smaller_than_capacity": {
+      "description": "Starts 1 node, runs `toppartitions -k 15 -s 12 keyspace1 columnfamily1 3000`; asserts NodetoolError and output matches 'TopK count (-k) option must be smaller th[ae]n the summary capacity (-s)'.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: session -> _session)",
+        "dd8fac5446": "check stderr too for error message (native nodetool)",
+        "b1e21333a8": "accept 'smaller than' (native) or 'smaller then' (JMX typo) via regex",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (ruff pep8-naming; renamed topCount_shouldbe -> top_count_should_be)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: client-side check in toppartitions_operation (tools/scylla-nodetool.cc:3838-3839), before any REST call.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions_invalid_capacity",
+          "coverage": "full",
+          "note": "same -k > -s case, same error string, real scylla nodetool binary vs REST mock"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_invalid_capacity (client-side validation, tools/scylla-nodetool.cc:3839); dtest only adds a cluster start. Note: regex th[ae]n (b1e21333a8) tolerates the removed JMX nodetool's 'then' typo (dead alternative)."
+    },
+    "TestTopPartitions::test_write_into_one_partition_to_different_rows": {
+      "description": "Table ((key1,key2),ckey). After sampling starts, one thread writes 2500 rows spread over partitions 1:0..1:9 (250 each), another writes 2500 rows into partition 1:1 (different clustering rows). Asserts WRITES exactly {1:0..1:9} with 1:1 count>=135 and others >=13.5, READS empty (verify_counters_for_sample tools/toppartitions.py:178). Intent: per-partition (not per-row) counting and compound pk output format.",
+      "origin": {
+        "sha": "0eb598a159",
+        "date": "2019-08-14",
+        "pr": 1009,
+        "summary": "Add tests for feature nodetool toppartitions (aleksbykov)"
+      },
+      "commits": {
+        "f2bad87acc": "typo fixes in names/variables/docstrings (paritions->partitions)",
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "88fa03e0e4": "port to pytest; helpers moved to tools/toppartitions.py (formatting/refactor)",
+        "d016ac44f4": "sleep 1s before starting writes (later replaced by Event sync)",
+        "97566a6afe": "debug messages",
+        "e46e94fed1": "lowered expected counts to 150 (1:1) / 15 (others)",
+        "c12b59a72b": "py3 fix: list(range(25))*100",
+        "f52c2bc50b": "low-perf host fix (#1090): added pgrep-based wait_nodetool_toppartitions_start + Event sync, duration 10s, op counts 1000 and expected counts lowered to 100",
+        "14b7c68395": "run_operations_c1c2 switched to driver concurrent ops (keys lists, w_num/r_num repetitions)",
+        "4d337e1ebf": "run toppartitions in thread, ops in main thread, default duration 5000 (fix empty results)",
+        "0eb598a159": "origin: test added (PR 1009) with JMX nodetool, pgrep-less timing",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping",
+          "coverage": "partial",
+          "note": "real server, single write sampled with table filter; only presence of pk checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique compound-pk + per-partition counting scenario, but the 'one hot partition' claim is not verified: verify_counters_for_sample (tools/toppartitions.py:178) checks membership and count >= 0.9*expected only (no ordering), expected 150/15 vs actual 2750/250 (e46e94fed1), so any partition with >=14 counts passes and 1:1 dominance is never asserted. Note: helper named write_25_ops_for_10_partitions does 250/partition; empty docstring."
+    },
+    "TestTopPartitions::test_one_keyspace_multiple_column_families_reads_sample_and_empty_writes_sample": {
+      "description": "Keyspace ks with cf1..cf3, pre-writes k0..k9 in each; runs toppartitions with `--ks-filters ks -d 10000` (run_generic_toppartitions_for) and reads k0..k2 1000x per cf. Asserts READS exactly the 9 '(ks:cfN) kI' partitions count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards keyspace-filter sampling across tables.",
+      "origin": {
+        "sha": "e4b9bf2045",
+        "date": "2021-11-26",
+        "pr": 2376,
+        "summary": "rebase toppartitions test to pytest/master; added multi-ks/cf and unfiltered tests (Aleksandr Bykov)"
+      },
+      "commits": {
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass. keyspace_filters handled in toppartitions_data_listener::on_read (db/data_listeners.cc:69).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only test of --ks-filters with real traffic across multiple tables (mock only checks param forwarding, and only --cf-filters); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 read operation'."
+    },
+    "TestTopPartitions::test_one_keyspace_multiple_column_families_writes_sample_and_empty_reads_sample": {
+      "description": "Keyspace ks with cf1..cf3; toppartitions `--ks-filters ks -d 3000`; writes k0..k2 1000x per cf. Asserts WRITES exactly the 9 '(ks:cfN) kI' partitions count>=90, READS empty (verify_counters_for_sample tools/toppartitions.py:178).",
+      "origin": {
+        "sha": "e4b9bf2045",
+        "date": "2021-11-26",
+        "pr": 2376,
+        "summary": "rebase toppartitions test to pytest/master; added multi-ks/cf and unfiltered tests (Aleksandr Bykov)"
+      },
+      "commits": {
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass. keyspace_filters handled in on_write (db/data_listeners.cc:84).",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of --ks-filters on the write path across tables; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says 10s, code uses 3000ms."
+    },
+    "TestTopPartitions::test_all_column_families_writes_only": {
+      "description": "ks1{cf1..cf3}, ks2{cf1,cf2}; toppartitions with no filters (all tables) `-a writes -d 10000`; writes k0 5000x in each table. Asserts only WRITES printed and WRITES exactly the 5 '(ksX:cfY) k0' partitions count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Guards unfiltered (include_all) sampling across keyspaces.",
+      "origin": {
+        "sha": "e4b9bf2045",
+        "date": "2021-11-26",
+        "pr": 2376,
+        "summary": "rebase toppartitions test to pytest/master; added multi-ks/cf and unfiltered tests (Aleksandr Bykov)"
+      },
+      "commits": {
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass. include_all path in db/data_listeners.cc:85.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of unfiltered toppartitions across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables; exact len==5 would break on background system writes (100% pass today)."
+    },
+    "TestTopPartitions::test_all_column_families_reads_only": {
+      "description": "ks1{cf1..cf3}, ks2{cf1,cf2}, pre-writes k0 in each; unfiltered toppartitions `-k 5 -d 10000`; reads k0 1000x per table. Asserts READS exactly the 5 '(ksX:cfY) k0' partitions count>=90 and WRITES empty (verify_counters_for_sample tools/toppartitions.py:178).",
+      "origin": {
+        "sha": "e4b9bf2045",
+        "date": "2021-11-26",
+        "pr": 2376,
+        "summary": "rebase toppartitions test to pytest/master; added multi-ks/cf and unfiltered tests (Aleksandr Bykov)"
+      },
+      "commits": {
+        "31527e2454": "wait for 'toppartitions query:' server log before starting workload (DTEST-305, PR 7475) - counts now exact",
+        "9ffd273f04": "formatting (ruff format)",
+        "e4b9bf2045": "rebase to pytest/master: multi-ks/cf prepare helper, '(ks:cf) key' output format, run_generic_toppartitions_for added",
+        "ba695475e6": "class added to gating (next_gating mark)",
+        "4c73f867ca": "self.cmd -> local variable in run_toppartition_for (refactor)"
+      },
+      "relevance": "Live: native nodetool toppartitions_operation (tools/scylla-nodetool.cc:3816), REST /storage_service/toppartitions (api/column_family.cc:397 logs 'toppartitions query:' used by wait helper), db::toppartitions_query/toppartitions_data_listener (db/data_listeners.cc). Runs only in next-dtest-tablets/next-dtest-consistent-topology (16 builds each), 100% pass. include_all path in db/data_listeners.cc:70.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_toppartitions.py::test_toppartitions",
+          "coverage": "partial",
+          "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of unfiltered read sampling across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables and WRITES must be empty, so any background system-table write/read in the 10s window would fail it (100% pass today); with -k 5 equal to the expected count, a hot system-table read could also evict a test partition from the top 5."
+    }
+  }
+}
