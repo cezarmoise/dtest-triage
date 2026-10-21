@@ -1,0 +1,207 @@
+{
+  "file": "user_functions_test.py",
+  "tests": {
+    "TestUserFunctions::test_migration": {
+      "description": "3-node cluster; creates three Lua UDFs (x_2, x_3, x_4), each via a different node's exclusive session, then asserts all three are usable from every node in one SELECT. Checks type error when passing int column to double UDF, then drops each function via a different node and asserts all nodes reject queries using them. Guards cross-node propagation of UDF schema mutations (create/drop).",
+      "origin": {
+        "sha": "028abc6b3d",
+        "date": "2014-08-08",
+        "pr": null,
+        "summary": "Tests for CASSANDRA-7395 (Cassandra UDF dtest, Java UDFs); later converted to Lua for Scylla in the pytest port."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "7109c5a516": "re.escape the matching param of the type-error assert_invalid",
+        "41ced5f652": "pytest port; Java UDFs (sin/cos/tan) replaced with Lua x_2/x_3/x_4, Scylla cluster options",
+        "e87fabc077": "formatting (whitespace)",
+        "fb54199533": "fix test after Cassandra changes (expected error text)",
+        "02cdbf539f": "formatting (PEP-8)",
+        "1761f6fac2": "rename cursor->session",
+        "15de3ade8c": "add 'called on null input' to CREATE FUNCTION; enable_user_defined_functions",
+        "da7ad18ec3": "update for CASSANDRA-8241 (Java UDF compilation)",
+        "79779d0594": "@since class decoration",
+        "c8635cdb59": "merged udf test files",
+        "893be9d3f2": "clean up asserts/connections",
+        "274580353f": "merge commit",
+        "b786af0d6b": "fix UDF dtest",
+        "5f957e4cf1": "port to python driver",
+        "028abc6b3d": "origin: CASSANDRA-7395 UDF tests",
+        "e17232363f": "file-level: class marked next_gating",
+        "90a13e3c68": "file-level: is_scylla check in cluster options fixture"
+      },
+      "relevance": "Live: Lua UDFs behind experimental 'udf' (db/config.cc:2119); UDF schema propagated via group0/schema tables.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_udf.py, test/cqlpy/test_lua_udf.py",
+          "coverage": "partial",
+          "note": "single-node create/use/drop and type errors; no multi-node propagation"
+        },
+        {
+          "path": "test/boost/user_function_test.cc::test_user_function",
+          "coverage": "partial",
+          "note": "single node create/drop schema change events"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "No scylla test checks UDF create/drop visibility across nodes (cluster tests only touch UDFs in test/cluster/test_audit.py). Cheap (~23s), 100% pass. Minor: time.sleep(1) waits instead of explicit schema agreement; drop checks (lines 120-122) accept any InvalidRequest."
+    },
+    "TestUserFunctions::test_udf_overload_test": {
+      "description": "Single node; creates 4 Lua overloads of `overloaded` (varchar, int, text, ascii; varchar==text so 3rd replaces 1st), asserts per-type resolution in SELECT (varchar/text->f3, int->f2, ascii->f4), dropping non-existent overloads fails, DROP without args fails when ambiguous, DROP overloaded(varchar) then overloaded(text) fails as non-existent, finally unambiguous DROP works. Also intended to assert overloaded('foo') literal is ambiguous.",
+      "origin": {
+        "sha": "355ef0a6",
+        "date": "2014-10-30",
+        "pr": null,
+        "summary": "Cassandra 'udf test' (separate file), merged into user_functions_test.py in c8635cdb59."
+      },
+      "commits": {
+        "f7ba76925d": "accept 'Cannot execute this query as it might involve data filtering' as alternative to 'Ambiguous call' for overloaded('foo') (scylla SCYLLADB-1229 literal default type)",
+        "9ffd273f04": "formatting (ruff format)",
+        "7109c5a516": "re.escape matching of 'doesn't exist' message",
+        "896115a900": "fix WHERE column k->t in ambiguity assert (before, error came from unknown column k)",
+        "41ced5f652": "pytest port; Java->Lua UDFs",
+        "c3471a97e4": "formatting (autopep8)",
+        "02cdbf539f": "formatting (PEP-8)",
+        "3ff68a1f5c": "formatting (pyflakes cleanup)",
+        "15de3ade8c": "add 'called on null input'",
+        "c8635cdb59": "merged udf test files (origin 355ef0a6)",
+        "e17232363f": "file-level: class marked next_gating"
+      },
+      "relevance": "Live: UDF overload resolution + DROP FUNCTION disambiguation. Scylla 9161b7591d (SCYLLADB-1229) now resolves overloaded('foo') to text overload -> ambiguity no longer occurs.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_udf.py::test_drop_overloaded_udf",
+          "coverage": "partial",
+          "note": "DROP ambiguous overloads / drop with args / drop after unambiguous"
+        },
+        {
+          "path": "test/cqlpy/test_lua_udf.py (~line 597)",
+          "coverage": "partial",
+          "note": "'User function ... doesn't exist' on DROP of missing signature"
+        },
+        {
+          "path": "test/boost/expr_test.cc, test/cqlpy/test_selector_literals.py",
+          "coverage": "partial",
+          "note": "overload resolution with literals (9161b7591d), native functions"
+        },
+        {
+          "path": "test/cqlpy/test_permissions.py::test_udf_with_overloads_permissions",
+          "coverage": "partial",
+          "note": "overloaded UDFs, permission focus"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Per-arg-type UDF resolution (varchar==text, ascii, int) not directly covered in scylla; DROP parts covered by test_udf.py::test_drop_overloaded_udf. Single-node CQL semantics, easy cqlpy port. Bug: user_functions_test.py:138-142 ambiguity assert is dead - after scylla 9161b7591d the call resolves to overloaded(text) and only the unrelated filtering error is hit (before 896115a900 it hit unknown column k), so 'Ambiguous' is never checked."
+    },
+    "TestUserFunctions::test_default_aggregate": {
+      "description": "Single node; inserts 9 rows and asserts native aggregates min(key)=1, max(val)=9.0, sum(key)=45, avg(val)=5.0, count(*)=9 over the whole table. Not UDF-related at all; basic native aggregate sanity.",
+      "origin": {
+        "sha": "8fd49e0426",
+        "date": "2015-01-20",
+        "pr": null,
+        "summary": "Cassandra 'udf' commit adding UDA tests incl. default aggregates."
+      },
+      "commits": {
+        "41ced5f652": "pytest port (rename to test_default_aggregate)",
+        "8fd49e0426": "origin",
+        "e17232363f": "file-level: class marked next_gating"
+      },
+      "relevance": "Live: native min/max/sum/avg/count.",
+      "duplicates": [
+        {
+          "path": "test/boost/aggregate_fcts_test.cc::test_aggregate_avg/sum/max/min/count",
+          "coverage": "full",
+          "note": "each native aggregate over multiple types"
+        },
+        {
+          "path": "test/cqlpy/test_aggregate.py",
+          "coverage": "full",
+          "note": "count/sum/avg/min edge cases, sum_in_partition, etc."
+        },
+        {
+          "path": "test/cluster/test_aggregation.py",
+          "coverage": "partial",
+          "note": "multi-node mapreduce aggregation"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Trivial single-node native aggregate checks fully covered by test/boost/aggregate_fcts_test.cc (test_aggregate_{avg,sum,max,min,count}) and test/cqlpy/test_aggregate.py; needlessly runs with UDF config in a UDF test class."
+    },
+    "TestUserFunctions::test_aggregate_udf": {
+      "description": "Single node; creates Lua UDFs plus(int,int) and stri(int)->text, UDA suma(int) SFUNC plus STYPE int FINALFUNC stri INITCOND 10, asserts suma(val) over 1..3 = '16'. Creates aggy(double) with sfunc test(int,double); asserts CREATE AGGREGATE fails when SFUNC is an aggregate (aggy) and when FINALFUNC names nonexistent aggtwo.",
+      "origin": {
+        "sha": "8fd49e0426",
+        "date": "2015-01-20",
+        "pr": null,
+        "summary": "Cassandra 'udf' commit adding UDA tests (Java UDFs); converted to Lua; skipped in Scylla until dba80ecb04 (2022)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "41ced5f652": "pytest port; Java->Lua UDFs; skip 'CREATE AGGREGATE is not supported yet'",
+        "c3471a97e4": "formatting (autopep8)",
+        "15de3ade8c": "add 'called on null input'",
+        "6896b6b807": "compatibility fixes",
+        "9ad37945f5": "udf updates",
+        "7d7ddabd4b": "merge commit",
+        "8fd49e0426": "origin",
+        "dba80ecb04": "file-level: removed skip 'CREATE AGGREGATE is not supported yet'",
+        "e17232363f": "file-level: class marked next_gating"
+      },
+      "relevance": "Live: Lua UDAs with SFUNC/FINALFUNC/INITCOND (scylla 2022+).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_uda.py::test_custom_avg",
+          "coverage": "full",
+          "note": "UDA with SFUNC+FINALFUNC+INITCOND, Lua, result checked"
+        },
+        {
+          "path": "test/cqlpy/test_uda.py::test_no_final_func",
+          "coverage": "partial",
+          "note": "UDA SFUNC+INITCOND result"
+        },
+        {
+          "path": "test/cqlpy/test_uda.py::test_wrong_sfunc_or_ffunc",
+          "coverage": "full",
+          "note": "nonexistent / wrong-signature SFUNC and FINALFUNC rejected ('not found')"
+        },
+        {
+          "path": "test/cqlpy/test_uda.py::test_incorrect_state_func",
+          "coverage": "partial",
+          "note": "bad state function signature"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Single-node UDA create/execute/validation fully covered by test/cqlpy/test_uda.py (test_custom_avg, test_wrong_sfunc_or_ffunc, test_no_final_func). Only uncovered bit is 'aggregate used as SFUNC' rejection, trivial. Note: user_functions_test.py:221 assert_invalid(finalfunc aggtwo) has no matching and aggtwo never exists (line 219 create fails), so it only checks 'not found'."
+    },
+    "TestUserFunctions::test_restart": {
+      "description": "3 nodes (RF=1); creates Lua UDFs and UDAs suma(int)/suma(text) and REDUCEFUNC variants sum_reduce(int/text), asserts results, then full cluster stop/start and asserts UDFs and all UDAs still return correct results, cannot be re-created (still registered), and can be dropped. Guards scylladb/scylladb#11309 (UDAs unusable after restart; fixed by e558c7d988, PR #11310).",
+      "origin": {
+        "sha": "ec27d9bbde",
+        "date": "2023-01-09",
+        "pr": 2970,
+        "summary": "add test for restarting clusters with UDAs (scylla #11309/#11310)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "ec27d9bbde": "origin",
+        "e17232363f": "file-level: class marked next_gating"
+      },
+      "relevance": "Live: UDA loading on startup (db/schema_tables.cc, replica/database.cc from e558c7d988); REDUCEFUNC in system_schema.scylla_aggregates.",
+      "duplicates": [
+        {
+          "path": "test/boost/user_function_test.cc::test_user_function_db_init",
+          "coverage": "partial",
+          "note": "UDF (not UDA) survives restart of cql_test_env with same data dir"
+        },
+        {
+          "path": "test/cqlpy/test_uda.py::test_reduce_function",
+          "coverage": "partial",
+          "note": "REDUCEFUNC registration, no restart"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only regression test for UDAs surviving restart (#11309); scylla fix e558c7d988 added no test and boost test_user_function_db_init covers UDFs only. ~35s, 100% pass. Could run on 1 node instead of 3."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
