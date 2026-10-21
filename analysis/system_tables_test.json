@@ -1,0 +1,694 @@
+{
+  "file": "system_tables_test.py",
+  "tests": {
+    "TestClusterStatusTable::test_content_all_nodes_are_up": {
+      "description": "Starts 3-node cluster, reads system.cluster_status from node1 and checks each node has a row with correct dc, host_id, status NORMAL and up=True (check_running_node_status, system_tables_test.py:96). Guards the cluster_status virtual table (db/virtual_tables.cc cluster_status_table).",
+      "origin": {
+        "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)",
+        "2750f22bb4": "file-level: deselected for consistent-topology-changes (scylladb#16984)",
+        "a506e0d0bb": "file-level: re-enabled for raft topology after #16984 fix"
+      },
+      "relevance": "Live: cluster_status_table in scylladb db/virtual_tables.cc:62 (columns up/status/dc/host_id/owns).",
+      "duplicates": [
+        {
+          "path": "system_tables_test.py::TestClusterStatusTable::test_content_multi_dc_all_nodes_are_up",
+          "coverage": "full",
+          "note": "first half runs the same check_running_node_status loop for every node (2 nodes in 2 DCs), then more"
+        },
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_tablet_drain_failure_during_decommission",
+          "coverage": "partial",
+          "note": "asserts cluster_status status=='NORMAL'/draining/excluded for one node; error-injection, skipped in release"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap (14s) but its assertions are a strict subset of test_content_multi_dc_all_nodes_are_up (same file), which runs check_running_node_status on all nodes before adding one; candidate to drop as redundant, not slow so not RED."
+    },
+    "TestClusterStatusTable::test_content_add_new_node": {
+      "description": "Starts 1 node, bootstraps node2, reads cluster_status from node1: asserts row count == nodes, node2 row present, sum(owns) rounds to 1, node2 dc/host_id/NORMAL/up correct.",
+      "origin": {
+        "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: cluster_status_table, owns from storage_service::get_ownership (db/virtual_tables.cc:93,128).",
+      "duplicates": [
+        {
+          "path": "system_tables_test.py::TestClusterStatusTable::test_content_multi_dc_all_nodes_are_up",
+          "coverage": "partial",
+          "note": "same add-node + new row + sum(owns)==1 + check_running_node_status; lacks only the row-count assertion"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Nearly all assertions duplicated by test_content_multi_dc_all_nodes_are_up (same file, multi-DC variant); only extra is len(rows)==len(nodes). Cheap (8s); could merge the row-count check into the multi-DC test and drop this."
+    },
+    "TestClusterStatusTable::test_content_multi_dc_all_nodes_are_up": {
+      "description": "Starts 2 nodes in dc1/dc2, checks both rows (dc, host_id, NORMAL, up), adds node3 in dc2, checks new row, sum(owns)==1 and node3 status. Covers cluster_status dc reporting across DCs and table update after bootstrap.",
+      "origin": {
+        "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)",
+        "2750f22bb4": "file-level: deselect comments for raft topology (scylladb#16984)",
+        "a506e0d0bb": "file-level: required_features('!consistent-topology-changes') removed after #16984 fix"
+      },
+      "relevance": "Live: cluster_status_table (db/virtual_tables.cc:62); scylladb#16984 (virtual tables using raft-topology state) closed.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No scylla test checks cluster_status rows (dc/host_id/owns) across DCs or after bootstrap; only test_topology_failure_recovery.py and test_maintenance_mode.py read single columns. Cheap (13s), 100% pass."
+    },
+    "TestClusterStatusTable::test_content_stop_node": {
+      "description": "Starts 2 nodes, gracefully stops node2, reads cluster_status from node1 and asserts node2 up=False and status=='SHUTDOWN' (gossiper.is_shutdown branch, db/virtual_tables.cc:108).",
+      "origin": {
+        "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: shutdown status set from gossiper.is_shutdown in cluster_status_table.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_maintenance_mode.py::test_maintenance_mode",
+          "coverage": "partial",
+          "note": "asserts SELECT status FROM system.cluster_status WHERE peer=<node in maintenance> == 'shutdown' (line ~169); no up=False check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: test/cluster/test_maintenance_mode.py asserts the same 'shutdown' status via cluster_status from a peer; this test adds only up=False on a plain graceful stop. Cheap (11s)."
+    },
+    "TestClusterStatusTable::test_content_remove_node": {
+      "description": "Starts 3 nodes, kills node2, node1.removenode(host_id), sleep(10), reads cluster_status: with raft topology asserts node2's row is gone; gossip mode branch asserts up=False and status REMOVED.",
+      "origin": {
+        "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (node3 -> _node3)",
+        "d06bed122f": "raft check switched to self.scylla_features",
+        "3021ba810c": "adapted for raft topology: dropped !consistent-topology-changes mark, added branch asserting removed node absent",
+        "9ffd273f04": "formatting (ruff format)",
+        "7c1bfb68fc": "cluster 2->3 nodes so removenode keeps raft quorum",
+        "1792552dff": "stop node2 before removenode (scylla refuses removenode of live node)",
+        "02d105cabe": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: removenode + cluster_status. Gossip topology is deprecated (force_gossip_topology_changes value_status::Deprecated, db/config.cc:1735); dtest always has 'consistent-topology-changes' in scylla_features unless --force-gossip-topology-changes (conftest.py:735-741).",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "Unique check that removed node vanishes from cluster_status, but slowest of class (58s). Note: gossip branch (system_tables_test.py:230-232) is dead in all CI jobs (scylla_features always contains consistent-topology-changes, conftest.py:735); Note: fixed sleep(10) (line 224) instead of waiting on condition."
+    },
+    "TestConfigTable::test_content_values_types": {
+      "description": "Single node; reads all system.config rows and checks value format matches declared type: numeric for integer/double/float, true/false for bool, [..] for string list, {..} for string map, printable for string, non-empty otherwise.",
+      "origin": {
+        "sha": "2d9ba59d66122e2c704913d21182d6f7ea919d0e",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "2d9ba59d66": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: config_table in db/virtual_tables.cc; formatting bugs historically (scylladb#10047, #11003).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_system_config_read",
+          "coverage": "partial",
+          "note": "checks JSON formatting of experimental_features and restrict_dtcs only (#10047/#11003)"
+        },
+        {
+          "path": "test/boost/virtual_table_test.cc::test_system_config_table_read",
+          "coverage": "partial",
+          "note": "exact row for 'partitioner' (type string, JSON-quoted value)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap with cqlpy test_system_config_read / boost test_system_config_table_read, which check specific rows; this one sweeps all types but with weak checks. Note: 'string' check is only isprintable() (system_tables_test.py:940), and unknown types only assert non-empty (:943). Cheap, easy cqlpy port."
+    },
+    "TestConfigTable::test_content_source_config": {
+      "description": "Single node; loads node's scylla.yaml and asserts every system.config row with source='config' has the same value as the yaml (JSON-decoding seed_provider/experimental_features, 0/1->false/true for enum_option types).",
+      "origin": {
+        "sha": "2d9ba59d66122e2c704913d21182d6f7ea919d0e",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6a9ec081e1": "enum 0/1 mapping extended to 'tablets mode' type",
+        "90d03cb67c": "re-enabled experimental_features check under raft topology",
+        "7fb9cd0c05": "temporarily skipped experimental_features check with raft topology (scylladb#18285)",
+        "014dc272ca": "JSON-decode experimental_features too (multiple features with tablets)",
+        "9ffd273f04": "formatting (ruff format)",
+        "034a57bea9": "handle real seed_provider JSON value, skip old placeholder",
+        "f1e051cbf9": "map 0/1->false/true for 'restriction mode' options",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "2d9ba59d66": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: config source tracking (utils::config_file::config_source::SettingsFile) shown in system.config.",
+      "duplicates": [
+        {
+          "path": "test/boost/config_test.cc::test_parse_yaml",
+          "coverage": "partial",
+          "note": "checks source()==SettingsFile for parsed options at config layer, not via the virtual table"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly unique (yaml vs system.config round-trip for every config-sourced option), cheap. Note: no assertion that any source='config' rows exist (system_tables_test.py:968) - if source were misreported (e.g. all 'default') the loop is empty and the test passes vacuously."
+    },
+    "TestConfigTable::test_content_source_cli": {
+      "description": "Single node; takes ccm startup args and asserts every system.config row with source='cli' maps to a --flag present in args with matching value (bool 1/true, 0/false).",
+      "origin": {
+        "sha": "2d9ba59d66122e2c704913d21182d6f7ea919d0e",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "4fff8150aa": "no change to body (module next_gating mark)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "2d9ba59d66": "origin: test added"
+      },
+      "relevance": "Live: config_source::CommandLine reported as 'cli' in system.config.",
+      "duplicates": [],
+      "decision": "YELLOW",
+      "reason": "No scylla test checks source='cli' rows in system.config; cheap. Note: no assertion that cli rows exist (system_tables_test.py:1022) - a regression reporting cli options as another source passes vacuously."
+    },
+    "TestConfigTable::test_content_update_value": {
+      "description": "Single node; updates ~13 live-updatable options via UPDATE system.config SET value, re-reads each and asserts value matches and source=='cql'; errors collected and asserted at end.",
+      "origin": {
+        "sha": "2d9ba59d66122e2c704913d21182d6f7ea919d0e",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "30988c52c2": "removed dropped options reversed_reads_auto_bypass_cache / enable_optimized_reversed_reads",
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "2d9ba59d66": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: config_table::apply (db/virtual_tables.cc:864) set_value_on_all_shards(..., config_source::CQL).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_system_config_update_boolean",
+          "coverage": "partial",
+          "note": "bool round-trip (true/false and 0/1) for compaction_enforce_min_threshold; no source check"
+        },
+        {
+          "path": "test/boost/virtual_table_test.cc::test_system_config_table_update",
+          "coverage": "partial",
+          "note": "update failure_detector_timeout_in_ms propagates to all shards"
+        },
+        {
+          "path": "test/boost/virtual_table_test.cc::test_system_config_table_set_empty",
+          "coverage": "partial",
+          "note": "string option allowed_repair_based_node_ops update"
+        },
+        {
+          "path": "updateable_config_test.py::TestUpdateableConfig::test_blocking_config_runtime_updates",
+          "coverage": "partial",
+          "note": "UPDATE system.config of task_ttl_in_seconds allowed/blocked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Update path partially covered by cqlpy test_system_config_update_boolean and boost virtual_table_test.cc update tests; unique part is source=='cql' check over many options. Note: stale TODO filter for scylladb#10047 (CLOSED) pops strict_allow_filtering/restrict_replication_simplestrategy/restrict_dtcs (system_tables_test.py:1104-1106) so enum options are never exercised."
+    },
+    "TestConfigTable::test_content_disable_update": {
+      "description": "Single node; sets enable_cql_config_updates=0 via system.config, then asserts setting it back to 1 fails with WriteFailure 'this virtual table doesn't allow updates' (db/virtual_table.cc:182 via config_table::apply check at db/virtual_tables.cc:870).",
+      "origin": {
+        "sha": "2d9ba59d66122e2c704913d21182d6f7ea919d0e",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "72809f2380": "formatting (!s in message)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "2d9ba59d66": "origin: test added",
+        "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
+      },
+      "relevance": "Live: enable_cql_config_updates (db/config.cc:1640, LiveUpdate, Used).",
+      "duplicates": [
+        {
+          "path": "updateable_config_test.py::TestUpdateableConfig::test_blocking_config_runtime_updates",
+          "coverage": "partial",
+          "note": "different knob (live_updatable_config_params_changeable_via_cql, MustRestart)"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of enable_cql_config_updates kill-switch; grep of scylladb test/ finds no use of the option or the error message. Cheap (5s), 100% pass."
+    },
+    "TestConfigTable::test_invalid_update": {
+      "description": "Single node; parametrized invalid UPDATE system.config statements (no value, update source, update type, non-live-updateable api_port, unknown option) must raise WriteFailure containing the specific error message from config_table::apply. 6th param wrong_value_type (bool into failure_detector_timeout_in_ms) is xfail(#10394) + unmark.next_gating.",
+      "origin": {
+        "sha": "2d9ba59d66",
+        "date": "2022-04-07",
+        "pr": 2696,
+        "summary": "Ilya Rarov: tests for updateable system.config virtual table (scylladb@f74b2589)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "4fff8150aa": "wrong_value_type param: unmark.next_gating added; module next_gating",
+        "72809f2380": "formatting (ruff pep8-naming)",
+        "2d9ba59d66": "origin: test added"
+      },
+      "relevance": "Live: error strings in db/virtual_tables.cc:879-912 (option value is required / type is immutable / source is not updateable / not live-updateable / no such option).",
+      "duplicates": [
+        {
+          "path": "test/boost/virtual_table_test.cc::test_system_config_table_no_live_update",
+          "coverage": "partial",
+          "note": "non-live-updateable option (cluster_name) throws mutation_write_failure_exception; no message check, other error paths not covered"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly unique coverage of system.config update error paths, cheap (4s). Note: wrong_value_type param xfail references scylladb#10394 which is CLOSED (2022-05-04) and is unmarked from gating; it has 0 runs in collected Jenkins data (system_tables_test.py:1049) - stale xfail, should be un-xfailed or dropped."
+    },
+    "TestProtocolServersTable::test_content": {
+      "description": "Single node, params default/alternator/redis: reads system.protocol_servers and checks each returned row (except thrift 'rpc') is known and has expected listen_addresses/protocol (CQL version vs system.local for native transport). Alternator param enables alternator_port=8000 and expects that address.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "b9ffbff236": "docstring/log text: drop thrift/redis mention",
+        "78574afcfb": "redis param skipped when tablets enabled",
+        "37b6a90d68": "wait for 'init - serving' before querying",
+        "98dde90cc8": "thrift (rpc) param removed, rpc row ignored",
+        "aedaa57c4e": "formatting (ruff pyupgrade)",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: protocol_servers_table db/virtual_tables.cc:474. Redis removed from scylla (scylladb ebf1db5c5e 2025-07-23 'remove ./redis and dependencies'); no redis_port option in db/config.cc.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_protocol_servers",
+          "coverage": "partial",
+          "note": "only checks the table exists with columns name/listen_addresses/protocol/protocol_version"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique content check of protocol_servers (native transport + alternator addresses), but Bug: redis param is dead since redis removal (scylladb ebf1db5c5e) - no redis row exists and the loop only validates rows present, so it equals 'default' (system_tables_test.py:551). Bug: test never asserts expected rows exist (iterates returned rows only, :587-597), so a missing alternator/native row would pass."
+    },
+    "TestRuntimeInfoTable::test_cache_metrics": {
+      "description": "Single node: creates table with 100 rows, reads system.runtime_info group='cache', flushes table and asserts cache entries grew by >=100 and memory_used grew (flush populates cache); then full scan and asserts requests_total and hits grew, misses unchanged, requests_total==hits+misses.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "01fce6f43f": "relaxed entries delta check from == to >= number_of_rows",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: runtime_info_table cache group db/virtual_tables.cc:~735-745 (entries/hits/misses/hit_rate...).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info",
+          "coverage": "partial",
+          "note": "column existence only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test validating runtime_info cache metrics semantics end-to-end (flush-populates-cache, hits/misses accounting); cheap (5.5s), 100% pass."
+    },
+    "TestRuntimeInfoTable::test_content_toggle_item": {
+      "description": "Single node, params gossip_active/incremental_backup_enabled: toggles via nodetool disablegossip/enablebackup, asserts system.runtime_info generic item reflects new state, reverts and asserts default state again.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "914129181e": "formatting (remove pylint comments)",
+        "fb3dfc9ea9": "formatting (ruff pylint)",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: runtime_info gossip_active / incremental_backup_enabled db/virtual_tables.cc:640,749; nodetool disablegossip/enablebackup exist.",
+      "duplicates": [
+        {
+          "path": "test/nodetool/test_gossip.py::test_disablegossip",
+          "coverage": "partial",
+          "note": "mock REST only, checks nodetool request not runtime state"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info",
+          "coverage": "partial",
+          "note": "column existence only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique end-to-end check that nodetool toggles of gossip/incremental backup are reflected in system.runtime_info; cheap (6.7s)."
+    },
+    "TestRuntimeInfoTable::test_default_content": {
+      "description": "Single node: reads full system.runtime_info, asserts exact item list per group (cache/memory/generic/memtable), gossip_active=true, incremental_backup_enabled=false, uptime 'N seconds' >0, memory.total within smp*2MiB of node.memory() (non-debug), all other values numeric.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "20908a47e2": "formatting (autopep8)",
+        "dd4567a9f5": "memory.total check tolerates per-shard 2MiB alignment",
+        "c757b80438": "sleep(1) and assert uptime > 0",
+        "d847893ce4": "memory.total compared to node.memory()",
+        "ea69b7ab6d": "skip memory.total check in debug mode",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: runtime_info_table db/virtual_tables.cc:535-760.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info",
+          "coverage": "partial",
+          "note": "column existence only"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables",
+          "coverage": "partial",
+          "note": "memtable group values + generic.load only"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test pinning the full runtime_info schema (item lists) and default values incl. memory total; cheap (5.8s)."
+    },
+    "TestRuntimeInfoTable::test_memtable_metrics": {
+      "description": "Single node: reads runtime_info group='memtable', creates table with 100 rows, asserts memtable entries and memory_used increased. Marked xfail(scylladb#10340: memtable metrics always 0) and unmark.next_gating, so runs only in dtest-release jobs.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "4fff8150aa": "added unmark.next_gating (kept out of gating); module next_gating",
+        "9afd7fc05c": "origin: test added with xfail #10340"
+      },
+      "relevance": "Live; bug #10340 fixed by scylladb c2e954adea (2026-08-18 'virtual_tables: fix reduction in system.runtime_info'), so the xfail now XPASSes (issue still OPEN on GitHub).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables",
+          "coverage": "full",
+          "note": "added with the fix c2e954adea; inserts rows and asserts memtable entries>=rows, memory_total>0, memory_used>0, plus generic.load after flush"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fix commit scylladb c2e954adea added test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables which fully covers (and is stronger than) this check. Bug: stale xfail on scylladb#10340 (system_tables_test.py:856) - fixed, test XPASSes, so it could never fail."
+    },
+    "TestSnapshotsTable::test_content_auto_snapshot": {
+      "description": "3 nodes (3 racks) with auto_snapshot=true, RF=3 table with 10 rows, TRUNCATE; then on each node via exclusive connection asserts system.snapshots has exactly 1 row for that table. Guards truncate auto-snapshot being taken on all replicas and exposed in the virtual table.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "7c5179b205": "3-node cluster built via generate_cluster_topology (rack per node)",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: snapshots_table db/virtual_tables.cc:397; auto_snapshot on truncate.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_truncate_with_tablets.py::test_replay_position_check_during_truncate",
+          "coverage": "partial",
+          "note": "runs truncate with auto_snapshot=True but does not check system.snapshots"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_snapshots_table",
+          "coverage": "partial",
+          "note": "system.snapshots listing for manual nodetool snapshot, single node"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test checking truncate auto-snapshot appears in system.snapshots on every replica of a multi-node cluster; 15s."
+    },
+    "TestSnapshotsTable::test_content_create_and_remove_snapshot": {
+      "description": "Single node, params one_table/keyspace(5 tables): nodetool snapshot of a table or keyspace, asserts system.snapshots lists exactly those tables with the parsed snapshot name and numeric live/total, then nodetool clearsnapshot and asserts table is empty.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "aedaa57c4e": "formatting (ruff pyupgrade)",
+        "20908a47e2": "formatting (autopep8)",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: snapshots_table db/virtual_tables.cc:397; nodetool snapshot/clearsnapshot.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_snapshots_table",
+          "coverage": "partial",
+          "note": "table snapshot listed in system.snapshots with tag, then deleted and snapshot dir checked gone (not the virtual table)"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_snapshots_multiple_keyspaces",
+          "coverage": "partial",
+          "note": "multiple tables/keyspaces/tags listed correctly"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "cqlpy test_snapshots_table / test_snapshots_multiple_keyspaces cover listing snapshots in system.snapshots; remaining unique bits are keyspace-wide nodetool snapshot and system.snapshots being empty after clearsnapshot. Near-redundant; candidate to remove."
+    },
+    "TestTokenRingTable::test_content_increasing_cluster": {
+      "description": "2 nodes, keyspace RF=3 (vnodes only; skipped with tablets): picks one token range from system.token_ring, asserts it has 2 endpoints, then adds node3 and node4 asserting it has 3 endpoints after each. Guards token_ring replica listing as cluster grows.",
+      "origin": {
+        "sha": "02d105cabe",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "acef4d2c4f": "required_features('!tablets') added",
+        "a85b4c263b": "query adds table_name='<ALL>' restriction for new token_ring schema",
+        "02d105cabe": "origin: test added"
+      },
+      "relevance": "Live for vnode keyspaces: token_ring_table db/virtual_tables.cc:293. Vnodes still supported but tablets default.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_vnodes",
+          "coverage": "partial",
+          "note": "single node, row count == num_tokens"
+        },
+        {
+          "path": "test/cqlpy/test_describe.py (token_ring query ~:528)",
+          "coverage": "partial",
+          "note": "uses token_ring for describe ring comparison"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique multi-node check that token_ring endpoints follow RF and bootstraps (vnodes); 18s, 100% pass."
+    },
+    "TestTokenRingTable::test_content_match_on_all_nodes": {
+      "description": "3 nodes (2 racks), keyspace RF=2 (no table created), reads system.token_ring for the keyspace on node1 and asserts identical result on node2/node3 via exclusive connections.",
+      "origin": {
+        "sha": "02d105cabe",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "7c5179b205": "cluster built as datacenter1 {rack1:1, rack2:2}",
+        "02d105cabe": "origin: test added"
+      },
+      "relevance": "Live: token_ring_table db/virtual_tables.cc:293.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_tablets",
+          "coverage": "partial",
+          "note": "single node, token_ring rows == system.tablets rows"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Cheap consistency check unique to dtest, but Bug: with tablets (runs in next-dtest-tablets) no table is created, and token_ring lists tablet keyspaces only per table (see comment in test_content_one_node_create_and_drop_keyspace), so it compares [] == []; no non-empty assertion (system_tables_test.py:445-456). Only meaningful in vnodes mode."
+    },
+    "TestTokenRingTable::test_content_multi_dc_cluster": {
+      "description": "4 nodes in 2 DCs (dc1 rack1/rack2, dc2 2x rack1), keyspace NTS {dc1:2, dc2:1} (+ table in tablets mode). Picks one token range from system.token_ring and asserts it has exactly 3 endpoints spanning both DCs. Guards per-DC replica listing in token_ring (vnodes and tablets).",
+      "origin": {
+        "sha": "02d105cabe",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "7c5179b205": "cluster [2,2] -> explicit dc/rack topology {dc1:{rack1:1,rack2:1}, dc2:{rack1:2}} (rack-valid for tablets)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "ba8573846f": "create table when tablets enabled; table_name restriction uses test_table in tablets mode",
+        "a85b4c263b": "query adds table_name='<ALL>' restriction for new token_ring schema",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added"
+      },
+      "relevance": "Live: token_ring_table db/virtual_tables.cc:293; tablet keyspaces emitted per table via describe_ring_for_table (:380), vnodes as '<ALL>'.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_vnodes",
+          "coverage": "partial",
+          "note": "single node, row count == num_tokens, no multi-DC"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_tablets",
+          "coverage": "partial",
+          "note": "single node, rows == system.tablets rows"
+        },
+        {
+          "path": "test/cqlpy/test_describe.py (token_ring query ~:528)",
+          "coverage": "partial",
+          "note": "single node describe ring comparison"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only multi-DC check of token_ring replica/DC content, both vnodes and tablets modes; cqlpy tests are single node. 20s, 100% pass."
+    },
+    "TestTokenRingTable::test_content_one_node_create_and_drop_keyspace": {
+      "description": "Single node: create keyspace RF=1 (+ table in tablets mode), assert it appears in SELECT DISTINCT keyspace_name FROM system.token_ring; drop it and assert it no longer appears. Guards token_ring tracking schema changes.",
+      "origin": {
+        "sha": "02d105cabe",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "ba8573846f": "create table when tablets enabled (tablet keyspaces only listed per table)",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added"
+      },
+      "relevance": "Live: token_ring_table db/virtual_tables.cc:293 iterates get_non_local_strategy_keyspaces and skips !has_keyspace (:376).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_vnodes",
+          "coverage": "partial",
+          "note": "checks keyspace rows exist; no drop check"
+        },
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_tablets",
+          "coverage": "partial",
+          "note": "checks table rows exist; no drop check"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Drop-keyspace disappearance from token_ring not covered in scylla tests; existence part partially duplicated by cqlpy test_token_ring_*. Single node, 5s, 100% pass. Could be moved to cqlpy."
+    },
+    "TestTokenRingTable::test_content_stop_and_replace_node": {
+      "description": "3 nodes (rack1:1, rack2:2), keyspace RF=2 (no table). Records start_tokens where endpoint==node3 from system.token_ring, stops node3, replaces it with node4 (replace_node_host_id, same dc/rack), and asserts node4's start_tokens list equals node3's. Guards replace inheriting tokens as seen by token_ring.",
+      "origin": {
+        "sha": "02d105cabe",
+        "date": "2022-01-26",
+        "pr": 2564,
+        "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
+      },
+      "commits": {
+        "7c5179b205": "explicit topology {datacenter1:{rack1:1,rack2:2}}; node4 placed in node3's dc/rack",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "45e0149c79": "replace_address -> replace_node_host_id",
+        "9ffd273f04": "formatting (ruff format)",
+        "02d105cabe": "origin: test added"
+      },
+      "relevance": "Live: token_ring_table db/virtual_tables.cc:293; replace by host id live. In tablets mode, tablet keyspaces only appear per table (:380), and test creates no table.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_token_ring_vnodes",
+          "coverage": "partial",
+          "note": "single node, no replace"
+        },
+        {
+          "path": "test/cluster/test_replace*.py",
+          "coverage": "partial",
+          "note": "replace scenarios covered extensively in cluster tests, but not via system.token_ring"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: create_test_keyspace called without create_table (system_tables_test.py ~:470), so in tablets mode (runs in next-dtest-tablets) token_ring has no rows for the keyspace and the test compares [] == []; no non-empty assertion on node3_token_set. Meaningful only in vnodes mode; 49s, slowest of the class."
+    },
+    "TestVersionsTable::test_content": {
+      "description": "Single node: reads system.versions WHERE key='local' and asserts build_id, build_mode and version match ccm's view of the binary (node.scylla_build_id, scylla_mode(), node_scylla_version). Guards system.versions virtual table content.",
+      "origin": {
+        "sha": "9afd7fc05c",
+        "date": "2022-04-07",
+        "pr": 2691,
+        "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "9232912f8f": "added @pytest.mark.single_node",
+        "9afd7fc05c": "origin: test added"
+      },
+      "relevance": "Live: versions_table db/virtual_tables.cc:761 (version/build_mode/build_id).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_versions",
+          "coverage": "partial",
+          "note": "only checks table exists with the 4 columns, no value check"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test validating system.versions values against the actual binary; cqlpy test_versions checks schema only. 5s, 100% pass."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
