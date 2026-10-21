@@ -1,0 +1,178 @@
+{
+  "file": "topology_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestTopology::test_crash_during_decommission": {
+      "description": "3-node cluster (RBNO forced for bootstrap/decommission to slow ops), decommission node1 in a background thread while repeatedly hard-killing/restarting node2 (up to 10 times, then waits for decommission to fail). Asserts `nodetool status` on node2 has no ' null ' entry after 30s sleep. Ported from Cassandra test for CASSANDRA-10231 (null status entries for decommissioned node after crash).",
+      "origin": {
+        "sha": "d52b4d33b5a7b0b283fcae5599cb4770235fde04",
+        "date": "2015-09-08",
+        "pr": null,
+        "summary": "Cassandra dtest reproducing CASSANDRA-10231; enabled for scylla in fcc77da925 (PR #387). PR #52 in data is the upstream merge."
+      },
+      "commits": {
+        "c3d9db24d65f04dea899b24c3c5d94a50de2ecd5": "ignore patterns accept both exception formats",
+        "f2a821f4d05c98b344459f0108db3e8febbd95ed": "force RBNO for bootstrap/decommission (timing-dependent test)",
+        "5c47c9825617b58ed741ab13042b044082c39564": "populate via generate_cluster_topology(rack_num=3)",
+        "0a8cb670deaacaab1a62a341c553cfed11619a66": "move small-table-RBNO disable to cluster_options marker",
+        "c07e8662ace4900b4deac5f0e163e20d09589c89": "disable enable_small_table_optimization_for_rbno (dtest#5310)",
+        "23ab365bc3d4e6acc524406a70433681681d4c85": "replace null-status regex with ' null ' substring check",
+        "7bde0fd49b2b3e1fee2240f7de59e486cb0d71c5": "enable for raft topology; cap restarts at 10, then wait for decommission failure (dtest#3962 ran forever)",
+        "df97bffd7665cdab0717ed7b5638fa956f736af9": "ignore rpc::closed_error / request_aborted log errors",
+        "31edcacbcea587aab6e9341c4155e1d2cbd7b686": "ignore 'Decommission failed. See earlier errors'",
+        "7ca6958da899ffe225b50f6aef501822cf03f129": "drop !consistent-topology-changes skip, ignore teardown decommission error",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "8744b59b14871d90f732874d940730506cae565e": "ignore 'decommission.*failed'",
+        "13bb3a4fbf8796feaaa1cdbdcd1fbdedf3b12930": "formatting (raw strings)",
+        "ce80d435472b1a0102d742cd27f2123845c5bcb3": "port to pytest",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
+        "84d8e3083bd826d8fede845e54db8a4bbf64b7fc": "explicit wait_other_notice/wait_for_binary_proto",
+        "47efc21a9e74602eb46b695c23ebd68966248fad": "tags",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "tags",
+        "6b5a3275e422c8392ef3dae2705b284813eb6cf6": "add dtest-debug attr",
+        "0a462af52daca22a3d6d097ef4210e88403e07eb": "add next-gating attr (class)",
+        "fcc77da92552307eaa61ed002d7eadfc4371a24d": "enable for scylla (remove @since 3.0)",
+        "351ef8d40d135c8139c1fcdf9ab04424ac783997": "rename null status regex",
+        "d52b4d33b5a7b0b283fcae5599cb4770235fde04": "origin"
+      },
+      "relevance": "Decommission + node crash still live, but the asserted symptom (' null ' in nodetool status) is Cassandra Java-nodetool output. ccm runs native `scylla nodetool` (scylla-ccm/ccmlib/scylla_node.py:961), whose status prints '?' for unknown host id/load (tools/scylla-nodetool.cc ~2878-2897), never 'null'.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
+          "coverage": "partial",
+          "note": "decommission failure + rollback to normal, deterministic via injections"
+        },
+        {
+          "path": "test/cluster/test_decommission_kill_then_replace.py::test_decommission_kill_then_replace",
+          "coverage": "partial",
+          "note": "node killed during decommission"
+        },
+        {
+          "path": "test/cluster/random_failures/test_random_failures.py",
+          "coverage": "partial",
+          "note": "random node failures during topology ops"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Cassandra-specific assertion (CASSANDRA-10231 'null' status entry) that can't fail with native scylla nodetool (never prints 'null'); the ' null ' early-break in the loop is also dead, so the test just kills node2 up to 10x. Slow (~84s), timing-fragile (dtest#3962, #5310, f2a821f4d0); decommission failure/crash handling is covered deterministically by test/cluster tests listed."
+    },
+    "TestTopology::test_decommissioned_node_cant_rejoin": {
+      "description": "3-node cluster, decommission node3, stop it, restart: asserts log contains 'This node was decommissioned and will not rejoin the ring' and the process exits within 60s. Ported from Cassandra (CASSANDRA-8801).",
+      "origin": {
+        "sha": "796ea7654ea0476d21b5f71b5bfaf72ee6fbe4a9",
+        "date": "2015-05-18",
+        "pr": null,
+        "summary": "Cassandra dtest for CASSANDRA-8801; enabled for scylla in 98896b1290 (PR #387)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (unused var rename)",
+        "5c47c9825617b58ed741ab13042b044082c39564": "populate via generate_cluster_topology(rack_num=3)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "b2f26f25dfebe0dd7d05f613c411a112f2e75fba": "formatting",
+        "12ebad803773ed00b2a2efb6a3e14158e8e28479": "ignore_log_patterns fixture usage",
+        "4e553afb65ef0570fe2b21b6c84a624c96394436": "ignore_log_patterns list",
+        "ce80d435472b1a0102d742cd27f2123845c5bcb3": "port to pytest",
+        "a5aeb1c3145e868b3dc0dfa6ecfb2dfc1bf8ca91": "start no_wait, watch_log_for rejoin msg, wait for process exit",
+        "da75b216a1cf31443cb73e4d939d8935c58199fa": "re-enable (drop @no_vnodes)",
+        "47efc21a9e74602eb46b695c23ebd68966248fad": "tags",
+        "498e4ea79320b85ca188690fde560f2fca12ed26": "tags",
+        "98896b12909ac4c355d57950a2566b784d54efd4": "enable for scylla, tolerate start failure",
+        "d52b4d33b5a7b0b283fcae5599cb4770235fde04": "unrelated (file-level same commit)",
+        "796ea7654ea0476d21b5f71b5bfaf72ee6fbe4a9": "origin"
+      },
+      "relevance": "Live: storage_service::join_cluster checks was_decommissioned and throws same message (service/storage_service.cc:2073).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_decommission.py::test_decommissioned_node_cant_rejoin",
+          "coverage": "full",
+          "note": "decommission non-leader node, restart expects error 'This node was decommissioned and will not rejoin the ring' (scylladb#17282)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cluster/test_decommission.py::test_decommissioned_node_cant_rejoin (same scenario, same error message; start failure implies process exit). Same function name, scylla test added for scylladb#17282 which was reported from this dtest."
+    },
+    "TestTopology::test_remove_node_alive": {
+      "description": "3-node cluster RF=3 with 1000 rows; nodetool removenode on a live node3 from node1; expects NodetoolError and the 'Rejected removenode operation...node being removed is alive, maybe you should use decommission instead' log on node1. Not next_gating (unmarked), runs in dtest-release only.",
+      "origin": {
+        "sha": "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e",
+        "date": "2023-01-05",
+        "pr": 2964,
+        "summary": "removenode rejected if node is alive in gossiper"
+      },
+      "commits": {
+        "5c47c9825617b58ed741ab13042b044082c39564": "prepare_cluster with rack topology",
+        "4a3a93d2e18eba2cd3c0d23358327f11d1a77e10": "unmark next_gating",
+        "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e": "origin"
+      },
+      "relevance": "Live: raft_removenode rejects when _gossiper.is_alive (service/storage_service.cc:2886, rtlogger.warn).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails",
+          "coverage": "full",
+          "note": "3 nodes, removenode of alive node expects 'the node being removed is alive, maybe you should use decommission instead?' (added scylladb da37e82fb9)"
+        },
+        {
+          "path": "topology_test.py::TestTopology::test_removenode_rejected_before_decommision_node",
+          "coverage": "full",
+          "note": "its first half is the same scenario"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails and by first half of test_removenode_rejected_before_decommision_node. Bug: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:156) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts."
+    },
+    "TestTopology::test_remove_node_alive_in_gossip": {
+      "description": "3-node cluster RF=3; hard-kills node3 and immediately runs removenode from node1 before failure detector marks it down; expects NodetoolError + rejection log (node still alive in gossip).",
+      "origin": {
+        "sha": "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e",
+        "date": "2023-01-05",
+        "pr": 2964,
+        "summary": "removenode rejected if node is alive in gossiper"
+      },
+      "commits": {
+        "5c47c9825617b58ed741ab13042b044082c39564": "prepare_cluster with rack topology",
+        "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e": "origin"
+      },
+      "relevance": "Live: same _gossiper.is_alive check in raft_removenode (service/storage_service.cc:2886).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails",
+          "coverage": "partial",
+          "note": "same code path/message, but target is actually alive, not just-killed"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Same check as test_removing_alive_node_fails; only difference is a race (removenode before FD marks killed node down), which makes it timing-dependent (100% pass so far, 32 runs). Likely RED. Bug: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:177) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts."
+    },
+    "TestTopology::test_removenode_rejected_before_decommision_node": {
+      "description": "4-node cluster (2 racks x 2), RF=2; removenode on alive node4 must fail with rejection log; then decommission node4 and removenode of its host id must fail again (node no longer in cluster).",
+      "origin": {
+        "sha": "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e",
+        "date": "2023-01-05",
+        "pr": 2964,
+        "summary": "removenode rejected if node is alive in gossiper"
+      },
+      "commits": {
+        "5c47c9825617b58ed741ab13042b044082c39564": "rack topology 2x2",
+        "d72a51c8e02e48dc33e221eb0664af7c1c27cfe6": "rf=2, nr_nodes=3 to speed up",
+        "616c5dbb4ba5c43ce65f3c31a83aeeb29b8441fb": "extra node for tablets RF constraint",
+        "1e9c7da4cc0d346d4862c3b29aa5f1a27bc5fa9e": "origin"
+      },
+      "relevance": "Live: alive rejection (storage_service.cc:2886) and 'removenode: host id {} is not found in the cluster' for left node (storage_service.cc:2868).",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails",
+          "coverage": "partial",
+          "note": "first half"
+        },
+        {
+          "path": "test/cluster/test_global_ignore_nodes.py",
+          "coverage": "partial",
+          "note": "checks 'Node {id} is not found in the cluster' for unknown id, not removenode of a decommissioned node"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "First half duplicates test_removing_alive_node_fails; second half (removenode of decommissioned node rejected) has no exact scylla test but only asserts that any NodetoolError is raised. Bug: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:200) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts. Bug: same dead check at :213 for REMOVENODE_HOSTID_NOT_IN_CLUSTER='Host ID not found in the cluster', which wouldn't match scylla's 'removenode: host id ... is not found in the cluster' anyway. Note: name typo 'decommision'."
+    }
+  }
+}
