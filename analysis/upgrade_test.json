@@ -1,0 +1,127 @@
+{
+  "file": "upgrade_test.py",
+  "tests": {
+    "TestUpgradeFullPath::test_cluster_upgrade": {
+      "description": "Starts a 3-rack/3-node cluster on release:2025.1 (no boot speedups), creates ks.cf (RF3) with 99 rows, then for each hop of the full path 2025.1 -> 2025.3 -> 2025.4 -> 2026.1 -> version under test upgrades all nodes via cluster.upgrade_cluster, reconnects the driver, validates existing rows with assert_all at QUORUM, inserts 100 more rows, flushes and validates all rows. Before upgrading from 2026.1+ it waits for schema-on-raft, triggers the gossip->raft topology upgrade (POST /storage_service/raft_topology/upgrade) and waits for service levels v2, as required since 2026.2 dropped gossip topology. Guards data integrity and startup across the supported multi-hop upgrade path (e.g. SCYLLADB-1884 group0_schema_version startup failure, SCYLLADB-1198 SL v2 timeout).",
+      "origin": {
+        "sha": "b8305409b72790bc43a7a603c6f412bd1635acda",
+        "date": "2020-12-14",
+        "pr": 1814,
+        "summary": "Basic upgrade tests: upgrade cluster (all nodes), upgrade one node, rolling upgrade of one node"
+      },
+      "commits": {
+        "ea5d56aaad9005f3c939473050e8c674dba7b4d9": "require mark switched jira:SCYLLADB-1198 -> jira:SCYLLADB-1884 (deselect until group0_schema_version fix; issue now Done, test runs)",
+        "d9478044249be4bd8a95f18007c2b2aa8ecf77c8": "no change to this test (TWCS-flow reorder only; range overlap)",
+        "1beef1a32c0e70d89f3d9ae27f0795d1a0b0cbf3": "require mark SCYLLADB-1063 -> SCYLLADB-1198",
+        "0299b298f7d3c1d861db9c5f638177d3250948ce": "added wait_for_sl_v2 helper and call after enable_raft_topology",
+        "6b53d1b20d810e4960cd459dbb6c6c6a71132eb1": "added require jira:SCYLLADB-1063 (temporarily deselect)",
+        "be7e41731576cba71015cddac840910197afacbd": "enable raft topology once node version >= 2026.1-dev, before upgrading further; matrices updated to include 2026.1",
+        "71405863071b37333fce00db0c781d05dce67e94": "cluster created with 3 racks (rf-rack-valid topology) instead of 3 nodes in one rack",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "0818d5b0932cc800d2cd472ae78da01d83f478d2": "upgrade matrix refreshed; added wait_reconnection after each cluster upgrade",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "52c82fbe62f8969bb1e4c025c1ca5446057c0d59": "added no_boot_speedups mark",
+        "44ba4f79e2e64fc700ace95a2121e0816934a819": "port to pytest (dtest_config fixture, logger); introduced allow_log_errors=True",
+        "77dcceac507b4e7264bfd76341d7627de99d7604": "pre-download all relocatables for the upgrade path",
+        "f059cdfbaa3adbc98e41f5b69426bb9c93acae31": "file-level: full path matrix now 2025.1 -> 2025.3 -> 2025.4 -> 2026.1 (dropped 6.x / 2024.1)",
+        "82bcdc22e740f5e8fda75427ec0335d07e7dc371": "file-level: class renamed TestUpgradeFrom40ToLast -> TestUpgradeFullPath"
+      },
+      "relevance": "Live: upgrade from supported releases is core product behavior; raft topology upgrade REST endpoint (/storage_service/raft_topology/upgrade) and scylla_local keys group0_upgrade_state / service_level_version still exist. Jenkins 39 runs, 100% pass, ~147s. Require mark jira:SCYLLADB-1884 is Done, so the test is selected.",
+      "duplicates": [
+        {
+          "path": "test/cluster/test_reversed_queries_during_simulated_upgrade_process.py",
+          "coverage": "partial",
+          "note": "scylla test.py only simulates upgrades (feature flags on one binary); no real old->new binary upgrade tests exist in scylla test/"
+        },
+        {
+          "path": "workload_prioritization_upgrade_test.py::TestWorkloadPrioritizationUpgrade::test_workload_prioritization_after_upgrade",
+          "coverage": "partial",
+          "note": "same full-path matrix and node-by-node upgrade, but validates service levels/WP, not user data"
+        },
+        {
+          "path": "rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade",
+          "coverage": "partial",
+          "note": "data validation across upgrade, but single hop 2026.1 -> current with rollback, not the multi-hop path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Would be GREEN: only dtest doing a multi-hop real-binary upgrade (2025.1 -> ... -> current) with data validation; scylla test/ has only simulated upgrades. Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail."
+    },
+    "TestUpgradeOneNode::test_one_node_upgrade": {
+      "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates ks.cf (RF3) with 99 rows, upgrades only node2 to the version under test (node.upgrade), then in the mixed-version cluster validates existing rows at QUORUM, inserts 100 more and validates all after flush. Guards reads/writes in a mixed old/new cluster after a single-node upgrade.",
+      "origin": {
+        "sha": "b8305409b72790bc43a7a603c6f412bd1635acda",
+        "date": "2020-12-14",
+        "pr": 1814,
+        "summary": "Basic upgrade tests: upgrade cluster, upgrade one node, rolling upgrade"
+      },
+      "commits": {
+        "71405863071b37333fce00db0c781d05dce67e94": "cluster created with 3 racks (rf-rack-valid topology)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "44ba4f79e2e64fc700ace95a2121e0816934a819": "port to pytest; introduced allow_log_errors=True",
+        "77dcceac507b4e7264bfd76341d7627de99d7604": "pre-download all relocatables for the upgrade path",
+        "f059cdfbaa3adbc98e41f5b69426bb9c93acae31": "file-level: from-last-release matrix = [release:2026.1] (single hop)"
+      },
+      "relevance": "Live: mixed-version clusters during upgrade are supported. Jenkins 38 runs, 100% pass, ~33s.",
+      "duplicates": [
+        {
+          "path": "rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade",
+          "coverage": "partial",
+          "note": "same 2026.1 -> current matrix and UpgradeTester helpers; its first step upgrades node1 then insert_data_and_validate in the mixed cluster (under c-s load), i.e. a superset of this scenario; differs only in which node is upgraded (node1 vs node2) and it is skipped in debug mode (scylla_mode('!debug'))"
+        },
+        {
+          "path": "test/cluster/test_reversed_queries_during_simulated_upgrade_process.py",
+          "coverage": "partial",
+          "note": "scylla test.py only simulates upgrades (feature flags on one binary); no real old->new binary upgrade tests exist in scylla test/"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly redundant with rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade (same single-hop matrix, mixed-cluster data validation), but cheap (~33s) and also runs in debug mode; RED candidate. Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail."
+    },
+    "TestUpgradeClusterWithEnableDisableTWCSQueries::test_upgrade_cluster_nodes_with_twcs": {
+      "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates a TWCS table (5-minute windows) filled via simulate_write_process_in_minutes, records the results of 5 time-range queries, then upgrades nodes one by one to the version under test; after each node upgrade it ALTERs the table toggling 'enable_optimized_twcs_queries' false/true and asserts the query results equal the pre-upgrade snapshot (validate_twcs_data, exact ==, upgrade_test.py:161-163). Before upgrading it enables raft topology + waits for SL v2 when not already enabled. Guards the TWCS optimized-query option (scylla commit 168c6f47) and schema ALTERs in a mixed-version cluster.",
+      "origin": {
+        "sha": "d160a80c2eab107c51da4202b2e2ba063ce90e8b",
+        "date": "2022-05-07",
+        "pr": 2716,
+        "summary": "test(twcs_optimized_queries): Check enable_optimized_query parameter during upgrade (scylla commit 168c6f47)"
+      },
+      "commits": {
+        "ea5d56aaad9005f3c939473050e8c674dba7b4d9": "require mark SCYLLADB-1198 -> SCYLLADB-1884 (issue now Done)",
+        "d9478044249be4bd8a95f18007c2b2aa8ecf77c8": "raft topology enablement moved before upgrading node1 in each step",
+        "1beef1a32c0e70d89f3d9ae27f0795d1a0b0cbf3": "added require jira:SCYLLADB-1198",
+        "e25c33220e4b8417e07248c0e63d0e2d0068cec4": "check if raft topology already enabled; enable only for >=2026.1-dev and wait for SL v2 (SCYLLADB-1199)",
+        "71405863071b37333fce00db0c781d05dce67e94": "cluster created with 3 racks",
+        "628fba7e63663d803575ca14ddcad7c12bbb2be1": "skip raft upgrade procedure when force_gossip_topology_changes is set",
+        "0ed50a31c69ac1a003ede89e128ec5d1438bfeb8": "wait for raft schema upgrade before ALTERs (scylla-enterprise#4684)",
+        "3b9d7e9d36042c437cdbe12cdbb06e85ea81f417": "ALTER TABLE timeout raised to 600s",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "d160a80c2eab107c51da4202b2e2ba063ce90e8b": "test added",
+        "f059cdfbaa3adbc98e41f5b69426bb9c93acae31": "file-level: from-last-release matrix = [release:2026.1]"
+      },
+      "relevance": "Live: 'enable_optimized_twcs_queries' still parsed in scylla compaction/time_window_compaction_strategy.cc and used by sstables/sstable_set.cc. Jenkins 39 runs, 100% pass, ~87s.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_twcs_reversed_restricted_query_optimized",
+          "coverage": "partial",
+          "note": "correctness of TWCS queries with enable_optimized_twcs_queries on/off, single node, no upgrade"
+        },
+        {
+          "path": "compaction_additional_test.py (_enable_optimized_tw_queries_config, ~line 2404)",
+          "coverage": "partial",
+          "note": "toggles the option and compares optimized vs non-optimized results/timing, no upgrade"
+        },
+        {
+          "path": "test/cluster/test_reversed_queries_during_simulated_upgrade_process.py",
+          "coverage": "partial",
+          "note": "scylla test.py only simulates upgrades (feature flags on one binary); no real old->new binary upgrade tests exist in scylla test/"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Would be GREEN: only test of TWCS optimized-query option toggling across a real mixed-version upgrade; option toggling itself is covered by test/cqlpy/test_cql_query.py and compaction_additional_test.py (partial). Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: log text 'Enable optimized queries' at upgrade_test.py:486 actually disables them; expected_data (:452) duplicates self.tw_data (:183, unused); the test never checks that the ALTERed option took effect."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
