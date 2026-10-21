@@ -109,7 +109,10 @@ class PRs:
     def get(self, sha):
         if sha not in self.cache:
             out = subprocess.run(["gh", "api", f"repos/{REPO}/commits/{sha}/pulls",
-                                  "--jq", "[.[] | {number, title}][0]"],
+                                  # skip pytest-port branch PRs and Cassandra upstream merges: not the origin
+                                  "--jq", '[.[] | select(.base.ref == "next" or .base.ref == "master")'
+                                          ' | select(.title | startswith("Merge upstream") | not)'
+                                          ' | {number, title}][0]'],
                                  capture_output=True, text=True, check=True).stdout.strip()
             self.cache[sha] = json.loads(out) if out and out != "null" else None
         return self.cache[sha]
