@@ -1,0 +1,42 @@
+{
+  "file": "topology_operation_during_upgrade_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TopologyOperationWithMixedCLusterTest::test_add_remove_node": {
+      "description": "Real-binary rolling upgrade (upgrade_matrix_from_last_release_version = release:2026.1 -> version under test) of a 6-node, 3-rack cluster. After upgrading node1/node2 (inserting+validating data after each), bootstraps a new node with the target version in node1's rack, then stops and removenodes the still-old node3 from upgraded node1, upgrades the remaining nodes and runs upgradesstables + sstable dump check. Guards bootstrap/removenode in a mixed-version cluster (originated from scylladb/scylladb#20299 investigation).",
+      "origin": {"sha": "b1b1024659b33eab43be7dfdb79a683a54e77c98", "date": "2024-09-04", "pr": 4906, "summary": "Test(upgrade): Run schema topology change in mixed upgraded cluster; adds tests for scylladb/scylladb#20299 (bootstrap old/new-version node, removenode old node, raft snapshot transfer)."},
+      "commits": {
+        "b969af9c094e953b39d991a3969f3e32e1f99d1b": "Removed bootstrap of a base-version node in mixed cluster (unsupported per scylladb/scylladb#23837); fixes #23837.",
+        "71405863071b37333fce00db0c781d05dce67e94": "Switched to rack-valid topology (3 racks x 2 nodes), new nodes placed in explicit dc/rack.",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (Ruff 0.9.4, merged f-string).",
+        "b1b1024659b33eab43be7dfdb79a683a54e77c98": "Origin: test added."
+      },
+      "relevance": "Live: rolling upgrades with topology ops (bootstrap, removenode) in a mixed-version cluster are supported operations; bootstrap of old-version node is explicitly unsupported and was removed from the test (scylladb/scylladb#23837). Runs only in dtest-release/dtest-release-with-raft (dtest_full), 37 runs, 100% pass, ~127s.",
+      "duplicates": [
+        {"path": "test/cluster/test_cluster_features.py::test_partial_upgrade_can_be_finished_with_removenode", "coverage": "partial", "note": "Simulated upgrade via test feature flags (same binary) + removenode of non-upgraded node; no real old binary, no bootstrap of new-version node."},
+        {"path": "test/cluster/test_cluster_features.py::test_joining_old_node_fails", "coverage": "partial", "note": "Covers the (unsupported) old-node-join side only, simulated."}
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique real-binary mixed-version bootstrap+removenode coverage (scylla test.py only simulates upgrades via feature flags), would be GREEN. Note: no data validation after node7 bootstrap / node3 removenode (last validate_data is before add_new_node, topology_operation_during_upgrade_test.py:71); only upgrade_and_verify_sstable sstable dump + schema agreement checks follow, so data loss from the topology ops would go unnoticed."
+    },
+    "TopologyOperationWithMixedCLusterTest::test_trigger_snapshot_transfer": {
+      "description": "Rolling upgrade 2026.1 -> version under test on 6 nodes/3 racks (consistent-topology-changes only). After upgrading node1/node2, stops old-version node3, creates new keyspace/table (group0 schema changes), triggers a group0 raft snapshot on the topology coordinator via REST /raft/trigger_snapshot and waits for snapshot_id change, then restarts node3 (old version) so it receives a snapshot from a newer node. Asserts node3 log has no 'ERROR.*database - regular column' (the 'regular column id N >= N' internal error from scylladb/scylladb#20299, when new-version system table schemas with extra columns are applied on an old node), then upgrades the rest and validates data.",
+      "origin": {"sha": "b1b1024659b33eab43be7dfdb79a683a54e77c98", "date": "2024-09-04", "pr": 4906, "summary": "Test(upgrade): Run schema topology change in mixed upgraded cluster; reproducer for scylladb/scylladb#20299 (snapshot transfer new->old fails with 'regular column id 5 >= 5')."},
+      "commits": {
+        "49f8f1c932876bb9b8ba6e72aeabf0186e8f12ac": "Comment documenting session-refresh workaround (python-driver#604).",
+        "0630b812490e495e314e7f0c1dd5476ef907bf79": "Refresh session after stopping node3 (control connection on dead node, SCYLLADB-1273).",
+        "71405863071b37333fce00db0c781d05dce67e94": "Switched to rack-valid topology (3 racks x 2 nodes), upgrade loop includes node6.",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (Ruff 0.9.4, merged f-string).",
+        "e9607abc52deb5ae6a157ee7b605ac73de07afdc": "Require consistent-topology-changes feature (test not applicable in gossip mode, scylladb/scylladb#21272).",
+        "b1b1024659b33eab43be7dfdb79a683a54e77c98": "Origin: test added."
+      },
+      "relevance": "Live: fix for #20299 (31ea74b96e 'db: system_keyspace: change version of topology_requests schema') relies on developers manually bumping system table schema versions when adding columns, so the bug class can recur on each release boundary. Error messages still in schema/schema.cc:186 and :2081; REST /raft/trigger_snapshot still exists (raft/server.cc:679). Runs in next gating (tablets + consistent-topology), 32 runs, 100% pass, ~138s.",
+      "duplicates": [
+        {"path": "test/cluster/test_raft_snapshot_request.py::test_raft_snapshot_request", "coverage": "partial", "note": "Same mechanics (trigger snapshot, stopped node receives snapshot on restart) but single version; cannot catch cross-version schema mismatch."}
+      ],
+      "decision": "YELLOW",
+      "reason": "Only real old/new-binary raft snapshot transfer regression test for scylladb/scylladb#20299; would be GREEN. Note: explicit grep 'ERROR.*database - regular column' (topology_operation_during_upgrade_test.py:128) misses the schema::regular_column_at variant 'database - <ks>.<cf>@<ver>: regular column id' (scylla schema/schema.cc:2081), mitigated by teardown log error check; also no positive check that node3 actually received the snapshot (its system.raft snapshot_id is never compared)."
+    }
+  }
+}
