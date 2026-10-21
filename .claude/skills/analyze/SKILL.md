@@ -19,8 +19,8 @@ Run from `~/github/dtest-triage`.
    `Read /home/cezar/github/dtest-triage/.claude/skills/analyze/prompt.md and follow it with {MODULE} = <module> and {TESTS} = <chunk tests>`.
    If the tests are thin wrappers around shared helpers, one subagent may do the whole module in one pass.
    Wait for it, then `python3 scripts/check_analysis.py <module>`; fix/re-run a chunk if it reports problems.
-   Check that every issue/bug the subagent reports is in that test's `reason`, and that no test with a
-   found issue is GREEN (→ YELLOW). Fix the JSON if not.
+   Check that every issue the subagent reports is in that test's `issues` (kind/tag per prompt.md step 7) and
+   `reason`; `check_analysis.py` flags GREEN with a `bug`. Fix the JSON if not.
    If the report contradicts itself (e.g. "helper check can't fail" vs GREEN for "exact counts"), check
    the code: which helper each test calls and what it asserts. Fix the JSON/summary before replying.
 5. Done when `check_analysis.py` shows all tests analyzed and no problems. Then:
@@ -33,5 +33,5 @@ Run from `~/github/dtest-triage`.
 Modules write different files, so run them in parallel: do step 1 once, then spawn one background
 general-purpose subagent per module (first N distinct modules of `pending.py`), each told to follow this skill for
 its module but skip step 1 and step 5's git add/commit/push, touch only `analysis/<module>.json`, and wait for any
-subagents it spawns. As each finishes: run `check_analysis.py`, apply the step 4 checks,
+subagents it spawns (a chunk is done only when `check_analysis.py` shows its tests, not when a subagent says so). As each finishes: run `check_analysis.py`, apply the step 4 checks,
 `git commit -m "analysis: <module>"` (no push). When all are committed: `git pull --rebase -q && git push -q`.

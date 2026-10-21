@@ -72,6 +72,9 @@ Effective decision = human > analysis > GRAY.
 - YELLOW: partial overlap, unsure relevance, thin evidence.
 - GREEN: unique coverage of live behavior.
 - Every non-GREEN needs evidence (scylla test path, commit removing feature, issue link).
+- Found issues → `issues` (kind `bug`|`note` + tag, prompt.md step 7). `bug` (test checks less than it claims)
+  caps GREEN at YELLOW; `note` (dead config, stale marks/comments, ...) doesn't (agreed 2026-10-21).
+  Harness/driver-only tests stay YELLOW; cqlsh tests ported to scylla-cqlsh count as full coverage.
 - History: function commits + file-level commits that affect the test; formatting commits flagged.
 
 ## Analysis

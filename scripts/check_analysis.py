@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FIELDS = {"description", "origin", "commits", "relevance", "duplicates", "decision", "reason"}
+FIELDS = {"description", "origin", "commits", "relevance", "duplicates", "decision", "reason", "issues"}
+TAGS = {  # see .claude/skills/analyze/prompt.md step 7
+    "bug": {"cant-fail", "check-disabled", "weak-check", "wrong-scenario", "never-runs", "log-check-off", "other"},
+    "note": {"dead-config", "stale-mark", "stale-comment", "dead-code", "redundant-param", "slow", "open-issue",
+             "other"},
+}
 
 errors = 0
 for mod in sys.argv[1:]:
@@ -21,6 +26,11 @@ for mod in sys.argv[1:]:
             problems.append(f"{k}: missing {sorted(missing)}")
         if a.get("decision") not in ("GREEN", "YELLOW", "RED"):
             problems.append(f"{k}: bad decision {a.get('decision')!r}")
+        issues = a.get("issues", [])
+        problems += [f"{k}: bad issue {i}" for i in issues
+                     if i.get("tag") not in TAGS.get(i.get("kind"), ()) or not i.get("text")]
+        if a.get("decision") == "GREEN" and any(i.get("kind") == "bug" for i in issues):
+            problems.append(f"{k}: GREEN with a bug issue")
     left = len(tests - analysis.keys())
     print(f"{mod}: {len(analysis)}/{len(tests)} analyzed{f', {left} left' if left else ''}")
     for p in problems:

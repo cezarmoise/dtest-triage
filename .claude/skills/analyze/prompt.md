@@ -29,11 +29,19 @@ For EACH of those tests:
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
    Every YELLOW/RED needs concrete evidence (paths, shas, issue links). Don't guess — if unsure, YELLOW.
-   Issues/bugs found in the test or its helpers (no-op asserts, dead code/regexes, disabled checks, never-run,
-   dead config like `experimental_features=['cdc']` (UNUSED in scylla), refs to closed issues, etc.; class-level
-   issues apply to every test of the class):
-   always add them to `reason` ("Bug: ..." / "Note: ...", with file:line or sha). Downgrade GREEN to YELLOW;
-   YELLOW and RED keep their decision.
+7. Issues found in the test or its helpers (class-level issues apply to every test of the class): list each in
+   `issues` as `{"kind", "tag", "ref", "text"}` (ref = file:line, sha or issue link; text ≤ ~25 words), and mention
+   it in `reason` as "Bug: ..." / "Note: ...". `issues: []` if none.
+   - kind `bug` = the test checks less than it claims. A bug downgrades GREEN to YELLOW (YELLOW/RED keep theirs).
+     Tags: `cant-fail` (assert can't fail, errors swallowed, result ignored), `check-disabled` (commented out,
+     unreachable, gated off), `weak-check` (too loose to catch the target bug), `wrong-scenario` (setup/params
+     don't exercise what it claims), `never-runs` (not collected, always skipped, empty loop), `log-check-off`
+     (`allow_log_errors=True`, ignore patterns hiding real errors), `other`.
+   - kind `note` = anything else; doesn't change the decision. Tags: `dead-config` (unused option, e.g. `start_rpc`,
+     `experimental_features=['cdc']`), `stale-mark` (skip/xfail/require/unmark on a closed issue), `stale-comment`
+     (docstring, comment, misleading name), `dead-code`, `redundant-param`, `slow` (fixed sleeps, avoidable
+     restarts), `open-issue` (references/catches an open bug), `other`.
+   Not issues: coverage overlap, pass rate, runtime, gating or porting suggestions.
    Name the exact helper (name + file:line) when judging assertion strength; similar helpers may differ
    (e.g. `==` vs `<=`). "Can't fail" claims must hold for the code actually called by that test.
 
@@ -51,11 +59,14 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if need
       "relevance": "...",
       "duplicates": [{"path": "test/cluster/test_x.py::test_y", "coverage": "full|partial", "note": "..."}],
       "decision": "GREEN|YELLOW|RED",
-      "reason": "1-3 sentences, cite evidence; + found issues/bugs"
+      "reason": "1-3 sentences, cite evidence; + found issues/bugs",
+      "issues": [{"kind": "bug|note", "tag": "cant-fail", "ref": "x_test.py:123", "text": "..."}]
     }
   }
 }
 ```
 If the file already exists, load it and add/replace only your tests; keep the other entries.
 Write it after every few tests (valid JSON each time), so progress survives interruption.
-Do not modify any repo other than writing that file; do not commit. Reply with a short table: test, decision, reason.
+Do not modify any repo other than writing that file; do not commit. Scratch files/scripts only in your own
+`mktemp -d`; never run or reuse existing files in /tmp (old runs left scripts there that overwrite analysis files).
+Reply with a short table: test, decision, reason.
