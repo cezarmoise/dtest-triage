@@ -36,11 +36,13 @@ For EACH of those tests:
      Tags: `cant-fail` (assert can't fail, errors swallowed, result ignored), `check-disabled` (commented out,
      unreachable, gated off), `weak-check` (too loose to catch the target bug), `wrong-scenario` (setup/params
      don't exercise what it claims), `never-runs` (not collected, always skipped, empty loop), `log-check-off`
-     (`allow_log_errors=True`, ignore patterns hiding real errors), `other`.
+     (`allow_log_errors=True`, ignore patterns hiding real errors), `other`. A mark/filter that still disables
+     the test or a check (non-strict xfail on a fixed bug, always-firing skip) is a bug; an inert one is a note.
    - kind `note` = anything else; doesn't change the decision. Tags: `dead-config` (unused option, e.g. `start_rpc`,
      `experimental_features=['cdc']`), `stale-mark` (skip/xfail/require/unmark on a closed issue), `stale-comment`
      (docstring, comment, misleading name), `dead-code`, `redundant-param`, `slow` (fixed sleeps, avoidable
-     restarts), `open-issue` (references/catches an open bug), `other`.
+     restarts), `open-issue` (references/catches an open bug), `cosmetic` (typo, assert message), `limited-check`
+     (checks less than it could but still catches its target), `other`.
    Not issues: coverage overlap, pass rate, runtime, gating or porting suggestions.
    Name the exact helper (name + file:line) when judging assertion strength; similar helpers may differ
    (e.g. `==` vs `<=`). "Can't fail" claims must hold for the code actually called by that test.

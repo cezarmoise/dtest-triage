@@ -12,7 +12,7 @@ FIELDS = {"description", "origin", "commits", "relevance", "duplicates", "decisi
 TAGS = {  # see .claude/skills/analyze/prompt.md step 7
     "bug": {"cant-fail", "check-disabled", "weak-check", "wrong-scenario", "never-runs", "log-check-off", "other"},
     "note": {"dead-config", "stale-mark", "stale-comment", "dead-code", "redundant-param", "slow", "open-issue",
-             "other"},
+             "cosmetic", "limited-check", "other"},
 }
 
 errors = 0

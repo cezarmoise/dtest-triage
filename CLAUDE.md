@@ -86,7 +86,7 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
 (other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags (`check_analysis.py` TAGS):
 bug `cant-fail check-disabled weak-check wrong-scenario never-runs log-check-off other`;
-note `dead-config stale-mark stale-comment dead-code redundant-param slow open-issue other`.
+note `dead-config stale-mark stale-comment dead-code redundant-param slow open-issue cosmetic limited-check other`.
 GREEN never has a `bug` issue.
 
 ## Dashboard
