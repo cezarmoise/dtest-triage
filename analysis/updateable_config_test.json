@@ -1,0 +1,101 @@
+{
+  "file": "updateable_config_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestUpdateableConfig::test_auto_adjust_flush_quota": {
+      "description": "Single node; writes auto_adjust_flush_quota=True then False to scylla.yaml, sends SIGHUP, waits for 'completed re-reading configuration file' and asserts REST /v2/config/auto_adjust_flush_quota still returns 'false' both times. Guards scylla#5382 (SIGHUP applying non-live-updatable params).",
+      "origin": {"sha": "d2fa409ddc", "date": "2019-11-27", "pr": 1152, "summary": "add updateable_config_test: test configuration update in runtime (Amos Kong)"},
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "dc643aed6b": "port to pytest",
+        "f8a7cde871": "add @require('#5382') (test failed on the issue)",
+        "d2fa409ddc": "origin: test added",
+        "b866c65bce": "helper change_and_verify_config: use node.api_port instead of hardcoded 10000",
+        "f462b090da": "file-level: removed sibling auto_bootstrap check because option is deprecated (precedent)"
+      },
+      "relevance": "auto_adjust_flush_quota is value_status::Deprecated (db/config.cc:1850, status since 5fd30578d7 2023-11); yaml reader skips deprecated options ('Option is deprecated', utils/config_file.cc:318), so the value can never change regardless of live-update logic. scylla#5382 closed 2025-02-06.",
+      "duplicates": [
+        {"path": "test/cluster/test_config.py::test_non_liveupdatable_config", "coverage": "full", "note": "same scenario: update non-liveupdatable param (auto_bootstrap) + liveupdatable one via yaml + SIGHUP (server_update_config, test/pylib/scylla_server.py:577), verify via REST that only liveupdatable changed"}
+      ],
+      "decision": "RED",
+      "reason": "Tests a deprecated option that the yaml reader ignores (db/config.cc:1850), so it no longer exercises the live-update guard; scenario fully covered by test/cluster/test_config.py::test_non_liveupdatable_config; same reasoning as f462b090da dropping auto_bootstrap check. Note: log text at :151 says 'try to set it to false first' but sets True; @require('#5382') refers to closed issue."
+    },
+    "TestUpdateableConfig::test_blocking_config_runtime_updates": {
+      "description": "Parametrized live_updatable_config_params_changeable_via_cql True/False. Verifies SIGHUP yaml reload still updates compaction_enforce_min_threshold, REST task_manager/ttl get_and_update still works (returned previous values differ), and UPDATE system.config for task_ttl_in_seconds succeeds when enabled / raises when disabled. Guards scylladb PR #14382.",
+      "origin": {"sha": "3ddaadb36e", "date": "2023-06-28", "pr": 3271, "summary": "test if disabling live_cql_updates_enabled forbids updating system.config"},
+      "commits": {
+        "b866c65bce": "use node.api_port instead of hardcoded 10000 for task_manager REST calls",
+        "9ffd273f04": "formatting (ruff format)",
+        "3ddaadb36e": "origin: test added"
+      },
+      "relevance": "Live: live_updatable_config_params_changeable_via_cql (db/config.cc:1744, MustRestart, Used), task_ttl_in_seconds LiveUpdate (db/config.cc:1726), REST get_and_update_ttl returns previous value (api/task_manager.cc:215-222).",
+      "duplicates": [
+        {"path": "test/cqlpy/test_virtual_tables.py::test_system_config_update_boolean", "coverage": "partial", "note": "enabled path only: UPDATE system.config round-trip"},
+        {"path": "test/cluster/test_config.py::test_non_liveupdatable_config", "coverage": "partial", "note": "SIGHUP reload part"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of live_updatable_config_params_changeable_via_cql=false (no hit in scylla test/), so mostly unique. Note: enabled branch (:219-220) never reads back the value; disabled branch uses broad pytest.raises(Exception) (:222) so any error passes; SIGHUP part duplicates test_config.py. Could be ported to test/cluster cheaply."
+    },
+    "TestUpdateableConfig::test_compaction_enforce_min_threshold": {
+      "description": "Single node, c-s write 10k, ALTER standard1 to STCS min_threshold=7, toggles compaction_enforce_min_threshold true then false via yaml+SIGHUP (verified via REST), running c-s mixed 10k after each. Nothing about compaction behavior is asserted; it only checks the config value flips and stress doesn't fail.",
+      "origin": {"sha": "d2fa409ddc", "date": "2019-11-27", "pr": 1152, "summary": "add updateable_config_test (scylla commit 2abe0151 made compaction_enforce_min_threshold live-updatable)"},
+      "commits": {
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "819ddba562": "next_gating mark moved to module pytestmark",
+        "dc643aed6b": "port to pytest",
+        "8c6c968b5f": "add next-gating/dtest-debug attrs",
+        "d2fa409ddc": "origin: test added",
+        "b866c65bce": "helper change_and_verify_config: node.api_port",
+        "6215826790": "file-level fixture: compaction logger debug (no effect here)"
+      },
+      "relevance": "Option live (db/config.cc:1858 LiveUpdate, used in compaction/incremental_compaction_strategy.cc:362; STCS is now alias of ICS, 5bf0c6ddac).",
+      "duplicates": [
+        {"path": "test/cluster/test_config.py::test_non_liveupdatable_config", "coverage": "full", "note": "toggles same param via yaml+SIGHUP and verifies via REST"},
+        {"path": "updateable_config_test.py::TestUpdateableConfig::test_verify_min_threshold", "coverage": "full", "note": "same toggle plus actual compaction behavior check"}
+      ],
+      "decision": "RED",
+      "reason": "Slow (~41s, c-s) with no assertion beyond the config value flip, which test/cluster/test_config.py::test_non_liveupdatable_config and test_verify_min_threshold already cover; stress runs assert nothing about min_threshold enforcement."
+    },
+    "TestUpdateableConfig::test_verify_min_threshold": {
+      "description": "Single node, ks.cf STCS min_threshold=5, enables compaction_enforce_min_threshold via SIGHUP; flushes 4 one-key sstables expecting no compaction, then a 5th expecting 'Compacting [' log; major compaction; disables enforcement and expects a single extra flush to trigger compaction. Verifies live update of compaction_enforce_min_threshold actually changes compaction behavior.",
+      "origin": {"sha": "7a8e795e16", "date": "2020-01-09", "pr": 1236, "summary": "add test_verify_min_threshold"},
+      "commits": {
+        "b00751e2ff": "drop initial 100-key insert so all flushed sstables are same size tier",
+        "b866c65bce": "helper: node.api_port; compact_log as f-string",
+        "9ffd273f04": "formatting (ruff format)",
+        "8249572320": "formatting (noqa BLE001)",
+        "344841e474": "formatting (raw string regex)",
+        "dc643aed6b": "port to pytest",
+        "85b08ade2a": "compaction log regex 'compaction -.*Compacting' for new log format",
+        "7a8e795e16": "origin: test added",
+        "6215826790": "file-level fixture: compaction logger debug so 'Compacting' messages are emitted"
+      },
+      "relevance": "Live: compaction_enforce_min_threshold LiveUpdate (db/config.cc:1858), consulted by ICS (compaction/incremental_compaction_strategy.cc:362, any-2-in-tier fallback when not enforced) via replica/table.cc:3363; STCS aliases ICS (5bf0c6ddac).",
+      "duplicates": [
+        {"path": "test/boost/incremental_compaction_test.cc (sag_test, :224)", "coverage": "partial", "note": "sets enforce=true statically; no live toggle / not-enforced fallback check"},
+        {"path": "test/cluster/test_compaction_strategy_deprecation.py::test_size_tiered_layout_across_restart", "coverage": "partial", "note": "relies on enforce=true leaving a below-threshold tier alone, static config"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of enforce on/off behavior changing at runtime. Bug: the 'no compaction below min_threshold' check (updateable_config_test.py:120-124) is a no-op: if compaction does happen, watch_log_for succeeds and nothing asserts; also costs a 10s timeout wait. Final assertion after disabling relies on sstable sizing (fixed once in b00751e2ff), fragile."
+    },
+    "TestUpdateableConfig::test_without_config_file": {
+      "description": "Single node; renames conf/scylla.yaml and sends SIGHUP, expects 'Could not read configuration file' and 'failed to re-read configuration file: std::invalid_argument' logs (and excludes them from error check), then restores the file and verifies that SIGHUP reload of compaction_enforce_min_threshold works again (node survives failed reload).",
+      "origin": {"sha": "d2fa409ddc", "date": "2019-11-27", "pr": 1152, "summary": "add updateable_config_test"},
+      "commits": {
+        "b866c65bce": "helper change_and_verify_config: node.api_port",
+        "9ffd273f04": "formatting (ruff format)",
+        "dc643aed6b": "port to pytest",
+        "facfda1394": "err1 drop path suffix (docker paths differ)",
+        "1983fc9f49": "drop allow_log_errors assignment, plain check_errors",
+        "65ad98f69d": "use self.check_errors instead of scylla_tools.check_errors",
+        "d2fa409ddc": "origin: test added"
+      },
+      "relevance": "Live: log messages in main.cc:238 ('Could not read configuration file') and main.cc:341-347 (SIGHUP re-read handler).",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Only test of SIGHUP reload failure with missing yaml and recovery afterwards (no hit for these log messages in scylla test/); cheap (~5s), 100% pass."
+    }
+  }
+}
