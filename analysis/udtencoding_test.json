@@ -1,0 +1,83 @@
+{
+  "file": "udtencoding_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestUDTEncoding::test_udt": {
+      "description": "On a 3-node cluster (RF=3), creates UDT address(city,zip) and table with map<text, frozen<address>>, inserts a valid UDT literal inside the map, then asserts server-side UDT literal validation: unknown field 'street' and 'cityname' -> \"Unknown field '...' in value of user defined type address\"; wrong field type (zip as text) -> \"Invalid map literal for addresses\". Pure single-coordinator CQL validation; no reads, no multi-node behavior.",
+      "origin": {
+        "sha": "dcbc764648c28200920bae5ebb96faf6e829dcc0",
+        "date": "2014-07-31",
+        "pr": null,
+        "summary": "Cassandra-era 'udt test' (Shawn Kumar), inherited from apache/cassandra-dtest."
+      },
+      "commits": {
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (Ruff 0.9.4)",
+        "914129181e8a45bb8307c569696f1813b0cd9a4b": "formatting (remove pylint comments)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "a16117c262169a7e386239147b8daccabed09e66": "Moved cluster setup/session into node1_session fixture (shared with new test).",
+        "5cc5a7be95393cfb840e9d7b8cd2ba989594413c": "Port to pytest: udt_test -> test_udt, dtest_full mark.",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting (autopep8)",
+        "cfadc7cda27b39c12918650a4305a0e5a1776f1a": "formatting (autopep8)",
+        "0a7560002a511bbcd077d38143b5f5fd69f03504": "Fixed broken triple-quote strings so query and expected message are passed as separate args.",
+        "02cdbf539fbe95457271731c195636b86e849de0": "formatting (PEP-8)",
+        "1761f6fac2a7104df392a918ef5fdee13ef01173": "formatting (cursor -> session rename)",
+        "63bce70eecdab0f65ff07f4b4b6d68d1c600e158": "Use map<text, frozen<address>> and updated expected message to 'Invalid map literal for addresses'.",
+        "5474547400969133e4b34852b0f089387defe54a": "File-level: fixture now populates 1 DC x 3 racks (RF-rack validity).",
+        "8043025b16bb16c045ec35c639dd8c984fad4fff": "File-level: module marked next_gating."
+      },
+      "relevance": "Live: UDT literal validation ('Unknown field ... in value of user defined type') exists in scylla. Docstring's 'driver not recognizing UDT syntax' rationale is a Cassandra-era concern; validation is entirely server-side.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidField",
+          "coverage": "full",
+          "note": "Unknown field in frozen UDT literal rejected."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidUDTStatements",
+          "coverage": "full",
+          "note": "Asserts exact message \"Unknown field 'foo' in value of user defined type\"."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/collections_test.py",
+          "coverage": "partial",
+          "note": "Invalid map/set literal type-mismatch errors; UDT-nested-in-map case not explicit."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Single-node CQL literal validation run on a 3-node cluster (~16s); same unknown-field errors asserted in cqlpy user_types_test.py::testInvalidField/testInvalidUDTStatements (ms, in scylla CI). Only nesting inside map<.., frozen<udt>> is not explicit, same parser path. Note: driver-encoding rationale in docstring is Cassandra-only."
+    },
+    "TestUDTEncoding::test_udt_change_in_partition_key": {
+      "description": "Creates UDT full_name used as frozen partition key and UDT address used as a regular column; inserts a row; asserts ALTER TYPE full_name RENAME last_name TO surname is rejected (assert_invalid with no message match), and ALTER TYPE address ADD country succeeds. Guards scylla 66e8214606 (Fixes scylladb/scylla#6941): altering a UDT used in a partition key could allow apparent duplicate partitions.",
+      "origin": {
+        "sha": "a16117c262169a7e386239147b8daccabed09e66",
+        "date": "2021-02-18",
+        "pr": 2343,
+        "summary": "Fabio Gelcer 'added new UDT test' verifying scylla 66e8214 (forbid altering UDTs used in partition key)."
+      },
+      "commits": {
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (Ruff 0.9.4)",
+        "914129181e8a45bb8307c569696f1813b0cd9a4b": "formatting (remove pylint comments)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "a16117c262169a7e386239147b8daccabed09e66": "Added the test (origin).",
+        "5474547400969133e4b34852b0f089387defe54a": "File-level: fixture now populates 1 DC x 3 racks (RF-rack validity).",
+        "8043025b16bb16c045ec35c639dd8c984fad4fff": "File-level: module marked next_gating."
+      },
+      "relevance": "Live: cql3/statements/alter_type_statement.cc:58-65 rejects any ALTER TYPE (add or rename) when the type is referenced by a partition key column ('Cannot add new field to type ... used in the partition key column ...'). Check is in prepare_announcement_mutations, before make_updated_type, so RENAME hits the same path as ADD.",
+      "duplicates": [
+        {
+          "path": "test/cql/forbid_adding_to_udt_used_in_partkey_test.cql",
+          "coverage": "full",
+          "note": "Added in the fix commit 66e8214606; ADD on UDT in pk (direct and nested frozen<list<frozen<ut>>>) rejected with message, allowed after table drop. RENAME not explicit but same code path."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlterUDT",
+          "coverage": "full",
+          "note": "ALTER TYPE ADD on non-pk UDT column succeeds (+ data read back)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fix 66e8214606 (scylladb/scylla#6941) shipped with test/cql/forbid_adding_to_udt_used_in_partkey_test.cql covering the pk check with exact messages; dtest adds only RENAME, which goes through the same check (alter_type_statement.cc:58-65). Note: assert_invalid at udtencoding_test.py:59 has no message match, so any InvalidRequest passes; single-node CQL on 3-node cluster (~18s)."
+    }
+  }
+}
