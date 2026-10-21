@@ -1,0 +1,55 @@
+{
+  "file": "twcs_additional_test.py",
+  "tests": {
+    "TestTimeWindowCompactionStrategyAdditional::test_expired_sstables_are_compacted_separately": {
+      "description": "Single node (--smp 1, compaction=debug), TWCS table with 1-minute windows and expired_sstable_check_frequency_seconds=0, tombstone_gc immediate. With autocompaction disabled, writes ~3 min of backdated data with TTL=30s and flushes every 30s (several sstables), then starts a 4-min (12 in debug) cassandra-stress write load (300 threads, 30 in debug), waits TTL+grace, enables autocompaction and asserts the created sstables are removed from disk within the timeout. Then parses system.log: every compaction that includes an sstable logged as 'Fully expired sstable' must end with 'sstables to []', i.e. expired sstables are compacted in their own expired-only job and not mixed with live ones. Guards scylladb#9533 (expired TWCS sstables not evicted under heavy load), fixed by 79b0654d60 (separate has_only_fully_expired compaction descriptor).",
+      "origin": {
+        "sha": "f710841935b21e6ba9bd50f0b79265ed144fa62d",
+        "date": "2021-12-15",
+        "pr": 2442,
+        "summary": "test(#9533): expired twcs sstables are evicted on expiration (PR merged 2022-02-02, covers scylladb#9533)"
+      },
+      "commits": {
+        "dac72a65d3ec137cdefb95b4221ec192cff32ba0": "Determine expired sstables from 'Fully expired sstable' log lines instead of the test's own TTL-based list (deflake in debug).",
+        "47dbad38bfee651e60348e00aa787aaf10cfb1e1": "Stress container: capture_output=False; c-s docker now limited to 1 CPU/256MB (affects load level).",
+        "068022d716f534d78e7185627a22604d5a7dd433": "Table: tombstone_gc mode pinned to 'immediate' (was relying on RF=1 repair->immediate).",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "b7d4f894a96b0636688a8c65cc32b63cae9964a3": "Switch to CassandraStressDocker for load; add next_gating mark.",
+        "8e83e0aba27ea7d6ec52096c2450bf3a78f27c53": "Debug mode: longer duration (12 min), grace 120s, 30 stress threads.",
+        "29de810c0b76a39542932b5546fc882b6127da98": "Start node with --logger-log-level compaction=debug.",
+        "7bd0fbb45f201969c0a3b975b43d761028eebcd8": "expired_sstable_check_frequency_seconds 60 -> 0 (check expiry on every compaction).",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "1f58bfada20b6a511f71d2aa68aa2c07bac9273f": "Table default TTL 120s, wait ttl+30s margin before enabling compaction.",
+        "9c20b71f7ad232b463dcb92c55d7ebe5a6768bb8": "Mark log before enabling autocompaction so expired compactions are not missed.",
+        "e7600965ee12292d075dfac413e85718d7f4acda": "Disable autocompaction while creating sstables; flush in wait loop; more timeout slack.",
+        "454f0786abe6796ad59aed0690b441db99699947": "Replace random.randbytes (py3.9) with generate_random_text in sstable creation helper.",
+        "2334f32f2c2e52535586254a3db5e494b930f52c": "Review fixes to helpers (initial PR).",
+        "d49f59fbdbbf714ad30a7ba09209916e2a7d5d04": "Stabilisation: add log check that expired sstables compacted to [] (initial PR).",
+        "cc1d7aeb5410c649af8e15314671b75cd3905b59": "Rework helpers / high-load context manager (initial PR).",
+        "f710841935b21e6ba9bd50f0b79265ed144fa62d": "Test added."
+      },
+      "relevance": "Live: TWCS emits compaction_descriptor(has_only_fully_expired::yes, ...) for expired sstables (compaction/time_window_compaction_strategy.cc:357-364) and compaction_manager.cc:182 treats such jobs specially; log lines relied on exist ('Fully expired sstable {} will be dropped' compaction/compaction.cc:894, '{} {} sstables to [{}]' compaction.cc:1039); option expired_sstable_check_frequency_seconds still validated (time_window_compaction_strategy.cc:77). Passes 32/32 in next-dtest-tablets/consistent-topology, ~76s.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_compaction_test.cc::compaction_with_fully_expired_table",
+          "coverage": "partial",
+          "note": "Fully expired sstable compacts to nothing; no TWCS selection, no mixing with live sstables, no load."
+        },
+        {
+          "path": "test/boost/sstable_compaction_test.cc::get_fully_expired_sstables_test",
+          "coverage": "partial",
+          "note": "Unit test of expired-sstable detection only."
+        },
+        {
+          "path": "scylla-dtest compaction_additional_test.py::TestCompactionAdditional::test_compaction_removes_ttld_data_by_time_windows",
+          "coverage": "partial",
+          "note": "TWCS expired sstables purged with 'Compacted N sstables to []' log, but no background load and no check that expired sstables are not mixed with live ones."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Assertion gap: twcs_additional_test.py:162-165 asserts 'sstables to []' only for expired-sstable compactions whose 'Compacted' end line is already in the log; in-flight ones (stress data also has TTL) are silently skipped, so the #9533 mixing check can be partly vacuous. Fix: assert every entry in `compactions` has an end line, then re-evaluate as GREEN. Otherwise unique coverage of scylladb#9533 (TWCS compacts fully expired sstables in a separate expired-only job and evicts them promptly under write load); no scylla unit test checks has_only_fully_expired descriptors. Stable (32/32), ~76s, next_gating. Notes: wait_until_sstables_are_evicted (:120) logs 'sstables has been removed' even on timeout (cosmetic; :46 asserts the result); c-s container capped at 1 CPU since 47dbad38, so load is weaker than the #9533 repro."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
