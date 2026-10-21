@@ -1,0 +1,144 @@
+{
+  "file": "test_cdc_large_values.py",
+  "tests": {
+    "TestLargeColumnsWithCDC::test_single_column_blob_max_size_with_cdc_preimage_full_postimage": {
+      "description": "Single node (--smp=2 --memory=2048M), table with one blob column and CDC preimage full + postimage. Inserts 12 rows of 7MB, then for 60s concurrently updates them with 4MB blobs, reads base rows and reads cdc log (LIMIT 10). Asserts no 'Reactor stall' (prepared only) and no unexpected log errors (bad_alloc / memory_limit_reached ignored). Guards CDC linearization of large values (scylladb#7506) and LSA OOM (scylladb#27539).",
+      "origin": {
+        "sha": "c0fdd22caa8c0dcbf414be8fc7da587925fb19ce",
+        "date": "2022-02-09",
+        "pr": 2601,
+        "summary": "Aleksandr Bykov added TestLargeColumnsWithCDC: CDC with large cells near type/mutation limits, checking no reactor stalls (guards scylladb/scylla#7506 'cdc code linearizes all values', closed 2021-04-12)."
+      },
+      "commits": {
+        "53f54cdd": "added dtest_full/single_node/scylla_cdc class marks; f-string cleanup",
+        "18ce83d3": "parametrized prepared/unprepared; stall check only for prepared (scylladb#10779); msg says the opposite",
+        "a367b003": "reduced partitions/rows from 10x5(10) to 4x3 to avoid OOM (scylladb#12600)",
+        "c9544a5d": "file-level: ignore std::bad_alloc read/write errors (scylladb#12600)",
+        "e3c1583f": "file-level: execute_case uses check_errors instead of grep_log_for_errors",
+        "2b9c6abd": "file-level: removed misspelled (never effective) write timeout option",
+        "c516eb31": "file-level: fixed max_memory_for_unlimited_query option name (was never applied)",
+        "1664bbf5": "file-level: generalized memory_limit_reached ignore regex (semaphore name)",
+        "8de2f2ba": "file-level: expected-error regexes accept host id as well as IP",
+        "5972a741": "file-level: class marked !tablets (scylladb#16317)",
+        "5172ba88": "file-level: removed !tablets mark, runs with tablets",
+        "c3d9db24": "file-level: expected-error regexes accept both '(msg)' and ': msg' exception formats",
+        "9ffd273f": "formatting",
+        "aedaa57c": "formatting",
+        "96ef6fa2": "formatting",
+        "fb3dfc9e": "formatting (noqa PLR0913)",
+        "bae386a1": "skipped while scylladb#27539 (LSA alloc failure, unprepared) open",
+        "94ce1483": "unskipped; memory raised to 1G/shard (--smp=2 --memory=2048M); added logalloc::bad_alloc ignore; truncated logged statements (fixes scylladb#27539)"
+      },
+      "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cdc.py",
+          "coverage": "none",
+          "note": "functional CDC tests only, no multi-MB values / stall checks"
+        },
+        {
+          "path": "test/boost/cdc_test.cc",
+          "coverage": "none",
+          "note": "pre/postimage correctness with small values; no large-cell / allocation / stall checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage (no scylla test exercises CDC pre/postimage with multi-MB cells; no other dtest overlap), live feature, 100% pass in 64 gating runs (~71s). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: flaky history (scylladb#27539) fixed only by doubling memory."
+    },
+    "TestLargeColumnsWithCDC::test_row_with_several_columns_of_blobs_with_cdc_preimage_full_postimage": {
+      "description": "Single node, table with 5 blob columns and CDC preimage full + postimage. Inserts 12 rows of 5x1MB, then for 60s concurrently updates all 5 columns, reads base rows and cdc log. Asserts no 'Reactor stall' and no 'oversized allocation' (both prepared only) and no unexpected log errors. Guards CDC handling of large rows split across columns (scylladb#7506).",
+      "origin": {
+        "sha": "c0fdd22caa8c0dcbf414be8fc7da587925fb19ce",
+        "date": "2022-02-09",
+        "pr": 2601,
+        "summary": "Aleksandr Bykov added TestLargeColumnsWithCDC: CDC with large cells near type/mutation limits, checking no reactor stalls (guards scylladb/scylla#7506 'cdc code linearizes all values', closed 2021-04-12)."
+      },
+      "commits": {
+        "53f54cdd": "added dtest_full/single_node/scylla_cdc class marks; f-string cleanup",
+        "18ce83d3": "parametrized prepared/unprepared; stall check only for prepared (scylladb#10779); msg says the opposite",
+        "a367b003": "reduced partitions/rows from 10x5(10) to 4x3 to avoid OOM (scylladb#12600)",
+        "c9544a5d": "file-level: ignore std::bad_alloc read/write errors (scylladb#12600)",
+        "e3c1583f": "file-level: execute_case uses check_errors instead of grep_log_for_errors",
+        "2b9c6abd": "file-level: removed misspelled (never effective) write timeout option",
+        "c516eb31": "file-level: fixed max_memory_for_unlimited_query option name (was never applied)",
+        "1664bbf5": "file-level: generalized memory_limit_reached ignore regex (semaphore name)",
+        "8de2f2ba": "file-level: expected-error regexes accept host id as well as IP",
+        "5972a741": "file-level: class marked !tablets (scylladb#16317)",
+        "5172ba88": "file-level: removed !tablets mark, runs with tablets",
+        "94ce1483": "file-level: added logalloc::bad_alloc ignore pattern, IP|hostid patterns, truncated statement logging",
+        "c3d9db24": "file-level: expected-error regexes accept both '(msg)' and ': msg' exception formats",
+        "9ffd273f": "formatting",
+        "aedaa57c": "formatting",
+        "96ef6fa2": "formatting",
+        "fb3dfc9e": "formatting (noqa PLR0913)",
+        "bc8238aa": "unprepared: ignore 'seastar_memory - oversized allocation'; oversize check made prepared-only (dtest#3354)",
+        "4ddc214b": "file got next_gating; this test @unmark.next_gating (dtest#3354)"
+      },
+      "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cdc.py",
+          "coverage": "none",
+          "note": "functional CDC tests only, no multi-MB values / stall checks"
+        },
+        {
+          "path": "test/boost/cdc_test.cc",
+          "coverage": "none",
+          "note": "pre/postimage correctness with small values; no large-cell / allocation / stall checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage, live feature, 100% pass in 78 runs (~67s, dtest-release(-with-raft) only, not gating). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: @unmark.next_gating (:91) references dtest#3354 which is CLOSED; the unprepared oversized-allocation ignore (:102-103) relates to scylladb#10779, also closed."
+    },
+    "TestLargeColumnsWithCDC::test_large_blob_in_map_delta_preimage_full": {
+      "description": "Single node, table with map<text,blob> and CDC preimage full + postimage. Inserts 12 rows with one 1MB map entry, then for 60s appends 1MB entries (v = v + {keyK}, 5 keys) while reading base rows and cdc log. Asserts no 'Reactor stall' (prepared only) and no unexpected log errors. Guards CDC delta/preimage on large collections (scylladb#7506, oversized allocations scylladb#11642).",
+      "origin": {
+        "sha": "c0fdd22caa8c0dcbf414be8fc7da587925fb19ce",
+        "date": "2022-02-09",
+        "pr": 2601,
+        "summary": "Aleksandr Bykov added TestLargeColumnsWithCDC: CDC with large cells near type/mutation limits, checking no reactor stalls (guards scylladb/scylla#7506 'cdc code linearizes all values', closed 2021-04-12)."
+      },
+      "commits": {
+        "53f54cdd": "added dtest_full/single_node/scylla_cdc class marks; f-string cleanup",
+        "18ce83d3": "parametrized prepared/unprepared; stall check only for prepared (scylladb#10779); msg says the opposite",
+        "a367b003": "reduced partitions/rows from 10x5(10) to 4x3 to avoid OOM (scylladb#12600)",
+        "c9544a5d": "file-level: ignore std::bad_alloc read/write errors (scylladb#12600)",
+        "e3c1583f": "file-level: execute_case uses check_errors instead of grep_log_for_errors",
+        "2b9c6abd": "file-level: removed misspelled (never effective) write timeout option",
+        "c516eb31": "file-level: fixed max_memory_for_unlimited_query option name (was never applied)",
+        "1664bbf5": "file-level: generalized memory_limit_reached ignore regex (semaphore name)",
+        "8de2f2ba": "file-level: expected-error regexes accept host id as well as IP",
+        "5972a741": "file-level: class marked !tablets (scylladb#16317)",
+        "5172ba88": "file-level: removed !tablets mark, runs with tablets",
+        "94ce1483": "file-level: added logalloc::bad_alloc ignore pattern, IP|hostid patterns, truncated statement logging",
+        "c3d9db24": "file-level: expected-error regexes accept both '(msg)' and ': msg' exception formats",
+        "9ffd273f": "formatting",
+        "aedaa57c": "formatting",
+        "fb3dfc9e": "formatting (noqa PLR0913)",
+        "6663e017": "skipped unprepared variant due to scylladb#11642",
+        "95505912": "re-enabled unprepared variant (scylladb#11642 fixed)",
+        "52c82fbe": "added no_boot_speedups mark",
+        "a5d481ff": "removed no_boot_speedups mark",
+        "9401afcc": "fixed prepared UPDATE that was still a SimpleStatement; added memory_limit_reached ignore",
+        "bc8238aa": "execute_case got check_oversize_allocation param (not used by this test)"
+      },
+      "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_cdc.py",
+          "coverage": "none",
+          "note": "functional CDC tests only, no multi-MB values / stall checks"
+        },
+        {
+          "path": "test/boost/cdc_test.cc",
+          "coverage": "none",
+          "note": "pre/postimage correctness with small values; no large-cell / allocation / stall checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of CDC on large collection deltas (docs still warn preimage of large collections is costly), live feature, 100% pass in 64 gating runs (~77s). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: no oversized-allocation check here although scylladb#11642 (oversized allocations) was the original concern."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
