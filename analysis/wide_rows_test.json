@@ -1,0 +1,992 @@
+{
+  "file": "wide_rows_test.py",
+  "tests": {
+    "TestWideRows::test_column_index_stress": {
+      "description": "Sets column_index_size_in_kb=1, writes 100k clustering rows into one partition, then does 10k random IN-queries for 1-3 clustering keys and asserts the row count. Port of Cassandra dtest for CASSANDRA-5225/5609 (column index on wide rows). Parametrized over 4 compaction strategies, which are irrelevant (no flush/compaction).",
+      "origin": {
+        "sha": "f004b68522",
+        "date": "2013-06-17",
+        "pr": null,
+        "summary": "new dtest for CASSANDRA-5609 (Cassandra-era, pre-Scylla fork)"
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "f1c58fdc3e": "no change to this test (diff context only)",
+        "6880d4218d": "pytest port: @attr->@pytest.mark.single_node, assert message",
+        "582d19f9e5": "formatting",
+        "f484cfa329": "formatting (comment)",
+        "3c707ddadc": "adds compaction strategy to CREATE TABLE (parametrization)",
+        "0b2fbb5f4f": "switch to prepare_cluster(options_dict={'column_index_size_in_kb':1}) helper",
+        "5494c54d7b": "wrap result in list() after driver upgrade",
+        "a6ebe17c6c": "formatting (PEP-8)"
+      },
+      "relevance": "column_index_size_in_kb is live (db/config.cc:1029, replica/database.cc:389 -> promoted index block size), but it only affects sstables; the test never flushes, so all reads are served from memtable and the promoted index is never built/used.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_conforms_to_mutation_source_test.cc (promoted_index_block_size loop, line 99/278)",
+          "coverage": "full",
+          "note": "mutation-source conformance with tiny promoted index blocks, incl. clustering slicing"
+        },
+        {
+          "path": "test/boost/index_reader_test.cc / test/boost/sstable_datafile_test.cc:1737",
+          "coverage": "partial",
+          "note": "promoted_index_block_size=1, every row indexed"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: test never flushes (wide_rows_test.py:694-724), so the column/promoted index it claims to stress is never written or read; it's a 31s memtable IN-query test x4 strategies. Cassandra-origin (CASSANDRA-5609); promoted-index reads are covered by boost sstable_conforms_to_mutation_source_test with promoted_index_block_size=1."
+    },
+    "TestWideRows::test_large_cell_after_threshold_change": {
+      "description": "Starts node with compaction_large_cell_warning_threshold_mb=2, writes 20 rows x 3 cols of 1MB cells, flush+major compaction, asserts system.large_cells empty; then writes 10 rows x 3 cols of 2MB cells plus 10 more rows of 1MB, compacts and asserts exactly the 30 2MB cells are in system.large_cells (size within +3%, keys, sstables on disk) and 'Writing large cell' warning logged. Guards that the configured cell threshold is honored.",
+      "origin": {
+        "sha": "62d1e5a38f",
+        "date": "2019-06-17",
+        "pr": 1040,
+        "summary": "Adding new tests for large cell detection (large cell detector, scylla large_data_handler cells); renamed/extended in 582d19f9e5 (same PR)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node (was multi-node)",
+        "582d19f9e5": "renamed from test_large_cell_detector_with_small_cells, reworked to custom 2MB threshold",
+        "62d1e5a38f": "origin"
+      },
+      "relevance": "Live: compaction_large_cell_warning_threshold_mb (db/config.cc:871, LiveUpdate), 'Writing large {} {}/{}' warn (db/large_data_handler.cc:649); system.large_cells is now a virtual table over sstable LargeDataRecords (scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "1MB threshold, one large cell recorded, small one not"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_sstable_write_large_cell",
+          "coverage": "partial",
+          "note": "threshold boundary at sstable writer level"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Mostly unique e2e coverage of a non-default cell threshold, but: Note: misnamed - threshold is set at startup (wide_rows_test.py:1283), never changed at runtime. Note: dead assignment maximum_primary_key_value at :1287. Note: 2MB cells equal large_cell_fail_threshold_mb default 2 (db/config.cc:873), borderline with new write guardrail. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+    },
+    "TestWideRows::test_large_cell_and_then_increase_threshold": {
+      "description": "Writes 5 rows x 3 cols of 1MB cells (default 1MB threshold), compacts, asserts 15 large cells recorded + log warning. Then sets compaction_large_cell_warning_threshold_mb=2, restarts node, writes 10 more rows of 1MB, compacts and asserts system.large_cells is empty (old records dropped with old sstables, rewritten sstables don't record 1MB cells).",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Changes per review of PR 1040: test added/renamed here (large cell detection tests)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "3e69ce339c": "mark single_node; reconnect session after restart",
+        "6880d4218d": "pytest port (formatting/marks)",
+        "582d19f9e5": "renamed from test_large_cell_detector_with_node_stop, rewritten as threshold-increase scenario",
+        "62d1e5a38f": "origin (as node-stop test)"
+      },
+      "relevance": "Live; threshold is LiveUpdate (db/config.cc:871) so the restart is not required. Large data records now live in sstable metadata (virtual tables), so records vanish with compacted-away sstables.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "records disappear after delete + major compaction; no threshold change"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique coverage of threshold increase dropping large-cell records after compaction. Note: docstring copy-pasted from test_large_cell_after_threshold_change (wide_rows_test.py:1315-1318) and does not describe the test; final phase checks only the system table, no log check. Restart unneeded (LiveUpdate). Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+    },
+    "TestWideRows::test_large_cell_detector_with_full_compaction": {
+      "description": "Writes 3 rows x 3 cols of 1MB cells and 3 rows x 3 cols of 512KB cells, flush, nodetool compact; asserts exactly 9 large cells in system.large_cells (per-row summed sizes within +3%), 512KB rows not reported, sstable names match disk, and 'Writing large cell' logged.",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Changes per review of PR 1040: test added/renamed here (large cell detection tests)"
+      },
+      "commits": {
+        "9bc1e76efe": "shrink data 10x10 -> 3x3 cells to avoid commitlog timeouts (PR 7491)",
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "added",
+        "62d1e5a38f": "helper context only"
+      },
+      "relevance": "Live (default compaction_large_cell_warning_threshold_mb=1, db/config.cc:871; log at db/large_data_handler.cc:649).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "single large cell recorded, small not; then removed after major compaction"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_small_cells",
+          "coverage": "partial",
+          "note": "same large+small cells + major compaction scenario (that one uses 10KB small cells)"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheapest (6.6s) e2e check of per-cell large-data recording through compaction across all compaction strategies, with a near-threshold (512KB) negative; boost tests cover only single cells without compaction strategies."
+    },
+    "TestWideRows::test_large_cell_detector_with_small_cells": {
+      "description": "Writes 10 rows x 3 cols of 1MB cells and 10 rows x 3 cols of 10KB cells, flush, then trigger_compaction_by_data_write_and_flush (5 small flushes + major compaction); asserts 30 large cells recorded with sizes, small cells not reported, sstables match disk, warning logged.",
+      "origin": {
+        "sha": "62d1e5a38f",
+        "date": "2019-06-17",
+        "pr": 1040,
+        "summary": "Adding new tests for large cell detection (large cell detector, scylla large_data_handler cells); renamed/extended in 582d19f9e5 (same PR)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "renamed from test_large_cell_detector",
+        "62d1e5a38f": "origin"
+      },
+      "relevance": "Live (same large data handler as other cell tests).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "same large+small cells + major compaction; uses 512KB small cells (stronger negative)"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_multiple_rows_with_large_cells_detector",
+          "coverage": "partial",
+          "note": "identical 10x3 1MB cells + trigger compaction, without small cells"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "small cell not recorded"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (same scenario, trigger_compaction_by_data_write_and_flush also ends in cluster.compact(), wide_rows_test.py:552) plus test_multiple_rows_with_large_cells_detector; 10KB 'small' cells (wide_rows_test.py:1130) are a weak negative. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+    },
+    "TestWideRows::test_large_cell_detector_with_ttl_on_row": {
+      "description": "Writes 10 rows x 6 cols of 1MB cells, compacts, asserts 60 large cells + warning. Then set_ttl_on_few_large_rows overwrites one row's cells with 10KB values USING TTL 10, flushes, sleeps 15s, compacts, and asserts 54 large cells remain and no new warning after a log mark.",
+      "origin": {
+        "sha": "62d1e5a38f",
+        "date": "2019-06-17",
+        "pr": 1040,
+        "summary": "Adding new tests for large cell detection (large cell detector, scylla large_data_handler cells); renamed/extended in 582d19f9e5 (same PR)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "review rework (helpers/formatting)",
+        "62d1e5a38f": "origin"
+      },
+      "relevance": "Live feature, but TTL is not what removes the records: the 10KB overwrite (newer timestamp) shadows the 1MB cells immediately, so compaction drops them regardless of expiry (wide_rows_test.py:504-526).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "records disappear after shadowing (delete) + major compaction"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_and_then_increase_threshold",
+          "coverage": "partial",
+          "note": "records vanish after compaction rewrites sstables"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_multiple_columns_with_large_cells_detector",
+          "coverage": "partial",
+          "note": "first phase identical pattern (multi-column large cells)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (61.6s, 15s sleep) and redundant: first phase duplicates other cell detector dtests, second phase only shows overwritten cells' records vanish after compaction (covered by boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the 1MB cells). Bug: log mark is taken after the final compaction (wide_rows_test.py:1265), so the no-warning check at :1270 can't fail; it just waits 10s."
+    },
+    "TestWideRows::test_large_cell_in_materialized_view": {
+      "description": "3 nodes RF=3: writes 3 rows x 2 cols of 1MB cells, creates an MV selecting all columns, waits for build, flush+compaction; asserts 6 large cells recorded with sizes and warnings for both base table and the view table.",
+      "origin": {
+        "sha": "62d1e5a38f",
+        "date": "2019-06-17",
+        "pr": 1040,
+        "summary": "Adding new tests for large cell detection (large cell detector, scylla large_data_handler cells); renamed/extended in 582d19f9e5 (same PR)"
+      },
+      "commits": {
+        "24516449fa": "shrink data 10x10 -> 3x2 cells to avoid CREATE MV client timeout (SCYLLADB-4764, PR 7358)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "582d19f9e5": "review rework",
+        "62d1e5a38f": "origin"
+      },
+      "relevance": "Live: view tables use the same sstable writer/large data handler; system.large_cells virtual table keyed by table_name covers views.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_build_view_with_large_row",
+          "coverage": "partial",
+          "note": "large rows in views, but no large_data recording check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test checking large-data records for MV tables; history of timeouts (PR 7358). Bug: per-node cell count uses only last node's key_appearance (wide_rows_test.py:361), so with RF=3 the expected 6 holds only because counts are not summed; per-node counts on other nodes are not checked (sizes are)."
+    },
+    "TestWideRows::test_large_partition_detector_multipartition": {
+      "description": "Single node, threshold 1MB: writes 5 partitions x 15000 rows x 1KB (~15MB each), flush, trigger compaction; asserts all 5 partitions are in system.large_partitions with sizes within +3%, sstables match disk, warning logged.",
+      "origin": {
+        "sha": "0b2fbb5f4f",
+        "date": "2019-03-13",
+        "pr": 891,
+        "summary": "Large partition/row detector first tests (scylla#3988: warn + system.large_partitions)"
+      },
+      "commits": {
+        "9ba319f2b5": "4 nodes RF=3 -> 1 node RF=1, single_node (PR 4508 deflake)",
+        "9ffd273f04": "formatting (ruff format)",
+        "582d19f9e5": "60000->15000 rows, 10->5 partitions, threshold 4->1MB, use trigger compaction",
+        "f484cfa329": "inlined from _large_partition_detector helper",
+        "0b2fbb5f4f": "origin"
+      },
+      "relevance": "Live: compaction_large_partition_warning_threshold_mb (db/config.cc:867), system.large_partitions virtual table.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "single large partition recorded"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_small_partitions",
+          "coverage": "partial",
+          "note": "same flow with 1 large partition"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only multi-partition variant, but adds little over other partition detector tests and boost test_large_data; 30.6s x 4 strategies. Note: docstring says 10 partitions, code 5 (wide_rows_test.py:789/793); pk_max_index=None dead."
+    },
+    "TestWideRows::test_large_partition_detector_small_partition": {
+      "description": "Writes one 600-row x 1KB (~600KB) partition with the default threshold (1000MB), flushes, asserts nothing in system.large_partitions and no 'Writing large partition' warning.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "Refactored tests for large partitions/rows; test added"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6880d4218d": "pytest port: single_node mark",
+        "60fdd2b6c5": "add single_node attr",
+        "582d19f9e5": "pass one_blob_size",
+        "f484cfa329": "origin"
+      },
+      "relevance": "Live feature, but the assertion is vacuous: 600KB vs default 1000MB threshold (db/config.cc:867).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_small_partitions",
+          "coverage": "full",
+          "note": "small 3MB partitions under 4MB threshold must not be reported"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "full",
+          "note": "small partition not recorded"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_large_data_records_none_when_below_threshold",
+          "coverage": "full",
+          "note": "nothing recorded below threshold"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value negative (600KB vs 1000MB default threshold, ~3 orders of magnitude) covered by test_large_partition_detector_with_small_partitions and boost test_large_data / test_large_data_records_none_when_below_threshold; 24s mostly the 10s no-warning wait. validate_log_warnings/search_warning with expect_warning=False waits the full 10s watch_log_for timeout (wide_rows_test.py:269)."
+    },
+    "TestWideRows::test_large_partition_detector_with_full_compaction": {
+      "description": "Threshold 4MB: writes 1 partition x 10000 rows x 1KB (~10MB) + 10 partitions x 3000 rows (~3MB), flush, nodetool compact, writes 10 more small partitions, flush+compact again; asserts only the large partition is in system.large_partitions with size, small not reported, warning logged.",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Changes per review of PR 1040: test added/renamed here (large cell detection tests)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "3e69ce339c": "mark single_node",
+        "6880d4218d": "pytest port (formatting)",
+        "1d51c3a238": "large partition 60000 -> 10000 rows",
+        "92b168abdc": "small partitions 4000 -> 3000 rows (debug-mode deflake)",
+        "582d19f9e5": "added",
+        "62d1e5a38f": "helper context only"
+      },
+      "relevance": "Live (db/config.cc:867, db/large_data_handler.cc:649).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_small_partitions",
+          "coverage": "full",
+          "note": "identical data (1x10000 + 10x3000 rows, 4MB threshold) ending in major compaction via trigger_compaction_by_data_write_and_flush"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "large partition recorded, small not"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of test_large_partition_detector_with_small_partitions (wide_rows_test.py:811-835); one of the two suffices. Note: second write batch (start index 3, :1444) overlaps first small batch (2..11) and comment 'give time to compaction to finish' is wrong (nodetool compact is synchronous)."
+    },
+    "TestWideRows::test_large_partition_detector_with_node_stop": {
+      "description": "3 nodes RF=3, partition threshold 1MB, hinted handoff off. Stops node2, writes one ~10MB partition (10000 x 1KB rows), flush + trigger_compaction_by_data_write_and_flush (5 tiny flushes + major compaction); asserts the partition is in system.large_partitions on running nodes with size within +3%, sstables exist on disk, and 'Writing large partition' logged. Then starts node2, repairs it, compacts again and asserts all 3 nodes (incl. node2 via repair-streamed data) record it.",
+      "origin": {
+        "sha": "0b2fbb5f4f",
+        "date": "2019-03-13",
+        "pr": 891,
+        "summary": "Large partition/row detector first tests (scylla#3988: warn + record in system.large_partitions/large_rows)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "f7699bea77": "hinted_handoff_enabled=False; node2.repair() after restart instead of plain flush",
+        "9ba319f2b5": "4 nodes -> 3 (nodes == rf) so every up node must have the record",
+        "f1c58fdc3e": "no change to this test (diff context only)",
+        "526f9796ec": "create CQL session on node1 after stopping node2",
+        "1d51c3a238": "large partition shrunk 60000 -> 10000 rows",
+        "582d19f9e5": "explicit nodetool compact replaced by trigger_compaction_by_data_write_and_flush; one_blob_size param",
+        "0b2fbb5f4f": "origin",
+        "8e3b9340": "file-level: all rows of a partition written with the same timestamp (TWCS window split flake)",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live: compaction_large_partition_warning_threshold_mb (db/config.cc:867), 'Writing large' warn (db/large_data_handler.cc:649); records are per-sstable LargeDataRecords exposed as virtual system.large_partitions (scylla ce00d61917), so repair-written/compacted sstables on node2 must carry them.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "single-node, 1 large partition recorded; no repair/multi-node"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_node_stop",
+          "coverage": "partial",
+          "note": "same down-node + repair flow for rows (without the post-repair compaction)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only multi-node partition-detector test: checks records on a node that got the data via repair (+ compaction); no scylla test covers large-data records after repair. Note: docstring copy-pasted from the row variant ('one large row ... system.large_rows', wide_rows_test.py:752-755). 61s x4 strategies; overlaps test_large_row_detector_with_node_stop, one of the two may suffice."
+    },
+    "TestWideRows::test_large_partition_detector_with_small_partitions": {
+      "description": "Single node, partition threshold 4MB. Writes one ~10MB partition (user0) and 10 ~3MB partitions (user2..user11), flush + trigger_compaction_by_data_write_and_flush (major compaction); asserts exactly user0 is in system.large_partitions with size within +3%, no small partition reported, sstable names match disk, and 'Writing large partition' logged.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor (evolved from test_large_partition_detector of 0b2fbb5f4f, PR 891)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "4 nodes RF=3 -> single node (marked single_node)",
+        "1d51c3a238": "large partition shrunk 60000 -> 10000 rows",
+        "92b168abdc": "small partitions 4000 -> 3000 rows (crossed 4MB threshold in debug mode)",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush",
+        "0b2fbb5f4f": "origin (as test_large_partition_detector)",
+        "8e3b9340": "file-level: all rows of a partition written with the same timestamp (TWCS window split flake)",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live (compaction_large_partition_warning_threshold_mb LiveUpdate, db/config.cc:867; log db/large_data_handler.cc:649).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "1MB partition recorded, small one not; no near-threshold negative, no compaction strategies"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_large_data_records_none_when_below_threshold",
+          "coverage": "partial",
+          "note": "nothing recorded below threshold"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "near-duplicate (same large + 3MB small partitions, explicit nodetool compact)"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Keeper of the large/small partition pair (test_large_partition_detector_with_full_compaction is the near-duplicate, marked YELLOW): e2e record + size + log check with a near-threshold negative (3MB vs 4MB) across compaction strategies; boost tests only cover single small rows."
+    },
+    "TestWideRows::test_large_partition_detector_with_ttl_on_few_row_in_partition": {
+      "description": "Single node, threshold 4MB. Writes one ~10MB partition, compacts, asserts it is recorded + logged. Then overwrites 9000 of 10000 rows with 1KB values USING TTL 10, flush, sleeps 15s, major compaction, plus another trigger compaction; asserts system.large_partitions is empty for the table (expired cells shrink the partition below 4MB).",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor of large partition/row tests"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "c3471a97e4": "formatting (autopep8)",
+        "438f99b687": "formatting (trailing whitespace)",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "4 nodes RF=3 -> single node",
+        "1d51c3a238": "large partition shrunk 60000 -> 10000 rows",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush (extra_partitions bookkeeping)",
+        "8e3b9340": "file-level: all rows of a partition written with the same timestamp (TWCS window split flake)",
+        "a85dedde": "file-level: TTL 30->10 in set_ttl_* helpers (was 60 before 0ce253ed)",
+        "3cce0fbc": "file-level: validate_log_warnings first waits 10s for 'Dropping entries from large_*' before the no-warning check (wide_rows_test.py:446)",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live: expired cells are dropped/turned into tombstones by compaction, so the rewritten sstable's partition size falls below threshold and the old sstable (and its LargeDataRecords) is deleted.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "record disappears after delete + major compaction (not TTL expiry)"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_ttl_on_partition",
+          "coverage": "full",
+          "note": "same flow with all rows TTL'd"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test where expiry (TTL, not overwrite: the 1KB TTL'd value has the same size as the original) drops a large-partition record; but 74s x4 strategies (15s sleep). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:865) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270). Note: random.randint(0, partition_num-1) at :483 always picks user0."
+    },
+    "TestWideRows::test_large_partition_detector_with_ttl_on_partition": {
+      "description": "Same as test_large_partition_detector_with_ttl_on_few_row_in_partition but TTLs all 10000 rows of the ~10MB partition; after 15s sleep + compaction asserts system.large_partitions is empty for the table.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor of large partition/row tests"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "438f99b687": "formatting (trailing whitespace)",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "4 nodes RF=3 -> single node",
+        "1d51c3a238": "large partition shrunk 60000 -> 10000 rows",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush",
+        "8e3b9340": "file-level: all rows of a partition written with the same timestamp (TWCS window split flake)",
+        "a85dedde": "file-level: TTL 30->10 in set_ttl_* helpers (was 60 before 0ce253ed)",
+        "3cce0fbc": "file-level: validate_log_warnings first waits 10s for 'Dropping entries from large_*' before the no-warning check (wide_rows_test.py:446)",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live (same as ttl_on_few_row variant).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_ttl_on_few_row_in_partition",
+          "coverage": "full",
+          "note": "identical flow; partial expiry (9000/10000) already proves expired data is not counted"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "record disappears after delete + major compaction"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (73.8s x4 strategies, 15s sleep) and redundant with test_large_partition_detector_with_ttl_on_few_row_in_partition (wide_rows_test.py:838-868 vs 871-901 differ only in ttl_rows_amount). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:898) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270)."
+    },
+    "TestWideRows::test_large_partition_in_materialized_view": {
+      "description": "3 nodes RF=3, partition threshold 1MB. Writes one ~15MB partition (15000 x 1KB), creates an MV with the same primary key, waits for build, flushes, major-compacts the base table; asserts system.large_partitions on every node has the partition for both base and view with size within +3%, and 'Writing large partition' logged for both tables.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor of large partition/row tests"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "4 nodes -> 3 (nodes == rf)",
+        "582d19f9e5": "one_blob_size param; trigger_compaction call commented out (:1103)",
+        "8e3b9340": "file-level: all rows of a partition written with the same timestamp (TWCS window split flake)"
+      },
+      "relevance": "Live: view sstables use the same writer/large_data_handler; virtual system.large_partitions is per table_name so views are listed.",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_in_materialized_view",
+          "coverage": "partial",
+          "note": "same MV pattern for cells"
+        },
+        {
+          "path": "test/boost/view_build_test.cc::test_builder_with_large_partition",
+          "coverage": "partial",
+          "note": "view build of large partition, no large-data record check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test checking large-partition records on a view table (built from existing data, multi-node). Note: docstring copy-pasted ('just large row is reported in the system.large_rows', wide_rows_test.py:1084-1086); commented-out trigger call at :1103; view is only flushed, never compacted."
+    },
+    "TestWideRows::test_large_row_detector_small_row": {
+      "description": "Single node with default thresholds (row 10MB). Writes one 100KB row (10 x 10KB), flushes, asserts system.large_rows is empty and no 'Writing large row' warning.",
+      "origin": {
+        "sha": "0b2fbb5f4f",
+        "date": "2019-03-13",
+        "pr": 891,
+        "summary": "Large partition/row detector first tests (scylla#3988: warn + record in system.large_partitions/large_rows)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "60fdd2b6c5": "marked single_node",
+        "0b2fbb5f4f": "origin"
+      },
+      "relevance": "Live feature, but the assertion is vacuous: 100KB vs default 10MB row threshold (db/config.cc:869).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "small row not recorded"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_large_data_records_none_when_below_threshold",
+          "coverage": "full",
+          "note": "nothing recorded below threshold"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_small_rows",
+          "coverage": "full",
+          "note": "small rows next to a large one must not be reported"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value negative (100KB vs 10MB default, 100x) covered by boost test_large_data / test_large_data_records_none_when_below_threshold and the small-row dtests; mirrors test_large_partition_detector_small_partition (RED). 24s mostly the 2x10s no-warning waits (check_warning :283 + search_warning :270)."
+    },
+    "TestWideRows::test_large_row_detector_with_full_compaction": {
+      "description": "Single node, row threshold 1MB. Writes one 1.5MB row (15 x 100KB) and 10 tiny rows (15 x 10 bytes), flush + nodetool compact; asserts only the large row is in system.large_rows with size within +3%, sstables match disk, and 'Writing large row' logged.",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Changes per review of PR 1040: *_with_full_compaction tests added"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "3e69ce339c": "3 nodes RF=3 -> single node (marked single_node)",
+        "582d19f9e5": "origin",
+        "62d1e5a38f": "no change to this test (git log -L attributes lines of older test)"
+      },
+      "relevance": "Live (compaction_large_row_warning_threshold_mb default 10, LiveUpdate, db/config.cc:869; log db/large_data_handler.cc:649).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "1MB row recorded, small not; removed after major compaction"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_sstable_write_large_row",
+          "coverage": "partial",
+          "note": "threshold boundary at sstable writer level"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_small_rows",
+          "coverage": "full",
+          "note": "near-duplicate (trigger_compaction_by_data_write_and_flush also ends in cluster.compact(), :552)"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Cheapest (4.6s) e2e row-detector check through compaction across all strategies (record + size + log); keeper of the pair with test_large_row_detector_with_small_rows, consistent with test_large_cell_detector_with_full_compaction (GREEN)."
+    },
+    "TestWideRows::test_large_row_detector_with_node_stop": {
+      "description": "3 nodes RF=3, row threshold 1MB, hinted handoff off. Stops node2, writes 5 rows of 1.5MB (15 x 100KB), flush + trigger compaction; asserts the 5 rows are recorded (size +3%) and logged on running nodes. Starts node2, repairs it and (without compaction) asserts all 3 nodes, incl. node2's repair-written sstables, record the 5 large rows and log the warning.",
+      "origin": {
+        "sha": "0b2fbb5f4f",
+        "date": "2019-03-13",
+        "pr": 891,
+        "summary": "Large partition/row detector first tests (scylla#3988: warn + record in system.large_partitions/large_rows)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "6880d4218d": "pytest port (marks, asserts), no behavior change",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "f7699bea77": "hinted_handoff_enabled=False; node2.repair() after restart",
+        "9ba319f2b5": "RF 2 -> 3 (nodes == rf)",
+        "f1c58fdc3e": "no change to this test (diff context only)",
+        "526f9796ec": "create CQL session on node1 after stopping node2",
+        "443d94f6eb": "2 -> 3 nodes for raft schema changes",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush; post-restart trigger commented out",
+        "3c707ddadc": "compaction strategy parametrization",
+        "0b2fbb5f4f": "origin",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live: repair writes sstables through the normal writer, so LargeDataRecords must be present on node2 (virtual system.large_rows, scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "single-node large row record; no repair"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_with_node_stop",
+          "coverage": "partial",
+          "note": "same flow for partitions (with post-repair compaction)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test checking large-row records on sstables written by repair (no compaction after repair); no scylla test covers large-data records after repair. Note: commented-out dead code at wide_rows_test.py:931-932; docstring says 'one large row' but writes 5. 48s x4 strategies; overlaps test_large_partition_detector_with_node_stop."
+    },
+    "TestWideRows::test_large_row_detector_with_small_rows": {
+      "description": "Single node, row threshold 1MB. Writes one 1.2MB row (12 x 100KB) and 10 tiny rows (12 x 10 bytes), flush + trigger_compaction_by_data_write_and_flush (ends in major compaction); asserts only the large row is in system.large_rows with size +3% and 'Writing large row' logged.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor (evolved from test_large_row_detector_with_small of 0b2fbb5f4f, PR 891)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "3 nodes RF=3 -> single node",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live (compaction_large_row_warning_threshold_mb, db/config.cc:869).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "same 1 large + 10 tiny rows + major compaction (15 cols instead of 12)"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "large row recorded, small not"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near-duplicate of test_large_row_detector_with_full_compaction (wide_rows_test.py:991-1018 vs 1395-1421; trigger helper also ends in cluster.compact(), :552); one of the two suffices. Negative is weak (120-byte rows vs 1MB threshold)."
+    },
+    "TestWideRows::test_large_row_detector_with_ttl_on_row": {
+      "description": "Single node, row threshold 1MB. Writes 2 rows of 2MB (20 x 100KB), compacts, asserts both recorded + logged. Then overwrites all 20 columns of one row with 10KB values USING TTL 10, flush, sleep 15s, compact + trigger compaction; asserts only one large row remains and (from a mark taken after compaction) no new warning.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "added in refactor of large partition/row tests"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "f484cfa329": "refactor onto shared create_large_*_data/validate_system_table helpers",
+        "9ba319f2b5": "3 nodes RF=3 -> single node",
+        "582d19f9e5": "nodetool compact replaced by trigger_compaction_by_data_write_and_flush",
+        "a85dedde": "file-level: TTL 30->10 in set_ttl_* helpers (was 60 before 0ce253ed)",
+        "35540148fc": "file-level: trigger_compaction_by_data_write_and_flush ends with cluster.compact() (major compaction), PR 1522"
+      },
+      "relevance": "Live feature, but TTL is not what removes the record: the 10KB overwrite (newer timestamp) shadows the 100KB cells immediately (set_ttl_on_few_large_rows, wide_rows_test.py:516-524), so compaction shrinks the row regardless of expiry.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "record disappears after shadowing (delete) + major compaction"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_ttl_on_row",
+          "coverage": "partial",
+          "note": "same overwrite-with-TTL pattern for cells (RED)"
+        },
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_full_compaction",
+          "coverage": "partial",
+          "note": "first phase (large row recorded through compaction)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (58.7s x4 strategies, 15s sleep) and redundant, same as test_large_cell_detector_with_ttl_on_row (RED): first phase duplicates other row-detector dtests, second only shows an overwritten row's record vanishes after compaction (boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the large cells, wide_rows_test.py:524). Bug: log mark is taken after the final compaction (:985), so the expect_warning=False check (:988 -> search_warning :270) can't fail; it just waits 10s."
+    },
+    "TestWideRows::test_multiple_rows_with_large_cells_detector": {
+      "description": "Single node, default 1MB cell threshold: writes 10 rows x 3 cols of 1MB blobs, flush, writes+flushes small rows 5x and major-compacts (trigger_compaction_by_data_write_and_flush), then asserts 30 entries in system.large_cells (size within +3%, sstables on disk) and 'Writing large cell' log warning.",
+      "origin": {
+        "sha": "62d1e5a38f",
+        "date": "2019-06-17",
+        "pr": 1040,
+        "summary": "Adding new tests for large cell detection (as test_multiple_large_cells_detector)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "renamed/split from test_multiple_large_cells_detector; shape set",
+        "62d1e5a38f": "origin (test_multiple_large_cells_detector)"
+      },
+      "relevance": "Live: compaction_large_cell_warning_threshold_mb default 1 (db/config.cc:871), 'Writing large {} {}/{}' warning (db/large_data_handler.cc:649), system.large_cells virtual table over sstable LargeDataRecords (scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "3 rows x 3 cols of 1MB cells + 512KB negatives, compaction, record+size+log check (GREEN keeper); its comment (:1371) says more cells add no coverage"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "one 1MB cell recorded in system.large_cells"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+    },
+    "TestWideRows::test_multiple_columns_with_large_cells_detector": {
+      "description": "Single node, default 1MB cell threshold: writes 5 rows x 10 cols of 1MB blobs, flush, trigger_compaction_by_data_write_and_flush (small writes+flushes then cluster.compact()), asserts 50 entries in system.large_cells with sizes, sstables and 'Writing large cell' log warning.",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Review changes of PR 1040: split test_multiple_large_cells_detector into rows/columns/rows_and_columns variants"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "origin (split from test_multiple_large_cells_detector, 62d1e5a38f)"
+      },
+      "relevance": "Live: compaction_large_cell_warning_threshold_mb default 1 (db/config.cc:871), 'Writing large {} {}/{}' warning (db/large_data_handler.cc:649), system.large_cells virtual table over sstable LargeDataRecords (scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "3 rows x 3 cols of 1MB cells + 512KB negatives, compaction, record+size+log check (GREEN keeper); its comment (:1371) says more cells add no coverage"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "one 1MB cell recorded in system.large_cells"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+    },
+    "TestWideRows::test_multiple_rows_and_columns_with_large_cells_detector": {
+      "description": "Single node, default 1MB cell threshold: writes 10 rows x 5 cols of 1MB blobs, flush, trigger_compaction_by_data_write_and_flush, asserts 50 entries in system.large_cells with sizes, sstables and 'Writing large cell' log warning.",
+      "origin": {
+        "sha": "582d19f9e5",
+        "date": "2019-07-14",
+        "pr": 1040,
+        "summary": "Review changes of PR 1040: split test_multiple_large_cells_detector into rows/columns/rows_and_columns variants"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "3e69ce339c": "mark single_node",
+        "582d19f9e5": "origin (split from test_multiple_large_cells_detector, 62d1e5a38f)"
+      },
+      "relevance": "Live: compaction_large_cell_warning_threshold_mb default 1 (db/config.cc:871), 'Writing large {} {}/{}' warning (db/large_data_handler.cc:649), system.large_cells virtual table over sstable LargeDataRecords (scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "3 rows x 3 cols of 1MB cells + 512KB negatives, compaction, record+size+log check (GREEN keeper); its comment (:1371) says more cells add no coverage"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "one 1MB cell recorded in system.large_cells"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+    },
+    "TestWideRows::test_simple_large_row_detector": {
+      "description": "Single node, compaction_large_row_warning_threshold_mb=1: writes 5 rows x 14 cols of 100KB (~1.4MB rows), flush, trigger_compaction_by_data_write_and_flush (small writes/flushes + cluster.compact()), asserts 5 rows in system.large_rows with sizes (+3%), sstables on disk, and 'Writing large row' log warning. No negative case.",
+      "origin": {
+        "sha": "0b2fbb5f4f",
+        "date": "2019-03-13",
+        "pr": 891,
+        "summary": "Large partition/row detector first tests (as test_large_row_detector); renamed in 582d19f9e5"
+      },
+      "commits": {
+        "9ba319f2b5": "3 nodes rf=3 -> single node rf=1, mark single_node",
+        "9ffd273f04": "formatting (ruff format)",
+        "582d19f9e5": "renamed test_large_row_detector -> test_simple_large_row_detector",
+        "f484cfa329": "refactor to shared create/validate helpers",
+        "3c707ddadc": "compaction strategy parametrization",
+        "0b2fbb5f4f": "origin"
+      },
+      "relevance": "Live: compaction_large_row_warning_threshold_mb (db/config.cc:869, LiveUpdate), system.large_rows virtual table (scylla ce00d61917).",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_row_detector_with_full_compaction",
+          "coverage": "full",
+          "note": "same threshold, ~1.5MB large row + 10 small rows, flush + major compaction, record+size+log (GREEN keeper)"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "1MB row recorded in system.large_rows with size check"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_sstable_write_large_row",
+          "coverage": "partial",
+          "note": "row-size threshold boundary at writer level"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Strict subset of test_large_row_detector_with_full_compaction (GREEN, wide_rows_test.py:1395): same 1MB threshold, same ~1.4-1.5MB rows, same compaction path and checks, but without the small-row negative; also overlaps test_large_row_detector_with_small_rows (YELLOW). 9.2s x4 strategies for no unique coverage."
+    },
+    "TestWideRows::test_large_row_in_materialized_view": {
+      "description": "3 nodes RF=3, row threshold 1MB: writes one 200 x 10KB (~2MB) row, then creates an MV (built from existing data by the view builder), waits for it, flush, trigger_compaction_by_data_write_and_flush, then asserts system.large_rows + 'Writing large row' log for both base table and view on every node.",
+      "origin": {
+        "sha": "f484cfa329",
+        "date": "2019-05-20",
+        "pr": 983,
+        "summary": "Refactored tests for large partitions/rows (MV row test added in refactor of PR 891 tests)"
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "9ffd273f04": "formatting (ruff format)",
+        "19991c953b": "formatting (ruff 0.1.8)",
+        "2980e37e1b": "formatting (ruff 0.0.282)",
+        "582d19f9e5": "switch to trigger_compaction_by_data_write_and_flush / validate helpers",
+        "f484cfa329": "origin",
+        "0b2fbb5f4f": "prepare_cluster helper (pre-origin)"
+      },
+      "relevance": "Live: large-row records are per-sstable for any table incl. views (view tables use the same sstable writer); MVs still supported.",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_cell_in_materialized_view / test_large_partition_in_materialized_view",
+          "coverage": "partial",
+          "note": "same MV pattern for cells/partitions (both YELLOW)"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_data",
+          "coverage": "partial",
+          "note": "base-table large row only, no view"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test checking large-row records for a view table; consistent with MV cell/partition variants (YELLOW): low risk since views share the sstable writer, 21s x4 strategies. Note: docstring says 'just large row is reported' but there is no small-row negative except the tiny trigger rows; compaction strategy only applies to the base table (view uses default STCS)."
+    },
+    "TestWideRows::test_large_row_with_static_cell": {
+      "description": "3 nodes RF=3, partition threshold 1MB, hinted handoff off: stops node2, 10x inserts 10 partitions with a random 1-10MB static text cell, flushing each time; restarts and repairs node2, runs major compaction. No assertions: only guards against the crash in the large-data handler for static cells/rows (scylla#6780, segfault in large cell detector), relying on dtest log/crash checks.",
+      "origin": {
+        "sha": "4c08f7e6a5",
+        "date": "2021-04-06",
+        "pr": 2380,
+        "summary": "cherry-pick of 645e6bbb44 'Added test_large_row_with_static_cell', verifies fix of scylla#6780 (closed 2020-12-24)"
+      },
+      "commits": {
+        "f7699bea77": "explicit node2.repair() after restart instead of relying on hints",
+        "9ba319f2b5": "4 nodes -> 3 nodes (rf=3)",
+        "9ffd273f04": "formatting (ruff format)",
+        "f1c58fdc3e": "no change to this test (diff context)",
+        "526f9796ec": "create session after stopping node2 (timeout flake)",
+        "4c08f7e6a5": "origin"
+      },
+      "relevance": "Live: large-data handler still reports static rows/cells (db/large_data_handler.cc:688 'static {}'). Coordinator write guardrail (large_cell_fail_threshold_mb=2) is per-table opt-in (schema large_data_guardrails_enabled default false, replica/table.cc:4926), so 10MB static cells are still accepted.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_large_cells_rows.py::test_create_large_static_cells_and_rows",
+          "coverage": "full",
+          "note": "explicit regression test for scylla#6780: 10MB static cell (cell + static row thresholds), flush, fails if scylla crashes"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlpy test_large_cells_rows.py::test_create_large_static_cells_and_rows is the explicit regression test for scylla#6780 (closed 2020). The dtest asserts nothing (wide_rows_test.py:726-749): never queries system.large_* or logs; node stop/repair adds 42.5s x4 strategies with no checks. Bug: no assertion at all; configured compaction_large_partition_warning_threshold_mb=1 is never verified."
+    },
+    "TestWideRows::test_too_many_rows": {
+      "description": "Single node, compaction_rows_count_warning_threshold=200: writes 200 rows (14 x 128B cols) into one partition, flush, asserts system.large_partitions empty; adds one more row, flush + major compaction, asserts one record with rows=201. Guards the row-count large-partition detector (system.large_partitions.rows).",
+      "origin": {
+        "sha": "7f9529bc84",
+        "date": "2021-10-27",
+        "pr": 2380,
+        "summary": "cherry-pick 'add test_simple_too_many_rows_detector' (Benny Halevy)"
+      },
+      "commits": {
+        "9ffd273f04": "formatting (ruff format)",
+        "5b2aee717b": "add below-threshold check (200 rows -> no record) before adding the 201st row",
+        "cd66be4c76": "log warning removed; validate 'rows' column of system.large_partitions instead (dtest#2333)",
+        "7f9529bc84": "origin",
+        "6880d4218d": "pytest port (pre-origin, line-range overlap)",
+        "60fdd2b6c5": "single_node attrs (pre-origin, line-range overlap)"
+      },
+      "relevance": "Live: compaction_rows_count_warning_threshold (db/config.cc:891), rows column in system.large_partitions virtual table.",
+      "duplicates": [
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_row_count_warning",
+          "coverage": "full",
+          "note": "threshold 10, 11 rows via CQL -> system.large_partitions row with rows=11"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_sstable_log_too_many_rows",
+          "coverage": "full",
+          "note": "threshold boundary (==threshold not recorded, >threshold recorded) incl. range tombstones"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_partitions_dual_threshold",
+          "coverage": "partial",
+          "note": "size + row-count thresholds together"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by boost cql_query_large_test.cc::test_large_row_count_warning (CQL -> system.large_partitions.rows) plus sstable_3_x_test.cc::test_sstable_log_too_many_rows (exact boundary). Compaction-strategy parametrization adds nothing. Note: compaction_large_row_warning_threshold_mb=10 at :590 equals the default (dead config); no log check (dtest#2333)."
+    },
+    "TestWideRows::test_too_many_collection_elements": {
+      "description": "Single node, compaction_collection_elements_count_warning_threshold=10, parametrized over map/set/list (x4 strategies): writes a 10-element collection, flush, asserts no system.large_cells record; adds an 11th element, flush + major compaction, asserts one record with collection_elements=11; deletes one element (tombstone_gc immediate), flush, compaction, asserts the record is gone. Guards large-collection detection (scylla#11449, 5.2+).",
+      "origin": {
+        "sha": "f1c58fdc3e",
+        "date": "2022-10-01",
+        "pr": 2882,
+        "summary": "wide_rows_test: add test_too_many_collection_elements (map only), Benny Halevy"
+      },
+      "commits": {
+        "068022d716": "pin tombstone_gc mode 'immediate' (RF=1 tombstone-gc behaviour change, scylladb#32287)",
+        "9ffd273f04": "formatting (ruff format)",
+        "c445e61c11": "parametrize over map/set/list (qa-tasks#894)",
+        "78ab651152": "parametrize over map/set/list (first version, same PR 3154)",
+        "fb8c06634d": "fix off-by-one in random element index to delete",
+        "f1c58fdc3e": "origin",
+        "7f9529bc84": "pre-origin line-range overlap (too_many_rows helpers)"
+      },
+      "relevance": "Live: compaction_collection_elements_count_warning_threshold (db/config.cc:893), collection_elements column of system.large_cells virtual table (db/virtual_tables.cc:2111).",
+      "duplicates": [
+        {
+          "path": "cql_tests.py::TestMiscellaneousCQL::test_large_collection (dtest)",
+          "coverage": "partial",
+          "note": "map, threshold 1000 -> 1000 no record / 1001 one record in system.large_cells + 'Writing large collection' log"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_sstable_too_many_collection_elements",
+          "coverage": "partial",
+          "note": "map, exact boundary at writer level"
+        },
+        {
+          "path": "test/boost/cql_query_large_test.cc::test_large_cells_dual_threshold",
+          "coverage": "partial",
+          "note": "list with 11 elements > 10 via CQL -> one system.large_cells row"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Threshold detection is covered (cql_tests.py::test_large_collection, boost test_sstable_too_many_collection_elements, test_large_cells_dual_threshold); unique parts are set/list e2e, the collection_elements value check and record removal after element deletion + tombstone purge. 12 params x 10.6s; strategy param irrelevant. Note: unexplained node1.nodetool('snapshot') at wide_rows_test.py:665; logger.debug at :668 lacks f-prefix."
+    },
+    "TestWideRows::test_wide_rows": {
+      "description": "Single node with partition/row warning thresholds 1MB: writes 6 partitions x 5000 small rows (~400KB each, below threshold), no flush, then reads one row and asserts its value is non-empty. Cassandra-era 'wide rows' smoke test; thresholds and compaction strategy are never exercised.",
+      "origin": {
+        "sha": "626d2ad37c",
+        "date": "2013-06-04",
+        "pr": null,
+        "summary": "wide rows test (Cassandra dtest, pre-Scylla fork)"
+      },
+      "commits": {
+        "6880d4218d": "pytest port (marks)",
+        "60fdd2b6c5": "add single_node attr",
+        "6b5a3275e4": "add dtest_debug attr",
+        "f484cfa329": "refactor of prepare_cluster helper",
+        "0b2fbb5f4f": "split into prepare_cluster + write_wide_rows; adds 1MB partition/row thresholds",
+        "1761f6fac2": "cursor -> session rename",
+        "626d2ad37c": "origin"
+      },
+      "relevance": "Generic CQL write/read path; large-data thresholds configured at wide_rows_test.py:561 are never checked and no sstable is written (no flush), so compaction strategy parametrization is meaningless.",
+      "duplicates": [
+        {
+          "path": "wide_rows_test.py::TestWideRows::test_large_partition_detector_* / test_large_row_detector_*",
+          "coverage": "full",
+          "note": "write far more data per partition and actually verify detection"
+        },
+        {
+          "path": "test/cqlpy (any write/read test)",
+          "coverage": "full",
+          "note": "single-row read after writes"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value Cassandra-origin smoke test: only asserts a single read value is non-empty (wide_rows_test.py:578-581). Bug: thresholds set at :561 are dead (partitions ~400KB, never checked) and nothing is flushed, so the 4 compaction-strategy variants (11s each) test the same memtable path. Wide partitions are exercised much more heavily by the other detector tests."
+    }
+  },
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
+}
