@@ -42,7 +42,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully subsumed by lwt_test.py::TestLwt::test_basic_distributed steps 3.2-3.3 (same topology, same up/down sequence, plus read-back asserts); this test only checks no-error/Unavailable. Removal depends on keeping test_basic_distributed (currently YELLOW for its 3.4 tablets bug, not for 3.2/3.3). Note: test is cheap (~23s) and stable, so low priority either way."
+      "reason": "Fully subsumed by lwt_test.py::TestLwt::test_basic_distributed steps 3.2-3.3 (same topology, same up/down sequence, plus read-back asserts); this test only checks no-error/Unavailable. Removal depends on keeping test_basic_distributed (currently YELLOW for its 3.4 tablets bug, not for 3.2/3.3). Note: test is cheap (~23s) and stable, so low priority either way.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "No read-back of written values; only checks statements succeed or raise Unavailable."
+        }
+      ]
     },
     "TestPaxos::test_topology_change_in_presence_of_down_node": {
       "description": "6 nodes in 3 racks, RF=3. Starts one LoadThread per node doing LWT UPDATE ... IF EXISTS (plus plain INSERTs) in a loop; after 10s keeps one node per rack and stops the other 3 at once, then removenode's them one by one from a surviving node, passing --ignore-dead-nodes with the still-dead ones. Only implicit assertion: every nodetool removenode succeeds (NodetoolError otherwise). LoadThread results/errors are never checked. Originally (2020) a random add/remove-node soak under LWT load for scylla#7087 seedless-cluster issues; rewritten 2026-08 for DTEST-21 after scylladb#13914 forbade bootstrap with a down node.",
@@ -87,7 +95,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only real check is that sequential removenode --ignore-dead-nodes succeeds, which scylla test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes / test_tablets_removenode.py::test_removenode_with_ignored_node cover; the LWT load is noise because LoadThread swallows all errors and results are never asserted (paxos_tests.py:48,54 bare excepts). Note: insert failure stores None then `None += 1` TypeError silently swallowed; LoadThread._current unused. Note: commit 4c1d34ba claims LWT QUORUM stays reachable, but with 3 racks x 2 nodes, RF=3 and 3 nodes (one per rack) killed, some token ranges/tablets lose 2-3 replicas -> no quorum (and possibly all replicas lost before removenode); unobservable since errors are swallowed. Candidate for RED unless LWT results get asserted."
+      "reason": "Only real check is that sequential removenode --ignore-dead-nodes succeeds, which scylla test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes / test_tablets_removenode.py::test_removenode_with_ignored_node cover; the LWT load is noise because LoadThread swallows all errors and results are never asserted (paxos_tests.py:48,54 bare excepts). Note: insert failure stores None then `None += 1` TypeError silently swallowed; LoadThread._current unused. Note: commit 4c1d34ba claims LWT QUORUM stays reachable, but with 3 racks x 2 nodes, RF=3 and 3 nodes (one per rack) killed, some token ranges/tablets lose 2-3 replicas -> no quorum (and possibly all replicas lost before removenode); unobservable since errors are swallowed. Candidate for RED unless LWT results get asserted.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "paxos_tests.py:48",
+          "text": "LoadThread bare excepts swallow all errors (incl. `None += 1` TypeError); LWT results never asserted, so LWT load checks nothing."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "",
+          "text": "LoadThread._current unused."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "4c1d34ba",
+          "text": "Commit claims LWT QUORUM stays reachable, but killing 3 of 6 nodes (RF=3) loses quorum for some ranges."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

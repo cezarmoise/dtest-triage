@@ -42,7 +42,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~73s) and redundant: identical to test_simple_parallel_repair and covered more strongly by repair_additional_test::test_repair_one_missing_row. Bug: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69)."
+      "reason": "Slow (~73s) and redundant: identical to test_simple_parallel_repair and covered more strongly by repair_additional_test::test_repair_one_missing_row. Bug: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "36a75a3da5",
+          "text": "`sequential` param unused (no -seq passed); sequential variant runs identical to parallel."
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:25",
+          "text": "check_repair_logs() returns False for ScyllaCluster; all 'range(s) out of sync' log asserts are dead (since cc63bfdb69)."
+        }
+      ]
     },
     "TestRepair::test_simple_parallel_repair": {
       "description": "Same scenario as test_simple_sequential_repair (3 nodes RF=3, node3 misses key 1000, repair from node1, check node3 has 2001 rows); originally the non -seq (parallel) variant.",
@@ -82,7 +96,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~72s) and redundant with repair_additional_test::test_repair_one_missing_row (and identical to the sequential variant). Bug: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). Note: commented dtest-debug mark refs scylla#4384."
+      "reason": "Slow (~72s) and redundant with repair_additional_test::test_repair_one_missing_row (and identical to the sequential variant). Note: `sequential` param of _simple_repair is unused since 36a75a3da5 (node.repair(keyspace=...) passes no -seq), so test_simple_sequential_repair and test_simple_parallel_repair are byte-identical runs. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). Note: commented dtest-debug mark refs scylla#4384.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "36a75a3da5",
+          "text": "`sequential` param unused; identical run to the sequential variant."
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:25",
+          "text": "check_repair_logs() returns False for ScyllaCluster; all 'range(s) out of sync' log asserts are dead (since cc63bfdb69)."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Commented-out dtest-debug mark referencing scylla#4384."
+        }
+      ]
     },
     "TestRepair::test_empty_vs_gcable_sequential_repair": {
       "description": "2 nodes RF=2 (vnodes). cf1 gc_grace=1, cf2 default, compaction disabled. With node2 down, insert 10k rows in each table on node1 then delete them (partition + row tombstones); wait 2s; start node2, repair. Asserts no rows readable at CL=ALL. Intended (CASSANDRA-8979): empty vs gc-able tombstoned partitions considered in-sync, no repair for cf1.",
@@ -116,7 +150,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion: on Scylla nothing checks the CASSANDRA-8979 property; scylla test_tombstone_gc_for_streaming_and_repair checks it properly. Identical to the parallel variant. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs() and its cf2 regex has a stray '/' (Cassandra 2.x log format). `sequential` param unused since 36a75a3da5, so seq/par variants are identical."
+      "reason": "Low-value assertion: on Scylla nothing checks the CASSANDRA-8979 property; scylla test_tombstone_gc_for_streaming_and_repair checks it properly. Identical to the parallel variant. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs(). Note: its cf2 regex has a stray '/' (Cassandra 2.x log format). Bug: `sequential` param unused since 36a75a3da5, so seq/par variants are identical.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "repair_test.py:224-229",
+          "text": "Only live assert is 'no rows at CL=ALL', true whether or not gc-able tombstones were repaired; target property only in dead log check."
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:25",
+          "text": "check_repair_logs() returns False for ScyllaCluster; all 'range(s) out of sync' log asserts are dead (since cc63bfdb69)."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "repair_test.py:224-229",
+          "text": "cf2 log regex has stray '/' (Cassandra 2.x format), inside the dead log check."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "36a75a3da5",
+          "text": "`sequential` param unused (no -seq passed); sequential variant runs identical to parallel."
+        }
+      ]
     },
     "TestRepair::test_empty_vs_gcable_parallel_repair": {
       "description": "Same as test_empty_vs_gcable_sequential_repair (gc-able vs non-gc-able tombstones repaired into an empty node, check no rows visible at CL=ALL); originally the parallel variant.",
@@ -150,7 +210,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same as sequential variant: no effective assertion of the gc-able-not-repaired property on Scylla; covered by test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs() and its cf2 regex has a stray '/' (Cassandra 2.x log format). `sequential` param unused since 36a75a3da5, so seq/par variants are identical."
+      "reason": "Same as sequential variant: no effective assertion of the gc-able-not-repaired property on Scylla; covered by test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair. Bug: only live assertion is 'no rows at CL=ALL' after repair, which holds whether or not repair transferred the gc-able tombstones; the actual property (gc-able data not repaired, repair_test.py:224-229) is under dead check_repair_logs(). Note: its cf2 regex has a stray '/' (Cassandra 2.x log format); `sequential` param unused since 36a75a3da5, so seq/par variants are identical.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "repair_test.py:224-229",
+          "text": "Only live assert is 'no rows at CL=ALL', true whether or not gc-able tombstones were repaired; target property only in dead log check."
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:25",
+          "text": "check_repair_logs() returns False for ScyllaCluster; all 'range(s) out of sync' log asserts are dead (since cc63bfdb69)."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "repair_test.py:224-229",
+          "text": "cf2 log regex has stray '/' (Cassandra 2.x format), inside the dead log check."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "36a75a3da5",
+          "text": "`sequential` param unused; identical run to the sequential variant."
+        }
+      ]
     },
     "TestRepair::test_local_dc_repair": {
       "description": "_setup_multi_dc: 4 nodes (dc1:2, dc2:1, dc3:1), NTS dc1:2/dc2:1/dc3:1, node2 misses key 1000. Runs `nodetool repair -local ks` on node1 and checks node2 now has 2001 rows. Intended to also check only dc1 nodes took part (log check).",
@@ -181,7 +267,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by repair_additional_test::test_repair_option_dc, which also verifies other DCs were NOT repaired; here the 'only dc1 involved' check is dead. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~107s."
+      "reason": "Fully covered by repair_additional_test::test_repair_option_dc, which also verifies other DCs were NOT repaired; here the 'only dc1 involved' check is dead. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~107s.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:241",
+          "text": "'Only dc1 involved' check is under check_repair_logs(), which returns False for ScyllaCluster."
+        }
+      ]
     },
     "TestRepair::test_dc_repair": {
       "description": "_setup_multi_dc (4 nodes, 3 DCs, node2 misses key 1000). Runs repair with -dc dc1 -dc dc2 on node1, checks node2 has 2001 rows. Intended to also check dc3 was not involved (log check). Runs with vnodes and tablets.",
@@ -215,7 +309,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by repair_additional_test::test_repair_option_dc (runs with tablets too, and asserts the excluded DC got no data); here only 'node2 got the key' is checked. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~104s."
+      "reason": "Fully covered by repair_additional_test::test_repair_option_dc (runs with tablets too, and asserts the excluded DC got no data); here only 'node2 got the key' is checked. Bug: check_repair_logs() (repair_test.py:25) returns False for ScyllaCluster, so every 'range(s) out of sync' log assertion is dead code (Cassandra-only, since cc63bfdb69). ~104s.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:263",
+          "text": "'dc3 not involved' check is under check_repair_logs(), which returns False for ScyllaCluster."
+        }
+      ]
     },
     "TestRepair::test_two_consecutive_repair": {
       "description": "Runs _simple_repair (node3 misses key 1000, repair from node1), asserts scylla_repair_tx_row_bytes on node1 > 0; restarts stopped nodes, repairs again and asserts the metric is 0, i.e. second repair streamed nothing.",
@@ -245,7 +347,39 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with repair_additional_test::test_no_streaming_on_second_repair; ~85s. Bug: '== 0' after second repair only works because check_rows_on_node(restart=False) left node1 stopped and cluster.start() resets the cumulative counter (repair_test.py:333); loop at :330-332 logs 'Starting node' but does nothing; assert message at :342 lacks f-prefix; `sequential` unused."
+      "reason": "Redundant with repair_additional_test::test_no_streaming_on_second_repair; ~85s. Bug: _simple_repair's 'out of sync' log asserts are dead (check_repair_logs() is False for ScyllaCluster, repair_test.py:25). Note: '== 0' after second repair only works because check_rows_on_node(restart=False) left node1 stopped and cluster.start() resets the cumulative counter (repair_test.py:333); loop at :330-332 logs 'Starting node' but does nothing; assert message at :342 lacks f-prefix; `sequential` unused.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "repair_test.py:25",
+          "text": "check_repair_logs() returns False for ScyllaCluster; all 'range(s) out of sync' log asserts are dead (since cc63bfdb69)."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "repair_test.py:333",
+          "text": "'== 0' after second repair relies on node restart resetting the cumulative tx_row_bytes counter."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "repair_test.py:330-332",
+          "text": "Loop logs 'Starting node' but does nothing."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "repair_test.py:342",
+          "text": "Assert message lacks f-prefix."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "repair_test.py:326",
+          "text": "`sequential = True` unused by _simple_repair."
+        }
+      ]
     },
     "TestRepair::test_repair_with_disabled_compaction": {
       "description": "3 nodes RF=3, TWCS with compaction disabled. node3 misses key 2001 (keys=(1001, 2001) inserted while down, then range(2001) at ALL). Lists node3 sstable files, runs repair on node2, asserts `before < after`. Intended to guard scylladb#7525 / PR #7528 (repair master uses a single writer for all followers -> fewer sstables).",
@@ -274,7 +408,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Low-value assertion that does not test #7525 (would need sstable count on the master per range). Bug: `before < after` compares two unsorted path lists lexicographically (repair_test.py:377), not their lengths; keys=(1001, 2001) is a 2-key tuple, probably meant a range (:369). Rewrite if #7525 coverage is wanted."
+      "reason": "Low-value assertion that does not test #7525 (would need sstable count on the master per range). Bug: `before < after` compares two unsorted path lists lexicographically (repair_test.py:377), not their lengths. Note: keys=(1001, 2001) is a 2-key tuple, probably meant a range (:369). Rewrite if #7525 coverage is wanted.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "repair_test.py:377",
+          "text": "`before < after` compares unsorted sstable path lists lexicographically, not counts."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "",
+          "text": "Checks follower node3 sstables, not master per-range writers; doesn't test scylladb#7525 single-writer behavior."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "repair_test.py:369",
+          "text": "keys=(1001, 2001) is a 2-key tuple, probably meant a range."
+        }
+      ]
     }
   }
 }

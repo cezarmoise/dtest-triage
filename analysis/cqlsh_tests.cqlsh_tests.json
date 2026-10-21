@@ -25,7 +25,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end coverage of cqlsh LOGIN keeping keyspace with real auth; no scylla test covers it."
+      "reason": "Unique end-to-end coverage of cqlsh LOGIN keeping keyspace with real auth; no scylla test covers it.",
+      "issues": []
     },
     "TestCqlLogin::test_login_rejects_bad_pass": {
       "description": "Single node with PasswordAuthenticator. cqlsh runs `LOGIN user1 'badpass'` and asserts stderr contains 'Username and/or password are incorrect'.",
@@ -64,7 +65,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of TestCqlLogin::test_login_allows_bad_pass_and_continued_use (identical setup, command and assertion); server message also covered by test/boost/auth_test.cc and test/cluster/dtest/auth_roles_test.py."
+      "reason": "Strict subset of TestCqlLogin::test_login_allows_bad_pass_and_continued_use (identical setup, command and assertion); server message also covered by test/boost/auth_test.cc and test/cluster/dtest/auth_roles_test.py.",
+      "issues": []
     },
     "TestCqlLogin::test_login_authenticates_correct_user": {
       "description": "Single node with PasswordAuthenticator. cqlsh as cassandra runs LOGIN user1 (non-superuser) then CREATE USER user2 ... SUPERUSER; asserts stderr contains 'Only superusers can create a role with superuser status', proving LOGIN actually switched the session identity.",
@@ -104,7 +106,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique part is verifying cqlsh LOGIN switches identity; server check covered by test/cluster/dtest/auth_roles_test.py. Note: `else` branch (Version(cluster.version()) < 3.0, 'Only superusers are allowed to perform CREATE USER queries') is dead code for scylla (cqlsh_tests.py:1972-1982)."
+      "reason": "Unique part is verifying cqlsh LOGIN switches identity; server check covered by test/cluster/dtest/auth_roles_test.py. Note: `else` branch (Version(cluster.version()) < 3.0, 'Only superusers are allowed to perform CREATE USER queries') is dead code for scylla (cqlsh_tests.py:1972-1982).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:1972-1982",
+          "text": "else branch for Version < 3.0 ('Only superusers are allowed to perform CREATE USER') dead for scylla."
+        }
+      ]
     },
     "TestCqlLogin::test_login_allows_bad_pass_and_continued_use": {
       "description": "Single node with PasswordAuthenticator. cqlsh as cassandra runs LOGIN user1 'badpass'; USE ks1; DESCRIBE TABLES; asserts the auth error is on stderr and the session keeps working as the original user (stdout lists ks1table).",
@@ -135,7 +145,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage: failed cqlsh LOGIN leaves the existing session usable; superset of test_login_rejects_bad_pass."
+      "reason": "Unique coverage: failed cqlsh LOGIN leaves the existing session usable; superset of test_login_rejects_bad_pass.",
+      "issues": []
     },
     "TestCqlsh::test_batch": {
       "description": "Regression for CASSANDRA-10272: cqlsh input whose last statement is a one-line BEGIN BATCH ... APPLY BATCH without a trailing semicolon (mixed-case keyspace name). Since d22c82e604 it asserts via driver that the row (id=0) was inserted.",
@@ -174,7 +185,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial port in scylla-cqlsh (04e1bf0, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)) uses \";\"-terminated APPLY BATCH; the dtest unterminated-at-EOF case stays unique. Unique cqlsh edge case (unterminated BATCH at EOF) and recently caught scylladb/cqlsh-rs#106; also runs over SSL via TestCqlshWithSSL."
+      "reason": "Partial port in scylla-cqlsh (04e1bf0, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)) uses \";\"-terminated APPLY BATCH; the dtest unterminated-at-EOF case stays unique. Unique cqlsh edge case (unterminated BATCH at EOF) and recently caught scylladb/cqlsh-rs#106; also runs over SSL via TestCqlshWithSSL.",
+      "issues": []
     },
     "TestCqlsh::test_clear": {
       "description": "CASSANDRA-10086: runs cqlsh `CLEAR` with TERM=xterm and asserts output contains an ANSI clear-screen escape (ESC[0-2]?J) (_test_clear_screen). Pure client-side terminal behavior; scylla is only connected to.",
@@ -203,7 +215,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only, ported to scylla-cqlsh (aacdb57, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Tests only cqlsh client terminal output, no server behavior; was skipped 2018-2023 (b69d844a79 -> a3a64c00) with no loss noticed; a3a64c00 itself notes cqlsh is released separately and client-only checks belong there. Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos."
+      "reason": "Client-only, ported to scylla-cqlsh (aacdb57, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Tests only cqlsh client terminal output, no server behavior; was skipped 2018-2023 (b69d844a79 -> a3a64c00) with no loss noticed; a3a64c00 itself notes cqlsh is released separately and client-only checks belong there. Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1520-1524",
+          "text": "Since d22c82e604 no error check remains, only the clear-screen escape regex."
+        }
+      ]
     },
     "TestCqlsh::test_cls": {
       "description": "CASSANDRA-10086: runs cqlsh `CLS` with TERM=xterm and asserts output contains an ANSI clear-screen escape (ESC[0-2]?J) (_test_clear_screen). Pure client-side terminal behavior; scylla is only connected to.",
@@ -232,7 +252,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only, ported to scylla-cqlsh (2b8d6b3, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Tests only cqlsh client terminal output, no server behavior; was skipped 2018-2023 (b69d844a79 -> a3a64c00) with no loss noticed; a3a64c00 itself notes cqlsh is released separately and client-only checks belong there. Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos."
+      "reason": "Client-only, ported to scylla-cqlsh (2b8d6b3, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Tests only cqlsh client terminal output, no server behavior; was skipped 2018-2023 (b69d844a79 -> a3a64c00) with no loss noticed; a3a64c00 itself notes cqlsh is released separately and client-only checks belong there. Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1520-1524",
+          "text": "Since d22c82e604 no error check remains, only the clear-screen escape regex."
+        }
+      ]
     },
     "TestCqlsh::test_connect_timeout": {
       "description": "CASSANDRA-9601: runs cqlsh `USE system` with --debug --connect-timeout=10 and asserts stderr contains 'Using connect timeout: 10 seconds'. Only checks the client's debug print of its own option.",
@@ -268,7 +296,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only, ported to scylla-cqlsh (94b4651, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Client-only option echo, asserts a debug log string of cqlsh, no server behavior; already ported to scylladb/cqlsh-rs tests/integration/dtest_cqlsh_tests.rs::test_connect_timeout. Low value for scylla dtest."
+      "reason": "Client-only, ported to scylla-cqlsh (94b4651, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Client-only option echo, asserts a debug log string of cqlsh, no server behavior; already ported to scylladb/cqlsh-rs tests/integration/dtest_cqlsh_tests.rs::test_connect_timeout. Low value for scylla dtest.",
+      "issues": []
     },
     "TestCqlsh::test_copy_to": {
       "description": "Single node: inserts 10k rows (int, text, float, uuid) into ks.testcopyto via driver, cqlsh COPY TO csv, asserts csv content equals SELECT rows, TRUNCATE, COPY FROM the csv and asserts rows equal the original.",
@@ -310,7 +339,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Round trip fully duplicated by cqlsh_copy_tests.py::TestCqlshCopy::test_round_trip_murmur3 (_test_round_trip, same schema/10k rows, gating); only extra is single-node + csv-vs-rows compare (covered by TestCqlshCopy writing tests). Not slow (10s) so not auto-RED; candidate RED, though TestCqlshWithSSL::test_copy_to variant gives unique COPY-over-SSL coverage."
+      "reason": "Round trip fully duplicated by cqlsh_copy_tests.py::TestCqlshCopy::test_round_trip_murmur3 (_test_round_trip, same schema/10k rows, gating); only extra is single-node + csv-vs-rows compare (covered by TestCqlshCopy writing tests). Not slow (10s) so not auto-RED; candidate RED, though TestCqlshWithSSL::test_copy_to variant gives unique COPY-over-SSL coverage.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "scylladb/cqlsh-rs#194",
+          "text": "Open cqlsh-rs COPY TO float formatting bug hits this test (base and SSL alike)."
+        }
+      ]
     },
     "TestCqlsh::test_datetime_values": {
       "description": "CASSANDRA-9399: via cqlsh inserts date/time values including dates outside Python's datetime range (year 0, 10000) and nanosecond times; asserts cqlsh SELECT output renders in-range dates as YYYY-MM-DD and out-of-range as days-from-epoch integers (-719528, 2932897), plus DESCRIBE TABLE output.",
@@ -359,7 +396,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Ported with real asserts to scylla-cqlsh (5b7205b, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)); the dtest SELECT-table check is a no-op. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd) compiles expected table unescaped, \"|\" acts as alternation -> verify_output table checks pass on wrong values. Unique end-to-end check of cqlsh rendering of edge date/time values (out-of-range dates as day counts, ns times) against scylla; scylla tests cover server side only."
+      "reason": "Ported with real asserts to scylla-cqlsh (5b7205b, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)); the dtest SELECT-table check is a no-op. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd) compiles expected table unescaped, \"|\" acts as alternation -> verify_output table checks pass on wrong values. Unique end-to-end check of cqlsh rendering of edge date/time values (out-of-range dates as day counts, ns times) against scylla; scylla tests cover server side only.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        }
+      ]
     },
     "TestCqlsh::test_list_queries": {
       "description": "CASSANDRA-8370: single node with PasswordAuthenticator+CassandraAuthorizer; creates user1, GRANT ALL ON ks.t1, read_barrier, then runs LIST USERS and LIST ALL PERMISSIONS OF user1 through cqlsh and compares the rendered tables (role/username/resource/permission rows).",
@@ -410,7 +455,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server side fully covered by test/cluster/dtest/auth_test.py; only unique part is cqlsh table rendering, which is not actually asserted. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Note: else branches for Version(cluster.version()) < 3.0 are dead for scylla (cqlsh_tests.py:560-572,590-605). Candidate RED unless verify_output is fixed."
+      "reason": "Server side fully covered by test/cluster/dtest/auth_test.py; only unique part is cqlsh table rendering, which is not actually asserted. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Note: else branches for Version(cluster.version()) < 3.0 are dead for scylla (cqlsh_tests.py:560-572,590-605). Candidate RED unless verify_output is fixed.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:560-572,590-605",
+          "text": "else branches for Version(cluster.version()) < 3.0 are dead for scylla."
+        }
+      ]
     },
     "TestCqlsh::test_describe": {
       "description": "CASSANDRA-7814: creates keyspace test with tables users/test and 3 secondary indexes via cqlsh, then checks DESCRIBE KEYSPACES/KEYSPACE/TABLE/INDEX and generic DESCRIBE <name> (qualified, after USE) output against regexes; drops+recreates table and index and re-describes. Non-scylla branch (ALTER TABLE DROP indexed column) skipped.",
@@ -455,7 +514,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly overlaps cqlpy test_describe.py (server-side DESCRIBE, which cqlsh just prints); slowest in file (36s) and had timeouts (SCYLLADB-4785). Bug: execute() ignores expected_err since d22c82e604 (stderr handling removed), so all 'not found' checks are no-ops. Note: `if not self.node1.is_scylla()` block is dead code (cqlsh_tests.py:683-692); skipped 2017-2023 (f31c1df1ab -> a3a64c00c0)."
+      "reason": "Mostly overlaps cqlpy test_describe.py (server-side DESCRIBE, which cqlsh just prints); slowest in file (36s) and had timeouts (SCYLLADB-4785). Bug: execute() ignores expected_err since d22c82e604 (stderr handling removed), so all 'not found' checks are no-ops. Note: `if not self.node1.is_scylla()` block is dead code (cqlsh_tests.py:683-692); skipped 2017-2023 (f31c1df1ab -> a3a64c00c0).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cqlsh_tests.py:980-989",
+          "text": "execute() ignores expected_err since d22c82e604, so all DESCRIBE 'not found' checks are no-ops."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:683-692",
+          "text": "`if not self.node1.is_scylla()` block never runs on scylla."
+        }
+      ]
     },
     "TestCqlsh::test_describe_describes_non_default_compaction_parameters": {
       "description": "Creates table with STCS min_threshold=10, max_threshold=100 via driver and asserts cqlsh DESCRIBE ks.tab output contains both non-default options.",
@@ -493,7 +566,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server-side DESCRIBE of compaction options partially covered by cqlpy test_describe.py (test_desc_table, test_describe_cdc_log_table_opts); cqlsh only prints server output. Cheap (6s); a 2-line cqlpy test would replace it."
+      "reason": "Server-side DESCRIBE of compaction options partially covered by cqlpy test_describe.py (test_desc_table, test_describe_cdc_log_table_opts); cqlsh only prints server output. Cheap (6s); a 2-line cqlpy test would replace it.",
+      "issues": []
     },
     "TestCqlsh::test_describe_on_non_reserved_keywords": {
       "description": "CASSANDRA-9232: creates table named `map` (non-reserved keyword) and asserts `USE ks; DESCRIBE map` via cqlsh prints 'CREATE TABLE ks.map ('.",
@@ -530,7 +604,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Equivalent port in scylla-cqlsh (9c68c1b, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)), but DESCRIBE is server-side in scylla and the port runs a pinned release; candidate RED. Unique check that generic DESCRIBE accepts a non-reserved keyword as table name (cqlsh + server grammar); no cqlpy equivalent found; cheap (6s)."
+      "reason": "Equivalent port in scylla-cqlsh (9c68c1b, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)), but DESCRIBE is server-side in scylla and the port runs a pinned release; candidate RED. Unique check that generic DESCRIBE accepts a non-reserved keyword as table name (cqlsh + server grammar); no cqlpy equivalent found; cheap (6s).",
+      "issues": []
     },
     "TestCqlsh::test_describe_mv": {
       "description": "CASSANDRA-9961: creates table users + MV users_by_state (SELECT *) via cqlsh, asserts DESCRIBE KEYSPACE lists the view and DESCRIBE MATERIALIZED VIEW / generic DESCRIBE (qualified, after USE, quoted name) output matches full regex of CREATE MATERIALIZED VIEW incl. table options.",
@@ -573,7 +648,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage of generic and quoted-name DESCRIBE of a view plus full DESC MV option output; cqlpy only checks fragments (SELECT *, presence in keyspace desc)."
+      "reason": "Unique coverage of generic and quoted-name DESCRIBE of a view plus full DESC MV option output; cqlpy only checks fragments (SELECT *, presence in keyspace desc).",
+      "issues": []
     },
     "TestCqlsh::test_describe_round_trip": {
       "description": "CASSANDRA-9064: creates LCS table, captures cqlsh DESCRIBE TABLE output, drops table, executes the DESCRIBE output as CREATE via cqlsh, inserts a row via driver and asserts re-DESCRIBE equals original.",
@@ -612,7 +688,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Round trip of DESCRIBE output is covered by cqlpy test_describe.py::test_desc_table (LCS chosen randomly) and test_desc_restore; only extra is re-executing cqlsh's printed multi-line output, also ported to cqlsh-rs. Candidate RED. Note: recreate stderr not checked (_create_err), failure only surfaces via the later INSERT."
+      "reason": "Round trip of DESCRIBE output is covered by cqlpy test_describe.py::test_desc_table (LCS chosen randomly) and test_desc_restore; only extra is re-executing cqlsh's printed multi-line output, also ported to cqlsh-rs. Candidate RED. Note: recreate stderr not checked (_create_err), failure only surfaces via the later INSERT.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1419",
+          "text": "Recreate stderr not checked; failure only surfaces via the later INSERT/re-DESCRIBE."
+        }
+      ]
     },
     "TestCqlsh::test_eat_glass": {
       "description": "Creates table with map<varchar, X> for 14 types and inserts/updates multi-script UTF-8 strings (runic, braille, cyrillic) via cqlsh (map literal, map + and map[key] =); verifies every map via driver and counts occurrences of the strings in cqlsh --encoding=utf-8 SELECT output.",
@@ -659,7 +743,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end coverage of non-ASCII strings in all map<varchar,X> types through cqlsh input + map update syntax, with real driver-side assertions; cheap (7s)."
+      "reason": "Unique end-to-end coverage of non-ASCII strings in all map<varchar,X> types through cqlsh input + map update syntax, with real driver-side assertions; cheap (7s).",
+      "issues": []
     },
     "TestCqlsh::test_float_formatting": {
       "description": "CASSANDRA-9224: inserts double/float values across magnitudes (6e-08..1.1e7, positive/negative, tiny 1e-12..1e-16) via cqlsh and compares cqlsh SELECT output to expected tables (float precision/sci notation formatting).",
@@ -699,7 +784,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only, ported with real asserts to scylla-cqlsh (f83e9b4, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Client-only formatting check with no server behavior, and its assertions do nothing. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Either fix verify_output or move to cqlsh repos."
+      "reason": "Client-only, ported with real asserts to scylla-cqlsh (f83e9b4, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)). Client-only formatting check with no server behavior, and its assertions do nothing. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Either fix verify_output or move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        }
+      ]
     },
     "TestCqlsh::test_int_values": {
       "description": "CASSANDRA-9399: inserts min/max/0/1 for int, bigint, smallint, tinyint via cqlsh; compares cqlsh SELECT output table and DESCRIBE TABLE output (column types).",
@@ -745,7 +838,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Ported with real asserts to scylla-cqlsh (c3e6601, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)); remaining DESCRIBE check overlaps cqlpy test_describe.py. Only the DESCRIBE column-type check is effective (overlaps cqlpy test_describe.py); the SELECT table check is a no-op. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Since d22c82e604 insert errors are not checked either."
+      "reason": "Ported with real asserts to scylla-cqlsh (c3e6601, scylladb/scylla-cqlsh PR #234 (merged 2026-09-30, aims to drop client-only cqlsh tests from dtest)); remaining DESCRIBE check overlaps cqlpy test_describe.py. Only the DESCRIBE column-type check is effective (overlaps cqlpy test_describe.py); the SELECT table check is a no-op. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Since d22c82e604 insert errors are not checked either.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Setup INSERT stderr not checked since d22c82e604; with verify_output a no-op, a failed insert goes undetected."
+        }
+      ]
     },
     "TestCqlsh::test_materialized_view": {
       "description": "CASSANDRA-9961/10348: creates table + MV users_by_state via driver, waits for nodetool viewbuildstatus, inserts 4 rows; cqlsh DESCRIBE MV, SELECT from view, DROP MV, asserts DESCRIBE MV says not found, recreates MV from DESCRIBE output via cqlsh and asserts identical DESCRIBE and SELECT output.",
@@ -792,7 +899,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "MV describe/drop/recreate round trip with data comparison is mostly unique, but flaky history (02b0cac1e4, SCYLLADB-4913) and a dead assertion: `\"CREATE MATERIALIZED VIEW users_by_state\" not in out` (cqlsh_tests.py:1467) can never fail since DESCRIBE prints the qualified name test.users_by_state. Bug: stderr of recreate not checked since d22c82e604."
+      "reason": "MV describe/drop/recreate round trip with data comparison is mostly unique, but flaky history (02b0cac1e4, SCYLLADB-4913) and a dead assertion: `\"CREATE MATERIALIZED VIEW users_by_state\" not in out` (cqlsh_tests.py:1467) can never fail since DESCRIBE prints the qualified name test.users_by_state. Note: stderr of recreate not checked since d22c82e604.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "cqlsh_tests.py:1467",
+          "text": "`'CREATE MATERIALIZED VIEW users_by_state' not in out` can't fail: DESCRIBE prints qualified name test.users_by_state."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Recreate stderr not checked; failure still caught by viewbuildstatus wait and DESCRIBE compare."
+        }
+      ]
     },
     "TestCqlsh::test_past_and_future_dates": {
       "description": "Via cqlsh creates a timestamp table and inserts 2143-04-19 and 1943-04-19 timestamps; asserts cqlsh SELECT output contains both rendered as 'YYYY-MM-DD HH:MM:SS.000000+0000'. Guards cqlsh formatting of timestamps far from the epoch.",
@@ -832,7 +953,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Pure cqlsh-rendering check, fully ported with stronger asserts to scylla-cqlsh (d7d830c, scylladb/scylla-cqlsh#234); server side covered by test/cqlpy/test_type_timestamp.py. Note: cqlsh_tests.py:131 `rows = list(...)` driver result is never asserted (dead code). Removing also drops the TestCqlshWithSSL variant."
+      "reason": "Pure cqlsh-rendering check, fully ported with stronger asserts to scylla-cqlsh (d7d830c, scylladb/scylla-cqlsh#234); server side covered by test/cqlpy/test_type_timestamp.py. Note: cqlsh_tests.py:131 `rows = list(...)` driver result is never asserted (dead code). Removing also drops the TestCqlshWithSSL variant.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:131",
+          "text": "`rows = list(...)` driver result never asserted."
+        }
+      ]
     },
     "TestCqlsh::test_select_element_inside_udt": {
       "description": "CASSANDRA-7891: creates UDTs fullname/address and a table with frozen UDT and map<text, frozen<address>> via driver, inserts one row, runs cqlsh `SELECT name.lastname ...` and asserts stderr does not contain 'list index out of range' (old Python cqlsh crash when formatting a UDT field selection). Stdout is not checked.",
@@ -869,7 +998,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion: only checks absence of a Python traceback string (meaningless for cqlsh-rs) and ignores stdout; fully ported with a stronger assert to scylla-cqlsh (ffea7f4, scylladb/scylla-cqlsh#234). Bug: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so in TestCqlshWithSSL cqlsh cannot connect (no --ssl) and the test passes vacuously."
+      "reason": "Low-value assertion: only checks absence of a Python traceback string (meaningless for cqlsh-rs) and ignores stdout; fully ported with a stronger assert to scylla-cqlsh (ffea7f4, scylladb/scylla-cqlsh#234). Bug: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so in TestCqlshWithSSL cqlsh cannot connect (no --ssl) and the test passes vacuously.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:518-519",
+          "text": "Only asserts 'list index out of range' absent from stderr; stdout ignored, passes if query fails any other way."
+        }
+      ]
     },
     "TestCqlsh::test_simple_insert": {
       "description": "Via cqlsh creates keyspace/table and inserts 5 rows; verifies with the driver that all 5 (id, value) pairs are present. Basic smoke test of cqlsh executing DDL/DML from stdin.",
@@ -914,7 +1051,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial smoke test subsumed by other dtests in the same file (TestCqlshSmoke::test_insert/test_create_keyspace/test_create_table, TestCqlsh::test_eat_glass); cheap (6s) so not RED by the slow+redundant rule. Only distinct value is the TestCqlshWithSSL variant, which other inherited tests also provide."
+      "reason": "Trivial smoke test subsumed by other dtests in the same file (TestCqlshSmoke::test_insert/test_create_keyspace/test_create_table, TestCqlsh::test_eat_glass); cheap (6s) so not RED by the slow+redundant rule. Only distinct value is the TestCqlshWithSSL variant, which other inherited tests also provide.",
+      "issues": []
     },
     "TestCqlsh::test_source_glass": {
       "description": "Runs cqlsh `SOURCE 'cqlsh_tests/glass.cql'` (map<varchar, X> for 15 types filled with multi-script UTF-8 keys) and verifies all maps via driver (verify_glass). Covers SOURCE of a UTF-8 file.",
@@ -959,7 +1097,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "SOURCE is cqlsh-only; fully ported with stronger asserts to scylla-cqlsh (b2114f1, scylladb/scylla-cqlsh#234), and the server-side UTF-8 collection data is covered by test_eat_glass (same verify_glass). Removing also drops the TestCqlshWithSSL variant."
+      "reason": "SOURCE is cqlsh-only; fully ported with stronger asserts to scylla-cqlsh (b2114f1, scylladb/scylla-cqlsh#234), and the server-side UTF-8 collection data is covered by test_eat_glass (same verify_glass). Removing also drops the TestCqlshWithSSL variant.",
+      "issues": []
     },
     "TestCqlsh::test_tracing": {
       "description": "CASSANDRA-9399: via cqlsh creates a table with 3 rows, then `tracing on; select * from test`; verify_output expects 'Now Tracing is enabled', the result table and 'Tracing session:'. Docstring: cares mostly that cqlsh does not crash with tracing.",
@@ -1000,7 +1139,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Assertion is effectively a no-op and the scenario is fully ported with real asserts to scylla-cqlsh (e2d19d1, scylladb/scylla-cqlsh#234); tracing through cqlsh against master stays covered by test_tracing_from_system_traces. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles expected text unescaped; '|' column separators act as regex alternation so any single fragment matching passes (verify_output is effectively a no-op). Since d22c82e604 setup insert errors are not checked."
+      "reason": "Assertion is effectively a no-op and the scenario is fully ported with real asserts to scylla-cqlsh (e2d19d1, scylladb/scylla-cqlsh#234); tracing through cqlsh against master stays covered by test_tracing_from_system_traces. Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles expected text unescaped; '|' column separators act as regex alternation so any single fragment matching passes (verify_output is effectively a no-op). Since d22c82e604 setup insert errors are not checked.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Setup INSERT stderr not checked since d22c82e604; with verify_output a no-op, a failed insert goes undetected."
+        }
+      ]
     },
     "TestCqlsh::test_tracing_from_system_traces": {
       "description": "CASSANDRA-7641: inserts 100 rows with driver; asserts cqlsh `TRACING ON; SELECT * FROM ks.cf` prints 'Tracing session: ', while SELECTs from system_traces.events / system_traces.sessions with tracing on do not print a trace (cqlsh must not trace queries on the trace tables).",
@@ -1039,7 +1192,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario fully ported to scylla-cqlsh (9d6922c, scylladb/scylla-cqlsh#234), but that CI runs a pinned scylla release (build-push.yml SCYLLA_VERSION), so this is the only check of tracing output through cqlsh against scylla master; effective asserts, cheap (11s). Keep at most one of test_tracing / test_tracing_from_system_traces."
+      "reason": "Scenario fully ported to scylla-cqlsh (9d6922c, scylladb/scylla-cqlsh#234), but that CI runs a pinned scylla release (build-push.yml SCYLLA_VERSION), so this is the only check of tracing output through cqlsh against scylla master; effective asserts, cheap (11s). Keep at most one of test_tracing / test_tracing_from_system_traces.",
+      "issues": []
     },
     "TestCqlsh::test_with_empty_values": {
       "description": "CASSANDRA-7196: via cqlsh creates has_all_types with 14 typed columns and inserts 5 rows incl. a row of empty values (blobAsInt(0x) etc.); asserts cqlsh `select intcol, bigintcol, varintcol ...` output contains the exact right-aligned table with a blank row for empty values (real substring check, trailing whitespace stripped since d22c82e604).",
@@ -1081,7 +1235,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same query and expected output as scylla-cqlsh test_cqlsh_output.py::test_numeric_output (same has_all_types fixture incl. the empty-values row); server side covered by test/cqlpy/test_empty.py::test_empty_int. Pure cqlsh rendering check."
+      "reason": "Same query and expected output as scylla-cqlsh test_cqlsh_output.py::test_numeric_output (same has_all_types fixture incl. the empty-values row); server side covered by test/cqlpy/test_empty.py::test_empty_int. Pure cqlsh rendering check.",
+      "issues": []
     },
     "TestCqlshCluster::test_refresh_schema_on_timeout_error": {
       "description": "CASSANDRA-9689: 3-node cluster, node2 stopped; via cqlsh creates keyspace (RF=1) + DESCRIBE KEYSPACES, then creates table + DESCRIBE TABLES; asserts new names appear and (originally) that cqlsh printed 'Warning: schema version mismatch detected' after schema agreement timed out (cqlsh still refreshes metadata).",
@@ -1128,7 +1283,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Core CASSANDRA-9689 check is disabled: since d22c82e604 the warning assert is conditional, and the remaining conditional assert is tautological (both phrases come from one printwarn string, scylla-cqlsh bin/cqlsh.py:1189), so only 'training'/'mytable' in DESCRIBE output is checked. Slow (65s, 3 nodes) + low-value; DDL with a node down covered elsewhere."
+      "reason": "Core CASSANDRA-9689 check is disabled: since d22c82e604 the warning assert is conditional, and the remaining conditional assert is tautological (both phrases come from one printwarn string, scylla-cqlsh bin/cqlsh.py:1189), so only 'training'/'mytable' in DESCRIBE output is checked. Slow (65s, 3 nodes) + low-value; DDL with a node down covered elsewhere.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cqlsh_tests.py:1566-1567,1576-1577",
+          "text": "CASSANDRA-9689 warning assert now conditional and tautological; only new names in DESCRIBE output checked."
+        }
+      ]
     },
     "TestCqlshSmoke::test_uuid": {
       "description": "Creates ks.test with uuid key, runs `INSERT ... VALUES (uuid())` twice via cqlsh, verifies via driver that 1 then 2 rows exist, keys are UUID instances and distinct. Smoke test that the uuid() function works when sent from cqlsh.",
@@ -1164,7 +1327,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server side (uuid() on insert) covered by test/cqlpy/test_non_deterministic_functions.py; cqlsh part is trivial pass-through. Cheap (6s); candidate RED / merge into one smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Server side (uuid() on insert) covered by test/cqlpy/test_non_deterministic_functions.py; cqlsh part is trivial pass-through. Cheap (6s); candidate RED / merge into one smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_commented_lines": {
       "description": "Sends a block of `--`, `//` and `/* */` comments to cqlsh, then `DESCRIBE KEYSPACE ks; // post-line comment` and asserts stdout starts with 'CREATE KEYSPACE ks'. Checks cqlsh's client-side comment stripping.",
@@ -1203,7 +1374,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only cqlsh parsing, ported with stronger asserts to cqlsh-rs (dtest_cqlsh_tests.rs::test_commented_lines) and covered by scylla-cqlsh test_cql_parsing.py. Bug: ccm run_cqlsh splits cmds on ';' (scylla-ccm ccmlib/node.py:957-960), so the 'post-line comment' is sent as its own line and never tested; the comment-block run has no assertion at all since d22c82e604 dropped stderr checks."
+      "reason": "Client-only cqlsh parsing, ported with stronger asserts to cqlsh-rs (dtest_cqlsh_tests.rs::test_commented_lines) and covered by scylla-cqlsh test_cql_parsing.py. Bug: ccm run_cqlsh splits cmds on ';' (scylla-ccm ccmlib/node.py:957-960), so the 'post-line comment' is sent as its own line and never tested; the comment-block run has no assertion at all since d22c82e604 dropped stderr checks.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "scylla-ccm ccmlib/node.py:957-960",
+          "text": "ccm run_cqlsh splits cmds on ';', so '// post-line comment' is sent alone and never tested."
+        },
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "cqlsh_tests.py:1624-1632",
+          "text": "Comment-block run has no assertion; result ignored since d22c82e604 dropped stderr checks."
+        }
+      ]
     },
     "TestCqlshSmoke::test_colons_in_string_literals": {
       "description": "INSERTs key 'Cassandra:TheMovie' via cqlsh and checks via driver that the row is stored verbatim. Guards cqlsh treating ':' inside a string literal as a named bind marker (client-side lexer).",
@@ -1237,7 +1422,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client-only lexer behavior, fully covered by scylla-cqlsh test_cql_parsing.py::test_colons_in_string_literals and ported to cqlsh-rs (dtest_cqlsh_tests.rs::test_colons_in_string_literals); no server behavior. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Client-only lexer behavior, fully covered by scylla-cqlsh test_cql_parsing.py::test_colons_in_string_literals and ported to cqlsh-rs (dtest_cqlsh_tests.rs::test_colons_in_string_literals); no server behavior. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_select": {
       "description": "Inserts one row via driver, SELECTs via cqlsh and asserts output contains '(1 rows)'/'(1 row)' and the row 'a | a | a' (whitespace-normalized). Basic check that bundled cqlsh renders a result table against current scylla.",
@@ -1272,7 +1465,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Rendering covered more thoroughly by scylla-cqlsh test_cqlsh_output.py (pinned release); this is the simplest effective 'cqlsh SELECT output vs scylla master' smoke. Keep at most one such smoke test (this one is the best candidate)."
+      "reason": "Rendering covered more thoroughly by scylla-cqlsh test_cqlsh_output.py (pinned release); this is the simplest effective 'cqlsh SELECT output vs scylla master' smoke. Keep at most one such smoke test (this one is the best candidate).",
+      "issues": []
     },
     "TestCqlshSmoke::test_insert": {
       "description": "INSERTs one row ('a','a','a') via cqlsh and checks it with assert_all via driver. Pure cqlsh->server pass-through smoke.",
@@ -1306,7 +1500,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/insert_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/insert_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_update": {
       "description": "Inserts a row via driver, runs `UPDATE ks.test SET v='b'` via cqlsh, checks new value via driver. Pure cqlsh->server pass-through smoke.",
@@ -1335,7 +1537,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/update_test.py::testUpdate; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/update_test.py::testUpdate; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_delete": {
       "description": "Inserts 5 keys via driver, deletes key 'c' via cqlsh, checks remaining 4 via driver (asserts murmur3 token order). Pure cqlsh->server pass-through smoke.",
@@ -1364,7 +1574,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/delete_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/delete_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_batch": {
       "description": "Runs a multi-line BEGIN BATCH with 3 INSERTs (no inner ';') via cqlsh, checks the 3 keys via driver.",
@@ -1403,7 +1621,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Subsumed by TestCqlsh::test_batch (inner ';' case, same driver check) and scylla-cqlsh test_cqlsh_shell.py::test_batch; server side in cqlpy batch_test.py. Cheap (5s); candidate RED. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Subsumed by TestCqlsh::test_batch (inner ';' case, same driver check) and scylla-cqlsh test_cqlsh_shell.py::test_batch; server side in cqlpy batch_test.py. Cheap (5s); candidate RED. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_create_keyspace": {
       "description": "Runs CREATE KEYSPACE (NTS RF=1) via cqlsh and checks the keyspace appears in driver metadata.",
@@ -1438,7 +1664,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_keyspace.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_keyspace.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_drop_keyspace": {
       "description": "Creates ks via driver, DROP KEYSPACE via cqlsh, checks it is gone from driver metadata.",
@@ -1467,7 +1701,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_keyspace.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_keyspace.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_create_table": {
       "description": "CREATE TABLE ks.test via cqlsh, checks driver metadata lists exactly ['test'].",
@@ -1501,7 +1743,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/create_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/create_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_drop_table": {
       "description": "Creates ks.test via driver, DROP TABLE via cqlsh, refreshes metadata and asserts keyspace has 0 tables.",
@@ -1531,7 +1781,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/drop_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/cassandra_tests/validation/operations/drop_test.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_truncate": {
       "description": "Inserts 5 keys via driver, TRUNCATE via cqlsh (60s request timeout), asserts no cqlsh stderr and table empty via driver.",
@@ -1565,7 +1823,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server TRUNCATE covered by cqlpy truncate_test.py::testTruncate; cqlsh part trivial; recently flaky (SCYLLADB-5011, fixed 29b14ac0cd 2026-10-05). Note: 29b14ac0cd's `assert not err` reintroduces a stderr check that d22c82e604 removed tree-wide because cqlsh-rs prints informational warnings to stderr; may break under cqlsh-rs."
+      "reason": "Server TRUNCATE covered by cqlpy truncate_test.py::testTruncate; cqlsh part trivial; recently flaky (SCYLLADB-5011, fixed 29b14ac0cd 2026-10-05). Note: 29b14ac0cd's `assert not err` reintroduces a stderr check that d22c82e604 removed tree-wide because cqlsh-rs prints informational warnings to stderr; may break under cqlsh-rs.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "29b14ac0cd",
+          "text": "`assert not err` reintroduces stderr check d22c82e604 removed for cqlsh-rs warnings; may break under cqlsh-rs."
+        }
+      ]
     },
     "TestCqlshSmoke::test_truncate_with_limit": {
       "description": "Creates (test_id, partition_key, time, value) table via cqlsh, inserts 10 rows via driver, TRUNCATE via cqlsh (60s timeout, asserts no stderr), then `SELECT * ... LIMIT 1` via the driver expecting no rows. Meant to reproduce scylla#1694 (cqlsh OverflowError on select limit after truncate).",
@@ -1599,7 +1865,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Does not guard its issue: scylla#1694 was cqlsh's timestamp formatting (CASSANDRA-11274) but the post-truncate SELECT LIMIT 1 runs through the python driver, never cqlsh; what remains duplicates test_truncate and cqlpy truncate_test.py. Flaky history (SCYLLADB-5011, 29b14ac0cd). Note: `assert not err` (29b14ac0cd) conflicts with d22c82e604's removal of stderr checks for cqlsh-rs."
+      "reason": "Does not guard its issue: scylla#1694 was cqlsh's timestamp formatting (CASSANDRA-11274) but the post-truncate SELECT LIMIT 1 runs through the python driver, never cqlsh; what remains duplicates test_truncate and cqlpy truncate_test.py. Flaky history (SCYLLADB-5011, 29b14ac0cd). Note: `assert not err` (29b14ac0cd) conflicts with d22c82e604's removal of stderr checks for cqlsh-rs.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "scylladb/scylla#1694",
+          "text": "Post-truncate SELECT LIMIT 1 runs via python driver, never cqlsh, so the cqlsh bug #1694 isn't exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "29b14ac0cd",
+          "text": "`assert not err` reintroduces stderr check d22c82e604 removed for cqlsh-rs warnings; may break under cqlsh-rs."
+        }
+      ]
     },
     "TestCqlshSmoke::test_alter_table": {
       "description": "Creates table with column i ascii, runs `ALTER TABLE ks.test ALTER i TYPE text` via cqlsh, checks driver metadata shows i as text.",
@@ -1637,7 +1917,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server ALTER TYPE partially covered (cqlpy test_cql_query.py, boost schema_change_test.cc; ascii->text specifically not found); cqlsh part trivial. Cheap (5s); candidate move to cqlpy / RED. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Server ALTER TYPE partially covered (cqlpy test_cql_query.py, boost schema_change_test.cc; ascii->text specifically not found); cqlsh part trivial. Cheap (5s); candidate move to cqlpy / RED. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_use_keyspace": {
       "description": "Creates ks1.ks1table and ks2.ks2table, runs `USE ks1; DESCRIBE TABLES;` and `USE ks2; DESCRIBE TABLES;` in cqlsh and asserts only the respective table is listed. Checks cqlsh USE keeps session keyspace for (server-side) DESCRIBE TABLES.",
@@ -1671,7 +1959,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server behavior fully covered by cqlpy test_describe.py::test_tables_with_use; cqlsh USE+DESCRIBE TABLES also exercised by TestCqlLogin::test_login_keeps_keyspace. Cheap (6s); candidate RED."
+      "reason": "Server behavior fully covered by cqlpy test_describe.py::test_tables_with_use; cqlsh USE+DESCRIBE TABLES also exercised by TestCqlLogin::test_login_keeps_keyspace. Cheap (6s); candidate RED.",
+      "issues": []
     },
     "TestCqlshSmoke::test_drop_index": {
       "description": "Verifies `SELECT ... WHERE i = 5` fails without index, creates index via driver, query works, DROP INDEX via cqlsh, query fails again (InvalidRequest).",
@@ -1704,7 +1993,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_secondary_index.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Mirror of test_create_index (only differs in which statement goes through cqlsh). Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_secondary_index.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Mirror of test_create_index (only differs in which statement goes through cqlsh). Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cqlsh_tests.py:1820",
+          "text": "Comment 'DROP INDEX fails in 2.0 (CASSANDRA-9247)' is Cassandra-only, obsolete."
+        }
+      ]
     },
     "TestCqlshSmoke::test_create_index": {
       "description": "Verifies `SELECT ... WHERE i = 5` fails without index, CREATE INDEX via cqlsh, query succeeds, DROP INDEX via driver, query fails again.",
@@ -1737,7 +2040,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_secondary_index.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Mirror of test_drop_index. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards."
+      "reason": "Trivial cqlsh pass-through smoke (5-6s); server semantics covered by test/cqlpy/test_secondary_index.py; overlaps other smoke tests and TestCqlsh::test_simple_insert. Cheap, so not RED by slow+redundant rule; candidate RED / merge into one cqlsh smoke test. Mirror of test_drop_index. Note: run_cqlsh without return_output ignores cqlsh errors (ccm only logs stderr, scylla-ccm ccmlib/node.py:976-978); the driver-side check catches failures afterwards.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylla-ccm ccmlib/node.py:976-978",
+          "text": "run_cqlsh without return_output ignores cqlsh errors; driver-side check catches failures afterwards."
+        }
+      ]
     },
     "TestCqlshSmoke::test_incorrect_clustering_restrictions": {
       "description": "Table PK (id, at, a, b, c); via cqlsh runs SELECT with EQ on a, b but a range on preceding clustering column `at`, restrictions written out of PK order, and asserts cqlsh stderr contains 'PRIMARY KEY column \"b\" cannot be restricted (preceding column \"at\" is restricted by a non-EQ relation)'. Regression test for scylla#2421 (crash composing that error for out-of-order restrictions).",
@@ -1772,7 +2083,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only regression test for scylla#2421 single-column out-of-order restriction error path (fix 33bc62a9cf had no test); cqlpy covers only multi-column/in-order variants. Server-side check that would fit better in cqlpy (cqlsh adds nothing)."
+      "reason": "Only regression test for scylla#2421 single-column out-of-order restriction error path (fix 33bc62a9cf had no test); cqlpy covers only multi-column/in-order variants. Server-side check that would fit better in cqlpy (cqlsh adds nothing).",
+      "issues": []
     },
     "TestCqlshSmoke::test_select_all_cl_quorum": {
       "description": "Adds 3 nodes (racks 2-4) to the single node, cassandra-stress writes 1K rows at RF=4, selects LIMIT 10 via cqlsh, ALTERs keyspace1 to NTS RF=3, selects again, sets CONSISTENCY QUORUM and selects (expects 10 rows each). Originally reproduced scylla#2593 (crash on CL=QUORUM select after RF increase, fixed by scylla b8235f2e88 'storage_proxy: Preserve replica order across mutations').",
@@ -1811,7 +2123,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario drift: RF-rack rewrite (9caf156ee4, d7dc8a2f69) writes at RF=4 then lowers RF to 3, so replicas never diverge and scylla#2593 (fix b8235f2e88, reconciliation order) is no longer exercised; remaining check (QUORUM select returns 10 rows) is low-value, slowest smoke test (34s, 4 nodes + cassandra-stress). Note: class-level single_node (c5cc8a5b) undid 4a058eaab8's exclusion of this 4-node test (scylla#5679); harmless now (conftest.py:439)."
+      "reason": "Scenario drift: RF-rack rewrite (9caf156ee4, d7dc8a2f69) writes at RF=4 then lowers RF to 3, so replicas never diverge and scylla#2593 (fix b8235f2e88, reconciliation order) is no longer exercised; remaining check (QUORUM select returns 10 rows) is low-value, slowest smoke test (34s, 4 nodes + cassandra-stress). Note: class-level single_node (c5cc8a5b) undid 4a058eaab8's exclusion of this 4-node test (scylla#5679); harmless now (conftest.py:439).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "9caf156ee4, d7dc8a2f69",
+          "text": "RF-rack rewrite writes at RF=4 then lowers to 3; replicas never diverge, scylla#2593 reconciliation path not exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "c5cc8a5b, conftest.py:439",
+          "text": "Class-level single_node undid 4a058eaab8's exclusion of this 4-node test (scylla#5679); harmless now."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_copy_to": {
       "description": "Inherited from TestCqlsh::test_copy_to (base origin 16c75a6f6c 2015-04-21), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Single node: inserts 10k rows (int, text, float, uuid) into ks.testcopyto via driver, cqlsh COPY TO csv, asserts csv content equals SELECT rows, TRUNCATE, COPY FROM the csv and asserts rows equal the original.",
@@ -1880,7 +2206,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Keep: no other test anywhere runs COPY TO/FROM over client TLS (no other dtest passes --ssl; scylla-cqlsh COPY TLS tests are mocks; cqlsh-rs ssl_tests.rs has no COPY and no client cert), here in both require_client_auth modes with real round-trip asserts. For Python cqlsh it additionally exercises per-worker TLS contexts (scylla-cqlsh pylib/cqlshlib/copyutil.py:1768, separate from main conn bin/cqlsh.py:2463). Base round trip itself is duplicated by TestCqlshCopy::test_round_trip_murmur3. Also named by scylladb/cqlsh-rs#194 (open, COPY TO float formatting; hits base and SSL alike). (Base TestCqlsh::test_copy_to: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating."
+      "reason": "Keep: no other test anywhere runs COPY TO/FROM over client TLS (no other dtest passes --ssl; scylla-cqlsh COPY TLS tests are mocks; cqlsh-rs ssl_tests.rs has no COPY and no client cert), here in both require_client_auth modes with real round-trip asserts. For Python cqlsh it additionally exercises per-worker TLS contexts (scylla-cqlsh pylib/cqlshlib/copyutil.py:1768, separate from main conn bin/cqlsh.py:2463). Base round trip itself is duplicated by TestCqlshCopy::test_round_trip_murmur3. Also named by scylladb/cqlsh-rs#194 (open, COPY TO float formatting; hits base and SSL alike). (Base TestCqlsh::test_copy_to: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "scylladb/cqlsh-rs#194",
+          "text": "Open cqlsh-rs COPY TO float formatting bug hits this test (base and SSL alike)."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_list_queries": {
       "description": "Inherited from TestCqlsh::test_list_queries (base origin cc3040ad69 2014-11-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-8370: single node with PasswordAuthenticator+CassandraAuthorizer; creates user1, GRANT ALL ON ks.t1, read_barrier, then runs LIST USERS and LIST ALL PERMISSIONS OF user1 through cqlsh and compares the rendered tables (role/username/resource/permission rows).",
@@ -1958,7 +2292,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Keep candidate: only cqlsh run with PasswordAuthenticator/CassandraAuthorizer over client TLS (after restart; create_session(user,pass) via SSL ssl_context), both require_client_auth modes. Server password-on-TLS covered by test/cluster/test_auth_certificate_or_password.py::test_audit_password_login_on_tls_port; scylladb/cqlsh-rs#92 (LIST USERS empty) broke base and SSL alike. YELLOW due to base no-op table asserts (connect failure still caught: empty output fails check_response). (Base TestCqlsh::test_list_queries: YELLOW.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Note: else branches for Version(cluster.version()) < 3.0 are dead for scylla (cqlsh_tests.py:560-572,590-605). Candidate RED unless verify_output is fixed. Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating."
+      "reason": "Keep candidate: only cqlsh run with PasswordAuthenticator/CassandraAuthorizer over client TLS (after restart; create_session(user,pass) via SSL ssl_context), both require_client_auth modes. Server password-on-TLS covered by test/cluster/test_auth_certificate_or_password.py::test_audit_password_login_on_tls_port; scylladb/cqlsh-rs#92 (LIST USERS empty) broke base and SSL alike. YELLOW due to base no-op table asserts (connect failure still caught: empty output fails check_response). (Base TestCqlsh::test_list_queries: YELLOW.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Note: else branches for Version(cluster.version()) < 3.0 are dead for scylla (cqlsh_tests.py:560-572,590-605). Candidate RED unless verify_output is fixed. Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:560-572,590-605",
+          "text": "else branches for Version(cluster.version()) < 3.0 are dead for scylla."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_simple_insert": {
       "description": "Inherited from TestCqlsh::test_simple_insert (base origin 59868689e6 2014-02-07), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Via cqlsh creates keyspace/table and inserts 5 rows; verifies with the driver that all 5 (id, value) pairs are present. Basic smoke test of cqlsh executing DDL/DML from stdin.",
@@ -2030,7 +2378,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheapest cqlsh DDL/DML smoke over TLS for both require_client_auth modes (guards scylla-cqlsh#83/#84 crash when usercert/userkey unset), with real driver-side check; but TLS connect in both modes is also exercised by TestCqlshWithSSL::test_copy_to, so redundant if that is kept. Keep only one of these two if trimming further. (Base TestCqlsh::test_simple_insert: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating."
+      "reason": "Cheapest cqlsh DDL/DML smoke over TLS for both require_client_auth modes (guards scylla-cqlsh#83/#84 crash when usercert/userkey unset), with real driver-side check; but TLS connect in both modes is also exercised by TestCqlshWithSSL::test_copy_to, so redundant if that is kept. Keep only one of these two if trimming further. (Base TestCqlsh::test_simple_insert: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating.",
+      "issues": []
     },
     "TestCqlshWithSSL::test_eat_glass": {
       "description": "Inherited from TestCqlsh::test_eat_glass (base origin 59868689e6 2014-02-07), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Creates table with map<varchar, X> for 14 types and inserts/updates multi-script UTF-8 strings (runic, braille, cyrillic) via cqlsh (map literal, map + and map[key] =); verifies every map via driver and counts occurrences of the strings in cqlsh --encoding=utf-8 SELECT output.",
@@ -2104,7 +2453,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base TestCqlsh::test_eat_glass is GREEN, but TLS adds nothing to UTF-8 collection handling; TLS connect in both modes covered by TestCqlshWithSSL::test_copy_to/test_simple_insert. Slow + redundant. (Base TestCqlsh::test_eat_glass: GREEN.)"
+      "reason": "Base TestCqlsh::test_eat_glass is GREEN, but TLS adds nothing to UTF-8 collection handling; TLS connect in both modes covered by TestCqlshWithSSL::test_copy_to/test_simple_insert. Slow + redundant. (Base TestCqlsh::test_eat_glass: GREEN.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_describe_mv": {
       "description": "Inherited from TestCqlsh::test_describe_mv (base origin 31c210c52f 2015-09-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9961: creates table users + MV users_by_state (SELECT *) via cqlsh, asserts DESCRIBE KEYSPACE lists the view and DESCRIBE MATERIALIZED VIEW / generic DESCRIBE (qualified, after USE, quoted name) output matches full regex of CREATE MATERIALIZED VIEW incl. table options.",
@@ -2174,7 +2524,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base is GREEN, but DESCRIBE MV is server-side output; TLS adds nothing, base covers it in 7x less time. Slow + redundant. (Base TestCqlsh::test_describe_mv: GREEN.)"
+      "reason": "Base is GREEN, but DESCRIBE MV is server-side output; TLS adds nothing, base covers it in 7x less time. Slow + redundant. (Base TestCqlsh::test_describe_mv: GREEN.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_tracing_from_system_traces": {
       "description": "Inherited from TestCqlsh::test_tracing_from_system_traces (base origin 709aa8d045 2014-08-21), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-7641: inserts 100 rows with driver; asserts cqlsh `TRACING ON; SELECT * FROM ks.cf` prints 'Tracing session: ', while SELECTs from system_traces.events / system_traces.sessions with tracing on do not print a trace (cqlsh must not trace queries on the trace tables).",
@@ -2240,7 +2591,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base kept for tracing-through-cqlsh vs master; TLS adds nothing (tracing session fetch uses the same TLS conn as any query). Slow + redundant. (Base TestCqlsh::test_tracing_from_system_traces: YELLOW.)"
+      "reason": "Base kept for tracing-through-cqlsh vs master; TLS adds nothing (tracing session fetch uses the same TLS conn as any query). Slow + redundant. (Base TestCqlsh::test_tracing_from_system_traces: YELLOW.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_batch": {
       "description": "Inherited from TestCqlsh::test_batch (base origin 254e883779 2015-09-11), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Regression for CASSANDRA-10272: cqlsh input whose last statement is a one-line BEGIN BATCH ... APPLY BATCH without a trailing semicolon (mixed-case keyspace name). Since d22c82e604 it asserts via driver that the row (id=0) was inserted.",
@@ -2306,7 +2658,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base is YELLOW for the unterminated-BATCH parsing edge case, which is client-side and TLS-independent. Slow + redundant. (Base TestCqlsh::test_batch: YELLOW.)"
+      "reason": "Base is YELLOW for the unterminated-BATCH parsing edge case, which is client-side and TLS-independent. Slow + redundant. (Base TestCqlsh::test_batch: YELLOW.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_describe_round_trip": {
       "description": "Inherited from TestCqlsh::test_describe_round_trip (base origin 9376d1bd45 2015-06-29), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9064: creates LCS table, captures cqlsh DESCRIBE TABLE output, drops table, executes the DESCRIBE output as CREATE via cqlsh, inserts a row via driver and asserts re-DESCRIBE equals original.",
@@ -2371,7 +2724,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "TLS adds nothing to DESCRIBE round trip; base already a candidate RED (covered by cqlpy test_describe.py). Slow + redundant. (Base TestCqlsh::test_describe_round_trip: YELLOW.) Inherited from base: Note: recreate stderr not checked (_create_err), failure only surfaces via the later INSERT."
+      "reason": "TLS adds nothing to DESCRIBE round trip; base already a candidate RED (covered by cqlpy test_describe.py). Slow + redundant. (Base TestCqlsh::test_describe_round_trip: YELLOW.) Inherited from base: Note: recreate stderr not checked (_create_err), failure only surfaces via the later INSERT.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1419",
+          "text": "Recreate stderr not checked; failure only surfaces via the later INSERT/re-DESCRIBE."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_materialized_view": {
       "description": "Inherited from TestCqlsh::test_materialized_view (base origin 31c210c52f 2015-09-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9961/10348: creates table + MV users_by_state via driver, waits for nodetool viewbuildstatus, inserts 4 rows; cqlsh DESCRIBE MV, SELECT from view, DROP MV, asserts DESCRIBE MV says not found, recreates MV from DESCRIBE output via cqlsh and asserts identical DESCRIBE and SELECT output.",
@@ -2445,7 +2806,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "TLS adds nothing to MV describe/recreate; base covers it. Slow + redundant. (Base TestCqlsh::test_materialized_view: YELLOW.) Inherited from base: Note: dead assertion `\"CREATE MATERIALIZED VIEW users_by_state\" not in out` (cqlsh_tests.py:1467). Bug: stderr of recreate not checked since d22c82e604."
+      "reason": "TLS adds nothing to MV describe/recreate; base covers it. Slow + redundant. (Base TestCqlsh::test_materialized_view: YELLOW.) Inherited from base: Bug: dead assertion `\"CREATE MATERIALIZED VIEW users_by_state\" not in out` (cqlsh_tests.py:1467). Note: stderr of recreate not checked since d22c82e604.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "cqlsh_tests.py:1467",
+          "text": "`'CREATE MATERIALIZED VIEW users_by_state' not in out` can't fail: DESCRIBE prints qualified name test.users_by_state."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Recreate stderr not checked; failure still caught by viewbuildstatus wait and DESCRIBE compare."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_describe": {
       "description": "Inherited from TestCqlsh::test_describe (base origin f88dffe310 2015-06-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-7814: creates keyspace test with tables users/test and 3 secondary indexes via cqlsh, then checks DESCRIBE KEYSPACES/KEYSPACE/TABLE/INDEX and generic DESCRIBE <name> (qualified, after USE) output against regexes; drops+recreates table and index and re-describes. Non-scylla branch (ALTER TABLE DROP indexed column) skipped.",
@@ -2516,7 +2891,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slowest SSL test (~97s/run); DESCRIBE is server-side, TLS adds nothing; base already partially duplicated by cqlpy test_describe.py. Slow + redundant. (Base TestCqlsh::test_describe: YELLOW.) Inherited from base: Bug: execute() ignores expected_err since d22c82e604 (stderr handling removed), so all 'not found' checks are no-ops. Note: `if not self.node1.is_scylla()` block is dead code (cqlsh_tests.py:683-692); skipped 2017-2023 (f31c1df1ab -> a3a64c00c0)."
+      "reason": "Slowest SSL test (~97s/run); DESCRIBE is server-side, TLS adds nothing; base already partially duplicated by cqlpy test_describe.py. Slow + redundant. (Base TestCqlsh::test_describe: YELLOW.) Inherited from base: Bug: execute() ignores expected_err since d22c82e604 (stderr handling removed), so all 'not found' checks are no-ops. Note: `if not self.node1.is_scylla()` block is dead code (cqlsh_tests.py:683-692); skipped 2017-2023 (f31c1df1ab -> a3a64c00c0).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cqlsh_tests.py:980-989",
+          "text": "execute() ignores expected_err since d22c82e604, so all DESCRIBE 'not found' checks are no-ops."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:683-692",
+          "text": "`if not self.node1.is_scylla()` block never runs on scylla."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_describe_describes_non_default_compaction_parameters": {
       "description": "Inherited from TestCqlsh::test_describe_describes_non_default_compaction_parameters (base origin d64c2315d4 2015-07-01), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Creates table with STCS min_threshold=10, max_threshold=100 via driver and asserts cqlsh DESCRIBE ks.tab output contains both non-default options.",
@@ -2580,7 +2969,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Server-side DESCRIBE output; TLS adds nothing. Slow + redundant. (Base TestCqlsh::test_describe_describes_non_default_compaction_parameters: YELLOW.)"
+      "reason": "Server-side DESCRIBE output; TLS adds nothing. Slow + redundant. (Base TestCqlsh::test_describe_describes_non_default_compaction_parameters: YELLOW.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_describe_on_non_reserved_keywords": {
       "description": "Inherited from TestCqlsh::test_describe_on_non_reserved_keywords (base origin 60fa071eed 2015-08-25), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9232: creates table named `map` (non-reserved keyword) and asserts `USE ks; DESCRIBE map` via cqlsh prints 'CREATE TABLE ks.map ('.",
@@ -2644,7 +3034,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Server-side DESCRIBE; TLS adds nothing; base candidate RED. Slow + redundant. (Base TestCqlsh::test_describe_on_non_reserved_keywords: YELLOW.)"
+      "reason": "Server-side DESCRIBE; TLS adds nothing; base candidate RED. Slow + redundant. (Base TestCqlsh::test_describe_on_non_reserved_keywords: YELLOW.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_clear": {
       "description": "Inherited from TestCqlsh::test_clear (base origin c4e407a3ad 2015-08-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-10086: runs cqlsh `CLEAR` with TERM=xterm and asserts output contains an ANSI clear-screen escape (ESC[0-2]?J) (_test_clear_screen). Pure client-side terminal behavior; scylla is only connected to.",
@@ -2700,7 +3091,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (client-only terminal escape, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_clear: RED.) Inherited from base: Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos."
+      "reason": "Base RED (client-only terminal escape, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_clear: RED.) Inherited from base: Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1520-1524",
+          "text": "Since d22c82e604 no error check remains, only the clear-screen escape regex."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_cls": {
       "description": "Inherited from TestCqlsh::test_cls (base origin c4e407a3ad 2015-08-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-10086: runs cqlsh `CLS` with TERM=xterm and asserts output contains an ANSI clear-screen escape (ESC[0-2]?J) (_test_clear_screen). Pure client-side terminal behavior; scylla is only connected to.",
@@ -2756,7 +3155,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (client-only terminal escape, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_cls: RED.) Inherited from base: Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos."
+      "reason": "Base RED (client-only terminal escape, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_cls: RED.) Inherited from base: Note: since d22c82e604 no error check remains, only the escape regex (cqlsh_tests.py:1520-1524). Candidate to move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_tests.py:1520-1524",
+          "text": "Since d22c82e604 no error check remains, only the clear-screen escape regex."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_connect_timeout": {
       "description": "Inherited from TestCqlsh::test_connect_timeout (base origin 9738113896 2015-06-29), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9601: runs cqlsh `USE system` with --debug --connect-timeout=10 and asserts stderr contains 'Using connect timeout: 10 seconds'. Only checks the client's debug print of its own option.",
@@ -2818,7 +3225,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (client-only option echo). (Base TestCqlsh::test_connect_timeout: RED.) Bug: the SSL variant does not prove the TLS connection works: '--debug' prints 'Using connect timeout: 10 seconds' before connecting (see scylla-cqlsh#84 trace), and stdout/exit code are not checked (cqlsh_tests.py:1393-1394), so it passes even if the TLS handshake fails (verified for Python cqlsh: bin/cqlsh.py:2791 prints before Shell() at :2830; not verified for cqlsh-rs)."
+      "reason": "Base RED (client-only option echo). (Base TestCqlsh::test_connect_timeout: RED.) Bug: the SSL variant does not prove the TLS connection works: '--debug' prints 'Using connect timeout: 10 seconds' before connecting (see scylla-cqlsh#84 trace), and stdout/exit code are not checked (cqlsh_tests.py:1393-1394), so it passes even if the TLS handshake fails (verified for Python cqlsh: bin/cqlsh.py:2791 prints before Shell() at :2830; not verified for cqlsh-rs).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1393-1394",
+          "text": "--debug prints 'Using connect timeout' before connecting; stdout/exit not checked, so passes even if TLS handshake fails."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_datetime_values": {
       "description": "Inherited from TestCqlsh::test_datetime_values (base origin 0a19c70a29 2015-05-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9399: via cqlsh inserts date/time values including dates outside Python's datetime range (year 0, 10000) and nanosecond times; asserts cqlsh SELECT output renders in-range dates as YYYY-MM-DD and out-of-range as days-from-epoch integers (-719528, 2932897), plus DESCRIBE TABLE output.",
@@ -2894,7 +3309,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (rendering, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. Note: SSL variant caught python-driver 3.29.0 wheel regression (scylladb/python-driver#456, missing libev), not TLS-specific; any kept SSL test catches that. (Base TestCqlsh::test_datetime_values: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd) compiles expected table unescaped, \"|\" acts as alternation -> verify_output table checks pass on wrong values. Unique end-to-end check of cqlsh rendering of edge date/time values (out-of-range dates as day counts, ns times) against scylla; scylla tests cover server side only."
+      "reason": "Base RED (rendering, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. Note: SSL variant caught python-driver 3.29.0 wheel regression (scylladb/python-driver#456, missing libev), not TLS-specific; any kept SSL test catches that. (Base TestCqlsh::test_datetime_values: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd) compiles expected table unescaped, \"|\" acts as alternation -> verify_output table checks pass on wrong values. Unique end-to-end check of cqlsh rendering of edge date/time values (out-of-range dates as day counts, ns times) against scylla; scylla tests cover server side only.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_float_formatting": {
       "description": "Inherited from TestCqlsh::test_float_formatting (base origin 5bf605a984 2015-05-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9224: inserts double/float values across magnitudes (6e-08..1.1e7, positive/negative, tiny 1e-12..1e-16) via cqlsh and compares cqlsh SELECT output to expected tables (float precision/sci notation formatting).",
@@ -2961,7 +3384,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (client-only formatting, no-op asserts); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_float_formatting: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Either fix verify_output or move to cqlsh repos."
+      "reason": "Base RED (client-only formatting, no-op asserts); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_float_formatting: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Either fix verify_output or move to cqlsh repos.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_int_values": {
       "description": "Inherited from TestCqlsh::test_int_values (base origin 0a19c70a29 2015-05-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9399: inserts min/max/0/1 for int, bigint, smallint, tinyint via cqlsh; compares cqlsh SELECT output table and DESCRIBE TABLE output (column types).",
@@ -3034,7 +3465,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED; TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_int_values: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Since d22c82e604 insert errors are not checked either."
+      "reason": "Base RED; TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_int_values: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles the expected table text as a regex without escaping, so '|' column separators become alternations and any single cell (e.g. header 'part ') matches; verify_output on tabular SELECT output is effectively a no-op (verified: wrong values pass). Since d22c82e604 insert errors are not checked either.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Setup INSERT stderr not checked since d22c82e604; with verify_output a no-op, a failed insert goes undetected."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_past_and_future_dates": {
       "description": "Inherited from TestCqlsh::test_past_and_future_dates (base origin eb557001b4 2015-08-06), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Via cqlsh creates a timestamp table and inserts 2143-04-19 and 1943-04-19 timestamps; asserts cqlsh SELECT output contains both rendered as 'YYYY-MM-DD HH:MM:SS.000000+0000'. Guards cqlsh formatting of timestamps far from the epoch.",
@@ -3101,7 +3546,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (rendering, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. Note: SSL variant was the failing example in scylladb/python-driver#456 (3.29.0 wheel regression, not TLS-specific). (Base TestCqlsh::test_past_and_future_dates: RED.) Inherited from base: Note: cqlsh_tests.py:131 `rows = list(...)` driver result is never asserted (dead code). Removing also drops the TestCqlshWithSSL variant."
+      "reason": "Base RED (rendering, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. Note: SSL variant was the failing example in scylladb/python-driver#456 (3.29.0 wheel regression, not TLS-specific). (Base TestCqlsh::test_past_and_future_dates: RED.) Inherited from base: Note: cqlsh_tests.py:131 `rows = list(...)` driver result is never asserted (dead code). Removing also drops the TestCqlshWithSSL variant.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cqlsh_tests.py:131",
+          "text": "`rows = list(...)` driver result never asserted."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_select_element_inside_udt": {
       "description": "Inherited from TestCqlsh::test_select_element_inside_udt (base origin c8c37500f4 2014-09-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-7891: creates UDTs fullname/address and a table with frozen UDT and map<text, frozen<address>> via driver, inserts one row, runs cqlsh `SELECT name.lastname ...` and asserts stderr does not contain 'list index out of range' (old Python cqlsh crash when formatting a UDT field selection). Stdout is not checked.",
@@ -3165,7 +3618,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (low-value traceback check). The SSL variant never uses TLS: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so cqlsh (no --ssl) connects plaintext to the TLS-only port, fails, and `'list index out of range' not in err` passes vacuously. (Base TestCqlsh::test_select_element_inside_udt: RED.) Inherited from base: Bug: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so in TestCqlshWithSSL cqlsh cannot connect (no --ssl) and the test passes vacuously."
+      "reason": "Base RED (low-value traceback check). The SSL variant never uses TLS: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so cqlsh (no --ssl) connects plaintext to the TLS-only port, fails, and `'list index out of range' not in err` passes vacuously. (Base TestCqlsh::test_select_element_inside_udt: RED.) Inherited from base: Bug: run_cqlsh at cqlsh_tests.py:518 passes no cqlsh_options, so in TestCqlshWithSSL cqlsh cannot connect (no --ssl) and the test passes vacuously.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cqlsh_tests.py:518",
+          "text": "run_cqlsh passes no cqlsh_options (no --ssl), so cqlsh can't connect to TLS port; passes vacuously."
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:518-519",
+          "text": "Only asserts 'list index out of range' absent from stderr; stdout ignored, passes if query fails any other way."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_source_glass": {
       "description": "Inherited from TestCqlsh::test_source_glass (base origin e3fef71323 2015-08-25), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: Runs cqlsh `SOURCE 'cqlsh_tests/glass.cql'` (map<varchar, X> for 15 types filled with multi-script UTF-8 keys) and verifies all maps via driver (verify_glass). Covers SOURCE of a UTF-8 file.",
@@ -3237,7 +3704,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (SOURCE is cqlsh-only, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_source_glass: RED.)"
+      "reason": "Base RED (SOURCE is cqlsh-only, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_source_glass: RED.)",
+      "issues": []
     },
     "TestCqlshWithSSL::test_tracing": {
       "description": "Inherited from TestCqlsh::test_tracing (base origin 0a19c70a29 2015-05-15), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-9399: via cqlsh creates a table with 3 rows, then `tracing on; select * from test`; verify_output expects 'Now Tracing is enabled', the result table and 'Tracing session:'. Docstring: cares mostly that cqlsh does not crash with tracing.",
@@ -3305,7 +3773,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (no-op assert, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_tracing: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles expected text unescaped; '|' column separators act as regex alternation so any single fragment matching passes (verify_output is effectively a no-op). Since d22c82e604 setup insert errors are not checked."
+      "reason": "Base RED (no-op assert, ported to scylla-cqlsh); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_tracing: RED.) Inherited from base: Bug: check_response (cqlsh_tests.py:1010-1015, regex since b07911bfbd 2024-10-08) compiles expected text unescaped; '|' column separators act as regex alternation so any single fragment matching passes (verify_output is effectively a no-op). Since d22c82e604 setup insert errors are not checked.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cqlsh_tests.py:1010-1015",
+          "text": "check_response compiles expected table unescaped; '|' becomes regex alternation, so verify_output table checks pass on wrong values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "d22c82e604",
+          "text": "Setup INSERT stderr not checked since d22c82e604; with verify_output a no-op, a failed insert goes undetected."
+        }
+      ]
     },
     "TestCqlshWithSSL::test_with_empty_values": {
       "description": "Inherited from TestCqlsh::test_with_empty_values (base origin 2df87bfd64 2014-05-12), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-7196: via cqlsh creates has_all_types with 14 typed columns and inserts 5 rows incl. a row of empty values (blobAsInt(0x) etc.); asserts cqlsh `select intcol, bigintcol, varintcol ...` output contains the exact right-aligned table with a blank row for empty values (real substring check, trailing whitespace stripped since d22c82e604).",
@@ -3374,7 +3856,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Base RED (pure rendering, same as scylla-cqlsh test_numeric_output); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_with_empty_values: RED.)"
+      "reason": "Base RED (pure rendering, same as scylla-cqlsh test_numeric_output); TLS irrelevant. Slow + redundant. (Base TestCqlsh::test_with_empty_values: RED.)",
+      "issues": []
     }
   },
   "analyzed_at": "2026-10-20",

@@ -5,7 +5,12 @@
   "tests": {
     "TestWorkloadPrioritizationUpgrade::test_workload_prioritization_after_upgrade": {
       "description": "3-node/3-rack cluster with password auth starts on release:2025.1; creates roles role1-3, service levels sl1/sl2 attached to role1/role2, then rolling-upgrades through 2025.3 -> 2025.4 -> 2026.1 -> version under test (upgrade_test.py:31, clone_upgrade_path). If the cluster runs gossip topology and reaches >=2026.1, it migrates to raft topology and waits for service levels v2 (wait_for_sl_v2). After upgrade it waits for the shares column and WORKLOAD_PRIORITIZATION feature, ALTERs sl2 shares, CREATEs sl3 WITH shares and attaches it to role3, waits for 'service level \"sl3\" was added.' in every node log, then connects per-node exclusive sessions per role and asserts via REST /service_levels/count_connections that each role's connections sit in sl:<name>, and via query tracing that reads run in that scheduling group with the matching reader concurrency semaphore. Guards service-level data/scheduling surviving real version upgrades (and the gossip->raft SL v1->v2 migration).",
-      "origin": {"sha": "9db867ca88d5504d3a50fc6ba21caea6007491e9", "date": "2024-07-17", "pr": 4612, "summary": "enterprise_upgrade_test: add a test for workload prioritization after OSS->enterprise upgrade (fixes scylladb/scylla-dtest#4471)."},
+      "origin": {
+        "sha": "9db867ca88d5504d3a50fc6ba21caea6007491e9",
+        "date": "2024-07-17",
+        "pr": 4612,
+        "summary": "enterprise_upgrade_test: add a test for workload prioritization after OSS->enterprise upgrade (fixes scylladb/scylla-dtest#4471)."
+      },
       "commits": {
         "cbb4fd2d4059d5dc480014e80a26d0733f5d5426": "Raised scheduling-group wait timeouts in validation helpers.",
         "4ae8bc6dd6eaf9e06707ca65dd6860fdac204cdb": "Added wait_for_complete_connection_pool and retrying query_runs_in_scheduling_group (connections start in sl:driver); fixes SCYLLADB-4029 flakiness.",
@@ -21,12 +26,38 @@
       },
       "relevance": "Live: service levels, shares, /service_levels/count_connections, sl:driver, service_levels_v2 all present in scylla (test/cqlpy/test_service_level_api.py, test/cluster/auth_cluster/test_raft_service_levels.py). Original OSS->enterprise purpose is gone (unified versions since 2025.1, sha 6571a949), so check_shares_column_added / check_workload_prioritization_enabled waits are effectively always true now. Gossip->raft migration branch only runs under --force-gossip-topology-changes (jenkins_pipelines/master-dtest-with-gossip-topology-changes.jenkinsfile, gating-dtest-release.jenkinsfile); in the analyzed jobs (next-dtest-tablets, next-dtest-consistent-topology) clusters start on raft topology so that branch is not exercised. 32/32 passes, ~110s.",
       "duplicates": [
-        {"path": "scylla-dtest/sla_per_user_test.py::TestSlaPerUser::test_sla_configuration", "coverage": "partial", "note": "Same count_connections + trace semaphore checks, but no version upgrade."},
-        {"path": "test/cqlpy/test_service_level_api.py::test_count_opened_cql_connections", "coverage": "partial", "note": "count_connections/sl assignment on a single version."},
-        {"path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_levels_snapshot", "coverage": "partial", "note": "SL persistence in raft, no cross-version upgrade."}
+        {
+          "path": "scylla-dtest/sla_per_user_test.py::TestSlaPerUser::test_sla_configuration",
+          "coverage": "partial",
+          "note": "Same count_connections + trace semaphore checks, but no version upgrade."
+        },
+        {
+          "path": "test/cqlpy/test_service_level_api.py::test_count_opened_cql_connections",
+          "coverage": "partial",
+          "note": "count_connections/sl assignment on a single version."
+        },
+        {
+          "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_levels_snapshot",
+          "coverage": "partial",
+          "note": "SL persistence in raft, no cross-version upgrade."
+        }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking service levels (data + scheduling groups + reader semaphores) survive a real multi-version rolling upgrade, incl. gossip->raft SL v2 migration in gossip jobs; scylla test.py can't do cross-version upgrades. Stable (100% over 32 runs), next_gating. Minor: shares-column/feature waits are vestigial since 2025.1 baseline."
+      "reason": "Only test checking service levels (data + scheduling groups + reader semaphores) survive a real multi-version rolling upgrade, incl. gossip->raft SL v2 migration in gossip jobs; scylla test.py can't do cross-version upgrades. Stable (100% over 32 runs), next_gating. Minor: shares-column/feature waits are vestigial since 2025.1 baseline.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "workload_prioritization_upgrade_test.py",
+          "text": "check_shares_column_added / check_workload_prioritization_enabled waits always true since 2025.1 baseline"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "workload_prioritization_upgrade_test.py",
+          "text": "gossip->raft SL v2 migration branch runs only in gossip-topology jobs, not in next-dtest-tablets/consistent-topology"
+        }
+      ]
     }
   }
 }

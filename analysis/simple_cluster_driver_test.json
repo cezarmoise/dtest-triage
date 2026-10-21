@@ -43,7 +43,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Trivial smoke (1 QUORUM insert + 6 QUORUM reads); fully subsumed by consistency_test.py::TestAvailability::test_simple_strategy and TestAccuracy::test_simple_strategy_users (same 3-node RF=3 topology, same gating jobs) and implicitly by nearly every multi-node dtest. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "reason": "Trivial smoke (1 QUORUM insert + 6 QUORUM reads); fully subsumed by consistency_test.py::TestAvailability::test_simple_strategy and TestAccuracy::test_simple_strategy_users (same 3-node RF=3 topology, same gating jobs) and implicitly by nearly every multi-node dtest. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     },
     "TestSimpleCluster::test_simple_rf_3_consistency_level": {
       "description": "3 nodes (3 racks), RF=3; 99 rows written at ALL. From each node (exclusive session) checks reads at ONE/TWO/THREE/QUORUM/ALL and writes at ANY..ALL all succeed; then stops node1 (THREE/ALL must raise Unavailable, rest pass), then node2 (only ONE reads / ANY,ONE writes pass, others Unavailable). Guards coordinator CL/Unavailable logic with progressive node loss.",
@@ -89,7 +97,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same scenario as consistency_test.py::TestAvailability::test_simple_strategy (3-node RF=3, progressive node stops, Unavailable for unreachable CLs, every node as coordinator), which covers a larger CL matrix in the same gating jobs. Note: simple_consistency_level_validate (simple_cluster_driver_test.py:77-118) uses blind `except Exception` around the pass-CL loop, so a wrong row count counts as a 'failure' like Unavailable. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "reason": "Same scenario as consistency_test.py::TestAvailability::test_simple_strategy (3-node RF=3, progressive node stops, Unavailable for unreachable CLs, every node as coordinator), which covers a larger CL matrix in the same gating jobs. Note: simple_consistency_level_validate (simple_cluster_driver_test.py:77-118) uses blind `except Exception` around the pass-CL loop, so a wrong row count counts as a 'failure' like Unavailable. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "simple_cluster_driver_test.py:77-118",
+          "text": "Blind `except Exception` in pass-CL loop counts wrong row count as failure like Unavailable; still fails since pass_all=True."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     },
     "TestSimpleCluster::test_simple_rf_1_consistency_level_no_racklist": {
       "description": "Vnodes only (skipped with tablets). 3 nodes, RF=1 (replicas spread across nodes); 99 rows at ALL. All up: ONE/QUORUM/ALL pass, TWO/THREE Unavailable from each node. After stopping node1 then node2: TWO/THREE still Unavailable, and for ONE/QUORUM/ALL reads/writes only asserts that SOME keys fail (pass_all=False).",
@@ -129,7 +151,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only RF=1 vnode CL/Unavailable test, but the node-down phases are weak: with pass_all=False the helper only asserts read_fail>0 (simple_cluster_driver_test.py:93,111), and the blind except counts wrong-row-count as a failure, so it can't detect wrong data. Value mostly in TWO/THREE Unavailable checks. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "reason": "Only RF=1 vnode CL/Unavailable test, but the node-down phases are weak: with pass_all=False the helper only asserts read_fail>0 (simple_cluster_driver_test.py:93,111), and the blind except counts wrong-row-count as a failure, so it can't detect wrong data. Value mostly in TWO/THREE Unavailable checks. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "simple_cluster_driver_test.py:93,111",
+          "text": "Node-down phases use pass_all=False: only assert some reads/writes fail; blind except counts wrong data as failure, so wrong data undetected."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     },
     "TestSimpleCluster::test_simple_rf_1_consistency_level_racklist": {
       "description": "Tablets only. 3 nodes/3 racks, keyspace RF={'datacenter1':['rack3']} (rack list, asserts replication options). 99 rows at ALL. All up: ONE/QUORUM/ALL pass, TWO/THREE Unavailable from each node. After stopping node1 (non-replica) everything still passes from node2/node3; after stopping node3 (sole replica) all reads and ONE..THREE writes from node2 must raise Unavailable. Guards rack-list RF replica placement + CL availability.",
@@ -158,8 +194,28 @@
           "note": "CL matrix with tablets, all nodes up."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of CL/Unavailable with rack-list RF and replica-node loss (no scylla test found asserting Unavailable after stopping the rack-list replica); would be GREEN. Note: recently flaky (fixed by 8b7e6b2b, PR 7418). Note: after node1 stop it reuses key ranges 201-300/301-400 (simple_cluster_driver_test.py:251-252), harmless. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "decision": "GREEN",
+      "reason": "Unique coverage of CL/Unavailable with rack-list RF and replica-node loss (no scylla test found asserting Unavailable after stopping the rack-list replica). Note: recently flaky (fixed by 8b7e6b2b, PR 7418). Note: after node1 stop it reuses key ranges 201-300/301-400 (simple_cluster_driver_test.py:251-252), harmless. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "simple_cluster_driver_test.py:77-118",
+          "text": "Blind `except Exception` in pass-CL loop counts wrong row count as failure like Unavailable; still fails when pass_all=True."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "simple_cluster_driver_test.py:251-252",
+          "text": "After node1 stop reuses key ranges 201-300/301-400; harmless."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     },
     "TestSimpleCluster::test_simple_rf_1_query": {
       "description": "3 nodes, RF=1; 99 rows at ALL. From each node runs a full-table scan (expects 99 rows) and an IN query on 10 keys (expects 10) at ONE/QUORUM/ALL, and expects Unavailable at TWO/THREE. Checks multi-node range-scan/IN merging with RF=1.",
@@ -200,7 +256,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap multi-node range scan + IN at several CLs with RF=1; only partial overlap found, but low-value assertions. Note: simple_query_validate (simple_cluster_driver_test.py:263-284) keeps read_pass/read_fail counters for a single query and the pass_all flag is always True - dead logic. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "reason": "Cheap multi-node range scan + IN at several CLs with RF=1; only partial overlap found, but low-value assertions. Note: simple_query_validate (simple_cluster_driver_test.py:263-284) keeps read_pass/read_fail counters for a single query and the pass_all flag is always True - dead logic. Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_cluster_driver_test.py:263-284",
+          "text": "simple_query_validate keeps pass/fail counters for a single query; pass_all always True, dead logic."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     },
     "TestSimpleCluster::test_simple_rf_3_query": {
       "description": "3 nodes, RF=3; 99 rows at ALL. From each node runs a full-table scan (99 rows) and a 10-key IN query at ONE/TWO/THREE/QUORUM/ALL, all must succeed with the right row counts. No node failures.",
@@ -241,7 +311,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Happy-path only (no failures, row counts only); scans at high CL are exercised by many cluster tests (test_tablets.py, test_conflicting_keys_read_repair.py) but no exact duplicate found - leaning RED. Note: simple_query_validate pass/fail counters are dead logic for single query (simple_cluster_driver_test.py:263-277). Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125)."
+      "reason": "Happy-path only (no failures, row counts only); scans at high CL are exercised by many cluster tests (test_tablets.py, test_conflicting_keys_read_repair.py) but no exact duplicate found - leaning RED. Note: simple_query_validate pass/fail counters are dead logic for single query (simple_cluster_driver_test.py:263-277). Note: __scylla_args__=[] / jvm_args passed to start() is dead config (simple_cluster_driver_test.py:21,32-34,122-125).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_cluster_driver_test.py:263-284",
+          "text": "simple_query_validate keeps pass/fail counters for a single query; pass_all always True, dead logic."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "simple_cluster_driver_test.py:21,32-34,122-125",
+          "text": "__scylla_args__=[] / jvm_args passed to start() is dead config."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-21",

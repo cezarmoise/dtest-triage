@@ -5,7 +5,12 @@
   "tests": {
     "TestScyllaTop::test_help": {
       "description": "Starts 1 node, runs `scyllatop --help` (plus -L/-p/-v DEBUG from get_cli) and asserts exit code 0 and non-empty stdout. argparse prints help and exits before scyllatop touches the logfile or the Prometheus endpoint, so the cluster is never used. Only guards that the scyllatop script imports (urwid etc.) and argparse setup work.",
-      "origin": {"sha": "d53e3c3d92", "date": "2018-09-18", "pr": 723, "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"},
+      "origin": {
+        "sha": "d53e3c3d92",
+        "date": "2018-09-18",
+        "pr": 723,
+        "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"
+      },
       "commits": {
         "9ffd273f04": "formatting (ruff format)",
         "30222a9cab": "formatting (convert to pytest: attr->pytest marks, debug->logger)",
@@ -24,14 +29,31 @@
       },
       "relevance": "scyllatop still shipped by scylla: tools/scyllatop/scyllatop.py, installed via install.sh:455-461, dist/redhat/scylla.spec:149. Last changes 2025-12 (20d0782dc4, af8eaa9ea5).",
       "duplicates": [
-        {"path": "scyllatop_test.py::TestScyllaTop::test_list", "coverage": "full", "note": "test_list runs the same script (same imports + argparse) and additionally queries /metrics; any failure test_help can catch, test_list catches too"}
+        {
+          "path": "scyllatop_test.py::TestScyllaTop::test_list",
+          "coverage": "full",
+          "note": "test_list runs the same script (same imports + argparse) and additionally queries /metrics; any failure test_help can catch, test_list catches too"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Live tool, but subsumed by test_list in same file (both execute module imports + argparse; --help exits before any scylla interaction), and the 1-node cluster start is wasted. Candidate for removal/merge. Note: stderr not piped (scyllatop_test.py:90), so `err` in assert message is always None."
+      "reason": "Live tool, but subsumed by test_list in same file (both execute module imports + argparse; --help exits before any scylla interaction), and the 1-node cluster start is wasted. Candidate for removal/merge. Note: stderr not piped (scyllatop_test.py:90), so `err` in assert message is always None.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "scyllatop_test.py:90",
+          "text": "stderr not piped, so `err` in assert message is always None"
+        }
+      ]
     },
     "TestScyllaTop::test_list": {
       "description": "Starts 1 node, runs `scyllatop --list -p http://<node>:9180/metrics` and asserts exit 0 and non-empty stdout. Exercises scyllatop's Prometheus scraping/parsing (metric.Metric.discover_with_help) against a real scylla metrics endpoint. Guards that scyllatop still parses scylla's /metrics format.",
-      "origin": {"sha": "6710fa4be5", "date": "2019-08-08", "pr": 1078, "summary": "scyllatop_test: add list_test (Benny Halevy)"},
+      "origin": {
+        "sha": "6710fa4be5",
+        "date": "2019-08-08",
+        "pr": 1078,
+        "summary": "scyllatop_test: add list_test (Benny Halevy)"
+      },
       "commits": {
         "9ffd273f04": "formatting (ruff format)",
         "30222a9cab": "formatting (convert to pytest)",
@@ -44,11 +66,30 @@
       "relevance": "Live: tools/scyllatop/scyllatop.py --list path (pprint of discover_with_help). Scylla /metrics on 9180 still exposed.",
       "duplicates": [],
       "decision": "YELLOW",
-      "reason": "Only test of scyllatop's metrics parsing against real scylla; no scylla test/ references scyllatop (grep -ril scyllatop test/ empty). Would be GREEN; Note: stderr not piped (scyllatop_test.py:108) so `err` is always None; output content not checked beyond non-empty (pprint of an empty list would still print `[]`)."
+      "reason": "Only test of scyllatop's metrics parsing against real scylla; no scylla test/ references scyllatop (grep -ril scyllatop test/ empty). Would be GREEN; Note: stderr not piped (scyllatop_test.py:108) so `err` is always None. Bug: output content not checked beyond non-empty (pprint of an empty list would still print `[]`).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "",
+          "text": "Only asserts non-empty stdout; pprint of an empty metric list prints '[]', so broken parsing passes"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "scyllatop_test.py:108",
+          "text": "stderr not piped, so `err` in assert message is always None"
+        }
+      ]
     },
     "TestScyllaTop::test_default_start": {
       "description": "Starts 3 nodes, runs scyllatop without -b for 10s then SIGINT, asserting exit 0 and non-empty output (interactive_start, scyllatop_test.py:44-60). Then starts it again, runs 10s c-s write on node1, SIGINTs and asserts only exit 0. Intended to test the interactive (urwid) UI, but stdout is a pipe so scyllatop takes the `not sys.stdout.isatty()` branch (tools/scyllatop/scyllatop.py, main) and runs dumpToStdout -- the same path as batch mode, with no iteration limit.",
-      "origin": {"sha": "d53e3c3d92", "date": "2018-09-18", "pr": 723, "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"},
+      "origin": {
+        "sha": "d53e3c3d92",
+        "date": "2018-09-18",
+        "pr": 723,
+        "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"
+      },
       "commits": {
         "6f303700c6": "add use_cassandra_stress mark",
         "9ffd273f04": "formatting (ruff format)",
@@ -69,14 +110,43 @@
       },
       "relevance": "scyllatop live; but urwid fancyUserInterface is never reached by this test (needs a TTY).",
       "duplicates": [
-        {"path": "scyllatop_test.py::TestScyllaTop::test_batch_mode_start", "coverage": "partial", "note": "same dumpToStdout code path under the same c-s load; only difference is exit via SIGINT/KeyboardInterrupt vs -n iterations"}
+        {
+          "path": "scyllatop_test.py::TestScyllaTop::test_batch_mode_start",
+          "coverage": "partial",
+          "note": "same dumpToStdout code path under the same c-s load; only difference is exit via SIGINT/KeyboardInterrupt vs -n iterations"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Misnamed: never exercises interactive UI since stdout is piped (scyllatop.py `if not sys.stdout.isatty() or arguments.batch`), so it largely duplicates test_batch_mode_start (~44s, 3 nodes). Bug: second phase (under stress) has no output assertion (scyllatop_test.py:131-136); stderr not piped so `err` always None. Unique bit is only the SIGINT exit path."
+      "reason": "Misnamed: never exercises interactive UI since stdout is piped (scyllatop.py `if not sys.stdout.isatty() or arguments.batch`), so it largely duplicates test_batch_mode_start (~44s, 3 nodes). Bug: second phase (under stress) has no output assertion (scyllatop_test.py:131-136); stderr not piped so `err` always None. Unique bit is only the SIGINT exit path.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "",
+          "text": "stdout is a pipe so scyllatop takes the non-TTY dumpToStdout path; interactive UI never exercised"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "scyllatop_test.py:131-136",
+          "text": "Second phase under stress asserts only exit 0, no output check"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "",
+          "text": "stderr not piped, so `err` always None"
+        }
+      ]
     },
     "TestScyllaTop::test_batch_mode_start": {
       "description": "Starts 3 nodes, runs `scyllatop -b -n 1` and asserts exit 0 and non-empty output (batch_mode_start, scyllatop_test.py:62-77). Then runs `-b -n 20` concurrently with a 10s c-s write on node1 and asserts only exit 0. Covers dumpToStdout/livedata against live metrics and the -n iteration-limit exit. Docstring says 'we can verify the content' but content is never checked.",
-      "origin": {"sha": "d53e3c3d92", "date": "2018-09-18", "pr": 723, "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"},
+      "origin": {
+        "sha": "d53e3c3d92",
+        "date": "2018-09-18",
+        "pr": 723,
+        "summary": "introduce scyllatop_test (help, default start, batch mode) by Amos Kong"
+      },
       "commits": {
         "6f303700c6": "add use_cassandra_stress mark",
         "9ffd273f04": "formatting (ruff format)",
@@ -93,10 +163,40 @@
       },
       "relevance": "Live: tools/scyllatop/dumptostdout.py (-b/-n), views/stdout.py.",
       "duplicates": [
-        {"path": "scyllatop_test.py::TestScyllaTop::test_default_start", "coverage": "partial", "note": "same dumpToStdout path (pipe => non-TTY), different exit mechanism"}
+        {
+          "path": "scyllatop_test.py::TestScyllaTop::test_default_start",
+          "coverage": "partial",
+          "note": "same dumpToStdout path (pipe => non-TTY), different exit mechanism"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only coverage of scyllatop's metric dump loop against live scylla (no scylla test/ references scyllatop). Would be GREEN; Bug: second phase under stress has no output assertion (scyllatop_test.py:152-156), docstring promises content verification that isn't done, stderr not piped so `err` always None. 3 nodes unnecessary (scyllatop reads only node1 metrics); consider merging with test_default_start."
+      "reason": "Only coverage of scyllatop's metric dump loop against live scylla (no scylla test/ references scyllatop). Would be GREEN; Bug: second phase under stress has no output assertion (scyllatop_test.py:152-156). Note: docstring promises content verification that isn't done, stderr not piped so `err` always None. 3 nodes unnecessary (scyllatop reads only node1 metrics); consider merging with test_default_start.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "scyllatop_test.py:152-156",
+          "text": "Second phase under stress asserts only exit 0, no output check"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring promises content verification that isn't done"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "",
+          "text": "stderr not piped, so `err` always None"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "",
+          "text": "3 nodes unnecessary: scyllatop reads only node1 metrics"
+        }
+      ]
     }
   }
 }

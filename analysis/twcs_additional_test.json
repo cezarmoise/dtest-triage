@@ -46,8 +46,28 @@
           "note": "TWCS expired sstables purged with 'Compacted N sstables to []' log, but no background load and no check that expired sstables are not mixed with live ones."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Assertion gap: twcs_additional_test.py:162-165 asserts 'sstables to []' only for expired-sstable compactions whose 'Compacted' end line is already in the log; in-flight ones (stress data also has TTL) are silently skipped, so the #9533 mixing check can be partly vacuous. Fix: assert every entry in `compactions` has an end line, then re-evaluate as GREEN. Otherwise unique coverage of scylladb#9533 (TWCS compacts fully expired sstables in a separate expired-only job and evicts them promptly under write load); no scylla unit test checks has_only_fully_expired descriptors. Stable (32/32), ~76s, next_gating. Notes: wait_until_sstables_are_evicted (:120) logs 'sstables has been removed' even on timeout (cosmetic; :46 asserts the result); c-s container capped at 1 CPU since 47dbad38, so load is weaker than the #9533 repro."
+      "decision": "GREEN",
+      "reason": "Unique coverage of scylladb#9533 (TWCS compacts fully expired sstables in a separate expired-only job and evicts them promptly under write load); no scylla unit test checks has_only_fully_expired descriptors. Stable (32/32), ~76s, next_gating. Note: twcs_additional_test.py:162-165 asserts 'sstables to []' only for expired-sstable compactions whose 'Compacted' end line is already in the log; in-flight ones (stress data also has TTL) are silently skipped, but compactions of the backdated sstables must have finished (eviction assert :46), so the #9533 mixing check still covers them. Fix: assert every entry in `compactions` has an end line. Notes: wait_until_sstables_are_evicted (:120) logs 'sstables has been removed' even on timeout (cosmetic; :46 asserts the result); c-s container capped at 1 CPU since 47dbad38, so load is weaker than the #9533 repro.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "twcs_additional_test.py:162-165",
+          "text": "'sstables to []' checked only for compactions with an end line; in-flight ones skipped. Backdated sstables' compactions must finish (eviction assert), so still checked."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "twcs_additional_test.py:120",
+          "text": "wait_until_sstables_are_evicted logs 'sstables has been removed' even on timeout; :46 asserts the result."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "47dbad38",
+          "text": "c-s container capped at 1 CPU, so load is weaker than the #9533 repro."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-21",

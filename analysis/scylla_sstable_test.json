@@ -5,7 +5,12 @@
   "tests": {
     "TestScyllaSstableDumpData::test_scylla_sstable_basic": {
       "description": "Single node, table (name text PK, value_one int, value_two int), inserts 4 rows, flushes, runs `scylla sstable dump-data --merge` via ccm `run_scylla_sstable` (snapshot + schema autodetection, no --schema-file), parses partition key + column values from JSON and compares to the inserted tuples with `ScyllaSstable._compare_data` (scylla_sstable_test.py:42: set symmetric difference must be empty -> exact, order-insensitive). Guards correctness of dump-data JSON content for simple int/text columns; written as feature-parity demo vs C* sstabledump.",
-      "origin": {"sha": "23ebb56d56", "date": "2023-06-16", "pr": 3245, "summary": "Add scylla_sstable_test.py (Botond Denes): mirror of sstabledump_test.py ported to scylla-sstable to show feature parity; depends on scylla-ccm#471 (run_scylla_sstable)."},
+      "origin": {
+        "sha": "23ebb56d56",
+        "date": "2023-06-16",
+        "pr": 3245,
+        "summary": "Add scylla_sstable_test.py (Botond Denes): mirror of sstabledump_test.py ported to scylla-sstable to show feature parity; depends on scylla-ccm#471 (run_scylla_sstable)."
+      },
       "commits": {
         "78574afcfb": "SimpleStrategy -> NetworkTopologyStrategy RF=1 (tablets treewide).",
         "9ffd273f04": "formatting (ruff format)",
@@ -14,17 +19,46 @@
       },
       "relevance": "Live: scylla-sstable dump-data with --merge and JSON output (tools/scylla-sstable.cc, mutation/json.hh). ccm run_scylla_sstable relies on schema autodetection from the snapshot dir, also live (tools/schema_loader.cc).",
       "duplicates": [
-        {"path": "test/cqlpy/test_select_from_mutation_fragments.py::test_metadata_and_value", "coverage": "partial", "note": "dump-data --merge JSON compared exactly against reconstruction from SELECT * FROM MUTATION_FRAGMENTS (int/text/map/tuple/static); consistency between two scylla JSON renderings, not vs client-side inserted values."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types", "coverage": "partial", "note": "Compares sstable values vs CQL for all native types, but via `sstable query`, not `dump-data`."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_dump_data", "coverage": "partial", "note": "Only asserts output non-empty / json.loads; Bug in that test: line 394 hardcodes simple_clustering_table, ignoring its table_factory param."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_write_json", "coverage": "partial", "note": "dump-data -> write -> dump-data roundtrip equality; no comparison with inserted values."}
+        {
+          "path": "test/cqlpy/test_select_from_mutation_fragments.py::test_metadata_and_value",
+          "coverage": "partial",
+          "note": "dump-data --merge JSON compared exactly against reconstruction from SELECT * FROM MUTATION_FRAGMENTS (int/text/map/tuple/static); consistency between two scylla JSON renderings, not vs client-side inserted values."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types",
+          "coverage": "partial",
+          "note": "Compares sstable values vs CQL for all native types, but via `sstable query`, not `dump-data`."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_dump_data",
+          "coverage": "partial",
+          "note": "Only asserts output non-empty / json.loads; Bug in that test: line 394 hardcodes simple_clustering_table, ignoring its table_factory param."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_write_json",
+          "coverage": "partial",
+          "note": "dump-data -> write -> dump-data roundtrip equality; no comparison with inserted values."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (6s, 100% pass) exact check of dump-data content vs inserted values; scylla cqlpy has only consistency checks (test_metadata_and_value, write_json roundtrip, query_data_types via `query`), none comparing dump-data to ground truth, so overlap is strong but partial. Could be ported to test/cqlpy/test_tools.py. Note (class ScyllaSstable): `_dump_data` (scylla_sstable_test.py:30-40) catches subprocess.CalledProcessError, but ccm run_scylla_sstable raises ccmlib ToolError (scylla-ccm aab335cacf ccmlib/scylla_node.py:1730), so the error-logging branch is dead (ToolError message already has stdout/stderr)."
+      "reason": "Cheap (6s, 100% pass) exact check of dump-data content vs inserted values; scylla cqlpy has only consistency checks (test_metadata_and_value, write_json roundtrip, query_data_types via `query`), none comparing dump-data to ground truth, so overlap is strong but partial. Could be ported to test/cqlpy/test_tools.py. Note (class ScyllaSstable): `_dump_data` (scylla_sstable_test.py:30-40) catches subprocess.CalledProcessError, but ccm run_scylla_sstable raises ccmlib ToolError (scylla-ccm aab335cacf ccmlib/scylla_node.py:1730), so the error-logging branch is dead (ToolError message already has stdout/stderr).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "scylla_sstable_test.py:30-40",
+          "text": "_dump_data catches CalledProcessError but ccm run_scylla_sstable raises ToolError; error-logging branch dead."
+        }
+      ]
     },
     "TestScyllaSstableDumpData::test_sstabledump_counter_basic": {
       "description": "Single node, table (pk int PK, cnt counter); for pk 1..9 increments cnt by i and by 10^18, reads expected rows via CQL SELECT, flushes, dumps with `dump-data --merge`, sums counter shard values per cell (`_fetch_counter_data_from_json`, line 131) and compares with base `ScyllaSstable._compare_data` (line 42, exact set equality). Guards dump-data JSON rendering of counter cells/shards, including large (10^18) values.",
-      "origin": {"sha": "23ebb56d56", "date": "2023-06-16", "pr": 3245, "summary": "Add scylla_sstable_test.py: port of sstabledump_test counter test to scylla-sstable (shard list instead of hex blob parsing)."},
+      "origin": {
+        "sha": "23ebb56d56",
+        "date": "2023-06-16",
+        "pr": 3245,
+        "summary": "Add scylla_sstable_test.py: port of sstabledump_test counter test to scylla-sstable (shard list instead of hex blob parsing)."
+      },
       "commits": {
         "78574afcfb": "SimpleStrategy -> NetworkTopologyStrategy; added @required_features(\"!tablets\") ('Counters are not yet supported with tablets').",
         "9ffd273f04": "formatting (ruff format)",
@@ -33,16 +67,47 @@
       },
       "relevance": "Live: counters, dump-data counter shard output (mutation/json.hh `write(counter_cell_view)`). Counters with tablets are supported since scylla 9208b2f317 (2025-10-16, 'cql3: allow counters with tablets', feature counters_with_tablets, in 2026.1).",
       "duplicates": [
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types[counter]", "coverage": "partial", "note": "Counter value vs CQL, but via `sstable query`, single increment, not dump-data shards."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_script[table_with_counters]", "coverage": "partial", "note": "lua dump vs C++ dump-data consistency only."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_dump_data", "coverage": "partial", "note": "table_with_counters param is a no-op: line 394 always uses simple_clustering_table (bug in scylla test); asserts only valid JSON."}
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types[counter]",
+          "coverage": "partial",
+          "note": "Counter value vs CQL, but via `sstable query`, single increment, not dump-data shards."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_script[table_with_counters]",
+          "coverage": "partial",
+          "note": "lua dump vs C++ dump-data consistency only."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_dump_data",
+          "coverage": "partial",
+          "note": "table_with_counters param is a no-op: line 394 always uses simple_clustering_table (bug in scylla test); asserts only valid JSON."
+        }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique: no scylla test checks dump-data counter shard values against the CQL value (query_data_types uses `sstable query`; script test is consistency only; dump_data's counter param is a no-op due to test_tools.py:394 bug). Note: @required_features(\"!tablets\") (scylla_sstable_test.py:93-94, added 78574afcfb) is stale since scylla 9208b2f317 allowed counters with tablets, so the test is skipped in next-dtest-tablets (only 16 runs, consistent-topology job). Note: dead CalledProcessError handler in `_dump_data` (ccm raises ToolError, scylla-ccm ccmlib/scylla_node.py:1730)."
+      "decision": "GREEN",
+      "reason": "Unique: no scylla test checks dump-data counter shard values against the CQL value (query_data_types uses `sstable query`; script test is consistency only; dump_data's counter param is a no-op due to test_tools.py:394 bug). Note: @required_features(\"!tablets\") (scylla_sstable_test.py:93-94, added 78574afcfb) is stale since scylla 9208b2f317 allowed counters with tablets, so the test is skipped in next-dtest-tablets (only 16 runs, consistent-topology job). Note: dead CalledProcessError handler in `_dump_data` (ccm raises ToolError, scylla-ccm ccmlib/scylla_node.py:1730).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "scylla_sstable_test.py:93-94",
+          "text": "@required_features('!tablets') stale since scylla 9208b2f317 allowed counters with tablets; skipped in next-dtest-tablets."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "scylla_sstable_test.py:30-40",
+          "text": "_dump_data catches CalledProcessError but ccm run_scylla_sstable raises ToolError; error-logging branch dead."
+        }
+      ]
     },
     "TestScyllaSstableDumpataAllDatatypes::test_sstabledump_all_datatypes": {
       "description": "Uses CqlshPrepare.all_datatypes_prepare (cqlsh_tests/cqlsh_copy_tests.py:134) to create a table with ~23 column types, drops UDT columns t,u, inserts one row, dumps with `dump-data --merge`, converts each JSON column back to Python (class-local `_fetch_data_from_json`, line 185) and compares positionally with the override `_compare_data` (line 236: `==` per column, only first len(src)-2 columns). Guards dump-data JSON formatting of native types and non-frozen list/set/map cells, plus tuple.",
-      "origin": {"sha": "23ebb56d56", "date": "2023-06-16", "pr": 3245, "summary": "Add scylla_sstable_test.py: port of sstabledump all-datatypes test (sstabledump origin a882864020, PR 471, 2017)."},
+      "origin": {
+        "sha": "23ebb56d56",
+        "date": "2023-06-16",
+        "pr": 3245,
+        "summary": "Add scylla_sstable_test.py: port of sstabledump all-datatypes test (sstabledump origin a882864020, PR 471, 2017)."
+      },
       "commits": {
         "9ffd273f04": "formatting (ruff format)",
         "d280b6a2f7": "Added add_z loop: try parsing timestamps with and without appended 'Z' so test passes before/after scylladb#14726 (ISO 8601 timestamps with Z).",
@@ -50,12 +115,50 @@
       },
       "relevance": "Live: dump-data JSON per-type rendering. scylladb#14726 (ff721ec3e3, 2023-07-17) made timestamps end with 'Z', so the add_z=True path is obsolete. The UDT drop workaround references scylla-tools-java#24 (Java sstabledump), irrelevant to scylla-sstable which dumps UDTs (cqlpy clustering_table_with_udt).",
       "duplicates": [
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types", "coverage": "partial", "note": "All native types (incl. date/time/duration/smallint/tinyint, not in dtest), collections, UDT, nested UDT vs CQL results, but via `sstable query` not dump-data."},
-        {"path": "test/cqlpy/test_tools.py::test_scylla_sstable_write_json", "coverage": "partial", "note": "Roundtrip consistency only, simple tables."},
-        {"path": "test/cqlpy/test_select_from_mutation_fragments.py::test_metadata_and_value", "coverage": "partial", "note": "dump-data vs MUTATION_FRAGMENTS for text/map/tuple."}
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_query_data_types",
+          "coverage": "partial",
+          "note": "All native types (incl. date/time/duration/smallint/tinyint, not in dtest), collections, UDT, nested UDT vs CQL results, but via `sstable query` not dump-data."
+        },
+        {
+          "path": "test/cqlpy/test_tools.py::test_scylla_sstable_write_json",
+          "coverage": "partial",
+          "note": "Roundtrip consistency only, simple tables."
+        },
+        {
+          "path": "test/cqlpy/test_select_from_mutation_fragments.py::test_metadata_and_value",
+          "coverage": "partial",
+          "note": "dump-data vs MUTATION_FRAGMENTS for text/map/tuple."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only test checking dump-data JSON per-type values against inserted data, but heavily weakened and partly covered by query_data_types (same types via `query`). Bug: `_compare_data` override (scylla_sstable_test.py:244-245) loops range(len(src)-2), so v/w (nested frozen collections) are never compared; UDT columns t,u dropped (155-158) with stale TODO citing scylla-tools-java#24. Note: add_z workaround (174-183, 190-198) obsolete since scylla ff721ec3e3 (#14726): 'Z'+'Z' parses to a naive datetime with dateutil UnknownTimezoneWarning ('will raise an exception' in future), and that exception would not be AssertionError so the fallback would not catch it. Note: dead CalledProcessError handler in `_dump_data` (ccm raises ToolError)."
+      "reason": "Only test checking dump-data JSON per-type values against inserted data, but heavily weakened and partly covered by query_data_types (same types via `query`). Bug: `_compare_data` override (scylla_sstable_test.py:244-245) loops range(len(src)-2), so v/w (nested frozen collections) are never compared; UDT columns t,u dropped (155-158) with stale TODO citing scylla-tools-java#24. Note: add_z workaround (174-183, 190-198) obsolete since scylla ff721ec3e3 (#14726): 'Z'+'Z' parses to a naive datetime with dateutil UnknownTimezoneWarning ('will raise an exception' in future), and that exception would not be AssertionError so the fallback would not catch it. Note: dead CalledProcessError handler in `_dump_data` (ccm raises ToolError).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "scylla_sstable_test.py:244-245",
+          "text": "_compare_data override loops range(len(src)-2), so v/w (nested frozen collections) are never compared."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "scylla_sstable_test.py:155-158",
+          "text": "UDT columns t,u dropped with stale TODO citing scylla-tools-java#24 (Java sstabledump); scylla-sstable dumps UDTs."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "scylla_sstable_test.py:174-198",
+          "text": "add_z workaround obsolete since scylla ff721ec3e3 (#14726); its fallback wouldn't catch a future dateutil exception."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "scylla_sstable_test.py:30-40",
+          "text": "_dump_data catches CalledProcessError but ccm run_scylla_sstable raises ToolError; error-logging branch dead."
+        }
+      ]
     }
   }
 }

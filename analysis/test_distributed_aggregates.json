@@ -5,7 +5,12 @@
   "tests": {
     "TestDistributedAggregates::test_retrying_dispatcher": {
       "description": "2-node cluster (2 racks, RF=2), insert 4 rows, SIGSTOP node2 (so node1 isn't told it stopped) and run SELECT count(*) via node1, asserting 4 rows. Intended to exercise mapreduce_service's retrying_dispatcher: the sub-request sent to node2 fails with rpc::closed_error (connection dropped when node2 is marked down) and is re-executed locally on the super-coordinator. Added while investigating scylladb#13276 (closed), where retrying_dispatcher's correctness was in doubt.",
-      "origin": {"sha": "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa", "date": "2023-06-14", "pr": 3234, "summary": "add test_distributed_aggregates: tests retrying_dispatcher of forward_service (scylladb#13276 discussion)"},
+      "origin": {
+        "sha": "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa",
+        "date": "2023-06-14",
+        "pr": 3234,
+        "summary": "add test_distributed_aggregates: tests retrying_dispatcher of forward_service (scylladb#13276 discussion)"
+      },
       "commits": {
         "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa": "origin: added the test",
         "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (isort/pyupgrade of imports)",
@@ -15,16 +20,53 @@
       },
       "relevance": "Live. retrying_dispatcher still exists in service/mapreduce_service.cc:271 (forward_service renamed mapreduce_service); retries locally on rpc::closed_error (mapreduce_service.cc:~310), used by both vnode and tablet algorithms. storage_service::notify_down removes rpc clients (service/storage_service.cc:7508), which is what turns the hung RPC into closed_error after node2 is marked down. Stable: 38/38 passes, ~24s.",
       "duplicates": [
-        {"path": "test/cluster/test_long_query_timeout_erm.py::test_long_query_timeout_erm[SELECT_COUNT]", "coverage": "partial", "note": "mapreduce count(*) with a killed node, but RF=3 + injections, expects 'Operation failed for' error; doesn't check the retry-succeeds path. Debug/dev only (error injection)."},
-        {"path": "test/cluster/test_aggregation.py::test_cancel_mapreduce", "coverage": "partial", "note": "mapreduce dispatch to another node with supercoordinator shutdown; different scenario (cancellation), not retry."},
-        {"path": "distributed_queries_test.py::TestDistributedQueries::test_distributed_count_all", "coverage": "partial", "note": "dtest: checks count(*) is parallelized via tracing, no node failure."}
+        {
+          "path": "test/cluster/test_long_query_timeout_erm.py::test_long_query_timeout_erm[SELECT_COUNT]",
+          "coverage": "partial",
+          "note": "mapreduce count(*) with a killed node, but RF=3 + injections, expects 'Operation failed for' error; doesn't check the retry-succeeds path. Debug/dev only (error injection)."
+        },
+        {
+          "path": "test/cluster/test_aggregation.py::test_cancel_mapreduce",
+          "coverage": "partial",
+          "note": "mapreduce dispatch to another node with supercoordinator shutdown; different scenario (cancellation), not retry."
+        },
+        {
+          "path": "distributed_queries_test.py::TestDistributedQueries::test_distributed_count_all",
+          "coverage": "partial",
+          "note": "dtest: checks count(*) is parallelized via tracing, no node failure."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only test found for the retrying_dispatcher success path (no scylla test greps for 'retrying mapreduce_request'). Note: the test never asserts the retry happened (no check of the 'retrying mapreduce_request ... on a super-coordinator' warn, mapreduce_service.cc:~311); if node2 is already marked down before dispatch, get_live_endpoints/is_alive filtering (mapreduce_service.cc:606/676) routes everything to node1 and the test passes without exercising retry. Note: SIGCONT not in finally (test_distributed_aggregates.py:58); unused imports ConsistencyLevel/SimpleStatement and unused prepare() jvm_args/options. Fix by asserting the warn log -> GREEN."
+      "reason": "Only test found for the retrying_dispatcher success path (no scylla test greps for 'retrying mapreduce_request'). Bug: the test never asserts the retry happened (no check of the 'retrying mapreduce_request ... on a super-coordinator' warn, mapreduce_service.cc:~311); if node2 is already marked down before dispatch, get_live_endpoints/is_alive filtering (mapreduce_service.cc:606/676) routes everything to node1 and the test passes without exercising retry. Note: SIGCONT not in finally (test_distributed_aggregates.py:58); unused imports ConsistencyLevel/SimpleStatement and unused prepare() jvm_args/options. Fix by asserting the warn log -> GREEN.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "service/mapreduce_service.cc:606",
+          "text": "Retry never asserted (no 'retrying mapreduce_request' log check); if node2 already marked down, all goes to node1 and passes without retry."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "test_distributed_aggregates.py:58",
+          "text": "SIGCONT not in finally; node2 stays stopped on failure."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "test_distributed_aggregates.py:5-7,17",
+          "text": "Unused imports ConsistencyLevel/SimpleStatement; prepare() jvm_args/options unused."
+        }
+      ]
     },
     "TestDistributedAggregates::test_retrying_dispatcher_fails": {
       "description": "2-node cluster (1 rack, RF=1), insert 4 rows, SIGSTOP node2 and run SELECT COUNT(*) via node1, expecting NoHostAvailable or OperationTimedOut. Checks that when the node owning part of the data is really unavailable, the local retry on the super-coordinator can't help and the aggregation fails as a whole instead of returning a partial count.",
-      "origin": {"sha": "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa", "date": "2023-06-14", "pr": 3234, "summary": "add test_distributed_aggregates: tests retrying_dispatcher of forward_service (scylladb#13276 discussion)"},
+      "origin": {
+        "sha": "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa",
+        "date": "2023-06-14",
+        "pr": 3234,
+        "summary": "add test_distributed_aggregates: tests retrying_dispatcher of forward_service (scylladb#13276 discussion)"
+      },
       "commits": {
         "19cc2e5d9ecec5596cc7f2e9afbbffcf219f16fa": "origin: added the test",
         "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (isort/pyupgrade of imports)",
@@ -33,10 +75,34 @@
       },
       "relevance": "Live: retrying_dispatcher (service/mapreduce_service.cc:271) and 'No live endpoint available' path (mapreduce_service.cc:613/682) still exist. Stable: 38/38 passes, ~29s.",
       "duplicates": [
-        {"path": "test/cluster/test_long_query_timeout_erm.py::test_long_query_timeout_erm[SELECT_COUNT]", "coverage": "partial", "note": "count(*) mapreduce fails ('Operation failed for') when a node is killed mid-query; debug/dev only."}
+        {
+          "path": "test/cluster/test_long_query_timeout_erm.py::test_long_query_timeout_erm[SELECT_COUNT]",
+          "coverage": "partial",
+          "note": "count(*) mapreduce fails ('Operation failed for') when a node is killed mid-query; debug/dev only."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Live behavior with only partial scylla overlap, but low-value assertion: assert_exception (tools/assertions.py:78) accepts OperationTimedOut, a client-side timeout, so a server hang also passes; only real guard is 'no partial count returned'. Note: SIGCONT not in finally (test_distributed_aggregates.py:77); unused imports and prepare() jvm_args/options. Could be merged into test_retrying_dispatcher's setup or dropped."
+      "reason": "Live behavior with only partial scylla overlap, but low-value assertion: assert_exception (tools/assertions.py:78) accepts OperationTimedOut, a client-side timeout, so a server hang also passes; only real guard is 'no partial count returned'. Note: SIGCONT not in finally (test_distributed_aggregates.py:77); unused imports and prepare() jvm_args/options. Could be merged into test_retrying_dispatcher's setup or dropped.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:78",
+          "text": "Accepts client-side OperationTimedOut, so a server hang passes; still catches a partial count."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "test_distributed_aggregates.py:77",
+          "text": "SIGCONT not in finally; node2 stays stopped on failure."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "test_distributed_aggregates.py:5-7,17",
+          "text": "Unused imports ConsistencyLevel/SimpleStatement; prepare() jvm_args/options unused."
+        }
+      ]
     }
   }
 }

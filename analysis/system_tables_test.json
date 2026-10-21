@@ -31,7 +31,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (14s) but its assertions are a strict subset of test_content_multi_dc_all_nodes_are_up (same file), which runs check_running_node_status on all nodes before adding one; candidate to drop as redundant, not slow so not RED."
+      "reason": "Cheap (14s) but its assertions are a strict subset of test_content_multi_dc_all_nodes_are_up (same file), which runs check_running_node_status on all nodes before adding one; candidate to drop as redundant, not slow so not RED.",
+      "issues": []
     },
     "TestClusterStatusTable::test_content_add_new_node": {
       "description": "Starts 1 node, bootstraps node2, reads cluster_status from node1: asserts row count == nodes, node2 row present, sum(owns) rounds to 1, node2 dc/host_id/NORMAL/up correct.",
@@ -56,7 +57,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Nearly all assertions duplicated by test_content_multi_dc_all_nodes_are_up (same file, multi-DC variant); only extra is len(rows)==len(nodes). Cheap (8s); could merge the row-count check into the multi-DC test and drop this."
+      "reason": "Nearly all assertions duplicated by test_content_multi_dc_all_nodes_are_up (same file, multi-DC variant); only extra is len(rows)==len(nodes). Cheap (8s); could merge the row-count check into the multi-DC test and drop this.",
+      "issues": []
     },
     "TestClusterStatusTable::test_content_multi_dc_all_nodes_are_up": {
       "description": "Starts 2 nodes in dc1/dc2, checks both rows (dc, host_id, NORMAL, up), adds node3 in dc2, checks new row, sum(owns)==1 and node3 status. Covers cluster_status dc reporting across DCs and table update after bootstrap.",
@@ -77,7 +79,8 @@
       "relevance": "Live: cluster_status_table (db/virtual_tables.cc:62); scylladb#16984 (virtual tables using raft-topology state) closed.",
       "duplicates": [],
       "decision": "GREEN",
-      "reason": "No scylla test checks cluster_status rows (dc/host_id/owns) across DCs or after bootstrap; only test_topology_failure_recovery.py and test_maintenance_mode.py read single columns. Cheap (13s), 100% pass."
+      "reason": "No scylla test checks cluster_status rows (dc/host_id/owns) across DCs or after bootstrap; only test_topology_failure_recovery.py and test_maintenance_mode.py read single columns. Cheap (13s), 100% pass.",
+      "issues": []
     },
     "TestClusterStatusTable::test_content_stop_node": {
       "description": "Starts 2 nodes, gracefully stops node2, reads cluster_status from node1 and asserts node2 up=False and status=='SHUTDOWN' (gossiper.is_shutdown branch, db/virtual_tables.cc:108).",
@@ -101,7 +104,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: test/cluster/test_maintenance_mode.py asserts the same 'shutdown' status via cluster_status from a peer; this test adds only up=False on a plain graceful stop. Cheap (11s)."
+      "reason": "Partial overlap: test/cluster/test_maintenance_mode.py asserts the same 'shutdown' status via cluster_status from a peer; this test adds only up=False on a plain graceful stop. Cheap (11s).",
+      "issues": []
     },
     "TestClusterStatusTable::test_content_remove_node": {
       "description": "Starts 3 nodes, kills node2, node1.removenode(host_id), sleep(10), reads cluster_status: with raft topology asserts node2's row is gone; gossip mode branch asserts up=False and status REMOVED.",
@@ -123,8 +127,22 @@
       },
       "relevance": "Live: removenode + cluster_status. Gossip topology is deprecated (force_gossip_topology_changes value_status::Deprecated, db/config.cc:1735); dtest always has 'consistent-topology-changes' in scylla_features unless --force-gossip-topology-changes (conftest.py:735-741).",
       "duplicates": [],
-      "decision": "YELLOW",
-      "reason": "Unique check that removed node vanishes from cluster_status, but slowest of class (58s). Note: gossip branch (system_tables_test.py:230-232) is dead in all CI jobs (scylla_features always contains consistent-topology-changes, conftest.py:735); Note: fixed sleep(10) (line 224) instead of waiting on condition."
+      "decision": "GREEN",
+      "reason": "Unique check that removed node vanishes from cluster_status, but slowest of class (58s). Note: gossip branch (system_tables_test.py:230-232) is dead in all CI jobs (scylla_features always contains consistent-topology-changes, conftest.py:735); Note: fixed sleep(10) (line 224) instead of waiting on condition.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "system_tables_test.py:230-232",
+          "text": "Gossip-mode branch dead in all CI jobs (consistent-topology-changes always in scylla_features, conftest.py:735)."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "system_tables_test.py:224",
+          "text": "Fixed sleep(10) instead of waiting on a condition."
+        }
+      ]
     },
     "TestConfigTable::test_content_values_types": {
       "description": "Single node; reads all system.config rows and checks value format matches declared type: numeric for integer/double/float, true/false for bool, [..] for string list, {..} for string map, printable for string, non-empty otherwise.",
@@ -154,7 +172,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with cqlpy test_system_config_read / boost test_system_config_table_read, which check specific rows; this one sweeps all types but with weak checks. Note: 'string' check is only isprintable() (system_tables_test.py:940), and unknown types only assert non-empty (:943). Cheap, easy cqlpy port."
+      "reason": "Partial overlap with cqlpy test_system_config_read / boost test_system_config_table_read, which check specific rows; this one sweeps all types but with weak checks. Bug: 'string' check is only isprintable() (system_tables_test.py:940), and unknown types only assert non-empty (:943). Cheap, easy cqlpy port.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "system_tables_test.py:940,943",
+          "text": "'string' type checked only via isprintable(); unknown types only assert non-empty."
+        }
+      ]
     },
     "TestConfigTable::test_content_source_config": {
       "description": "Single node; loads node's scylla.yaml and asserts every system.config row with source='config' has the same value as the yaml (JSON-decoding seed_provider/experimental_features, 0/1->false/true for enum_option types).",
@@ -186,7 +212,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly unique (yaml vs system.config round-trip for every config-sourced option), cheap. Note: no assertion that any source='config' rows exist (system_tables_test.py:968) - if source were misreported (e.g. all 'default') the loop is empty and the test passes vacuously."
+      "reason": "Mostly unique (yaml vs system.config round-trip for every config-sourced option), cheap. Bug: no assertion that any source='config' rows exist (system_tables_test.py:968) - if source were misreported (e.g. all 'default') the loop is empty and the test passes vacuously.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "system_tables_test.py:968",
+          "text": "No assert that any source='config' rows exist; if source were misreported the loop is empty and test passes."
+        }
+      ]
     },
     "TestConfigTable::test_content_source_cli": {
       "description": "Single node; takes ccm startup args and asserts every system.config row with source='cli' maps to a --flag present in args with matching value (bool 1/true, 0/false).",
@@ -206,7 +240,15 @@
       "relevance": "Live: config_source::CommandLine reported as 'cli' in system.config.",
       "duplicates": [],
       "decision": "YELLOW",
-      "reason": "No scylla test checks source='cli' rows in system.config; cheap. Note: no assertion that cli rows exist (system_tables_test.py:1022) - a regression reporting cli options as another source passes vacuously."
+      "reason": "No scylla test checks source='cli' rows in system.config; cheap. Bug: no assertion that cli rows exist (system_tables_test.py:1022) - a regression reporting cli options as another source passes vacuously.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "system_tables_test.py:1022",
+          "text": "No assert that any source='cli' rows exist; cli options reported under another source pass vacuously."
+        }
+      ]
     },
     "TestConfigTable::test_content_update_value": {
       "description": "Single node; updates ~13 live-updatable options via UPDATE system.config SET value, re-reads each and asserts value matches and source=='cql'; errors collected and asserted at end.",
@@ -248,7 +290,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Update path partially covered by cqlpy test_system_config_update_boolean and boost virtual_table_test.cc update tests; unique part is source=='cql' check over many options. Note: stale TODO filter for scylladb#10047 (CLOSED) pops strict_allow_filtering/restrict_replication_simplestrategy/restrict_dtcs (system_tables_test.py:1104-1106) so enum options are never exercised."
+      "reason": "Update path partially covered by cqlpy test_system_config_update_boolean and boost virtual_table_test.cc update tests; unique part is source=='cql' check over many options. Bug: stale TODO filter for scylladb#10047 (CLOSED) pops strict_allow_filtering/restrict_replication_simplestrategy/restrict_dtcs (system_tables_test.py:1104-1106) so enum options are never exercised.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "system_tables_test.py:1104-1106",
+          "text": "TODO filter for closed scylladb#10047 pops enum options, so they are never updated."
+        }
+      ]
     },
     "TestConfigTable::test_content_disable_update": {
       "description": "Single node; sets enable_cql_config_updates=0 via system.config, then asserts setting it back to 1 fails with WriteFailure 'this virtual table doesn't allow updates' (db/virtual_table.cc:182 via config_table::apply check at db/virtual_tables.cc:870).",
@@ -275,7 +325,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of enable_cql_config_updates kill-switch; grep of scylladb test/ finds no use of the option or the error message. Cheap (5s), 100% pass."
+      "reason": "Only test of enable_cql_config_updates kill-switch; grep of scylladb test/ finds no use of the option or the error message. Cheap (5s), 100% pass.",
+      "issues": []
     },
     "TestConfigTable::test_invalid_update": {
       "description": "Single node; parametrized invalid UPDATE system.config statements (no value, update source, update type, non-live-updateable api_port, unknown option) must raise WriteFailure containing the specific error message from config_table::apply. 6th param wrong_value_type (bool into failure_detector_timeout_in_ms) is xfail(#10394) + unmark.next_gating.",
@@ -301,7 +352,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly unique coverage of system.config update error paths, cheap (4s). Note: wrong_value_type param xfail references scylladb#10394 which is CLOSED (2022-05-04) and is unmarked from gating; it has 0 runs in collected Jenkins data (system_tables_test.py:1049) - stale xfail, should be un-xfailed or dropped."
+      "reason": "Mostly unique coverage of system.config update error paths, cheap (4s). Bug: wrong_value_type param xfail references scylladb#10394 which is CLOSED (2022-05-04) and is unmarked from gating; it has 0 runs in collected Jenkins data (system_tables_test.py:1049) - stale xfail, should be un-xfailed or dropped.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "system_tables_test.py:1049",
+          "text": "wrong_value_type param: non-strict xfail on fixed (CLOSED) scylladb#10394, so it can never fail; unmarked from gating."
+        }
+      ]
     },
     "TestProtocolServersTable::test_content": {
       "description": "Single node, params default/alternator/redis: reads system.protocol_servers and checks each returned row (except thrift 'rpc') is known and has expected listen_addresses/protocol (CQL version vs system.local for native transport). Alternator param enables alternator_port=8000 and expects that address.",
@@ -330,7 +389,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique content check of protocol_servers (native transport + alternator addresses), but Bug: redis param is dead since redis removal (scylladb ebf1db5c5e) - no redis row exists and the loop only validates rows present, so it equals 'default' (system_tables_test.py:551). Bug: test never asserts expected rows exist (iterates returned rows only, :587-597), so a missing alternator/native row would pass."
+      "reason": "Unique content check of protocol_servers (native transport + alternator addresses). Note: redis param is dead since redis removal (scylladb ebf1db5c5e) - no redis row exists and the loop only validates rows present, so it equals 'default' (system_tables_test.py:551). Bug: test never asserts expected rows exist (iterates returned rows only, :587-597), so a missing alternator/native row would pass.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "system_tables_test.py:551",
+          "text": "redis param dead since redis removal (scylladb ebf1db5c5e); redis_port unused, param equals 'default'."
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "system_tables_test.py:587-597",
+          "text": "Only validates returned rows; never asserts expected native/alternator rows exist, so a missing row passes."
+        }
+      ]
     },
     "TestRuntimeInfoTable::test_cache_metrics": {
       "description": "Single node: creates table with 100 rows, reads system.runtime_info group='cache', flushes table and asserts cache entries grew by >=100 and memory_used grew (flush populates cache); then full scan and asserts requests_total and hits grew, misses unchanged, requests_total==hits+misses.",
@@ -355,7 +428,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test validating runtime_info cache metrics semantics end-to-end (flush-populates-cache, hits/misses accounting); cheap (5.5s), 100% pass."
+      "reason": "Only test validating runtime_info cache metrics semantics end-to-end (flush-populates-cache, hits/misses accounting); cheap (5.5s), 100% pass.",
+      "issues": []
     },
     "TestRuntimeInfoTable::test_content_toggle_item": {
       "description": "Single node, params gossip_active/incremental_backup_enabled: toggles via nodetool disablegossip/enablebackup, asserts system.runtime_info generic item reflects new state, reverts and asserts default state again.",
@@ -387,7 +461,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end check that nodetool toggles of gossip/incremental backup are reflected in system.runtime_info; cheap (6.7s)."
+      "reason": "Unique end-to-end check that nodetool toggles of gossip/incremental backup are reflected in system.runtime_info; cheap (6.7s).",
+      "issues": []
     },
     "TestRuntimeInfoTable::test_default_content": {
       "description": "Single node: reads full system.runtime_info, asserts exact item list per group (cache/memory/generic/memtable), gossip_active=true, incremental_backup_enabled=false, uptime 'N seconds' >0, memory.total within smp*2MiB of node.memory() (non-debug), all other values numeric.",
@@ -421,7 +496,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test pinning the full runtime_info schema (item lists) and default values incl. memory total; cheap (5.8s)."
+      "reason": "Only test pinning the full runtime_info schema (item lists) and default values incl. memory total; cheap (5.8s).",
+      "issues": []
     },
     "TestRuntimeInfoTable::test_memtable_metrics": {
       "description": "Single node: reads runtime_info group='memtable', creates table with 100 rows, asserts memtable entries and memory_used increased. Marked xfail(scylladb#10340: memtable metrics always 0) and unmark.next_gating, so runs only in dtest-release jobs.",
@@ -446,7 +522,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fix commit scylladb c2e954adea added test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables which fully covers (and is stronger than) this check. Bug: stale xfail on scylladb#10340 (system_tables_test.py:856) - fixed, test XPASSes, so it could never fail."
+      "reason": "Fix commit scylladb c2e954adea added test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables which fully covers (and is stronger than) this check. Bug: stale xfail on scylladb#10340 (system_tables_test.py:856) - fixed, test XPASSes, so it could never fail.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "system_tables_test.py:856",
+          "text": "Non-strict xfail on scylladb#10340, fixed by scylladb c2e954adea; test XPASSes and can never fail."
+        }
+      ]
     },
     "TestSnapshotsTable::test_content_auto_snapshot": {
       "description": "3 nodes (3 racks) with auto_snapshot=true, RF=3 table with 10 rows, TRUNCATE; then on each node via exclusive connection asserts system.snapshots has exactly 1 row for that table. Guards truncate auto-snapshot being taken on all replicas and exposed in the virtual table.",
@@ -476,7 +560,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking truncate auto-snapshot appears in system.snapshots on every replica of a multi-node cluster; 15s."
+      "reason": "Only test checking truncate auto-snapshot appears in system.snapshots on every replica of a multi-node cluster; 15s.",
+      "issues": []
     },
     "TestSnapshotsTable::test_content_create_and_remove_snapshot": {
       "description": "Single node, params one_table/keyspace(5 tables): nodetool snapshot of a table or keyspace, asserts system.snapshots lists exactly those tables with the parsed snapshot name and numeric live/total, then nodetool clearsnapshot and asserts table is empty.",
@@ -508,7 +593,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "cqlpy test_snapshots_table / test_snapshots_multiple_keyspaces cover listing snapshots in system.snapshots; remaining unique bits are keyspace-wide nodetool snapshot and system.snapshots being empty after clearsnapshot. Near-redundant; candidate to remove."
+      "reason": "cqlpy test_snapshots_table / test_snapshots_multiple_keyspaces cover listing snapshots in system.snapshots; remaining unique bits are keyspace-wide nodetool snapshot and system.snapshots being empty after clearsnapshot. Near-redundant; candidate to remove.",
+      "issues": []
     },
     "TestTokenRingTable::test_content_increasing_cluster": {
       "description": "2 nodes, keyspace RF=3 (vnodes only; skipped with tablets): picks one token range from system.token_ring, asserts it has 2 endpoints, then adds node3 and node4 asserting it has 3 endpoints after each. Guards token_ring replica listing as cluster grows.",
@@ -539,7 +625,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique multi-node check that token_ring endpoints follow RF and bootstraps (vnodes); 18s, 100% pass."
+      "reason": "Unique multi-node check that token_ring endpoints follow RF and bootstraps (vnodes); 18s, 100% pass.",
+      "issues": []
     },
     "TestTokenRingTable::test_content_match_on_all_nodes": {
       "description": "3 nodes (2 racks), keyspace RF=2 (no table created), reads system.token_ring for the keyspace on node1 and asserts identical result on node2/node3 via exclusive connections.",
@@ -564,7 +651,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap consistency check unique to dtest, but Bug: with tablets (runs in next-dtest-tablets) no table is created, and token_ring lists tablet keyspaces only per table (see comment in test_content_one_node_create_and_drop_keyspace), so it compares [] == []; no non-empty assertion (system_tables_test.py:445-456). Only meaningful in vnodes mode."
+      "reason": "Cheap consistency check unique to dtest, but Note: with tablets (runs in next-dtest-tablets) no table is created, and token_ring lists tablet keyspaces only per table (see comment in test_content_one_node_create_and_drop_keyspace), so it compares [] == []; no non-empty assertion (system_tables_test.py:445-456). Only meaningful in vnodes mode.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "system_tables_test.py:445-456",
+          "text": "Under tablets no table is created, so token_ring is empty and it compares [] == []; exercised only under vnodes."
+        }
+      ]
     },
     "TestTokenRingTable::test_content_multi_dc_cluster": {
       "description": "4 nodes in 2 DCs (dc1 rack1/rack2, dc2 2x rack1), keyspace NTS {dc1:2, dc2:1} (+ table in tablets mode). Picks one token range from system.token_ring and asserts it has exactly 3 endpoints spanning both DCs. Guards per-DC replica listing in token_ring (vnodes and tablets).",
@@ -601,7 +696,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only multi-DC check of token_ring replica/DC content, both vnodes and tablets modes; cqlpy tests are single node. 20s, 100% pass."
+      "reason": "Only multi-DC check of token_ring replica/DC content, both vnodes and tablets modes; cqlpy tests are single node. 20s, 100% pass.",
+      "issues": []
     },
     "TestTokenRingTable::test_content_one_node_create_and_drop_keyspace": {
       "description": "Single node: create keyspace RF=1 (+ table in tablets mode), assert it appears in SELECT DISTINCT keyspace_name FROM system.token_ring; drop it and assert it no longer appears. Guards token_ring tracking schema changes.",
@@ -631,7 +727,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Drop-keyspace disappearance from token_ring not covered in scylla tests; existence part partially duplicated by cqlpy test_token_ring_*. Single node, 5s, 100% pass. Could be moved to cqlpy."
+      "reason": "Drop-keyspace disappearance from token_ring not covered in scylla tests; existence part partially duplicated by cqlpy test_token_ring_*. Single node, 5s, 100% pass. Could be moved to cqlpy.",
+      "issues": []
     },
     "TestTokenRingTable::test_content_stop_and_replace_node": {
       "description": "3 nodes (rack1:1, rack2:2), keyspace RF=2 (no table). Records start_tokens where endpoint==node3 from system.token_ring, stops node3, replaces it with node4 (replace_node_host_id, same dc/rack), and asserts node4's start_tokens list equals node3's. Guards replace inheriting tokens as seen by token_ring.",
@@ -662,7 +759,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: create_test_keyspace called without create_table (system_tables_test.py ~:470), so in tablets mode (runs in next-dtest-tablets) token_ring has no rows for the keyspace and the test compares [] == []; no non-empty assertion on node3_token_set. Meaningful only in vnodes mode; 49s, slowest of the class."
+      "reason": "Note: create_test_keyspace called without create_table (system_tables_test.py ~:470), so in tablets mode (runs in next-dtest-tablets) token_ring has no rows for the keyspace and the test compares [] == []; no non-empty assertion on node3_token_set. Meaningful only in vnodes mode; 49s, slowest of the class.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "system_tables_test.py:~470",
+          "text": "Under tablets no table is created, so token_ring is empty and it compares [] == []; exercised only under vnodes."
+        }
+      ]
     },
     "TestVersionsTable::test_content": {
       "description": "Single node: reads system.versions WHERE key='local' and asserts build_id, build_mode and version match ccm's view of the binary (node.scylla_build_id, scylla_mode(), node_scylla_version). Guards system.versions virtual table content.",
@@ -686,7 +791,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test validating system.versions values against the actual binary; cqlpy test_versions checks schema only. 5s, 100% pass."
+      "reason": "Only test validating system.versions values against the actual binary; cqlpy test_versions checks schema only. 5s, 100% pass.",
+      "issues": []
     }
   },
   "analyzed_at": "2026-10-21",

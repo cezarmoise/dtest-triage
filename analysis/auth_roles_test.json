@@ -37,7 +37,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking LIST PERMISSIONS output across role inheritance, ON ROLE resources and OF filtering; not ported in scylladb#24343 (test/cluster/dtest/auth_roles_test.py lacks it). Fast (4.7s), 100% pass over 38 runs, maintained (b72d7fb)."
+      "reason": "Only test checking LIST PERMISSIONS output across role inheritance, ON ROLE resources and OF filtering; not ported in scylladb#24343 (test/cluster/dtest/auth_roles_test.py lacks it). Fast (4.7s), 100% pass over 38 runs, maintained (b72d7fb).",
+      "issues": []
     },
     "TestAuthRoles::test_list_permissions_validation": {
       "description": "Non-superuser mike, granted role2 (which is granted role1), lists permissions OF role2 and OF role1 (roles granted to him) successfully, and gets Unauthorized for LIST ALL PERMISSIONS (everyone's) and LIST ALL PERMISSIONS OF john (role not granted to him). Guards authorization checks in LIST PERMISSIONS for non-superusers.",
@@ -63,7 +64,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Both Unauthorized assertions duplicated by scylladb test/cluster/dtest/auth_test.py::test_all_authorization_operations; only unique bit is non-superuser listing perms of transitively granted roles. Cheap (4.7s, 100% pass); could merge into test_list_permissions or keep."
+      "reason": "Both Unauthorized assertions duplicated by scylladb test/cluster/dtest/auth_test.py::test_all_authorization_operations; only unique bit is non-superuser listing perms of transitively granted roles. Cheap (4.7s, 100% pass); could merge into test_list_permissions or keep.",
+      "issues": []
     },
     "TestAuthRoles::test_drop_non_existent_role_should_not_update_cache": {
       "description": "With roles_validity_in_ms=10000, runs DROP ROLE IF EXISTS mike (nonexistent), then CREATE ROLE mike, GRANT ALL on table, logs in as mike and SELECTs. Guards CASSANDRA-9189: superuser-status check in DROP ROLE IF EXISTS caching a nonexistent role in Cassandra's RolesCache, breaking later authz.",
@@ -99,7 +101,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Guards Cassandra-only RolesCache bug (CASSANDRA-9189) via roles_validity_in_ms, which Scylla does not have; Scylla's cache (auth/cache.cc) has no negative entries. Remaining create/grant/login/select flow covered by test_grant_revoke_permissions (scylladb test/cluster/dtest) and cqlpy test_permissions.py. Note: never ran under pytest until 77db1bd (2023) because its name lacked the test_ prefix."
+      "reason": "Guards Cassandra-only RolesCache bug (CASSANDRA-9189) via roles_validity_in_ms, which Scylla does not have; Scylla's cache (auth/cache.cc) has no negative entries. Remaining create/grant/login/select flow covered by test_grant_revoke_permissions (scylladb test/cluster/dtest) and cqlpy test_permissions.py. Note: never ran under pytest until 77db1bd (2023) because its name lacked the test_ prefix.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "roles_validity_in_ms is not a Scylla config option; cache config is a no-op"
+        }
+      ]
     },
     "TestAuthRoles::test_roles_do_not_inherit_login_privilege": {
       "description": "Creates mike (LOGIN=false) and with_login (LOGIN=true), grants with_login to mike, asserts LIST ROLES OF mike / OF with_login show per-role login flags. The real assertion (mike still cannot log in, i.e. LOGIN not inherited) is commented out due to scylla #4284.",
@@ -136,7 +146,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "As-is only asserts LIST ROLES output already covered by test_list_roles (scylladb test/cluster/dtest/auth_roles_test.py). The meaningful non-inheritance login check was disabled for #4284, fixed since a139afc30c (2019); re-enable it (then unique, GREEN) or remove."
+      "reason": "As-is only asserts LIST ROLES output already covered by test_list_roles (scylladb test/cluster/dtest/auth_roles_test.py). The meaningful non-inheritance login check was disabled for #4284, fixed since a139afc30c (2019); re-enable it (then unique, GREEN) or remove.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "a139afc30c",
+          "text": "Real check (mike can't log in, LOGIN not inherited) commented out for scylla#4284, fixed 2019"
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

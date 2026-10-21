@@ -5,7 +5,12 @@
   "tests": {
     "TestSimpleBootShutdown::test_boot_create_keyspace_table_shutdown_boot_insert_select": {
       "description": "Single node: create keyspace ks (RF=1) and table test1, flush, graceful stop, restart, then INSERT (1,2) and SELECT k=1 (expects 1 row) and k=2 (expects 0 rows). Guards that schema created before a clean shutdown is reloaded on boot and the table is writable/readable. Early (2015) basic Scylla boot/shutdown smoke test; no specific issue linked.",
-      "origin": {"sha": "34a9ab84d5ca71b4e75a6f061b123b7fcb57806c", "date": "2015-06-30", "pr": 7, "summary": "Simple boot shutdown test (as simple_create_insert_select_test in TestSimple; renamed and given restart + reconnect in 53e9c195, same PR #7, empty body)"},
+      "origin": {
+        "sha": "34a9ab84d5ca71b4e75a6f061b123b7fcb57806c",
+        "date": "2015-06-30",
+        "pr": 7,
+        "summary": "Simple boot shutdown test (as simple_create_insert_select_test in TestSimple; renamed and given restart + reconnect in 53e9c195, same PR #7, empty body)"
+      },
       "commits": {
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
         "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade/isort)",
@@ -25,16 +30,47 @@
       },
       "relevance": "Live behavior: schema persistence across clean restart (today via group0/raft schema tables) and basic CQL write/read. Nothing removed. Runs only in gating jobs (next-dtest-tablets / next-dtest-consistent-topology), 32/32 pass, ~9.7s.",
       "duplicates": [
-        {"path": "test/cluster/test_commitlog.py::test_reboot", "coverage": "partial", "note": "creates table, writes, graceful stop/start, writes again and verifies content (then kill -9); covers schema surviving clean restart + post-restart writes"},
-        {"path": "test/cluster/test_restart_cluster.py::test_restart_cluster", "coverage": "partial", "note": "graceful stop/start of all nodes, checks only CQL comes back; no data/schema checks"},
-        {"path": "test/cluster/dtest/schema_management_test.py::TestSchemaManagement::test_prepared_statements_work_after_node_restart_after_altering_schema_without_changing_columns", "coverage": "partial", "note": "schema survives restart and is usable"}
+        {
+          "path": "test/cluster/test_commitlog.py::test_reboot",
+          "coverage": "partial",
+          "note": "creates table, writes, graceful stop/start, writes again and verifies content (then kill -9); covers schema surviving clean restart + post-restart writes"
+        },
+        {
+          "path": "test/cluster/test_restart_cluster.py::test_restart_cluster",
+          "coverage": "partial",
+          "note": "graceful stop/start of all nodes, checks only CQL comes back; no data/schema checks"
+        },
+        {
+          "path": "test/cluster/dtest/schema_management_test.py::TestSchemaManagement::test_prepared_statements_work_after_node_restart_after_altering_schema_without_changing_columns",
+          "coverage": "partial",
+          "note": "schema survives restart and is usable"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial smoke test of live behavior; scenario implicitly exercised by many restart tests (e.g. test/cluster/test_commitlog.py::test_reboot) but no single exact duplicate. Cheap (~10s) and in gating, so value is as a fast boot sanity check. Note: prepare() (simple_boot_shutdown_test.py:10) is a no-op returning self.cluster; node1.flush() at :34 flushes an empty table (leftover from 69d7f4ed replacing a sleep)."
+      "reason": "Trivial smoke test of live behavior; scenario implicitly exercised by many restart tests (e.g. test/cluster/test_commitlog.py::test_reboot) but no single exact duplicate. Cheap (~10s) and in gating, so value is as a fast boot sanity check. Note: prepare() (simple_boot_shutdown_test.py:10) is a no-op returning self.cluster; node1.flush() at :34 flushes an empty table (leftover from 69d7f4ed replacing a sleep).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_boot_shutdown_test.py:10",
+          "text": "prepare() is a no-op returning self.cluster"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_boot_shutdown_test.py:34",
+          "text": "node1.flush() flushes an empty table (leftover from 69d7f4ed replacing a sleep)"
+        }
+      ]
     },
     "TestSimpleBootShutdown::test_boot_create_keyspace_table_insert_shutdown_select": {
       "description": "Single node: create ks/test1, INSERT (1,2), flush memtable to sstable, graceful stop, restart, then SELECT k=1 (1 row) and k=2 (0 rows). Guards that flushed sstable data and schema are loaded on boot after clean shutdown. Basic 2015 smoke test, no issue linked.",
-      "origin": {"sha": "54274de5e0d1faf38f15682f8f466b661dc8d71c", "date": "2015-08-11", "pr": 19, "summary": "Add a test, add a delay after stop (added boot_create_keyspace_table_insert_shutdown_select_test with explicit flush + 30s sleep)"},
+      "origin": {
+        "sha": "54274de5e0d1faf38f15682f8f466b661dc8d71c",
+        "date": "2015-08-11",
+        "pr": 19,
+        "summary": "Add a test, add a delay after stop (added boot_create_keyspace_table_insert_shutdown_select_test with explicit flush + 30s sleep)"
+      },
       "commits": {
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
         "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade/isort)",
@@ -51,16 +87,41 @@
       },
       "relevance": "Live behavior: sstable load + schema reload on clean restart. Runs only in gating jobs, 32/32 pass, ~9.7s.",
       "duplicates": [
-        {"path": "test/cluster/test_commitlog.py::test_reboot", "coverage": "partial", "note": "write, graceful restart, write, kill -9, compare full table content; data persistence across restart but focused on commitlog, no explicit flush"},
-        {"path": "test/cluster/test_logstor.py::test_recovery_basic", "coverage": "partial", "note": "data persists across graceful restart, but logstor storage only"},
-        {"path": "test/cluster/test_compaction_strategy_deprecation.py::test_size_tiered_layout_across_restart", "coverage": "partial", "note": "flush + restart, checks sstable layout survives"}
+        {
+          "path": "test/cluster/test_commitlog.py::test_reboot",
+          "coverage": "partial",
+          "note": "write, graceful restart, write, kill -9, compare full table content; data persistence across restart but focused on commitlog, no explicit flush"
+        },
+        {
+          "path": "test/cluster/test_logstor.py::test_recovery_basic",
+          "coverage": "partial",
+          "note": "data persists across graceful restart, but logstor storage only"
+        },
+        {
+          "path": "test/cluster/test_compaction_strategy_deprecation.py::test_size_tiered_layout_across_restart",
+          "coverage": "partial",
+          "note": "flush + restart, checks sstable layout survives"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial smoke test of live behavior (flush, clean restart, read back); implicitly covered by many restart tests (e.g. test/cluster/test_commitlog.py::test_reboot) but no exact duplicate found. Cheap and in gating. Note: prepare() (simple_boot_shutdown_test.py:10) is a no-op returning self.cluster."
+      "reason": "Trivial smoke test of live behavior (flush, clean restart, read back); implicitly covered by many restart tests (e.g. test/cluster/test_commitlog.py::test_reboot) but no exact duplicate found. Cheap and in gating. Note: prepare() (simple_boot_shutdown_test.py:10) is a no-op returning self.cluster.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_boot_shutdown_test.py:10",
+          "text": "prepare() is a no-op returning self.cluster"
+        }
+      ]
     },
     "TestSimpleBootShutdown::test_boot_create_keyspace_table_insert_shutdown_commitlog_replay_select": {
       "description": "Single node: create ks/test1, INSERT (1,2), node1.flush(), kill -9 (stop gently=False), restart with wait_for_binary_proto, SELECT k=1 (1 row) and k=2 (0 rows). Intended to test commitlog replay after an unclean shutdown, but since the data is flushed to an sstable before the kill, the read is served from the sstable and commitlog replay of the row is never required.",
-      "origin": {"sha": "d91f515db844031ed26034cde3b0061dcd02a0df", "date": "2015-08-31", "pr": 24, "summary": "Add a simple commitlog replay test (insert, sleep(10) for commitlog fsync, kill -9, restart, select)"},
+      "origin": {
+        "sha": "d91f515db844031ed26034cde3b0061dcd02a0df",
+        "date": "2015-08-31",
+        "pr": 24,
+        "summary": "Add a simple commitlog replay test (insert, sleep(10) for commitlog fsync, kill -9, restart, select)"
+      },
       "commits": {
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
         "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (ruff pyupgrade/isort)",
@@ -80,12 +141,44 @@
       },
       "relevance": "Commitlog replay is live, but this test no longer exercises it for the user row (flushed before kill). What remains is: sstable data survives kill -9 + restart. Runs only in gating jobs, 32/32 pass, ~8s.",
       "duplicates": [
-        {"path": "test/cluster/dtest/commitlog_test.py::TestCommitLog::test_commitlog_replay_on_startup", "coverage": "full", "note": "batch commitlog, insert, kill -9, asserts commitlog files exist and NO sstables flushed, waits for 'Log replay complete', asserts >0 replayed mutations, then data present; strictly stronger version of the intended scenario"},
-        {"path": "test/cluster/test_commitlog.py::test_reboot", "coverage": "full", "note": "batch commitlog, writes, kill -9, restart, table content equals pre-crash content"},
-        {"path": "test/boost/commitlog_test.cc", "coverage": "partial", "note": "unit-level commitlog write/replay tests"}
+        {
+          "path": "test/cluster/dtest/commitlog_test.py::TestCommitLog::test_commitlog_replay_on_startup",
+          "coverage": "full",
+          "note": "batch commitlog, insert, kill -9, asserts commitlog files exist and NO sstables flushed, waits for 'Log replay complete', asserts >0 replayed mutations, then data present; strictly stronger version of the intended scenario"
+        },
+        {
+          "path": "test/cluster/test_commitlog.py::test_reboot",
+          "coverage": "full",
+          "note": "batch commitlog, writes, kill -9, restart, table content equals pre-crash content"
+        },
+        {
+          "path": "test/boost/commitlog_test.cc",
+          "coverage": "partial",
+          "note": "unit-level commitlog write/replay tests"
+        }
       ],
       "decision": "RED",
-      "reason": "Intended commitlog-replay scenario is fully covered by test/cluster/dtest/commitlog_test.py::TestCommitLog::test_commitlog_replay_on_startup (verifies no sstables + replayed mutations) and test/cluster/test_commitlog.py::test_reboot. Bug: 69d7f4ed replaced the sleep with node1.flush() before kill -9 (simple_boot_shutdown_test.py:135-136), so the row is read from an sstable and commitlog replay is never needed; stale comment '# wait for the commitlog to be fsynched' at :134. Note: prepare() (:10) is a no-op."
+      "reason": "Intended commitlog-replay scenario is fully covered by test/cluster/dtest/commitlog_test.py::TestCommitLog::test_commitlog_replay_on_startup (verifies no sstables + replayed mutations) and test/cluster/test_commitlog.py::test_reboot. Bug: 69d7f4ed replaced the sleep with node1.flush() before kill -9 (simple_boot_shutdown_test.py:135-136), so the row is read from an sstable and commitlog replay is never needed; stale comment '# wait for the commitlog to be fsynched' at :134. Note: prepare() (:10) is a no-op.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "simple_boot_shutdown_test.py:135-136",
+          "text": "node1.flush() before kill -9 (69d7f4ed) means the row is read from an sstable; commitlog replay never needed"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "simple_boot_shutdown_test.py:134",
+          "text": "comment '# wait for the commitlog to be fsynched' is stale"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "simple_boot_shutdown_test.py:10",
+          "text": "prepare() is a no-op returning self.cluster"
+        }
+      ]
     }
   }
 }

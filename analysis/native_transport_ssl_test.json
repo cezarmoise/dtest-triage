@@ -44,8 +44,28 @@
           "note": "TLS CQL connections on a TLS port, but different authenticator / require_client_auth=optional; no non-TLS-on-TLS check."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Cheap (~25s), stable, gating; the plain-to-TLS-port rejection is only covered in scylla by cqlpy test_non_tls_on_tls which needs '--ssl'. Would be GREEN but: Note: log regex keeps a dead Cassandra alternative '^io.netty.handler.ssl.NotSslRecordException' (native_transport_ssl_test.py:118). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "decision": "GREEN",
+      "reason": "Cheap (~25s), stable, gating; the plain-to-TLS-port rejection is only covered in scylla by cqlpy test_non_tls_on_tls which needs '--ssl'. Note: log regex keeps a dead Cassandra alternative '^io.netty.handler.ssl.NotSslRecordException' (native_transport_ssl_test.py:118). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:118",
+          "text": "Log regex keeps dead Cassandra alternative '^io.netty.handler.ssl.NotSslRecordException'."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestNativeTransportSSL::test_connect_to_ssl_client_auth": {
       "description": "Single node, client encryption with truststore, require_client_auth=True and certficate_revocation_list (scylla's own misspelled option name, db/config.cc:2288). Asserts a non-SSL client fails + TLS error logged, a client with cert connects and does putget; then revokes the cert at runtime (openssl ca -revoke/-gencrl), waits for 'cql_server ... Reloaded ccm_node.crl' and asserts the same cert can no longer connect. Guards CRL support (scylla#9630) and live CRL reload.",
@@ -87,7 +107,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test of CRL (incl. live CRL reload) on CQL; no scylla test uses certficate_revocation_list. Bug: since a5209f6807 the 'without auth cert' check (native_transport_ssl_test.py:144-147) passes use_ssl=False so ca_certs_required is ignored; it just repeats the non-SSL check and 'TLS client without client cert is rejected under require_client_auth=True' is no longer tested. Bug: self.fail (line 160) does not exist on Tester (not unittest) - a wrongly accepted revoked cert raises AttributeError instead of a clear failure; use pytest.raises. Note: dead netty regex alternative (line 141). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "reason": "Only test of CRL (incl. live CRL reload) on CQL; no scylla test uses certficate_revocation_list. Bug: since a5209f6807 the 'without auth cert' check (native_transport_ssl_test.py:144-147) passes use_ssl=False so ca_certs_required is ignored; it just repeats the non-SSL check and 'TLS client without client cert is rejected under require_client_auth=True' is no longer tested. Note: self.fail (line 160) does not exist on Tester (not unittest) - a wrongly accepted revoked cert raises AttributeError instead of a clear failure; use pytest.raises. Note: dead netty regex alternative (line 141). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "native_transport_ssl_test.py:144-147",
+          "text": "'Without auth cert' check passes use_ssl=False (since a5209f6807); TLS client without cert under require_client_auth=True never tested."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "native_transport_ssl_test.py:160",
+          "text": "self.fail doesn't exist on Tester; accepted revoked cert raises AttributeError (test still fails) instead of a clear message."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:141",
+          "text": "Log regex keeps dead Cassandra alternative '^io.netty.handler.ssl.NotSslRecordException'."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestNativeTransportSSL::test_use_custom_port": {
       "description": "Single node with native_transport_port=9567 (no SSL). Asserts connecting on 9042 fails and on 9567 works (putget). Guards the native_transport_port config option.",
@@ -120,7 +172,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~18s), basic config check with no scylla equivalent using a non-default CQL port, but low value. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "reason": "Cheap (~18s), basic config check with no scylla equivalent using a non-default CQL port, but low value. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestNativeTransportSSL::test_use_custom_ssl_port": {
       "description": "Single node with client encryption and native_transport_port_ssl=9666. Asserts plain CQL works on 9042 and TLS CQL works on 9666 (putget on both). Guards the dedicated SSL port (CASSANDRA-9590) keeping the plain port unencrypted.",
@@ -163,7 +229,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario (plain + separate TLS port on one node) is exercised by scylla test/cluster/test_auth_certificate_or_password.py (9042 + 9143) and test_proxy_protocol.py configs, though no single scylla test asserts both ports with putget; RED candidate. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "reason": "Scenario (plain + separate TLS port on one node) is exercised by scylla test/cluster/test_auth_certificate_or_password.py (9042 + 9143) and test_proxy_protocol.py configs, though no single scylla test asserts both ports with putget; RED candidate. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestNativeTransportSSL::test_reload_certificates": {
       "description": "Single node with client encryption on 9042. Generates new certs in tmp_path, asserts a client trusting only the new CA fails to connect (server still serves old cert), copies new cert/key over the old files, waits for 'cql_server ... Reloaded ccm_node.pem/ccm_node.key' and connects with SSL + putget. Guards live TLS certificate reload for CQL (scylla PR #6152).",
@@ -204,7 +284,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only scylla-level test of CQL cert reload. Bug: final connection (native_transport_ssl_test.py:226) uses ca_certs_required=False -> verify_mode CERT_NONE, so it does not check the server now serves the new cert; the only real reload assertion is the 'Reloaded' log line. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "reason": "Only scylla-level test of CQL cert reload. Bug: final connection (native_transport_ssl_test.py:226) uses ca_certs_required=False -> verify_mode CERT_NONE, so it does not check the server now serves the new cert; the only real reload assertion is the 'Reloaded' log line. Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "native_transport_ssl_test.py:226",
+          "text": "Final connection uses ca_certs_required=False (CERT_NONE); doesn't verify server serves the new cert, only the 'Reloaded' log."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestNativeTransportSSL::test_disable_regular_port_while_encryption_enabled": {
       "description": "Single node with client encryption, native_transport_port_ssl=9142 and native_transport_port=0. Asserts TLS CQL on 9142 works (create keyspace) and nothing listens on 9042. Guards disabling the unencrypted CQL port while keeping the TLS port.",
@@ -236,8 +336,28 @@
           "note": "Covers port=0 combos but skipped (issue_open scylladb#7500, OPEN)."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No scylla test asserts the plain port is closed when set to 0 with TLS port enabled; avg 52s is mostly cluster start. Note: only checks 9042; plain shard-aware port 19042 left at default (gets TLS creds via controller.cc:140-142, not verified). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818)."
+      "decision": "GREEN",
+      "reason": "No scylla test asserts the plain port is closed when set to 0 with TLS port enabled; avg 52s is mostly cluster start. Note: only checks 9042; plain shard-aware port 19042 left at default (gets TLS creds via controller.cc:140-142, not verified). Note (class-level): _populate_cluster keeps dead Cassandra-only branches (JKS keystore/truststore, native_transport_ssl_test.py:67-75) and an 'ssl_optional' param unused since test_connect_to_ssl_optional was removed (cbd017b818).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "transport/controller.cc:140-142",
+          "text": "Only checks 9042; shard-aware port 19042 left at default (gets TLS creds), not verified."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "native_transport_ssl_test.py:67-75",
+          "text": "_populate_cluster keeps dead Cassandra-only JKS keystore/truststore branches."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "cbd017b818",
+          "text": "'ssl_optional' param of _populate_cluster unused since test_connect_to_ssl_optional removal."
+        }
+      ]
     },
     "TestServerEncryption::test_server_encryption_and_restart_node": {
       "description": "2-node cluster with server_encryption_options internode_encryption=all (no client auth). putget, then stop/start node1 twice and putget again. Reproducer for scylladb#14299: segfault on boot (null TLS credentials) when failure detector sent to TLS endpoints before messaging_service start_listen; fixed by e1a52af69e 'messaging_service: Do TLS init early'.",
@@ -276,7 +396,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Regression test for closed scylladb#14299 (fix e1a52af69e); scylla test/cluster/test_tls.py::test_upgrade_to_ssl restarts nodes with internode_encryption=all among encrypted peers, which covers the same boot path; RED candidate if that is deemed sufficient. Note: putget with RF=1 on 2 nodes; second putget only checks data survived restarts. Note: uses BaseSslTester._populate_cluster with enable_ssl=False, so its dead Cassandra branches are not reached here."
+      "reason": "Regression test for closed scylladb#14299 (fix e1a52af69e); scylla test/cluster/test_tls.py::test_upgrade_to_ssl restarts nodes with internode_encryption=all among encrypted peers, which covers the same boot path; RED candidate if that is deemed sufficient. Note: putget with RF=1 on 2 nodes; second putget only checks data survived restarts. Note: uses BaseSslTester._populate_cluster with enable_ssl=False, so its dead Cassandra branches are not reached here.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "putget with RF=1 on 2 nodes; second putget only checks data survived restarts."
+        }
+      ]
     }
   }
 }

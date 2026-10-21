@@ -5,7 +5,12 @@
   "tests": {
     "TestSchemaChanges::test_schema_and_data_on_mixed_versions_cluster": {
       "description": "2-node (2 racks) cluster started on last release (upgrade_matrix_from_last_release_version = release:2026.1); for each version in the upgrade path, node1 is upgraded, then in both directions (upgraded->old, old->upgraded) runs CREATE KEYSPACE/TABLE + 200 inserts at CL=ALL, ALTER TABLE ADD column + updates, DROP TABLE, DROP KEYSPACE, each verified on the other-version node (row count, full scan, per-key reads at CL=ALL, InvalidRequest after drops). Then node2 is upgraded and the raft topology upgrade procedure (schema-on-raft wait, enable_raft_topology, SL v2 wait) is run if not already enabled. Guards schema/data forward/backward compatibility in a mixed-version cluster (GROUP0_SCHEMA_VERSIONING); it caught SCYLLADB-2062 (segfault in create_tables_from_tables_partition on old node due to new CDC option 'enable_requested').",
-      "origin": {"sha": "ab72a54ca7adb3d888a8a96db6b26c87e12883e6", "date": "2021-03-31", "pr": 2058, "summary": "pytest conversion replaced the Cassandra test_friendly_unrecognized_table_handling (074bb22, CASSANDRA-9136) with this Scylla upgrade test (create table on upgraded node, check on old one); extended to bidirectional CREATE/ALTER/DROP in 117ef676 (PR #3640)."},
+      "origin": {
+        "sha": "ab72a54ca7adb3d888a8a96db6b26c87e12883e6",
+        "date": "2021-03-31",
+        "pr": 2058,
+        "summary": "pytest conversion replaced the Cassandra test_friendly_unrecognized_table_handling (074bb22, CASSANDRA-9136) with this Scylla upgrade test (create table on upgraded node, check on old one); extended to bidirectional CREATE/ALTER/DROP in 117ef676 (PR #3640)."
+      },
       "commits": {
         "ae20a642931477876f1ed051be3eda21509ac53a": "detect raft topology already enabled; for >=2026.1 wait schema-on-raft + SL v2 around enable_raft_topology",
         "78574afcfb5727330b6a40ee97a1302dda19417d": "keyspace SimpleStrategy -> NetworkTopologyStrategy (tablets)",
@@ -34,12 +39,44 @@
       },
       "relevance": "Live: mixed-version clusters during rolling upgrade are a supported scenario; schema propagation via group0 (GROUP0_SCHEMA_VERSIONING) and raft topology upgrade still in scylla. Upgrade path release:2026.1 -> under-test. Recently found real bug SCYLLADB-2062 (Done). 38/38 passes in dtest-release(+raft), ~53s.",
       "duplicates": [
-        {"path": "test/cluster/test_cluster_config.py::test_mixed_version_schema_agreement_before_feature_enablement", "coverage": "partial", "note": "old 2026.1 binaries + new node, schema changes from both old/new nodes and schema agreement; no data checks, no ALTER/DROP TABLE verification across versions, focused on CLUSTER_CONFIG feature"},
-        {"path": "test/cluster/test_secondary_index_paging.py::mixed_version_cluster", "coverage": "partial", "note": "mixed-version cluster infra, but tests SI paging, not schema changes"},
-        {"path": "rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade", "coverage": "partial", "note": "dtest rolling upgrade with stress, no schema changes on mixed cluster"}
+        {
+          "path": "test/cluster/test_cluster_config.py::test_mixed_version_schema_agreement_before_feature_enablement",
+          "coverage": "partial",
+          "note": "old 2026.1 binaries + new node, schema changes from both old/new nodes and schema agreement; no data checks, no ALTER/DROP TABLE verification across versions, focused on CLUSTER_CONFIG feature"
+        },
+        {
+          "path": "test/cluster/test_secondary_index_paging.py::mixed_version_cluster",
+          "coverage": "partial",
+          "note": "mixed-version cluster infra, but tests SI paging, not schema changes"
+        },
+        {
+          "path": "rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade",
+          "coverage": "partial",
+          "note": "dtest rolling upgrade with stress, no schema changes on mixed cluster"
+        }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of bidirectional schema+data compatibility in a mixed-version cluster; just caught SCYLLADB-2062; scylla test/cluster only partially overlaps (test_cluster_config.py::test_mixed_version_schema_agreement_before_feature_enablement). Would be GREEN, downgraded for notes. Note: @unmark.next_gating references closed scylla-enterprise#3237 (mixed_version_test.py:32). Note: class @pytest.mark.require(\"jira:SCYLLADB-2062\") (line 23) is stale, issue Done. Note: commented-out dead line `# version = self.current_upgrade_path[0]` (line 54)."
+      "decision": "GREEN",
+      "reason": "Unique coverage of bidirectional schema+data compatibility in a mixed-version cluster; just caught SCYLLADB-2062; scylla test/cluster only partially overlaps (test_cluster_config.py::test_mixed_version_schema_agreement_before_feature_enablement). Note: @unmark.next_gating references closed scylla-enterprise#3237 (mixed_version_test.py:32). Note: class @pytest.mark.require(\"jira:SCYLLADB-2062\") (line 23) is stale, issue Done. Note: commented-out dead line `# version = self.current_upgrade_path[0]` (line 54).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "mixed_version_test.py:32",
+          "text": "@unmark.next_gating references closed scylla-enterprise#3237"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "mixed_version_test.py:23",
+          "text": "Class @pytest.mark.require(\"jira:SCYLLADB-2062\") inert, issue Done"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "mixed_version_test.py:54",
+          "text": "Commented-out line `# version = self.current_upgrade_path[0]`"
+        }
+      ]
     }
   }
 }

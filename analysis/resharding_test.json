@@ -39,8 +39,28 @@
           "note": "No unit test found for scylladb#6600 (no tombstone/purge checks in resharding boost tests)."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep: only e2e guard for scylladb#6600 (resharding must not purge tombstones / resurrect data), stable 76/76, ~22s; assertions are strong (numfound via dump_sstables partition 'tombstone' key, assert_none per key). Note: params node_count/murmur3 unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac so one param is a duplicate; gc_grace sleep is pointless with tombstone_gc immediate (068022d716; open PR scylladb/scylla-dtest#7534); docstring step 8 says 'check that data was resurected' but test asserts the opposite (resharding_test.py:257)."
+      "decision": "GREEN",
+      "reason": "Keep: only e2e guard for scylladb#6600 (resharding must not purge tombstones / resurrect data), stable 76/76, ~22s; assertions are strong (numfound via dump_sstables partition 'tombstone' key, assert_none per key). Note: params node_count/murmur3 unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac so one param is a duplicate; gc_grace sleep is pointless with tombstone_gc immediate (068022d716; open PR scylladb/scylla-dtest#7534); docstring step 8 says 'check that data was resurected' but test asserts the opposite (resharding_test.py:257).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "resharding_test.py:196",
+          "text": "node_count/murmur3 params unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac, one param duplicate."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "resharding_test.py:283",
+          "text": "gc_grace sleep pointless with tombstone_gc immediate (068022d716); open PR scylladb/scylla-dtest#7534."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "resharding_test.py:257",
+          "text": "Docstring step 8 says 'check that data was resurected' but test asserts the opposite."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_murmur3_increase": {
       "description": "Starts 1 or 4 nodes with smp=auto (min(cpu//2+1,5)), murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with same smp and ignore_msb_bits 15->17. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log (_wait_for_resharding greps 'Reshard'), no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when only the sharder's ignore_msb changes.",
@@ -85,8 +105,34 @@
           "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique e2e coverage of resharding triggered by murmur3_partitioner_ignore_msb_bits change on a real node; only unit-level overlap in test/boost (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "decision": "GREEN",
+      "reason": "Unique e2e coverage of resharding triggered by murmur3_partitioner_ignore_msb_bits change on a real node; only unit-level overlap in test/boost (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_murmur3_decrease": {
       "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with same smp and ignore_msb_bits 15->10. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when ignore_msb decreases.",
@@ -131,7 +177,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique e2e coverage of ignore_msb decrease resharding (same code path as increase, different shard overlap). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "reason": "Unique e2e coverage of ignore_msb decrease resharding (same code path as increase, different shard overlap). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_smp_increase": {
       "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 10000 rows with c-s (compaction disabled), restarts node1 with smp+1 (SMP_FOR_INCREASE), same ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding on shard-count increase (scylladb#3302 file-count blowup).",
@@ -175,8 +247,34 @@
           "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Core e2e smp-increase resharding scenario on vnodes; test/boost covers resharding mechanics only (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "decision": "GREEN",
+      "reason": "Core e2e smp-increase resharding scenario on vnodes; test/boost covers resharding mechanics only (partial). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_smp_decrease": {
       "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 100000 rows with c-s (compaction disabled), restarts node1 with smp -> max(2, smp//2), same ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding on shard-count decrease (scylladb#3273 'SSTable write failed due to existence of TOC file' 7->2 CPUs).",
@@ -225,8 +323,34 @@
           "note": "Tablets only; smp decrease expected to fail. Not vnodes resharding."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique e2e smp-decrease resharding on vnodes (regression scylladb#3273); slowest variant (~51s, 100k rows). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "decision": "GREEN",
+      "reason": "Unique e2e smp-decrease resharding on vnodes (regression scylladb#3273); slowest variant (~51s, 100k rows). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_same_smp": {
       "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with unchanged smp and ignore_msb. Asserts (via _resharding_basic, resharding_test.py:157-191): NO 'Reshard' line in the log (expects _wait_for_resharding False), no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards scylladb#3303 (unexpected resharding with non-default murmur3).",
@@ -269,8 +393,34 @@
           "note": "Resharding after smp change via upload/ and staging/ dirs; single node, standard1."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Negative check (no spurious resharding on restart, scylladb#3303) not covered elsewhere. Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "decision": "GREEN",
+      "reason": "Negative check (no spurious resharding on restart, scylladb#3303) not covered elsewhere. Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_by_murmur3_smp": {
       "description": "Starts 1 or 4 nodes with smp=auto, murmur3_partitioner_ignore_msb_bits=15, writes 1000 rows with c-s (compaction disabled), restarts node1 with smp+1 and ignore_msb 15->17. Asserts (via _resharding_basic, resharding_test.py:157-191): resharding detected in log, no log errors (check_errors_all_nodes), sstable count <= before*smp (_verify_number_of_data_files:91), c-s read with 0 errors (_verify_data:155; c-s counts errors even with -errors ignore, Operation.java timer.stop) and count(*)==rows (_verify_row_number:149). Guards resharding when both smp and ignore_msb change.",
@@ -325,7 +475,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly redundant: same resharding path (sstable shared under new sharder) as smp_increase + murmur3_increase, and counter/mv tests already change both smp and ignore_msb; candidate to drop (~34s x 8 params). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "reason": "Mostly redundant: same resharding path (sstable shared under new sharder) as smp_increase + murmur3_increase, and counter/mv tests already change both smp and ignore_msb; candidate to drop (~34s x 8 params). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_counter": {
       "description": "Creates keyspace1 (NTS RF=1) and a 5-column counter table counter1 by hand, runs c-s counter_write n=10000, checks count(*)==10000, restarts node1 with smp+1 (and, via _reload_with_resharding default arg, ignore_msb 15->12), asserts sstable count <= before*smp (twice), resharding seen in log, no log errors, c-s counter_read with 0 errors and count(*)==10000. Guards counter-cell correctness across resharding.",
@@ -371,7 +547,57 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only e2e check of counters across resharding. Bug: compaction_strategy param is dead - table/keyspace are pre-created (resharding_test.py:395-425) and c-s uses CREATE TABLE IF NOT EXISTS (cassandra-stress SettingsSchema.java:166), so compaction(strategy=...) and replication(factor=rf) (resharding_test.py:429) are ignored: the 4 strategy params per node count run the identical scenario and 4-node runs use RF=1. Note: _remove_existent_ks guard for @flaky reruns is dead since f536aa78e0; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63); counter1 still sets dclocal_read_repair_chance/read_repair_chance (Cassandra-legacy options). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "reason": "Only e2e check of counters across resharding. Bug: compaction_strategy param is dead - table/keyspace are pre-created (resharding_test.py:395-425) and c-s uses CREATE TABLE IF NOT EXISTS (cassandra-stress SettingsSchema.java:166), so compaction(strategy=...) and replication(factor=rf) (resharding_test.py:429) are ignored: the 4 strategy params per node count run the identical scenario and 4-node runs use RF=1. Note: _remove_existent_ks guard for @flaky reruns is dead since f536aa78e0; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63); counter1 still sets dclocal_read_repair_chance/read_repair_chance (Cassandra-legacy options). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "resharding_test.py:395-429",
+          "text": "Table pre-created and c-s uses IF NOT EXISTS, so compaction strategy and RF params ignored: 4 strategy params identical, 4-node runs RF=1."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:394",
+          "text": "_remove_existent_ks guard for @flaky reruns dead since f536aa78e0."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "resharding_test.py:63",
+          "text": "ignore_msb silently changes 15->12 via _reload_with_resharding default arg."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "resharding_test.py:415-421",
+          "text": "counter1 sets dclocal_read_repair_chance/read_repair_chance (Cassandra-legacy options)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     },
     "TestReshardingVariants::test_resharding_mv": {
       "description": "Creates base table (id pk + 1 int col) and MV with PK (id, col) via TableManager/MaterializedViewManager, prefills 10000 rows, checks count(*) on both, restarts node1 with smp+1 (and ignore_msb 15->12 via default arg), asserts base sstable count <= before*smp, resharding logged, no log errors, per-key assert_one count==1 on base and MV (tools/assertions.py:135), count(*)==10000 on both, and assert_two_queries_equal at CL=ALL. Guards MV + base consistency across resharding.",
@@ -411,7 +637,57 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only e2e MV-across-resharding data check. Bug: assert_two_queries_equal (resharding_test.py:493-503) passes the base-table query as both query1 and query2, so exp_res==act_res (tools/assertions.py:468) can't fail; intended base-vs-MV comparison never happens (MV still checked by per-key assert_one and count(*), lines 485-491). Note: docstring copy-pasted from counter test; data-file check only on base table; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft."
+      "reason": "Only e2e MV-across-resharding data check. Bug: assert_two_queries_equal (resharding_test.py:493-503) passes the base-table query as both query1 and query2, so exp_res==act_res (tools/assertions.py:468) can't fail; intended base-vs-MV comparison never happens (MV still checked by per-key assert_one and count(*), lines 485-491). Note: docstring copy-pasted from counter test; data-file check only on base table; ignore_msb silently changes 15->12 via default arg (resharding_test.py:63). Note (class-level): _verify_number_of_data_files (resharding_test.py:79-93) only asserts an upper bound (`<=` before*reshard_to); the 'during' count (resharding_test.py:173,181) is taken after node.start(wait_for_binary_proto) when boot-time resharding is already done, so it duplicates the 'after' check; dead commented-out compactionstats code in _wait_for_resharding (resharding_test.py:108-121); STCS and ICS params now identical (scylla 5bf0c6ddac makes STCS an alias of ICS) and resharding is strategy-agnostic, so the 8-param matrix is mostly redundant; !tablets -> only runs in dtest-release-with-raft.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "resharding_test.py:493-503",
+          "text": "assert_two_queries_equal gets the base query as both query1 and query2; base-vs-MV comparison never happens."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "resharding_test.py:449",
+          "text": "Docstring copy-pasted from counter test."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:449-503",
+          "text": "Data-file count check only on base table, not MV."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "resharding_test.py:63",
+          "text": "ignore_msb silently changes 15->12 via _reload_with_resharding default arg."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:91",
+          "text": "_verify_number_of_data_files only asserts an upper bound (<= before*reshard_to)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "resharding_test.py:173,181",
+          "text": "'during' sstable count taken after node.start (boot-time resharding already done); duplicates the 'after' check."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "resharding_test.py:108-121",
+          "text": "Commented-out compactionstats code in _wait_for_resharding."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "5bf0c6ddac",
+          "text": "STCS and ICS params identical (STCS alias of ICS); resharding strategy-agnostic, 8-param matrix mostly redundant."
+        }
+      ]
     }
   }
 }

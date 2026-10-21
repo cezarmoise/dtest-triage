@@ -38,7 +38,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique scylla coverage of DOWN/UP push events across repeated restarts (no scylla test/ equivalent). Bug: pushed_notifications_test.py:130 `assert expected_notifications, len(notifications) == notifications` is a no-op (always true) so notification count is never checked (from 3165029367). Note: dead Cassandra pre-2.2 branch (lines 119-123, 134-139) via cassandra_version()."
+      "reason": "Unique scylla coverage of DOWN/UP push events across repeated restarts (no scylla test/ equivalent). Bug: pushed_notifications_test.py:130 `assert expected_notifications, len(notifications) == notifications` is a no-op (always true) so notification count is never checked (from 3165029367). Note: dead Cassandra pre-2.2 branch (lines 119-123, 134-139) via cassandra_version().",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "pushed_notifications_test.py:130",
+          "text": "`assert expected_notifications, len(notifications) == notifications` always true; notification count never checked (since 3165029367)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "pushed_notifications_test.py:119",
+          "text": "Dead Cassandra pre-2.2 branches via cassandra_version() (lines 119-123, 134-139)."
+        }
+      ]
     },
     "TestPushedNotifications::test_sleep_and_restart_node": {
       "description": "2-node cluster started, sleeps 120s to let any pending joined (NEW_NODE) notification flush, then registers waiter on node1, restarts node2 once and asserts exactly 2 notifications: DOWN then UP for node2. Added for scylla#7805 (unexpected NEW_NODE on restart, closed as expected pending event).",
@@ -68,7 +82,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow + redundant: avg 132s, ~120s of it time.sleep(120) (line 154); same assertion (exactly DOWN, UP on restart, no extra NEW_NODE) is covered deterministically by test_restart_node_localhost in ~12s (exact list assert since 5cc0cb5801) and test_restart_node. Runs in next_gating. Note: comment at line 164 ('did not send UP or DOWN') contradicts asserts; scylla#7805 closed."
+      "reason": "Slow + redundant: avg 132s, ~120s of it time.sleep(120) (line 154); same assertion (exactly DOWN, UP on restart, no extra NEW_NODE) is covered deterministically by test_restart_node_localhost in ~12s (exact list assert since 5cc0cb5801) and test_restart_node. Runs in next_gating. Note: comment at line 164 ('did not send UP or DOWN') contradicts asserts; scylla#7805 closed.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "pushed_notifications_test.py:154",
+          "text": "time.sleep(120) is ~120s of the 132s runtime."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "pushed_notifications_test.py:164",
+          "text": "Comment 'did not send UP or DOWN' contradicts the asserts."
+        }
+      ]
     },
     "TestPushedNotifications::test_restart_node_localhost": {
       "description": "Both nodes get rpc_address=localhost with distinct native/shard-aware ports (same client IP). Waiter registered on node1 before node2 starts; asserts exact sequence [NEW_NODE, UP] for node2, then after restarting node2 [NEW_NODE, UP, DOWN, UP]. Guards notifications when nodes share an rpc address (CASSANDRA-10052/15677) and NEW_NODE ordering/delay (scylla#7805, #17631).",
@@ -107,7 +135,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage of exact NEW_NODE/UP/DOWN/UP push-event sequence (and shared rpc address setup); no scylla test/ equivalent. Stable now (100% over 32 runs, ~12s). Note: docstring lines 176-177 still describe Cassandra pre/post-4.0 behavior."
+      "reason": "Unique coverage of exact NEW_NODE/UP/DOWN/UP push-event sequence (and shared rpc address setup); no scylla test/ equivalent. Stable now (100% over 32 runs, ~12s). Note: docstring lines 176-177 still describe Cassandra pre/post-4.0 behavior.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "pushed_notifications_test.py:176",
+          "text": "Docstring still describes Cassandra pre/post-4.0 behavior."
+        }
+      ]
     },
     "TestPushedNotifications::test_new_node_event_delay": {
       "description": "Starts node1, registers waiter, starts node2 without waiting; on first notification immediately connects CQL to node2 and creates ks/table + inserts 100 rows, then asserts a NEW_NODE for node2 was received. Guards scylla#7301 (NEW_NODE must be sent only after the new node's CQL server listens, commit 369895b80f).",
@@ -134,8 +170,16 @@
           "note": "asserts NEW_NODE emitted after IP change, not its timing vs CQL readiness"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test of NEW_NODE-after-CQL-ready ordering (scylla#7301, 369895b80f); no scylla test/ equivalent; fast (~9s) and stable. Note: if no event arrives within 30s it still connects (node2 likely up by then), so the timing check is weak; the NEW_NODE assert remains."
+      "decision": "GREEN",
+      "reason": "Only test of NEW_NODE-after-CQL-ready ordering (scylla#7301, 369895b80f); no scylla test/ equivalent; fast (~9s) and stable. Note: if no event arrives within 30s it still connects (node2 likely up by then), so the timing check is weak; the NEW_NODE assert remains.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "If no event arrives within 30s it still connects, weakening the timing check; NEW_NODE assert remains."
+        }
+      ]
     }
   }
 }

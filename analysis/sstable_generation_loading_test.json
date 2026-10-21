@@ -1,144 +1,192 @@
 {
- "file": "sstable_generation_loading_test.py",
- "tests": {
-  "TestSSTableGenerationAndLoading::test_promoted_index_generation_with_small_partition_followed_by_a_large_partition": {
-   "description": "Single node, enable_cache=false. Table with static column; writes a tiny partition (pk=1, static only) then a 2000-row partition (pk=0), restarts node (memtable flushed on shutdown) and reads one clustering row of pk=0 from sstable. Guards scylla#1567: KL writer did not reset block_first_colname after a partition without promoted-index entry, producing a bad promoted index offset for the next partition -> parse error on read. Only real assertion: one row returned.",
-   "origin": {
-    "sha": "825e0896ff0a600c325c9f873c5ba621ab52f743",
-    "date": "2016-08-11",
-    "pr": null,
-    "summary": "Tomasz Grabiec: add test for promoted index generation (scylla#1567), sent by mail alongside scylla fix f1c2481040."
-   },
-   "commits": {
-    "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
-    "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; turned self.assertEquals([0,'ck_0',7,0], row) into `assert [..], list(rows[0])` (no-op tuple assert)",
-    "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
-    "ed4e4208a4b31e7bfdaa28368cd01efc10a0f0de": "restart with wait_for_binary_proto=True",
-    "825e0896ff0a600c325c9f873c5ba621ab52f743": "origin"
-   },
-   "relevance": "Bug was in the KL sstable writer (sstables.cc maybe_flush_pi_block, fixed scylla f1c2481040). KL writer removed in scylla c7096470bf (2021-03-31, 'sstables: remove unused KL writer'); writable formats now md/me/ms/mt (db/config.cc sstable_format). With the compact mc+ row format, 2000 small rows (~40KB) likely stay under default column_index_size_in_kb=64, so a promoted index may not even be generated for pk=0.",
-   "duplicates": [
-    {
-     "path": "test/boost/sstable_conforms_to_mutation_source_test.cc::test_sstable_conforms_to_mutation_source_*",
-     "coverage": "partial",
-     "note": "run_mutation_source_tests with promoted_index_block_size 1/128/64K: random partitions of mixed sizes, static rows, clustering-sliced reads through promoted index"
+  "file": "sstable_generation_loading_test.py",
+  "tests": {
+    "TestSSTableGenerationAndLoading::test_promoted_index_generation_with_small_partition_followed_by_a_large_partition": {
+      "description": "Single node, enable_cache=false. Table with static column; writes a tiny partition (pk=1, static only) then a 2000-row partition (pk=0), restarts node (memtable flushed on shutdown) and reads one clustering row of pk=0 from sstable. Guards scylla#1567: KL writer did not reset block_first_colname after a partition without promoted-index entry, producing a bad promoted index offset for the next partition -> parse error on read. Only real assertion: one row returned.",
+      "origin": {
+        "sha": "825e0896ff0a600c325c9f873c5ba621ab52f743",
+        "date": "2016-08-11",
+        "pr": null,
+        "summary": "Tomasz Grabiec: add test for promoted index generation (scylla#1567), sent by mail alongside scylla fix f1c2481040."
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; turned self.assertEquals([0,'ck_0',7,0], row) into `assert [..], list(rows[0])` (no-op tuple assert)",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
+        "ed4e4208a4b31e7bfdaa28368cd01efc10a0f0de": "restart with wait_for_binary_proto=True",
+        "825e0896ff0a600c325c9f873c5ba621ab52f743": "origin"
+      },
+      "relevance": "Bug was in the KL sstable writer (sstables.cc maybe_flush_pi_block, fixed scylla f1c2481040). KL writer removed in scylla c7096470bf (2021-03-31, 'sstables: remove unused KL writer'); writable formats now md/me/ms/mt (db/config.cc sstable_format). With the compact mc+ row format, 2000 small rows (~40KB) likely stay under default column_index_size_in_kb=64, so a promoted index may not even be generated for pk=0.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_conforms_to_mutation_source_test.cc::test_sstable_conforms_to_mutation_source_*",
+          "coverage": "partial",
+          "note": "run_mutation_source_tests with promoted_index_block_size 1/128/64K: random partitions of mixed sizes, static rows, clustering-sliced reads through promoted index"
+        },
+        {
+          "path": "test/boost/sstable_mutation_test.cc::test_promoted_index_blocks_are_monotonic*",
+          "coverage": "partial",
+          "note": "promoted index generation correctness in current writer"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Guarded code (KL writer, scylla#1567) removed in scylla c7096470bf; current promoted-index writing/reading covered by sstable_conforms_to_mutation_source_test with tiny block sizes. Bug: sstable_generation_loading_test.py:54 `assert [0, \"ck_0\", 7, 0], list(rows[0])` is a no-op (since pytest port 058bdb1637); only row count is checked. Bug: check for scylla#1568 (static cells, closed 2016-08-15) left commented out at :56-59.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "sstable_generation_loading_test.py:54",
+          "text": "`assert [0, \"ck_0\", 7, 0], list(rows[0])` is a no-op (since pytest port 058bdb1637); only row count checked"
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "sstable_generation_loading_test.py:56",
+          "text": "Check for scylla#1568 (static cells, closed 2016-08-15) left commented out"
+        }
+      ]
     },
-    {
-     "path": "test/boost/sstable_mutation_test.cc::test_promoted_index_blocks_are_monotonic*",
-     "coverage": "partial",
-     "note": "promoted index generation correctness in current writer"
+    "TestSSTableGenerationAndLoading::test_incompressible_data_in_compressed_table": {
+      "description": "Single node, table created via create_cf(compression='Deflate') (dtest_class.py:348, sets sstable_compression DeflateCompressor). Writes 10 cells of hex(os.urandom(5000)) into one partition, flushes, sleeps 2s, reads c < '8' and asserts result non-empty. Inherited from Cassandra dtest; guards CASSANDRA-3370 (Deflate compression of incompressible data producing bad/oversized sstable).",
+      "origin": {
+        "sha": "d25ae41734b8aec911d64dafc4fc83d320ff0d08",
+        "date": "2012-02-27",
+        "pr": null,
+        "summary": "Tyler Patterson (DataStax): added tests for sstable generation and loading (Cassandra dtest era, pre-scylla)."
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade: f-string)",
+        "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; `assert len(rows) > 0` -> `assert rows`, session as context manager",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
+        "29646f195624980c81c821eb902eb3b9f7f41070": "py3: urandom bytes -> .hex()",
+        "8c7c27b7522d11972e3b3830caa6a78040448170": "driver upgrade fixes",
+        "bc7cd1fa4076d23fb72bd71d7a35a4d74fdc4df6": "use os.urandom instead of /dev/urandom",
+        "1761f6fac2a7104df392a918ef5fdee13ef01173": "cursor -> session rename",
+        "18735e6bfbadbc27ad66d832e4f9b52101c4435f": "port to python driver",
+        "26a708261d4a7ed0b3163614ecef7f755febba15": "Windows portability",
+        "a9b978b5b06f1f05669e0e21c336b54135596ac3": "docstring issue ref",
+        "2a3d26c52c446296d5342aae25e0e74b6b2839c4": "removed @since",
+        "35c23a63268b82751dd2e89f2ac42d393efc56ec": "fix for CQL3 sstableloader test changes",
+        "ee3a2a6b18d17be0ed8051f1cab19b36eae53fff": "added since('1.1')",
+        "632244cec61886c18128b2b212eeb5a72bcdab3c": "removed cleanup/flush calls",
+        "d25ae41734b8aec911d64dafc4fc83d320ff0d08": "origin"
+      },
+      "relevance": "Deflate compression still supported in scylla (compression_parameters::algorithm::deflate). CASSANDRA-3370 is a Cassandra Java implementation bug; scylla has its own compressor code.",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_write_many_partitions_deflate",
+          "coverage": "partial",
+          "note": "writes deflate-compressed sstable, compares to reference"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_deflate_partition_key_with_values_of_different_types_read",
+          "coverage": "partial",
+          "note": "deflate read"
+        },
+        {
+          "path": "test/cluster/test_encryption.py::test_encryption_table_compression[Deflate]",
+          "coverage": "partial",
+          "note": "end-to-end write/flush/read with Deflate (+EaR)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Guards a Cassandra-only bug (CASSANDRA-3370); assertion is only `assert rows` (sstable_generation_loading_test.py:92, no value/size check) so it only proves a Deflate table is readable, which scylla boost (sstable_3_x_test deflate tests) and test_encryption.py Deflate param already cover. Bug: data is hex(urandom) (:83-84), ~2x compressible, so not actually incompressible; docstring claims size comparison that the test never does.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "sstable_generation_loading_test.py:83",
+          "text": "Data is hex(urandom), ~2x compressible, so not actually incompressible"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "sstable_generation_loading_test.py:92",
+          "text": "Only `assert rows`; the size comparison claimed by the docstring is never done"
+        }
+      ]
+    },
+    "TestSSTableGenerationAndLoading::test_remove_index_file": {
+      "description": "Single node, c-s writes 10k rows, flush+compact, stop. (1) Removes *Summary.db, restarts, asserts all rows identical (summary regenerated). (2) For each of Index, Filter, Statistics, Digest.*, Partitions, Rows (if present) moves the component away, starts node (no_wait) and waits for malformed_sstable_exception / 'Startup failed' (Digest: also accepts CQL up, missing digest tolerated since 2026.2), kills node, asserts Data.db still exists, restores component. (3) Restarts and asserts all rows identical. Uses abort_on_malformed_sstable_error=False. Guards that scylla rejects an incomplete sstable without deleting data (dtest#842, CASSANDRA-343 origin).",
+      "origin": {
+        "sha": "d25ae41734b8aec911d64dafc4fc83d320ff0d08",
+        "date": "2012-02-27",
+        "pr": null,
+        "summary": "Cassandra dtest origin; scylla rework by Benny Halevy in PR #850 (2019-02, fixes dtest#842): summary regeneration, per-component malformed detection, data verification."
+      },
+      "commits": {
+        "96e43b35ce": "watch_log_for timeout 10/90 -> 100 (flaky timeouts on slow workers)",
+        "c3d9db24d6": "ignore patterns accept both '(msg)' and ': msg' exception formats",
+        "85a7875a6f": "ignore pattern 'Could not (create|open) SSTable component' (scylla#29672)",
+        "89cdf5d6e6": "fix glob typo from 08e070cc91 (loop was a no-op since 2025.4); Digest missing tolerated; accept Startup failed; add abort_on_malformed_sstable_error=False; drop allow_log_errors (DTEST-224)",
+        "08e070cc91": "BTI prep: add Partitions.db/Rows.db, skip absent comps (introduced `*comp` typo making loop skip everything)",
+        "b69420206e": "formatting (format(**locals()) -> f-strings)",
+        "6f303700c6": "mark use_cassandra_stress",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting",
+        "fb3dfc9ea9": "formatting (noqa)",
+        "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; logger, fixture_dtest_setup.ignore_log_patterns",
+        "c3471a97e4": "formatting (autopep8)",
+        "5e829d029a": "debug-mode timeout 90s",
+        "6fd7ecca98": "debug printouts",
+        "364803b768": "add 'No such file or directory' expected errors",
+        "f3af905efe": "set ignore_log_patterns before restarts",
+        "a7cef2d8c6": "ignore 'init - Startup failed'",
+        "8d0021ecb0": "replace allow_log_errors with explicit ignore patterns",
+        "84d8e3083b": "start(no_wait=True) for expected-failing starts",
+        "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
+        "ed4e4208a4b31e7bfdaa28368cd01efc10a0f0de": "start with wait_for_binary_proto=True",
+        "6d698e1caf": "watch for malformed_sstable_exception from log mark",
+        "b0ed3f5d75": "verify data after restoring components",
+        "3b7d904cf5": "per-component removal loop, expect malformed_sstable_exception",
+        "d5b0785f11": "rm Digest.* instead of Digest.sha1",
+        "7183faa590": "remove Summary.db and verify regeneration + data",
+        "0311d61f62": "drop pre-2.1 logic",
+        "d25ae41734b8aec911d64dafc4fc83d320ff0d08": "origin"
+      },
+      "relevance": "Live: sstable loading on boot, malformed_sstable_exception, abort_on_malformed_sstable_error, summary regeneration, BTI components (ms format), Digest tolerance (2026.2). Actively maintained in 2026 (5 commits).",
+      "duplicates": [
+        {
+          "path": "test/boost/sstable_directory_test.cc::sstable_directory_test_table_scan_incomplete_sstables",
+          "coverage": "partial",
+          "note": "missing Statistics -> malformed_sstable_exception, directory untouched (unit level, no node boot)"
+        },
+        {
+          "path": "test/boost/sstable_test.cc::missing_summary_query_ok",
+          "coverage": "partial",
+          "note": "missing Summary regenerated/queryable"
+        },
+        {
+          "path": "test/boost/sstable_3_x_test.cc::test_read_missing_summary",
+          "coverage": "partial",
+          "note": "missing summary read"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique end-to-end coverage (node boot with each missing component, data kept, full data equality after restore), unit tests only cover pieces. Note: for Digest the expected pattern also accepts malformed_sstable_exception/Startup failed (:176-179), so tolerance of a missing digest is not asserted. Bug: default sstable_format is mt (scylla conf/scylla.yaml:420), which has no Summary.db, so step (1) `rm *Summary.db` (:130) removes nothing in every job. Note: os.system results unchecked (:130,:168,:190). Note: loop was a silent no-op 2025-09..2026-05 (glob typo 08e070cc91, fixed 89cdf5d6e6).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "sstable_generation_loading_test.py:176",
+          "text": "For Digest the expected pattern also accepts malformed_sstable_exception/Startup failed, so missing-digest tolerance isn't asserted"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "sstable_generation_loading_test.py:130",
+          "text": "os.system results unchecked (:130, :168, :190)."
+        },
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "sstable_generation_loading_test.py:130",
+          "text": "rm *Summary.db is a silent no-op under the default mt format (no Summary component); step (1) Summary-regeneration check exercises nothing."
+        }
+      ]
     }
-   ],
-   "decision": "RED",
-   "reason": "Guarded code (KL writer, scylla#1567) removed in scylla c7096470bf; current promoted-index writing/reading covered by sstable_conforms_to_mutation_source_test with tiny block sizes. Bug: sstable_generation_loading_test.py:54 `assert [0, \"ck_0\", 7, 0], list(rows[0])` is a no-op (since pytest port 058bdb1637); only row count is checked. Note: check for scylla#1568 (static cells, closed 2016-08-15) left commented out at :56-59."
   },
-  "TestSSTableGenerationAndLoading::test_incompressible_data_in_compressed_table": {
-   "description": "Single node, table created via create_cf(compression='Deflate') (dtest_class.py:348, sets sstable_compression DeflateCompressor). Writes 10 cells of hex(os.urandom(5000)) into one partition, flushes, sleeps 2s, reads c < '8' and asserts result non-empty. Inherited from Cassandra dtest; guards CASSANDRA-3370 (Deflate compression of incompressible data producing bad/oversized sstable).",
-   "origin": {
-    "sha": "d25ae41734b8aec911d64dafc4fc83d320ff0d08",
-    "date": "2012-02-27",
-    "pr": null,
-    "summary": "Tyler Patterson (DataStax): added tests for sstable generation and loading (Cassandra dtest era, pre-scylla)."
-   },
-   "commits": {
-    "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
-    "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade: f-string)",
-    "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; `assert len(rows) > 0` -> `assert rows`, session as context manager",
-    "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
-    "29646f195624980c81c821eb902eb3b9f7f41070": "py3: urandom bytes -> .hex()",
-    "8c7c27b7522d11972e3b3830caa6a78040448170": "driver upgrade fixes",
-    "bc7cd1fa4076d23fb72bd71d7a35a4d74fdc4df6": "use os.urandom instead of /dev/urandom",
-    "1761f6fac2a7104df392a918ef5fdee13ef01173": "cursor -> session rename",
-    "18735e6bfbadbc27ad66d832e4f9b52101c4435f": "port to python driver",
-    "26a708261d4a7ed0b3163614ecef7f755febba15": "Windows portability",
-    "a9b978b5b06f1f05669e0e21c336b54135596ac3": "docstring issue ref",
-    "2a3d26c52c446296d5342aae25e0e74b6b2839c4": "removed @since",
-    "35c23a63268b82751dd2e89f2ac42d393efc56ec": "fix for CQL3 sstableloader test changes",
-    "ee3a2a6b18d17be0ed8051f1cab19b36eae53fff": "added since('1.1')",
-    "632244cec61886c18128b2b212eeb5a72bcdab3c": "removed cleanup/flush calls",
-    "d25ae41734b8aec911d64dafc4fc83d320ff0d08": "origin"
-   },
-   "relevance": "Deflate compression still supported in scylla (compression_parameters::algorithm::deflate). CASSANDRA-3370 is a Cassandra Java implementation bug; scylla has its own compressor code.",
-   "duplicates": [
-    {
-     "path": "test/boost/sstable_3_x_test.cc::test_write_many_partitions_deflate",
-     "coverage": "partial",
-     "note": "writes deflate-compressed sstable, compares to reference"
-    },
-    {
-     "path": "test/boost/sstable_3_x_test.cc::test_deflate_partition_key_with_values_of_different_types_read",
-     "coverage": "partial",
-     "note": "deflate read"
-    },
-    {
-     "path": "test/cluster/test_encryption.py::test_encryption_table_compression[Deflate]",
-     "coverage": "partial",
-     "note": "end-to-end write/flush/read with Deflate (+EaR)"
-    }
-   ],
-   "decision": "RED",
-   "reason": "Guards a Cassandra-only bug (CASSANDRA-3370); assertion is only `assert rows` (sstable_generation_loading_test.py:92, no value/size check) so it only proves a Deflate table is readable, which scylla boost (sstable_3_x_test deflate tests) and test_encryption.py Deflate param already cover. Note: data is hex(urandom) (:83-84), ~2x compressible, so not actually incompressible; docstring claims size comparison that the test never does."
-  },
-  "TestSSTableGenerationAndLoading::test_remove_index_file": {
-   "description": "Single node, c-s writes 10k rows, flush+compact, stop. (1) Removes *Summary.db, restarts, asserts all rows identical (summary regenerated). (2) For each of Index, Filter, Statistics, Digest.*, Partitions, Rows (if present) moves the component away, starts node (no_wait) and waits for malformed_sstable_exception / 'Startup failed' (Digest: also accepts CQL up, missing digest tolerated since 2026.2), kills node, asserts Data.db still exists, restores component. (3) Restarts and asserts all rows identical. Uses abort_on_malformed_sstable_error=False. Guards that scylla rejects an incomplete sstable without deleting data (dtest#842, CASSANDRA-343 origin).",
-   "origin": {
-    "sha": "d25ae41734b8aec911d64dafc4fc83d320ff0d08",
-    "date": "2012-02-27",
-    "pr": null,
-    "summary": "Cassandra dtest origin; scylla rework by Benny Halevy in PR #850 (2019-02, fixes dtest#842): summary regeneration, per-component malformed detection, data verification."
-   },
-   "commits": {
-    "96e43b35ce": "watch_log_for timeout 10/90 -> 100 (flaky timeouts on slow workers)",
-    "c3d9db24d6": "ignore patterns accept both '(msg)' and ': msg' exception formats",
-    "85a7875a6f": "ignore pattern 'Could not (create|open) SSTable component' (scylla#29672)",
-    "89cdf5d6e6": "fix glob typo from 08e070cc91 (loop was a no-op since 2025.4); Digest missing tolerated; accept Startup failed; add abort_on_malformed_sstable_error=False; drop allow_log_errors (DTEST-224)",
-    "08e070cc91": "BTI prep: add Partitions.db/Rows.db, skip absent comps (introduced `*comp` typo making loop skip everything)",
-    "b69420206e": "formatting (format(**locals()) -> f-strings)",
-    "6f303700c6": "mark use_cassandra_stress",
-    "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
-    "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting",
-    "fb3dfc9ea9": "formatting (noqa)",
-    "058bdb16373c92f24d626ca9825e3b35a2200fa6": "pytest port; logger, fixture_dtest_setup.ignore_log_patterns",
-    "c3471a97e4": "formatting (autopep8)",
-    "5e829d029a": "debug-mode timeout 90s",
-    "6fd7ecca98": "debug printouts",
-    "364803b768": "add 'No such file or directory' expected errors",
-    "f3af905efe": "set ignore_log_patterns before restarts",
-    "a7cef2d8c6": "ignore 'init - Startup failed'",
-    "8d0021ecb0": "replace allow_log_errors with explicit ignore patterns",
-    "84d8e3083b": "start(no_wait=True) for expected-failing starts",
-    "60fdd2b6c501e59c1cb9bf53d8503c0a791ec75e": "added single_node attr",
-    "ed4e4208a4b31e7bfdaa28368cd01efc10a0f0de": "start with wait_for_binary_proto=True",
-    "6d698e1caf": "watch for malformed_sstable_exception from log mark",
-    "b0ed3f5d75": "verify data after restoring components",
-    "3b7d904cf5": "per-component removal loop, expect malformed_sstable_exception",
-    "d5b0785f11": "rm Digest.* instead of Digest.sha1",
-    "7183faa590": "remove Summary.db and verify regeneration + data",
-    "0311d61f62": "drop pre-2.1 logic",
-    "d25ae41734b8aec911d64dafc4fc83d320ff0d08": "origin"
-   },
-   "relevance": "Live: sstable loading on boot, malformed_sstable_exception, abort_on_malformed_sstable_error, summary regeneration, BTI components (ms format), Digest tolerance (2026.2). Actively maintained in 2026 (5 commits).",
-   "duplicates": [
-    {
-     "path": "test/boost/sstable_directory_test.cc::sstable_directory_test_table_scan_incomplete_sstables",
-     "coverage": "partial",
-     "note": "missing Statistics -> malformed_sstable_exception, directory untouched (unit level, no node boot)"
-    },
-    {
-     "path": "test/boost/sstable_test.cc::missing_summary_query_ok",
-     "coverage": "partial",
-     "note": "missing Summary regenerated/queryable"
-    },
-    {
-     "path": "test/boost/sstable_3_x_test.cc::test_read_missing_summary",
-     "coverage": "partial",
-     "note": "missing summary read"
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "Unique end-to-end coverage (node boot with each missing component, data kept, full data equality after restore), unit tests only cover pieces. Note: for Digest the expected pattern also accepts malformed_sstable_exception/Startup failed (:176-179), so tolerance of a missing digest is not asserted. Note: os.system results unchecked (:130,:168,:190); with ms format there is no Summary.db so step (1) silently becomes a no-op. Note: loop was a silent no-op 2025-09..2026-05 (glob typo 08e070cc91, fixed 89cdf5d6e6)."
-  }
- },
- "analyzed_at": "2026-10-21",
- "scylla_rev": "814c05a00f"
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
 }

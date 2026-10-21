@@ -49,7 +49,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "No assertions (concurrent_schema_changes_test.py:389-405) - it only runs a handful of single-node DDLs, each covered by cqlpy, and the exact same sequence is a strict subset of test_changes_to_different_nodes (which also validates schema agreement). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "No assertions (concurrent_schema_changes_test.py:389-405) - it only runs a handful of single-node DDLs, each covered by cqlpy, and the exact same sequence is a strict subset of test_changes_to_different_nodes (which also validates schema agreement). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "concurrent_schema_changes_test.py:389-405",
+          "text": "no assertions; only checks DDL statements don't error, never checks schema agreement"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_changes_to_different_nodes": {
       "description": "2 nodes/2 racks. Runs the prepare+make DDL sequence (ks/table/index create/drop, ALTER ADD) via node1, checks nodetool describecluster shows one schema version, sleeps 20s, repeats with a new namespace via node2, and checks single schema version on both nodes. Guards schema propagation when DDL comes from different coordinators.",
@@ -99,7 +113,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with scylla cluster tests that issue DDL through several nodes; ~67s of which ~26s is fixed sleeps (wait(20) at :422 etc). Note: wait(20) 'for changes to get to the first node' is a pre-raft leftover. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap with scylla cluster tests that issue DDL through several nodes; ~67s of which ~26s is fixed sleeps (wait(20) at :422 etc). Note: wait(20) 'for changes to get to the first node' is a pre-raft leftover. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "concurrent_schema_changes_test.py:422",
+          "text": "wait(20) 'for changes to get to the first node' is a pre-raft leftover"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "concurrent_schema_changes_test.py:422",
+          "text": "only describecluster single-version check; weak under raft group0 schema"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_changes_while_node_down": {
       "description": "3 nodes/3 racks, RF=3. Stops node2, runs the prepare+make DDL sequence (incl. index create/drop, keyspace drop/create) via node1, restarts node2, checks node2 converges to a single schema version (describecluster) and that index2_ns1 created while node2 was down is built (index_is_built). Guards schema catch-up of a restarted node (raft log/snapshot) and index building after catch-up.",
@@ -152,7 +186,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (scylla tests don't combine index/keyspace DDL while down with index-built check after catch-up). Note: ignores 'Column .* in view .* was not found in the base table' (:446), which is now raised via on_internal_error (db/view/view.cc:486,1190) - the ignore may mask a real internal error; the test creates no MV, only indexes. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap only (scylla tests don't combine index/keyspace DDL while down with index-built check after catch-up). Bug: ignores 'Column .* in view .* was not found in the base table' (:446), which is now raised via on_internal_error (db/view/view.cc:486,1190) - the ignore may mask a real internal error; the test creates no MV, only indexes. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "concurrent_schema_changes_test.py:446",
+          "text": "ignores 'Column .* in view .* was not found in the base table', now an on_internal_error (db/view/view.cc:486)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_changes_while_node_toggle": {
       "description": "3 nodes/3 racks, RF=3. Via node2: prepare DDL, stop node1, make schema changes, stop node2 and node3 (whole cluster down), then start node1, node2, node3 in order and check node1 has a single schema version. Guards that a node which missed DDL catches up after a full-cluster restart.",
@@ -197,7 +245,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap; full-cluster-restart variant is not obviously covered elsewhere but assertion is only describecluster on node1 (:483), no data/index check. Note: same 'Column .* in view .* was not found in the base table' ignore (:474) masking an on_internal_error (db/view/view.cc:486). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap; full-cluster-restart variant is not obviously covered elsewhere but assertion is only describecluster on node1 (:483), no data/index check. Bug: same 'Column .* in view .* was not found in the base table' ignore (:474) masking an on_internal_error (db/view/view.cc:486). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "concurrent_schema_changes_test.py:474",
+          "text": "ignores 'Column .* in view .* was not found in the base table', now an on_internal_error (db/view/view.cc:486)"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "concurrent_schema_changes_test.py:483",
+          "text": "only asserts describecluster on node1; no data/index check"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_tables_concurrently": {
       "description": "3 nodes, RF=1. Issues 250 CREATE TABLE statements concurrently (execute_concurrent, concurrency=200) via node1, asserts all succeed, schema versions converge on all nodes and driver metadata shows 250 tables. Guards group0 DDL under high concurrency (retries on concurrent modification).",
@@ -233,8 +301,16 @@
           "note": "concurrent keyspace DDL"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique high-concurrency (250 tables, concurrency=200) DDL coverage, fast (~33s), 100% pass; only downgraded for class-level issue. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "decision": "GREEN",
+      "reason": "Unique high-concurrency (250 tables, concurrency=200) DDL coverage, fast (~33s), 100% pass. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_alters_concurrently": {
       "description": "3 nodes, RF=1. Creates 10 tables, then runs 500 concurrent 'ALTER TABLE base_<rand> ADD c_n int' (concurrency=150), sleeps 30s, asserts 510 columns in driver metadata and a single schema version on all nodes. Guards concurrent ALTERs on the same tables not losing columns.",
@@ -272,7 +348,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test_concurrent_schema.py (same race, much smaller scale); slow (~183s, includes fixed wait(30) at :202 that schema-agreement check already makes redundant). Note: assert message 'didn't get success on table create' is copy-paste (:199). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap with test_concurrent_schema.py (same race, much smaller scale); slow (~183s, includes fixed wait(30) at :202 that schema-agreement check already makes redundant). Note: assert message 'didn't get success on table create' is copy-paste (:199). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "concurrent_schema_changes_test.py:202",
+          "text": "fixed wait(30) made redundant by schema-agreement check"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "concurrent_schema_changes_test.py:199",
+          "text": "copy-paste assert message 'didn't get success on table create'"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_indexes_concurrently": {
       "description": "2 nodes, RF=1, vnodes only. Creates 5 tables x 1000 rows, concurrently creates 10 secondary indexes, asserts all succeed, schema agrees, 10 indexes in metadata; sleeps 45s then queries each of the 10000 values through both indexes expecting 1 row. Guards concurrent index creation + index build completeness.",
@@ -317,7 +413,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap; runs only in next-dtest-consistent-topology (16 runs) because of !tablets skip. Note: skip ref scylladb/scylladb#17603 is closed/fixed - mark is stale, tablets coverage lost (:214). Note: fixed wait(45) instead of waiting for index build (:262); assert msg copy-paste 'table create' (:246); ignore pattern 'view - ...Failed to apply mutation from' is dead - that message is logged by storage_proxy, not view logger (service/storage_proxy.cc:665). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap; runs only in next-dtest-consistent-topology (16 runs) because of !tablets skip. Note: skip ref scylladb/scylladb#17603 is closed/fixed - mark is stale, tablets coverage lost (:214). Note: fixed wait(45) instead of waiting for index build (:262); assert msg copy-paste 'table create' (:246); ignore pattern 'view - ...Failed to apply mutation from' is dead - that message is logged by storage_proxy, not view logger (service/storage_proxy.cc:665). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "concurrent_schema_changes_test.py:214",
+          "text": "!tablets skip cites scylladb/scylladb#17603, closed (fixed via #23760); tablets coverage lost"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "concurrent_schema_changes_test.py:262",
+          "text": "fixed wait(45) instead of waiting for index build"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "concurrent_schema_changes_test.py:246",
+          "text": "copy-paste assert message 'table create'"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "concurrent_schema_changes_test.py",
+          "text": "ignore pattern 'view - ...Failed to apply mutation from' never matches; logged by storage_proxy (service/storage_proxy.cc:665)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_mv_concurrently": {
       "description": "3 nodes, RF=1. Inserts 4000 rows into a 10-column table, then creates 10 materialized views one at a time (waiting for schema agreement after each), sleeps 60s, asserts system_schema.views has 10 views and each view has 4000 rows. Despite its name, view creation is sequential; concurrency is only among the 10 view builds.",
@@ -366,7 +494,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with view-building cluster tests; name misleading (views created sequentially, :288-290). Note: unmark next_gating cites scylladb/scylladb#14934 which is CLOSED (duplicate, 2025-08-13) (:269); fixed wait(60) instead of waiting for view build (:293); stale comment 'Not implemented: INDEXES' (:294). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Partial overlap with view-building cluster tests; name misleading (views created sequentially, :288-290). Note: unmark next_gating cites scylladb/scylladb#14934 which is CLOSED (duplicate, 2025-08-13) (:269); fixed wait(60) instead of waiting for view build (:293); stale comment 'Not implemented: INDEXES' (:294). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "concurrent_schema_changes_test.py:288-290",
+          "text": "name says concurrent but views are created sequentially; only builds run concurrently"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "concurrent_schema_changes_test.py:269",
+          "text": "unmark next_gating cites scylladb/scylladb#14934, closed 2025-08-13"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "concurrent_schema_changes_test.py:293",
+          "text": "fixed wait(60) instead of waiting for view build"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "concurrent_schema_changes_test.py:294",
+          "text": "stale comment 'Not implemented: INDEXES'"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_schema_churn": {
       "description": "3 nodes, RF=1. Creates 20 alter_me + 20 index_me tables, then concurrently (concurrency=100) runs 20 CREATE TABLE, 140 ALTER DROP, 140 ALTER ADD and 140 CREATE INDEX; asserts all succeed, schema agrees on all nodes and the 20 new tables exist. Port of CASSANDRA-10250 repro (non-linearizable schema changes).",
@@ -400,7 +560,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "test/cluster/test_concurrent_schema.py::test_cassandra_issue_10250 ports the same scenario with stronger verification; dtest is slow (~206s) and its real checks were commented out in 52b06c59f2. Bug: _verify_lots_of_schema_actions (:321-345) has index/column checks commented out, `errors` is always empty so `assert 0 == len(errors)` is a no-op. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "test/cluster/test_concurrent_schema.py::test_cassandra_issue_10250 ports the same scenario with stronger verification; dtest is slow (~206s) and its real checks were commented out in 52b06c59f2. Bug: _verify_lots_of_schema_actions (:321-345) has index/column checks commented out, `errors` is always empty so `assert 0 == len(errors)` is a no-op. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "concurrent_schema_changes_test.py:321-345",
+          "text": "_verify_lots_of_schema_actions index/column checks commented out; errors always empty, assert 0 == len(errors) is a no-op"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_create_lots_of_schema_churn_with_node_down": {
       "description": "Same churn as test_create_lots_of_schema_churn but with node2 stopped during the DDL storm; node2 is then restarted and must catch up (group0 log/snapshot transfer) to a single schema version; asserts new tables exist. Guards raft snapshot transfer/catch-up after heavy schema churn.",
@@ -448,7 +622,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Node-down catch-up after heavy churn is only partially covered; it hits open scylladb/scylladb#20588 (worked around by 4 ignore patterns, :380-385). Bug: same no-op verification as churn (commented checks, `errors` always empty, :336-345). Note: unmark next_gating cites scylla-enterprise#3231, CLOSED 2023-11-22 (:364). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Node-down catch-up after heavy churn is only partially covered; it hits open scylladb/scylladb#20588 (worked around by 4 ignore patterns, :380-385). Bug: same no-op verification as churn (commented checks, `errors` always empty, :336-345). Note: unmark next_gating cites scylla-enterprise#3231, CLOSED 2023-11-22 (:364). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "concurrent_schema_changes_test.py:336-345",
+          "text": "_verify_lots_of_schema_actions checks commented out; errors always empty, assert is a no-op"
+        },
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "concurrent_schema_changes_test.py:380-385",
+          "text": "4 ignore patterns work around open scylladb/scylladb#20588"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "concurrent_schema_changes_test.py:364",
+          "text": "unmark next_gating cites scylla-enterprise#3231, closed 2023-11-22"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_decommission_node": {
       "description": "Tablets: 2 nodes on 2 racks + 1 extra node in rack1; vnodes: 1 node + 1 extra node. Creates ks_ns1 (RF=2) with table, row, secondary index, second table/ks; decommissions the last node; checks nodetool describecluster shows one schema version; runs make_schema_changes (drop/create ks, drop/create table, ALTER ADD, create/drop index); bootstraps a new node in rack2 and checks one schema version again. Guards schema convergence across decommission + bootstrap.",
@@ -503,7 +703,39 @@
         }
       ],
       "decision": "RED",
-      "reason": "test/cluster/test_topology_remove_decom.py::test_decommission_node_add_column covers decommission followed by DDL with a stronger schema check (verify_schema), and test_topology_schema.py covers DDL after node add; dtest only asserts describecluster shows 1 version (:507,:518). Note: vnodes path (initial_nodes=1, :489) decommissions down to a single node while ks_ns1 has RF=2, and the 'must not be a seed' comment (:493) is a Cassandra-gossip leftover. Note: next-gating mark cites closed scylladb/scylladb#6022 (MV decommission bug) unrelated to this scenario (b0bf476cd6). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "test/cluster/test_topology_remove_decom.py::test_decommission_node_add_column covers decommission followed by DDL with a stronger schema check (verify_schema), and test_topology_schema.py covers DDL after node add; dtest only asserts describecluster shows 1 version (:507,:518). Note: vnodes path (initial_nodes=1, :489) decommissions down to a single node while ks_ns1 has RF=2, and the 'must not be a seed' comment (:493) is a Cassandra-gossip leftover. Note: next-gating mark cites closed scylladb/scylladb#6022 (MV decommission bug) unrelated to this scenario (b0bf476cd6). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "concurrent_schema_changes_test.py:489",
+          "text": "vnodes path decommissions down to 1 node while ks_ns1 has RF=2"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "concurrent_schema_changes_test.py:493",
+          "text": "'must not be a seed' comment is a Cassandra-gossip leftover"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "b0bf476cd6",
+          "text": "next-gating mark cites closed scylladb/scylladb#6022 (MV decommission), unrelated"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "concurrent_schema_changes_test.py:507,518",
+          "text": "only asserts describecluster shows 1 schema version"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_snapshot": {
       "description": "2 nodes/2 racks. Creates ks_ns2 (table with row + index, second table), flushes, takes nodetool snapshot on both nodes, runs make_schema_changes (drop ks2, create ks3, drop cf2, create cf3, ALTER cf ADD col4, create index2, drop index). Stops cluster, deletes cf_ns2 sstables, copies the pre-ALTER snapshot sstables back into the table dir, restarts and checks describecluster shows one schema version. Intended to guard loading older-schema sstables after schema changes; never reads the restored data.",
@@ -559,7 +791,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Old-schema snapshot sstables loaded after ALTER is not clearly covered elsewhere, but the test never checks restored data or the index, only describecluster (:566), so it barely verifies the scenario; ~41s with ~12s of fixed wait(2) sleeps. Bug: commitlog cleanup globs '<node>/commitlogs' without '/*' (:548-549), matching only the directory which isfile() skips, so commitlogs are never cleared. Note: os.system cp return codes ignored (:559-560) - a failed restore would go unnoticed; restored base data is not rebuilt into index2 and nothing checks it. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "Old-schema snapshot sstables loaded after ALTER is not clearly covered elsewhere, but the test never checks restored data or the index, only describecluster (:566), so it barely verifies the scenario; ~41s with ~12s of fixed wait(2) sleeps. Bug: commitlog cleanup globs '<node>/commitlogs' without '/*' (:548-549), matching only the directory which isfile() skips, so commitlogs are never cleared. Bug: os.system cp return codes ignored (:559-560) - a failed restore would go unnoticed. Note: restored base data is not rebuilt into index2 and nothing checks it. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "concurrent_schema_changes_test.py:548-549",
+          "text": "commitlog cleanup globs '<node>/commitlogs' without '/*'; commitlogs never cleared before restart"
+        },
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "concurrent_schema_changes_test.py:559-560",
+          "text": "os.system cp return codes ignored; a failed snapshot restore goes unnoticed"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "concurrent_schema_changes_test.py:566",
+          "text": "only checks describecluster; never reads restored data or index2"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "concurrent_schema_changes_test.py:530-566",
+          "text": "~12s of fixed wait(2) sleeps"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     },
     "TestConcurrentSchemaChanges::test_load": {
       "description": "Single node. Writes 30000 rows with cassandra-stress, then starts nodetool compact in a background thread, waits 1s, DROPs keyspace1.standard1 and re-creates a table with the same name, and waits for compaction to finish (tcompact.result() raises if nodetool compact failed). No other assertion; guards DROP/CREATE TABLE racing a major compaction.",
@@ -607,7 +871,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No scylla test found for DROP TABLE during major compaction, but the race is likely not hit: 30000 rows on one node compacts in well under the 2s of fixed sleeps before DROP (:599-606), so the test usually just runs compact then DROP/CREATE sequentially with no assertion. Note: docstring/comment 'stressing and compacting at the same time' / 'under a lot of load' (:597,:603) is false - stress finishes before compaction starts; ThreadPoolExecutor never shut down. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37)."
+      "reason": "No scylla test found for DROP TABLE during major compaction, but the race is likely not hit: 30000 rows on one node compacts in well under the 2s of fixed sleeps before DROP (:599-606), so the test usually just runs compact then DROP/CREATE sequentially with no assertion. Note: docstring/comment 'stressing and compacting at the same time' / 'under a lot of load' (:597,:603) is false - stress finishes before compaction starts; ThreadPoolExecutor never shut down. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:37).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "concurrent_schema_changes_test.py:599-606",
+          "text": "30000 rows compact well within the 2s fixed sleeps, so DROP/CREATE likely never races compaction"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "concurrent_schema_changes_test.py:597,603",
+          "text": "docstring/comment 'stressing and compacting at the same time' is false"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "concurrent_schema_changes_test.py",
+          "text": "ThreadPoolExecutor never shut down"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "concurrent_schema_changes_test.py:35",
+          "text": "class fixture sets start_rpc=true; Unused in scylla (Thrift removed, db/config.cc:1288)"
+        }
+      ]
     }
   }
 }

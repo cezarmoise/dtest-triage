@@ -1,636 +1,756 @@
 {
- "file": "user_types_test.py",
- "tests": {
-  "TestUserTypes::test_add_udt_to_another_data_types": {
-   "description": "3-node cluster, keyspace RF=1. Builds a 'real-life' schema: nested frozen UDTs (obs_entity contains user_refs), tables entity/entity_rel using them, 5 secondary indexes, 2 materialized views on entity. Inserts 2000 rows into each table from 2 threads, asserts counts, then ALTER TYPE obs_entity/user_refs ADD a new frozen UDT field, inserts 10 rows using the new fields and asserts counts on base tables and both MVs. Guards ALTER TYPE propagation to tables+views (schema merge with base/view mutations).",
-   "origin": {
-    "sha": "27863ba628",
-    "date": "2019-09-10",
-    "pr": 1103,
-    "summary": "Complex schema with alter type (added together with test_alter_inner_udt_by_another_udt); PR body has no linked issue."
-   },
-   "commits": {
-    "70425b251f": "Wrapped body in internal_add_udt_to_another_data_types and set cassandra driver logger to DEBUG to debug schema-agreement failure scylladb#15530.",
-    "27863ba628": "Origin: test added.",
-    "aaa06e8ff6": "File-level (PR 1185, fixes dtest#1184): wait for insert threads (t.result(60)) and assert row counts before ALTER; fixed flaky 'Expected 2000 got 1697'.",
-    "6482fd0b4b": "File-level: removed 'with compact storage' from entity table (compact storage deprecation).",
-    "0a99ae46cc": "File-level: populate via cluster_topology_3_nodes (3 racks) instead of populate(3); keyspace RF stays 1.",
-    "eccda80e42": "formatting",
-    "9ffd273f04": "formatting",
-    "19991c953b": "formatting",
-    "06cb7cc17b": "File-level: pytest port."
-   },
-   "relevance": "Live: UDTs, ALTER TYPE ADD, secondary indexes, MVs all supported. The test caught real regression scylladb#15530 (2023, 'Invalid tuple literal ... not of type frozen<user_refs>' after ALTER TYPE; root cause: schema-hash removal in Raft mode losing base mutations when UDT referenced by both base and view; reverted 35849fc901, fixed by 3582095b79 which added no scylla test).",
-   "duplicates": [
-    {
-     "path": "test/boost/schema_change_test.cc::test_alter_nested_type",
-     "coverage": "partial",
-     "note": "Alter nested UDT then insert; single node, no MV/index, alter before table creation."
+  "file": "user_types_test.py",
+  "tests": {
+    "TestUserTypes::test_add_udt_to_another_data_types": {
+      "description": "3-node cluster, keyspace RF=1. Builds a 'real-life' schema: nested frozen UDTs (obs_entity contains user_refs), tables entity/entity_rel using them, 5 secondary indexes, 2 materialized views on entity. Inserts 2000 rows into each table from 2 threads, asserts counts, then ALTER TYPE obs_entity/user_refs ADD a new frozen UDT field, inserts 10 rows using the new fields and asserts counts on base tables and both MVs. Guards ALTER TYPE propagation to tables+views (schema merge with base/view mutations).",
+      "origin": {
+        "sha": "27863ba628",
+        "date": "2019-09-10",
+        "pr": 1103,
+        "summary": "Complex schema with alter type (added together with test_alter_inner_udt_by_another_udt); PR body has no linked issue."
+      },
+      "commits": {
+        "70425b251f": "Wrapped body in internal_add_udt_to_another_data_types and set cassandra driver logger to DEBUG to debug schema-agreement failure scylladb#15530.",
+        "27863ba628": "Origin: test added.",
+        "aaa06e8ff6": "File-level (PR 1185, fixes dtest#1184): wait for insert threads (t.result(60)) and assert row counts before ALTER; fixed flaky 'Expected 2000 got 1697'.",
+        "6482fd0b4b": "File-level: removed 'with compact storage' from entity table (compact storage deprecation).",
+        "0a99ae46cc": "File-level: populate via cluster_topology_3_nodes (3 racks) instead of populate(3); keyspace RF stays 1.",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "06cb7cc17b": "File-level: pytest port."
+      },
+      "relevance": "Live: UDTs, ALTER TYPE ADD, secondary indexes, MVs all supported. The test caught real regression scylladb#15530 (2023, 'Invalid tuple literal ... not of type frozen<user_refs>' after ALTER TYPE; root cause: schema-hash removal in Raft mode losing base mutations when UDT referenced by both base and view; reverted 35849fc901, fixed by 3582095b79 which added no scylla test).",
+      "duplicates": [
+        {
+          "path": "test/boost/schema_change_test.cc::test_alter_nested_type",
+          "coverage": "partial",
+          "note": "Alter nested UDT then insert; single node, no MV/index, alter before table creation."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinUserType",
+          "coverage": "partial",
+          "note": "Alter UDT nested in UDT used by a table; no MV/SI, single node."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test exercising ALTER TYPE on a UDT referenced by base table + MVs + indexes on multi-node; it caught scylladb#15530 and the fix 3582095b79 added no scylla test. Note: DEBUG driver logging (70425b251f) is leftover instrumentation for closed scylladb#15530. Note: post-ALTER checks are row counts only (10 altered rows overwrite existing keys, count unchanged), and MV counts use assert_row_count with num_attempts=1 (tools/assertions.py:255) despite async view updates with RF=1 on 3 nodes; ThreadPoolExecutors never shut down.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "user_types_test.py:996-1000",
+          "text": "DEBUG driver logging (70425b251f) is leftover instrumentation for closed scylladb#15530."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:255",
+          "text": "Post-ALTER checks are row counts only (altered rows overwrite keys); insert failure still catches #15530."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "MV counts use num_attempts=1 despite async view updates; ThreadPoolExecutors never shut down."
+        }
+      ]
     },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinUserType",
-     "coverage": "partial",
-     "note": "Alter UDT nested in UDT used by a table; no MV/SI, single node."
+    "TestUserTypes::test_alter_inner_udt_by_another_udt": {
+      "description": "3-node cluster, RF=1. Creates user_refs <- obs_entity <- some_entity nested frozen UDTs, a new UDT priority_refs, ALTERs obs_entity and user_refs to add priority_refs, then creates table entity (frozen<some_entity>) + MV, inserts 10 rows with the new nested fields and asserts row counts on base and MV.",
+      "origin": {
+        "sha": "27863ba628",
+        "date": "2019-09-10",
+        "pr": 1103,
+        "summary": "Complex schema with alter type; no linked issue."
+      },
+      "commits": {
+        "0a99ae46cc": "populate via cluster_topology_3_nodes; RF unchanged (1).",
+        "eccda80e42": "formatting",
+        "6482fd0b4b": "Removed 'with compact storage' from entity table.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "29646f1956": "python3 port (no behavior change).",
+        "27863ba628": "Origin: test added."
+      },
+      "relevance": "Live: nested UDTs, ALTER TYPE ADD, MVs supported.",
+      "duplicates": [
+        {
+          "path": "test/boost/schema_change_test.cc::test_alter_nested_type",
+          "coverage": "partial",
+          "note": "Same core sequence: create nested types, alter inner type, then create table and insert nested value; single node, no MV."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinUserType",
+          "coverage": "partial",
+          "note": "Alter UDT nested within UDT with readback."
+        },
+        {
+          "path": "user_types_test.py::TestUserTypes::test_add_udt_to_another_data_types",
+          "coverage": "partial",
+          "note": "Same schema family; that test alters types while tables+MVs exist (stronger)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Core scenario (alter inner UDT before table creation, then insert) covered by boost schema_change_test.cc::test_alter_nested_type; only extras are 3 nodes and an MV row count. Since the ALTERs happen before the table/MV exist, the MV adds little; could be RED. Note: assertions are row counts only (assert_row_count, tools/assertions.py:255), no value check; MV count with num_attempts=1.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:255",
+          "text": "Row counts only, no value check; MV count with num_attempts=1."
+        }
+      ]
+    },
+    "TestUserTypes::test_case_sensitive_type_name": {
+      "description": "3-node RF=3, LOCAL_QUORUM. Creates quoted type \"PHone\" and uses it as non-frozen column, frozen column and frozen<list<\"PHone\">>; inserts/reads back values. Then creates lowercase type phone with different field types, same three tables, insert/readback; finally drops \"PHone\" tables and type and checks phone-based data is intact. Guards scylla fix de1171181c (case-sensitive UDT names failed CREATE TABLE with 'Unknown type ks.phone').",
+      "origin": {
+        "sha": "428b4e1c28",
+        "date": "2020-02-18",
+        "pr": 1314,
+        "summary": "Added after Nadav's scylla fix de1171181c for case-sensitive type names (backported to 3.3)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars renamed _node2/_node3).",
+        "c42253e9cf": "Session CL set to LOCAL_QUORUM (scylla-enterprise#5501 flakiness: write+read at CL=ONE).",
+        "0a99ae46cc": "cluster_topology_3_nodes and RF 2->3.",
+        "9ffd273f04": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "428b4e1c28": "Origin: test added."
+      },
+      "relevance": "Live: quoted identifiers for UDTs; fix in types/user.hh/types.cc still present.",
+      "duplicates": [
+        {
+          "path": "test/boost/user_types_test.cc::test_user_type_quoted",
+          "coverage": "partial",
+          "note": "Added with the fix de1171181c; same CREATE TYPE \"PHone\" + 3 CREATE TABLEs, but no insert/readback, no coexisting lowercase type, no drop."
+        },
+        {
+          "path": "test/cqlpy/test_describe.py (quoting tests ~L912)",
+          "coverage": "partial",
+          "note": "Quoted UDT names in DESCRIBE only."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The guarded bug (CREATE TABLE with quoted UDT) is fully reproduced by boost user_types_test.cc::test_user_type_quoted, added in the fix commit de1171181c. dtest extras (readback, \"PHone\" vs phone coexistence, DROP TYPE \"PHone\") are single-node CQL semantics that need no 3-node cluster; cheap to port to cqlpy.",
+      "issues": []
+    },
+    "TestUserTypes::test_complex_data_types": {
+      "description": "Single node. Creates UDTs t_todo_item, t_todo_list (list of frozen UDTs) and t_kitchen_sink (16 native types + list<int>), table with list/set/map/tuple/UDT/list<frozen UDT>/map<text,frozen UDT> columns; inserts one row with a big literal, SELECTs each column and compares the driver's string representation; then updates the list and re-checks.",
+      "origin": {
+        "sha": "fe5b1a27d9",
+        "date": "2019-04-07",
+        "pr": 935,
+        "summary": "Added complex UDT test using cql driver, adapted from json_test.py test_complex_data_types."
+      },
+      "commits": {
+        "c42253e9cf": "Session CL LOCAL_QUORUM (no effect on single node).",
+        "0a99ae46cc": "cluster_topology_1_node instead of populate(1).",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "60fdd2b6c5": "Added single_node attr.",
+        "29646f1956": "python3 port: expected strings updated (b'' bytes etc.).",
+        "fe5b1a27d9": "Origin: test added."
+      },
+      "relevance": "Live: all native types, collections, frozen UDTs in collections supported.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testUserTypes / testNestedUserTypes",
+          "coverage": "partial",
+          "note": "UDTs in map, nested UDT in set; fewer types."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/json_test.py",
+          "coverage": "partial",
+          "note": "Complex types incl. UDTs via JSON."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Single-node pure CQL serialization round-trip; no exact scylla test with this kitchen-sink schema but each piece (UDT in list/map, nested UDTs, native types) is covered piecemeal in cqlpy. Cheap (5s) and portable to cqlpy. Note: assertions compare str() of driver objects (assert_all result_as_string, tools/assertions.py:193), so they are coupled to python-driver repr (e.g. float item12 rounding, OrderedMapSerializedKey) rather than server behavior.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "tools/assertions.py:193",
+          "text": "Compares str() of driver objects; coupled to python-driver repr rather than server behavior."
+        }
+      ]
+    },
+    "TestUserTypes::test_keyspace_drop_with_table_containing_udt": {
+      "description": "Single node. Creates UDT, a table with a frozen<udt> column, then DROP KEYSPACE IF EXISTS. Passes if the drop does not raise. Regression for scylladb#3068 ('Unknown type ks.type1' when dropping a keyspace with a table using a UDT).",
+      "origin": {
+        "sha": "bc1c813d3e",
+        "date": "2018-01-28",
+        "pr": 569,
+        "summary": "Test for scylladb#3068, fixed in scylla c35dd86c87 'db/schema_tables: Only drop UDTs after merging tables' (2018-01-29)."
+      },
+      "commits": {
+        "0a99ae46cc": "cluster_topology_1_node.",
+        "9ffd273f04": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "60fdd2b6c5": "Added single_node attr.",
+        "bc1c813d3e": "Origin: test added."
+      },
+      "relevance": "Live: schema merge ordering (tables before types) in db/schema_tables.cc still relevant.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_keyspace.py::test_alter_keyspace_preserves_udt",
+          "coverage": "partial",
+          "note": "Drops keyspace containing a UDT, but drops the table first."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Unique regression coverage for scylladb#3068 (fix c35dd86c87 added no test); no scylla test drops a keyspace that still has a table using a UDT. Cheap (4.7s, single node); implicit assertion (no exception) matches the bug symptom. Portable to cqlpy.",
+      "issues": []
+    },
+    "TestUserTypes::test_nested_type_dropping": {
+      "description": "3-node RF=3. Creates simple_type and another_type containing frozen<simple_type>; asserts DROP TYPE simple_type fails with 'Cannot drop user type ... still used by user type another_type'; drops another_type then simple_type and checks driver metadata no longer has it.",
+      "origin": {
+        "sha": "65825a6c18",
+        "date": "2014-01-02",
+        "pr": null,
+        "summary": "Cassandra-era test: user type cannot be dropped while another user type depends on it."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "c8fd1f3c05": "Replaced assert_no_types (all keyspaces) with assert_udt_type for this keyspace/type, plus a positive check after CREATE.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "12ebad8037": "ignore_log_patterns '=' -> '+='.",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "0497c6eb53": "Enabled for scylla; added ignore_log_patterns for 'Cannot drop user type'.",
+        "1761f6fac2": "cursor -> session rename.",
+        "d31b560756": "assertNoTypes via system_schema.types (CASSANDRA-6717).",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<> for nested UDT.",
+        "b5cb739f66": "merge",
+        "a55cf53b7e": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "4b9f583bad": "Updated expected error message.",
+        "8272eb61a9": "Use patient connection.",
+        "e97f7e844f": "formatting",
+        "6e3b2e4428": "Added USE keyspace.",
+        "65825a6c18": "Origin: test added."
+      },
+      "relevance": "Live: drop_type_statement still rejects types used by other types.",
+      "duplicates": [
+        {
+          "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
+          "coverage": "full",
+          "note": "ut6/ut7: create nested, DROP inner fails with exact 'Cannot drop user type ks.ut6 as it is still used by user type ut7', drop outer then inner succeeds."
+        },
+        {
+          "path": "test/boost/schema_change_test.cc::test_drop_nested_user_type_in_use",
+          "coverage": "partial",
+          "note": "Nested type used by table."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut6/ut7 block). The 3-node cluster adds nothing (schema is group0/Raft); final check is only driver metadata. Costs 17s.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Final drop check is driver metadata only (assert_udt_type)."
+        }
+      ]
+    },
+    "TestUserTypes::test_nested_user_types": {
+      "description": "3-node RF=3, LOCAL_QUORUM. Types item and container (frozen<item>), table with frozen<item>, frozen<container>, list<frozen<container>>. Inserts/updates and appends to the list via a second exclusive session on node2 (deterministic list order, scylladb#4433), reads back and compares; then 50 iterations of appending 2 containers to a fresh row and reading back.",
+      "origin": {
+        "sha": "9e3de754e1",
+        "date": "2013-12-02",
+        "pr": null,
+        "summary": "Cassandra-era initial user_types test; enabled for scylla in 0497c6eb53 (PR 304)."
+      },
+      "commits": {
+        "a9459cb2bf": "session2 also LOCAL_QUORUM (SCYLLADB-234 rare flake).",
+        "056f5dc7a8": "formatting (unused node3).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "2980e37e1b": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "2345812562": "List appends via exclusive session on node2 to serialize list timeuuids (fixes scylladb#4433).",
+        "29646f1956": "python3 port (unicode literals).",
+        "a904bfc27f": "Session CL LOCAL_QUORUM (RF=2 CL=ONE flakiness).",
+        "6b5a3275e4": "Added dtest-debug attr.",
+        "e41cdb940c": "Added next-gating attr.",
+        "8c7c27b752": "list(session.execute()).",
+        "1761f6fac2": "cursor -> session.",
+        "13b3c1397e": "Refactor UDT decoding (listify).",
+        "7e5af5d521": "Rewrite UDT decode.",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<> UDTs.",
+        "0c99ee452e": "merge",
+        "a090a81db2": "formatting",
+        "b5cb739f66": "merge",
+        "a55cf53b7e": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "a5705b7cd0": "Serialization format change.",
+        "f67e2228c3": "Rudimentary UDT decoding.",
+        "6e3b2e4428": "USE keyspace.",
+        "9e3de754e1": "Origin."
+      },
+      "relevance": "Live: nested frozen UDTs, list<frozen<UDT>> appends.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNestedUserTypes",
+          "coverage": "partial",
+          "note": "UDT nested in set inside UDT, single node."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testUserTypes",
+          "coverage": "partial",
+          "note": "UDT in map with append."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinList",
+          "coverage": "partial",
+          "note": "list<frozen<UDT>>."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Nested UDT read/write semantics covered piecemeal by cqlpy user_types_test (testNestedUserTypes, testUserTypes, list variants); the multi-node aspect is deliberately neutralized (exclusive session for list order, scylladb#4433). History of flakiness fixes (a904bfc27f, 2345812562, a9459cb2bf/SCYLLADB-234) for a low-value 3-node check; 23s. Note: 50-iteration loop with time.sleep(0.1) re-checks the identical scenario.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "user_types_test.py:327",
+          "text": "50-iteration loop with time.sleep(0.1) re-checks the identical scenario."
+        }
+      ]
+    },
+    "TestUserTypes::test_no_counters_in_user_types": {
+      "description": "Single node. CREATE TYPE with a COUNTER field must fail with 'A user type cannot contain counters' (CASSANDRA-7672).",
+      "origin": {
+        "sha": "dc57cc96d4",
+        "date": "2014-08-01",
+        "pr": null,
+        "summary": "Cassandra-era test for CASSANDRA-7672; unskipped for scylla in 954d2d4c02 (PR 490)."
+      },
+      "commits": {
+        "0a99ae46cc": "cluster_topology_1_node.",
+        "9ffd273f04": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "77c52abacc": "Removed experimental=True config.",
+        "60fdd2b6c5": "Added single_node attr.",
+        "954d2d4c02": "Removed @skip('Counters not implemented'), set experimental=True.",
+        "1761f6fac2": "cursor -> session.",
+        "0c99ee452e": "merge",
+        "dc57cc96d4": "Origin."
+      },
+      "relevance": "Live: cql3/statements/create_type_statement.cc:63 throws 'A user type cannot contain counters'.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testCreateTypeWithUndesiredFieldType",
+          "coverage": "full",
+          "note": "Same CREATE TYPE (f counter) with exact message."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlterTypeWithUndesiredFieldType",
+          "coverage": "partial",
+          "note": "Same check for ALTER TYPE ADD."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy user_types_test.py::testCreateTypeWithUndesiredFieldType (same statement, exact message 'A user type cannot contain counters'); single-node validation, no cluster needed.",
+      "issues": []
+    },
+    "TestUserTypes::test_nulls_in_user_types": {
+      "description": "3-node RF=3, LOCAL_QUORUM. Frozen UDT item(sub_one text, sub_two text); inserts one value with explicit null field and one with omitted field; asserts both read back as ['test', None].",
+      "origin": {
+        "sha": "46a28a3e61",
+        "date": "2014-05-22",
+        "pr": null,
+        "summary": "Cassandra-era test 'User type test for nulls'."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "86dd266de4": "Session CL LOCAL_QUORUM (scylladb#22865 flake: write+read CL=ONE).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "9ffd273f04": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "29646f1956": "python3 port.",
+        "8c7c27b752": "list(session.execute()).",
+        "1761f6fac2": "cursor -> session.",
+        "13b3c1397e": "Refactor UDT decoding.",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<>.",
+        "0c99ee452e": "merge",
+        "a090a81db2": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "46a28a3e61": "Origin."
+      },
+      "relevance": "Live: null/missing UDT fields.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNullsInTextUDT",
+          "coverage": "full",
+          "note": "Frozen text UDT, explicit null and omitted field, before/after flush."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNullsInIntUDT",
+          "coverage": "full",
+          "note": "Same with int fields."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy user_types_test.py::testNullsInTextUDT / testNullsInIntUDT (explicit null + omitted field in frozen UDT, also after flush). The 3-node cluster adds nothing but past CL flakiness (86dd266de4, scylladb#22865); 17.5s.",
+      "issues": []
+    },
+    "TestUserTypes::test_type_as_clustering_col": {
+      "description": "3-node RF=3, LOCAL_QUORUM. Table letters(id, letterpair frozen<t_letterpair>, PRIMARY KEY(id, letterpair)); for 9 partitions inserts 6 UDT clustering values and asserts they come back sorted field-by-field ([a,z],[c,a],[c,f],[c,z],[d,e],[z,a]).",
+      "origin": {
+        "sha": "9c06d3ffb2",
+        "date": "2014-08-06",
+        "pr": null,
+        "summary": "Cassandra-era test for UDT as clustering column."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "c42253e9cf": "Session CL LOCAL_QUORUM (scylla-enterprise#5501 flake).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "29646f1956": "python3 port.",
+        "8c7c27b752": "list(session.execute()).",
+        "1761f6fac2": "cursor -> session.",
+        "f983530c24": "File-level import changes only (CASSANDRA-7423 subfield test).",
+        "13b3c1397e": "Refactor UDT decoding.",
+        "7e5af5d521": "Rewrite UDT decode.",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<>.",
+        "0c99ee452e": "merge",
+        "9c06d3ffb2": "Origin."
+      },
+      "relevance": "Live: frozen UDT clustering keys and their comparator.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testFor7684",
+          "coverage": "partial",
+          "note": "UDT clustering column, single row equality lookup; no ordering check."
+        },
+        {
+          "path": "test/boost/user_types_test.cc::test_user_type_reversed",
+          "coverage": "partial",
+          "note": "UDT clustering DESC, single row."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/tuple_type_test.py (PRIMARY KEY (k, t) tuple)",
+          "coverage": "partial",
+          "note": "Tuple (same comparator family) as clustering key."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Multi-row ordering of UDT clustering keys not found verbatim in scylla tests (cqlpy testFor7684 / boost test_user_type_reversed use one row), but it is single-node CQL semantics: the 3-node RF=3 setup adds nothing beyond past CL flakiness (c42253e9cf). Cheap to port to cqlpy; 15s.",
+      "issues": []
+    },
+    "TestUserTypes::test_type_dropping": {
+      "description": "3-node RF=3. Creates simple_type, table simple_table with frozen<simple_type> column, inserts a row, asserts DROP TYPE fails with 'Cannot drop user type user_type_dropping.simple_type as it is still used by table user_type_dropping.simple_table'; drops table then type and checks driver metadata no longer lists the type.",
+      "origin": {
+        "sha": "e517075a",
+        "date": "2013-12-30",
+        "pr": null,
+        "summary": "Cassandra-era test: user types cannot be dropped while in use (function history stops at 5107544570 rename/move)."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "c8fd1f3c05": "Replaced assert_no_types (all keyspaces) with assert_udt_type for this ks/type; added positive check after CREATE.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "2980e37e1b": "formatting",
+        "aedaa57c4e": "formatting",
+        "12ebad8037": "ignore_log_patterns '=' -> '+='.",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "0497c6eb53": "Enabled for scylla; ignore 'Cannot drop user type' log.",
+        "1761f6fac2": "cursor -> session.",
+        "d31b560756": "Type check via system_schema (CASSANDRA-6717).",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<>.",
+        "b5cb739f66": "merge",
+        "a55cf53b7e": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "a5705b7cd0": "UDT serialization format fix.",
+        "229165ff32": "Extended with DROP TABLE + DROP TYPE success path.",
+        "4b9f583bad": "Updated expected error message.",
+        "8272eb61a9": "Patient connection.",
+        "e97f7e844f": "formatting",
+        "6e3b2e4428": "USE keyspace.",
+        "5107544570": "Rename/move (no functional change).",
+        "e517075a": "Origin."
+      },
+      "relevance": "Live: drop_type_statement rejects types still used by tables.",
+      "duplicates": [
+        {
+          "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
+          "coverage": "full",
+          "note": "ut5/cf3 block: DROP TYPE in use fails with exact 'Cannot drop user type ks.ut5 as it is still used by table ks.cf3'; drop table then type succeeds."
+        },
+        {
+          "path": "test/boost/schema_change_test.cc::test_drop_nested_user_type_in_use",
+          "coverage": "partial",
+          "note": "Nested type used by table."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut5/cf3). 3-node cluster adds nothing (schema via group0); final check is driver metadata only. ~20s. Note: stale TODO for CASSANDRA-6472 (user_types_test.py:~104) and time.sleep(2) schema wait.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "user_types_test.py:113",
+          "text": "Stale TODO for CASSANDRA-6472; code it refers to already active."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "user_types_test.py:96",
+          "text": "Fixed time.sleep for schema propagation."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Final drop check is driver metadata only (assert_udt_type)."
+        }
+      ]
+    },
+    "TestUserTypes::test_type_enforcement": {
+      "description": "3-node RF=3. Table with frozen<simple_type{user_number int}>; INSERT with text literal for the int field must fail with 'field user_number is not of type int'; then SELECT confirms 0 rows.",
+      "origin": {
+        "sha": "3fa5905c8c",
+        "date": "2013-12-27",
+        "pr": null,
+        "summary": "Cassandra-era test: UDT field types are enforced on insert."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "9ffd273f04": "formatting",
+        "2980e37e1b": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "8c7c27b752": "list(session.execute()).",
+        "02cdbf539f": "formatting",
+        "1761f6fac2": "cursor -> session.",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<>.",
+        "4e3d46be76": "Port to python driver.",
+        "a5705b7cd0": "UDT serialization format fix.",
+        "e97f7e844f": "formatting",
+        "6e3b2e4428": "USE keyspace.",
+        "3fa5905c8c": "Origin."
+      },
+      "relevance": "Live: cql3/expr/prepare_expr.cc:237 'Invalid user type literal for {}: field {} is not of type {}'.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/tuple_type_test.py (line ~92)",
+          "coverage": "partial",
+          "note": "Same check for tuple literal component ('component 1 is not of type ...'), not UDT."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidField",
+          "coverage": "partial",
+          "note": "Invalid UDT literal (unknown field), not wrong field type."
+        },
+        {
+          "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
+          "coverage": "partial",
+          "note": "Unknown field / too many tuple elements in UDT literal; no wrong-type field."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "UDT field type mismatch error not found verbatim in scylla tests (closest: tuple_type_test tuple component mismatch, testInvalidField). But it's pure single-node CQL validation; 3-node RF=3 adds nothing and costs 16s. Cheap port to cqlpy, then remove. Note: 0-row check after a rejected-at-prepare statement is near-trivial; time.sleep(2) schema wait.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "0-row check after statement rejected at prepare is near-trivial; error check is the real assert."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "user_types_test.py:207",
+          "text": "Fixed time.sleep for schema propagation."
+        }
+      ]
+    },
+    "TestUserTypes::test_type_as_part_of_pkey": {
+      "description": "3-node RF=3 LOCAL_QUORUM. Table person_likes with composite partition key ((id uuid, name frozen<t_person_name>)); inserts a row, asserts SELECT restricting only id fails with 'use ALLOW FILTERING', and full-PK SELECT returns name.first='Nero', like='arson'.",
+      "origin": {
+        "sha": "008bf0c0c7",
+        "date": "2014-01-29",
+        "pr": null,
+        "summary": "Cassandra-era test: UDT as part of composite partition key."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused vars).",
+        "c42253e9cf": "Session CL LOCAL_QUORUM (flake fix, PR 6012).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "9ffd273f04": "formatting",
+        "2980e37e1b": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "29646f1956": "python3 port.",
+        "0f152faee8": "Expected error changed to 'use ALLOW FILTERING' (scylla partial PK restriction message).",
+        "0497c6eb53": "Enabled for scylla.",
+        "1761f6fac2": "cursor -> session.",
+        "14d2571b7c": "Version gate 3.0 -> 2.2.",
+        "95d2deb030": "Expected error message update (CASSANDRA-7981).",
+        "ddaccf7f51": "merge",
+        "fe76ba5a0e": "frozen<>.",
+        "0c99ee452e": "merge",
+        "a090a81db2": "formatting",
+        "b5cb739f66": "merge",
+        "a55cf53b7e": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "a5705b7cd0": "UDT serialization format fix.",
+        "008bf0c0c7": "Origin."
+      },
+      "relevance": "Live: frozen UDTs allowed in partition key; partial partition key restriction requires ALLOW FILTERING.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_udt.py::test_writetime_ttl_frozen_udt_elements_pk",
+          "coverage": "partial",
+          "note": "frozen UDT as single-column PK (no insert/select of data)."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/frozen_collections_test.py::do_test_partition_key_usage",
+          "coverage": "partial",
+          "note": "Frozen collections (not UDT) as partition key with insert/select."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testFor7684",
+          "coverage": "partial",
+          "note": "UDT in primary key (clustering) lookup with field selection."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "UDT inside a composite partition key with data roundtrip not found verbatim in scylla tests (only single-column UDT PK in test_udt.py, frozen collections as PK). Pure single-node CQL semantics; 3-node setup only added CL flakiness (c42253e9cf). Cheap cqlpy port; 17s. Note: time.sleep(2) schema wait.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "user_types_test.py:367",
+          "text": "Fixed time.sleep for schema propagation."
+        }
+      ]
+    },
+    "TestUserTypes::test_type_keyspace_permission_isolation": {
+      "description": "3-node, PasswordAuthenticator + CassandraAuthorizer, permissions_validity_in_ms=0. Two users each granted ALL on own keyspace (ks1/ks2). Asserts each gets Unauthorized ('no CREATE/DROP/ALTER permission on <keyspace ksN>') for CREATE/DROP/ALTER TYPE ... RENAME in the other keyspace, succeeds in its own, then drops types at CL=ALL and checks driver metadata no longer has them.",
+      "origin": {
+        "sha": "6c2b7af733",
+        "date": "2014-02-03",
+        "pr": null,
+        "summary": "Cassandra-era test: UDT permissions respected across keyspaces."
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (unused node vars).",
+        "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
+        "c8fd1f3c05": "assert_no_types -> assert_udt_type per keyspace.",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "12ebad8037": "ignore_log_patterns '=' -> '+='.",
+        "06cb7cc17b": "pytest port.",
+        "c3471a97e4": "formatting",
+        "78442b5dcf": "Removed default_timeout from sessions.",
+        "0a87d12752": "Session default_timeout tweak.",
+        "cb50f9c52e": "merge",
+        "d9662d756e": "Increased session timeout.",
+        "70773d0b9e": "SimpleStatement consistency_level kwarg (driver 3.x).",
+        "8faa0fd32e": "sleep to let drops propagate.",
+        "a6ebe17c6c": "formatting",
+        "1761f6fac2": "cursor -> session.",
+        "1351d06bc1": "DROP at CL ALL to reduce flakiness.",
+        "cd4d6ebd94": "Fix test (error messages).",
+        "d31b560756": "Type check via system_schema (CASSANDRA-6717).",
+        "d185496741": "assert Unauthorized instead of Invalid.",
+        "ddaccf7f51": "merge",
+        "7c2a7a139e": "Removed UDT type-rename (RENAME TYPE) checks.",
+        "0c99ee452e": "merge",
+        "a090a81db2": "formatting",
+        "b5cb739f66": "merge",
+        "a55cf53b7e": "formatting",
+        "4e3d46be76": "Port to python driver.",
+        "5ad41b6bcc": "Ignore migration error log.",
+        "6c2b7af733": "Origin."
+      },
+      "relevance": "Live: create/drop/alter_type_statement::check_access -> has_keyspace_access(CREATE/DROP/ALTER) (cql3/statements/*_type_statement.cc).",
+      "duplicates": [
+        {
+          "path": "test/cluster/dtest/auth_test.py::test_type_auth",
+          "coverage": "full",
+          "note": "Same Unauthorized messages for CREATE/ALTER/DROP TYPE on <keyspace ks> without permission, then GRANT and success. Cross-keyspace mirror (ks1/ks2) is generic keyspace-permission resolution."
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylla test/cluster/dtest/auth_test.py::test_type_auth checks the same check_access paths with identical messages; the second keyspace/user adds no new code path. Slow (31s, 3 nodes + sleeps). Note: ignore pattern 'Can't send migration request' is dead (string not in scylla source); time.sleep(5) x2; final check is driver metadata only.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "user_types_test.py:530",
+          "text": "Ignore pattern 'Can't send migration request' is dead (string not in scylla source)."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "user_types_test.py:539",
+          "text": "time.sleep(5) x2."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Final drop check is driver metadata only (assert_udt_type)."
+        }
+      ]
+    },
+    "TestUserTypes::test_user_type_isolation": {
+      "description": "Single node. Creates UDT in keyspace user_types, then (after USE of user_ks via create_ks) asserts CREATE TABLE referencing frozen<user_types.udt> fails with 'Statement on keyspace user_ks cannot refer to a user type in keyspace user_types' (CASSANDRA-9409).",
+      "origin": {
+        "sha": "5b45189a64",
+        "date": "2015-05-20",
+        "pr": null,
+        "summary": "Add tests to ensure keyspace isolation for UDA, UDF and UDT (CASSANDRA-9409)."
+      },
+      "commits": {
+        "0a99ae46cc": "cluster_topology_1_node.",
+        "9ffd273f04": "formatting",
+        "06cb7cc17b": "pytest port.",
+        "60fdd2b6c5": "single_node mark.",
+        "5b45189a64": "Origin."
+      },
+      "relevance": "Live: cross-keyspace UDT reference rejected.",
+      "duplicates": [
+        {
+          "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
+          "coverage": "full",
+          "note": "create table referencing ks2.ut2 and frozen<ks2.ut2> rejected with same message."
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidUDTStatements",
+          "coverage": "full",
+          "note": "Same error for frozen<otherKeyspace.myType>."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Exact scenario and message covered by boost test_invalid_user_type_statements and cqlpy testInvalidUDTStatements. Single-node CQL validation; nothing dtest-specific.",
+      "issues": []
     }
-   ],
-   "decision": "YELLOW",
-   "reason": "Would be GREEN: only test exercising ALTER TYPE on a UDT referenced by base table + MVs + indexes on multi-node; it caught scylladb#15530 and the fix 3582095b79 added no scylla test. Note: DEBUG driver logging (70425b251f) is leftover instrumentation for closed scylladb#15530. Note: post-ALTER checks are row counts only (10 altered rows overwrite existing keys, count unchanged), and MV counts use assert_row_count with num_attempts=1 (tools/assertions.py:255) despite async view updates with RF=1 on 3 nodes; ThreadPoolExecutors never shut down."
   },
-  "TestUserTypes::test_alter_inner_udt_by_another_udt": {
-   "description": "3-node cluster, RF=1. Creates user_refs <- obs_entity <- some_entity nested frozen UDTs, a new UDT priority_refs, ALTERs obs_entity and user_refs to add priority_refs, then creates table entity (frozen<some_entity>) + MV, inserts 10 rows with the new nested fields and asserts row counts on base and MV.",
-   "origin": {
-    "sha": "27863ba628",
-    "date": "2019-09-10",
-    "pr": 1103,
-    "summary": "Complex schema with alter type; no linked issue."
-   },
-   "commits": {
-    "0a99ae46cc": "populate via cluster_topology_3_nodes; RF unchanged (1).",
-    "eccda80e42": "formatting",
-    "6482fd0b4b": "Removed 'with compact storage' from entity table.",
-    "9ffd273f04": "formatting",
-    "19991c953b": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "29646f1956": "python3 port (no behavior change).",
-    "27863ba628": "Origin: test added."
-   },
-   "relevance": "Live: nested UDTs, ALTER TYPE ADD, MVs supported.",
-   "duplicates": [
-    {
-     "path": "test/boost/schema_change_test.cc::test_alter_nested_type",
-     "coverage": "partial",
-     "note": "Same core sequence: create nested types, alter inner type, then create table and insert nested value; single node, no MV."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinUserType",
-     "coverage": "partial",
-     "note": "Alter UDT nested within UDT with readback."
-    },
-    {
-     "path": "user_types_test.py::TestUserTypes::test_add_udt_to_another_data_types",
-     "coverage": "partial",
-     "note": "Same schema family; that test alters types while tables+MVs exist (stronger)."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "Core scenario (alter inner UDT before table creation, then insert) covered by boost schema_change_test.cc::test_alter_nested_type; only extras are 3 nodes and an MV row count. Since the ALTERs happen before the table/MV exist, the MV adds little; could be RED. Note: assertions are row counts only (assert_row_count, tools/assertions.py:255), no value check; MV count with num_attempts=1."
-  },
-  "TestUserTypes::test_case_sensitive_type_name": {
-   "description": "3-node RF=3, LOCAL_QUORUM. Creates quoted type \"PHone\" and uses it as non-frozen column, frozen column and frozen<list<\"PHone\">>; inserts/reads back values. Then creates lowercase type phone with different field types, same three tables, insert/readback; finally drops \"PHone\" tables and type and checks phone-based data is intact. Guards scylla fix de1171181c (case-sensitive UDT names failed CREATE TABLE with 'Unknown type ks.phone').",
-   "origin": {
-    "sha": "428b4e1c28",
-    "date": "2020-02-18",
-    "pr": 1314,
-    "summary": "Added after Nadav's scylla fix de1171181c for case-sensitive type names (backported to 3.3)."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars renamed _node2/_node3).",
-    "c42253e9cf": "Session CL set to LOCAL_QUORUM (scylla-enterprise#5501 flakiness: write+read at CL=ONE).",
-    "0a99ae46cc": "cluster_topology_3_nodes and RF 2->3.",
-    "9ffd273f04": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "428b4e1c28": "Origin: test added."
-   },
-   "relevance": "Live: quoted identifiers for UDTs; fix in types/user.hh/types.cc still present.",
-   "duplicates": [
-    {
-     "path": "test/boost/user_types_test.cc::test_user_type_quoted",
-     "coverage": "partial",
-     "note": "Added with the fix de1171181c; same CREATE TYPE \"PHone\" + 3 CREATE TABLEs, but no insert/readback, no coexisting lowercase type, no drop."
-    },
-    {
-     "path": "test/cqlpy/test_describe.py (quoting tests ~L912)",
-     "coverage": "partial",
-     "note": "Quoted UDT names in DESCRIBE only."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "The guarded bug (CREATE TABLE with quoted UDT) is fully reproduced by boost user_types_test.cc::test_user_type_quoted, added in the fix commit de1171181c. dtest extras (readback, \"PHone\" vs phone coexistence, DROP TYPE \"PHone\") are single-node CQL semantics that need no 3-node cluster; cheap to port to cqlpy."
-  },
-  "TestUserTypes::test_complex_data_types": {
-   "description": "Single node. Creates UDTs t_todo_item, t_todo_list (list of frozen UDTs) and t_kitchen_sink (16 native types + list<int>), table with list/set/map/tuple/UDT/list<frozen UDT>/map<text,frozen UDT> columns; inserts one row with a big literal, SELECTs each column and compares the driver's string representation; then updates the list and re-checks.",
-   "origin": {
-    "sha": "fe5b1a27d9",
-    "date": "2019-04-07",
-    "pr": 935,
-    "summary": "Added complex UDT test using cql driver, adapted from json_test.py test_complex_data_types."
-   },
-   "commits": {
-    "c42253e9cf": "Session CL LOCAL_QUORUM (no effect on single node).",
-    "0a99ae46cc": "cluster_topology_1_node instead of populate(1).",
-    "eccda80e42": "formatting",
-    "9ffd273f04": "formatting",
-    "19991c953b": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "60fdd2b6c5": "Added single_node attr.",
-    "29646f1956": "python3 port: expected strings updated (b'' bytes etc.).",
-    "fe5b1a27d9": "Origin: test added."
-   },
-   "relevance": "Live: all native types, collections, frozen UDTs in collections supported.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testUserTypes / testNestedUserTypes",
-     "coverage": "partial",
-     "note": "UDTs in map, nested UDT in set; fewer types."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/json_test.py",
-     "coverage": "partial",
-     "note": "Complex types incl. UDTs via JSON."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "Single-node pure CQL serialization round-trip; no exact scylla test with this kitchen-sink schema but each piece (UDT in list/map, nested UDTs, native types) is covered piecemeal in cqlpy. Cheap (5s) and portable to cqlpy. Note: assertions compare str() of driver objects (assert_all result_as_string, tools/assertions.py:193), so they are coupled to python-driver repr (e.g. float item12 rounding, OrderedMapSerializedKey) rather than server behavior."
-  },
-  "TestUserTypes::test_keyspace_drop_with_table_containing_udt": {
-   "description": "Single node. Creates UDT, a table with a frozen<udt> column, then DROP KEYSPACE IF EXISTS. Passes if the drop does not raise. Regression for scylladb#3068 ('Unknown type ks.type1' when dropping a keyspace with a table using a UDT).",
-   "origin": {
-    "sha": "bc1c813d3e",
-    "date": "2018-01-28",
-    "pr": 569,
-    "summary": "Test for scylladb#3068, fixed in scylla c35dd86c87 'db/schema_tables: Only drop UDTs after merging tables' (2018-01-29)."
-   },
-   "commits": {
-    "0a99ae46cc": "cluster_topology_1_node.",
-    "9ffd273f04": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "60fdd2b6c5": "Added single_node attr.",
-    "bc1c813d3e": "Origin: test added."
-   },
-   "relevance": "Live: schema merge ordering (tables before types) in db/schema_tables.cc still relevant.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/test_keyspace.py::test_alter_keyspace_preserves_udt",
-     "coverage": "partial",
-     "note": "Drops keyspace containing a UDT, but drops the table first."
-    }
-   ],
-   "decision": "GREEN",
-   "reason": "Unique regression coverage for scylladb#3068 (fix c35dd86c87 added no test); no scylla test drops a keyspace that still has a table using a UDT. Cheap (4.7s, single node); implicit assertion (no exception) matches the bug symptom. Portable to cqlpy."
-  },
-  "TestUserTypes::test_nested_type_dropping": {
-   "description": "3-node RF=3. Creates simple_type and another_type containing frozen<simple_type>; asserts DROP TYPE simple_type fails with 'Cannot drop user type ... still used by user type another_type'; drops another_type then simple_type and checks driver metadata no longer has it.",
-   "origin": {
-    "sha": "65825a6c18",
-    "date": "2014-01-02",
-    "pr": null,
-    "summary": "Cassandra-era test: user type cannot be dropped while another user type depends on it."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "c8fd1f3c05": "Replaced assert_no_types (all keyspaces) with assert_udt_type for this keyspace/type, plus a positive check after CREATE.",
-    "9ffd273f04": "formatting",
-    "72809f2380": "formatting",
-    "12ebad8037": "ignore_log_patterns '=' -> '+='.",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "0497c6eb53": "Enabled for scylla; added ignore_log_patterns for 'Cannot drop user type'.",
-    "1761f6fac2": "cursor -> session rename.",
-    "d31b560756": "assertNoTypes via system_schema.types (CASSANDRA-6717).",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<> for nested UDT.",
-    "b5cb739f66": "merge",
-    "a55cf53b7e": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "4b9f583bad": "Updated expected error message.",
-    "8272eb61a9": "Use patient connection.",
-    "e97f7e844f": "formatting",
-    "6e3b2e4428": "Added USE keyspace.",
-    "65825a6c18": "Origin: test added."
-   },
-   "relevance": "Live: drop_type_statement still rejects types used by other types.",
-   "duplicates": [
-    {
-     "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
-     "coverage": "full",
-     "note": "ut6/ut7: create nested, DROP inner fails with exact 'Cannot drop user type ks.ut6 as it is still used by user type ut7', drop outer then inner succeeds."
-    },
-    {
-     "path": "test/boost/schema_change_test.cc::test_drop_nested_user_type_in_use",
-     "coverage": "partial",
-     "note": "Nested type used by table."
-    }
-   ],
-   "decision": "RED",
-   "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut6/ut7 block). The 3-node cluster adds nothing (schema is group0/Raft); final check is only driver metadata. Costs 17s."
-  },
-  "TestUserTypes::test_nested_user_types": {
-   "description": "3-node RF=3, LOCAL_QUORUM. Types item and container (frozen<item>), table with frozen<item>, frozen<container>, list<frozen<container>>. Inserts/updates and appends to the list via a second exclusive session on node2 (deterministic list order, scylladb#4433), reads back and compares; then 50 iterations of appending 2 containers to a fresh row and reading back.",
-   "origin": {
-    "sha": "9e3de754e1",
-    "date": "2013-12-02",
-    "pr": null,
-    "summary": "Cassandra-era initial user_types test; enabled for scylla in 0497c6eb53 (PR 304)."
-   },
-   "commits": {
-    "a9459cb2bf": "session2 also LOCAL_QUORUM (SCYLLADB-234 rare flake).",
-    "056f5dc7a8": "formatting (unused node3).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "9ffd273f04": "formatting",
-    "19991c953b": "formatting",
-    "2980e37e1b": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "2345812562": "List appends via exclusive session on node2 to serialize list timeuuids (fixes scylladb#4433).",
-    "29646f1956": "python3 port (unicode literals).",
-    "a904bfc27f": "Session CL LOCAL_QUORUM (RF=2 CL=ONE flakiness).",
-    "6b5a3275e4": "Added dtest-debug attr.",
-    "e41cdb940c": "Added next-gating attr.",
-    "8c7c27b752": "list(session.execute()).",
-    "1761f6fac2": "cursor -> session.",
-    "13b3c1397e": "Refactor UDT decoding (listify).",
-    "7e5af5d521": "Rewrite UDT decode.",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<> UDTs.",
-    "0c99ee452e": "merge",
-    "a090a81db2": "formatting",
-    "b5cb739f66": "merge",
-    "a55cf53b7e": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "a5705b7cd0": "Serialization format change.",
-    "f67e2228c3": "Rudimentary UDT decoding.",
-    "6e3b2e4428": "USE keyspace.",
-    "9e3de754e1": "Origin."
-   },
-   "relevance": "Live: nested frozen UDTs, list<frozen<UDT>> appends.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNestedUserTypes",
-     "coverage": "partial",
-     "note": "UDT nested in set inside UDT, single node."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testUserTypes",
-     "coverage": "partial",
-     "note": "UDT in map with append."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlteringUserTypeNestedWithinList",
-     "coverage": "partial",
-     "note": "list<frozen<UDT>>."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "Nested UDT read/write semantics covered piecemeal by cqlpy user_types_test (testNestedUserTypes, testUserTypes, list variants); the multi-node aspect is deliberately neutralized (exclusive session for list order, scylladb#4433). History of flakiness fixes (a904bfc27f, 2345812562, a9459cb2bf/SCYLLADB-234) for a low-value 3-node check; 23s. Note: 50-iteration loop with time.sleep(0.1) re-checks the identical scenario."
-  },
-  "TestUserTypes::test_no_counters_in_user_types": {
-   "description": "Single node. CREATE TYPE with a COUNTER field must fail with 'A user type cannot contain counters' (CASSANDRA-7672).",
-   "origin": {
-    "sha": "dc57cc96d4",
-    "date": "2014-08-01",
-    "pr": null,
-    "summary": "Cassandra-era test for CASSANDRA-7672; unskipped for scylla in 954d2d4c02 (PR 490)."
-   },
-   "commits": {
-    "0a99ae46cc": "cluster_topology_1_node.",
-    "9ffd273f04": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "77c52abacc": "Removed experimental=True config.",
-    "60fdd2b6c5": "Added single_node attr.",
-    "954d2d4c02": "Removed @skip('Counters not implemented'), set experimental=True.",
-    "1761f6fac2": "cursor -> session.",
-    "0c99ee452e": "merge",
-    "dc57cc96d4": "Origin."
-   },
-   "relevance": "Live: cql3/statements/create_type_statement.cc:63 throws 'A user type cannot contain counters'.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testCreateTypeWithUndesiredFieldType",
-     "coverage": "full",
-     "note": "Same CREATE TYPE (f counter) with exact message."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlterTypeWithUndesiredFieldType",
-     "coverage": "partial",
-     "note": "Same check for ALTER TYPE ADD."
-    }
-   ],
-   "decision": "RED",
-   "reason": "Fully covered by cqlpy user_types_test.py::testCreateTypeWithUndesiredFieldType (same statement, exact message 'A user type cannot contain counters'); single-node validation, no cluster needed."
-  },
-  "TestUserTypes::test_nulls_in_user_types": {
-   "description": "3-node RF=3, LOCAL_QUORUM. Frozen UDT item(sub_one text, sub_two text); inserts one value with explicit null field and one with omitted field; asserts both read back as ['test', None].",
-   "origin": {
-    "sha": "46a28a3e61",
-    "date": "2014-05-22",
-    "pr": null,
-    "summary": "Cassandra-era test 'User type test for nulls'."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "86dd266de4": "Session CL LOCAL_QUORUM (scylladb#22865 flake: write+read CL=ONE).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "9ffd273f04": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "29646f1956": "python3 port.",
-    "8c7c27b752": "list(session.execute()).",
-    "1761f6fac2": "cursor -> session.",
-    "13b3c1397e": "Refactor UDT decoding.",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<>.",
-    "0c99ee452e": "merge",
-    "a090a81db2": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "46a28a3e61": "Origin."
-   },
-   "relevance": "Live: null/missing UDT fields.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNullsInTextUDT",
-     "coverage": "full",
-     "note": "Frozen text UDT, explicit null and omitted field, before/after flush."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testNullsInIntUDT",
-     "coverage": "full",
-     "note": "Same with int fields."
-    }
-   ],
-   "decision": "RED",
-   "reason": "Fully covered by cqlpy user_types_test.py::testNullsInTextUDT / testNullsInIntUDT (explicit null + omitted field in frozen UDT, also after flush). The 3-node cluster adds nothing but past CL flakiness (86dd266de4, scylladb#22865); 17.5s."
-  },
-  "TestUserTypes::test_type_as_clustering_col": {
-   "description": "3-node RF=3, LOCAL_QUORUM. Table letters(id, letterpair frozen<t_letterpair>, PRIMARY KEY(id, letterpair)); for 9 partitions inserts 6 UDT clustering values and asserts they come back sorted field-by-field ([a,z],[c,a],[c,f],[c,z],[d,e],[z,a]).",
-   "origin": {
-    "sha": "9c06d3ffb2",
-    "date": "2014-08-06",
-    "pr": null,
-    "summary": "Cassandra-era test for UDT as clustering column."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "c42253e9cf": "Session CL LOCAL_QUORUM (scylla-enterprise#5501 flake).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "9ffd273f04": "formatting",
-    "aedaa57c4e": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "29646f1956": "python3 port.",
-    "8c7c27b752": "list(session.execute()).",
-    "1761f6fac2": "cursor -> session.",
-    "f983530c24": "File-level import changes only (CASSANDRA-7423 subfield test).",
-    "13b3c1397e": "Refactor UDT decoding.",
-    "7e5af5d521": "Rewrite UDT decode.",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<>.",
-    "0c99ee452e": "merge",
-    "9c06d3ffb2": "Origin."
-   },
-   "relevance": "Live: frozen UDT clustering keys and their comparator.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testFor7684",
-     "coverage": "partial",
-     "note": "UDT clustering column, single row equality lookup; no ordering check."
-    },
-    {
-     "path": "test/boost/user_types_test.cc::test_user_type_reversed",
-     "coverage": "partial",
-     "note": "UDT clustering DESC, single row."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/tuple_type_test.py (PRIMARY KEY (k, t) tuple)",
-     "coverage": "partial",
-     "note": "Tuple (same comparator family) as clustering key."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "Multi-row ordering of UDT clustering keys not found verbatim in scylla tests (cqlpy testFor7684 / boost test_user_type_reversed use one row), but it is single-node CQL semantics: the 3-node RF=3 setup adds nothing beyond past CL flakiness (c42253e9cf). Cheap to port to cqlpy; 15s."
-  },
-  "TestUserTypes::test_type_dropping": {
-   "description": "3-node RF=3. Creates simple_type, table simple_table with frozen<simple_type> column, inserts a row, asserts DROP TYPE fails with 'Cannot drop user type user_type_dropping.simple_type as it is still used by table user_type_dropping.simple_table'; drops table then type and checks driver metadata no longer lists the type.",
-   "origin": {
-    "sha": "e517075a",
-    "date": "2013-12-30",
-    "pr": null,
-    "summary": "Cassandra-era test: user types cannot be dropped while in use (function history stops at 5107544570 rename/move)."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "c8fd1f3c05": "Replaced assert_no_types (all keyspaces) with assert_udt_type for this ks/type; added positive check after CREATE.",
-    "9ffd273f04": "formatting",
-    "72809f2380": "formatting",
-    "2980e37e1b": "formatting",
-    "aedaa57c4e": "formatting",
-    "12ebad8037": "ignore_log_patterns '=' -> '+='.",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "0497c6eb53": "Enabled for scylla; ignore 'Cannot drop user type' log.",
-    "1761f6fac2": "cursor -> session.",
-    "d31b560756": "Type check via system_schema (CASSANDRA-6717).",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<>.",
-    "b5cb739f66": "merge",
-    "a55cf53b7e": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "a5705b7cd0": "UDT serialization format fix.",
-    "229165ff32": "Extended with DROP TABLE + DROP TYPE success path.",
-    "4b9f583bad": "Updated expected error message.",
-    "8272eb61a9": "Patient connection.",
-    "e97f7e844f": "formatting",
-    "6e3b2e4428": "USE keyspace.",
-    "5107544570": "Rename/move (no functional change).",
-    "e517075a": "Origin."
-   },
-   "relevance": "Live: drop_type_statement rejects types still used by tables.",
-   "duplicates": [
-    {
-     "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
-     "coverage": "full",
-     "note": "ut5/cf3 block: DROP TYPE in use fails with exact 'Cannot drop user type ks.ut5 as it is still used by table ks.cf3'; drop table then type succeeds."
-    },
-    {
-     "path": "test/boost/schema_change_test.cc::test_drop_nested_user_type_in_use",
-     "coverage": "partial",
-     "note": "Nested type used by table."
-    }
-   ],
-   "decision": "RED",
-   "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut5/cf3). 3-node cluster adds nothing (schema via group0); final check is driver metadata only. ~20s. Note: stale TODO for CASSANDRA-6472 (user_types_test.py:~104) and time.sleep(2) schema wait."
-  },
-  "TestUserTypes::test_type_enforcement": {
-   "description": "3-node RF=3. Table with frozen<simple_type{user_number int}>; INSERT with text literal for the int field must fail with 'field user_number is not of type int'; then SELECT confirms 0 rows.",
-   "origin": {
-    "sha": "3fa5905c8c",
-    "date": "2013-12-27",
-    "pr": null,
-    "summary": "Cassandra-era test: UDT field types are enforced on insert."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "9ffd273f04": "formatting",
-    "2980e37e1b": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "8c7c27b752": "list(session.execute()).",
-    "02cdbf539f": "formatting",
-    "1761f6fac2": "cursor -> session.",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<>.",
-    "4e3d46be76": "Port to python driver.",
-    "a5705b7cd0": "UDT serialization format fix.",
-    "e97f7e844f": "formatting",
-    "6e3b2e4428": "USE keyspace.",
-    "3fa5905c8c": "Origin."
-   },
-   "relevance": "Live: cql3/expr/prepare_expr.cc:237 'Invalid user type literal for {}: field {} is not of type {}'.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/tuple_type_test.py (line ~92)",
-     "coverage": "partial",
-     "note": "Same check for tuple literal component ('component 1 is not of type ...'), not UDT."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidField",
-     "coverage": "partial",
-     "note": "Invalid UDT literal (unknown field), not wrong field type."
-    },
-    {
-     "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
-     "coverage": "partial",
-     "note": "Unknown field / too many tuple elements in UDT literal; no wrong-type field."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "UDT field type mismatch error not found verbatim in scylla tests (closest: tuple_type_test tuple component mismatch, testInvalidField). But it's pure single-node CQL validation; 3-node RF=3 adds nothing and costs 16s. Cheap port to cqlpy, then remove. Note: 0-row check after a rejected-at-prepare statement is near-trivial; time.sleep(2) schema wait."
-  },
-  "TestUserTypes::test_type_as_part_of_pkey": {
-   "description": "3-node RF=3 LOCAL_QUORUM. Table person_likes with composite partition key ((id uuid, name frozen<t_person_name>)); inserts a row, asserts SELECT restricting only id fails with 'use ALLOW FILTERING', and full-PK SELECT returns name.first='Nero', like='arson'.",
-   "origin": {
-    "sha": "008bf0c0c7",
-    "date": "2014-01-29",
-    "pr": null,
-    "summary": "Cassandra-era test: UDT as part of composite partition key."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused vars).",
-    "c42253e9cf": "Session CL LOCAL_QUORUM (flake fix, PR 6012).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "9ffd273f04": "formatting",
-    "2980e37e1b": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "29646f1956": "python3 port.",
-    "0f152faee8": "Expected error changed to 'use ALLOW FILTERING' (scylla partial PK restriction message).",
-    "0497c6eb53": "Enabled for scylla.",
-    "1761f6fac2": "cursor -> session.",
-    "14d2571b7c": "Version gate 3.0 -> 2.2.",
-    "95d2deb030": "Expected error message update (CASSANDRA-7981).",
-    "ddaccf7f51": "merge",
-    "fe76ba5a0e": "frozen<>.",
-    "0c99ee452e": "merge",
-    "a090a81db2": "formatting",
-    "b5cb739f66": "merge",
-    "a55cf53b7e": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "a5705b7cd0": "UDT serialization format fix.",
-    "008bf0c0c7": "Origin."
-   },
-   "relevance": "Live: frozen UDTs allowed in partition key; partial partition key restriction requires ALLOW FILTERING.",
-   "duplicates": [
-    {
-     "path": "test/cqlpy/test_udt.py::test_writetime_ttl_frozen_udt_elements_pk",
-     "coverage": "partial",
-     "note": "frozen UDT as single-column PK (no insert/select of data)."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/frozen_collections_test.py::do_test_partition_key_usage",
-     "coverage": "partial",
-     "note": "Frozen collections (not UDT) as partition key with insert/select."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testFor7684",
-     "coverage": "partial",
-     "note": "UDT in primary key (clustering) lookup with field selection."
-    }
-   ],
-   "decision": "YELLOW",
-   "reason": "UDT inside a composite partition key with data roundtrip not found verbatim in scylla tests (only single-column UDT PK in test_udt.py, frozen collections as PK). Pure single-node CQL semantics; 3-node setup only added CL flakiness (c42253e9cf). Cheap cqlpy port; 17s. Note: time.sleep(2) schema wait."
-  },
-  "TestUserTypes::test_type_keyspace_permission_isolation": {
-   "description": "3-node, PasswordAuthenticator + CassandraAuthorizer, permissions_validity_in_ms=0. Two users each granted ALL on own keyspace (ks1/ks2). Asserts each gets Unauthorized ('no CREATE/DROP/ALTER permission on <keyspace ksN>') for CREATE/DROP/ALTER TYPE ... RENAME in the other keyspace, succeeds in its own, then drops types at CL=ALL and checks driver metadata no longer has them.",
-   "origin": {
-    "sha": "6c2b7af733",
-    "date": "2014-02-03",
-    "pr": null,
-    "summary": "Cassandra-era test: UDT permissions respected across keyspaces."
-   },
-   "commits": {
-    "056f5dc7a8": "formatting (unused node vars).",
-    "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
-    "c8fd1f3c05": "assert_no_types -> assert_udt_type per keyspace.",
-    "9ffd273f04": "formatting",
-    "72809f2380": "formatting",
-    "12ebad8037": "ignore_log_patterns '=' -> '+='.",
-    "06cb7cc17b": "pytest port.",
-    "c3471a97e4": "formatting",
-    "78442b5dcf": "Removed default_timeout from sessions.",
-    "0a87d12752": "Session default_timeout tweak.",
-    "cb50f9c52e": "merge",
-    "d9662d756e": "Increased session timeout.",
-    "70773d0b9e": "SimpleStatement consistency_level kwarg (driver 3.x).",
-    "8faa0fd32e": "sleep to let drops propagate.",
-    "a6ebe17c6c": "formatting",
-    "1761f6fac2": "cursor -> session.",
-    "1351d06bc1": "DROP at CL ALL to reduce flakiness.",
-    "cd4d6ebd94": "Fix test (error messages).",
-    "d31b560756": "Type check via system_schema (CASSANDRA-6717).",
-    "d185496741": "assert Unauthorized instead of Invalid.",
-    "ddaccf7f51": "merge",
-    "7c2a7a139e": "Removed UDT type-rename (RENAME TYPE) checks.",
-    "0c99ee452e": "merge",
-    "a090a81db2": "formatting",
-    "b5cb739f66": "merge",
-    "a55cf53b7e": "formatting",
-    "4e3d46be76": "Port to python driver.",
-    "5ad41b6bcc": "Ignore migration error log.",
-    "6c2b7af733": "Origin."
-   },
-   "relevance": "Live: create/drop/alter_type_statement::check_access -> has_keyspace_access(CREATE/DROP/ALTER) (cql3/statements/*_type_statement.cc).",
-   "duplicates": [
-    {
-     "path": "test/cluster/dtest/auth_test.py::test_type_auth",
-     "coverage": "full",
-     "note": "Same Unauthorized messages for CREATE/ALTER/DROP TYPE on <keyspace ks> without permission, then GRANT and success. Cross-keyspace mirror (ks1/ks2) is generic keyspace-permission resolution."
-    }
-   ],
-   "decision": "RED",
-   "reason": "scylla test/cluster/dtest/auth_test.py::test_type_auth checks the same check_access paths with identical messages; the second keyspace/user adds no new code path. Slow (31s, 3 nodes + sleeps). Note: ignore pattern 'Can't send migration request' is dead (string not in scylla source); time.sleep(5) x2; final check is driver metadata only."
-  },
-  "TestUserTypes::test_user_type_isolation": {
-   "description": "Single node. Creates UDT in keyspace user_types, then (after USE of user_ks via create_ks) asserts CREATE TABLE referencing frozen<user_types.udt> fails with 'Statement on keyspace user_ks cannot refer to a user type in keyspace user_types' (CASSANDRA-9409).",
-   "origin": {
-    "sha": "5b45189a64",
-    "date": "2015-05-20",
-    "pr": null,
-    "summary": "Add tests to ensure keyspace isolation for UDA, UDF and UDT (CASSANDRA-9409)."
-   },
-   "commits": {
-    "0a99ae46cc": "cluster_topology_1_node.",
-    "9ffd273f04": "formatting",
-    "06cb7cc17b": "pytest port.",
-    "60fdd2b6c5": "single_node mark.",
-    "5b45189a64": "Origin."
-   },
-   "relevance": "Live: cross-keyspace UDT reference rejected.",
-   "duplicates": [
-    {
-     "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
-     "coverage": "full",
-     "note": "create table referencing ks2.ut2 and frozen<ks2.ut2> rejected with same message."
-    },
-    {
-     "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidUDTStatements",
-     "coverage": "full",
-     "note": "Same error for frozen<otherKeyspace.myType>."
-    }
-   ],
-   "decision": "RED",
-   "reason": "Exact scenario and message covered by boost test_invalid_user_type_statements and cqlpy testInvalidUDTStatements. Single-node CQL validation; nothing dtest-specific."
-  }
- },
- "analyzed_at": "2026-10-21",
- "scylla_rev": "814c05a00f"
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f"
 }

@@ -39,7 +39,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Original scenario is Cassandra-only (CASSANDRA-7392 read_iteration_delay_ms monitoring); scylla adaptation (9ec13d1954) reduces to 'timeout=0 makes a read fail', covered by test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout."
+      "reason": "Original scenario is Cassandra-only (CASSANDRA-7392 read_iteration_delay_ms monitoring); scylla adaptation (9ec13d1954) reduces to 'timeout=0 makes a read fail', covered by test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cql_tests.py:817-1020",
+          "text": "Cassandra-only branches dead under scylla (read_iteration_delay_ms jvm_args, timeout=1000, 'Some operations timed out' wait, unused mark)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:85",
+          "text": "assert_unavailable accepts almost any failure (Unavailable/ReadTimeout/.../NoHostAvailable), not specifically a timeout."
+        }
+      ]
     },
     "TestAbortedQueries::test_remote_query": {
       "description": "2 nodes; node1 started with join_ring=False (intended pure coordinator), 500x10 rows. Stops node2 to find 3 keys that are Unavailable from node1 (owned only by node2), then restarts whole cluster with read/range timeout=0 and checks single-key, IN, ALLOW FILTERING and full-scan SELECTs (BYPASS CACHE) at CL=ONE all fail. Cassandra origin: CASSANDRA-7392 abort of reads on a remote replica.",
@@ -78,7 +92,39 @@
         }
       ],
       "decision": "RED",
-      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is 'timeout=0 on all nodes -> read fails', same as cqlpy test_using_timeout::test_per_query_timeout_effective; remote-key selection is moot because the coordinator itself has timeout 0. 26s avg. Bug: node1.start(join_ring=False) is a no-op: scylla-ccm ScyllaNode.start (ccmlib/scylla_node.py:670) accepts join_ring but never passes it to scylla, so node1 owns tokens (402b4b5ee7 works around it). Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout. Note: wait_reconnection (tools/session.py:9) silently returns after 5 failed attempts (only logs a warning)."
+      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is 'timeout=0 on all nodes -> read fails', same as cqlpy test_using_timeout::test_per_query_timeout_effective; remote-key selection is moot because the coordinator itself has timeout 0. 26s avg. Bug: node1.start(join_ring=False) is a no-op: scylla-ccm ScyllaNode.start (ccmlib/scylla_node.py:670) accepts join_ring but never passes it to scylla, so node1 owns tokens (402b4b5ee7 works around it). Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout. Note: wait_reconnection (tools/session.py:9) silently returns after 5 failed attempts (only logs a warning).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "ccmlib/scylla_node.py:670",
+          "text": "node1.start(join_ring=False) is a no-op in scylla-ccm, so node1 owns tokens; not a pure coordinator."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cql_tests.py:864",
+          "text": "All nodes incl. coordinator run timeout=0, so 'remote replica' abort is never exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cql_tests.py:817-1020",
+          "text": "Cassandra-only branches dead under scylla (read_iteration_delay_ms jvm_args, timeout=1000, 'Some operations timed out' wait, unused mark)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:85",
+          "text": "assert_unavailable accepts almost any failure (Unavailable/ReadTimeout/.../NoHostAvailable), not specifically a timeout."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "tools/session.py:9",
+          "text": "wait_reconnection silently returns after 5 failed attempts (only logs a warning)."
+        }
+      ]
     },
     "TestAbortedQueries::test_index_query": {
       "description": "Single node, table with secondary index on col, 500 rows; restarts with read/range timeout=0 and expects 'SELECT * FROM test3 WHERE col < ? ALLOW FILTERING' at CL=ONE to fail. Cassandra origin: CASSANDRA-7392 abort of slow index reads.",
@@ -114,7 +160,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is 'timeout=0 -> read fails', covered by cqlpy test_using_timeout::test_per_query_timeout_effective. Bug: query 'col < ? ALLOW FILTERING' (cql_tests.py:977) does not use the secondary index in scylla (range restriction on indexed col -> filtering scan), so no index path is tested. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout."
+      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is 'timeout=0 -> read fails', covered by cqlpy test_using_timeout::test_per_query_timeout_effective. Bug: query 'col < ? ALLOW FILTERING' (cql_tests.py:977) does not use the secondary index in scylla (range restriction on indexed col -> filtering scan), so no index path is tested. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cql_tests.py:977",
+          "text": "'col < ? ALLOW FILTERING' doesn't use the secondary index in scylla; no index path tested."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cql_tests.py:817-1020",
+          "text": "Cassandra-only branches dead under scylla (read_iteration_delay_ms jvm_args, timeout=1000, 'Some operations timed out' wait, unused mark)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:85",
+          "text": "assert_unavailable accepts almost any failure (Unavailable/ReadTimeout/.../NoHostAvailable), not specifically a timeout."
+        }
+      ]
     },
     "TestAbortedQueries::test_materialized_view": {
       "description": "2 nodes (node1 join_ring=False), base table + MV keyed by col, 50 rows; restarts node1 (coordinator) with read/range timeout=0 and expects 'SELECT * FROM mv WHERE col = 50' at CL=ONE to fail. Cassandra origin: CASSANDRA-7392 abort of slow MV reads.",
@@ -149,7 +215,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is just 'coordinator timeout=0 -> read fails', covered by cqlpy test_using_timeout::test_per_query_timeout_effective; MV-specific behavior not asserted. Bug: node1.start(join_ring=False) is a no-op: scylla-ccm ScyllaNode.start (ccmlib/scylla_node.py:670) accepts join_ring but never passes it to scylla, so node1 owns tokens (402b4b5ee7 works around it). Note: query 'col = 50' targets a nonexistent MV partition (col in 0..4). Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout."
+      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is just 'coordinator timeout=0 -> read fails', covered by cqlpy test_using_timeout::test_per_query_timeout_effective; MV-specific behavior not asserted. Bug: node1.start(join_ring=False) is a no-op: scylla-ccm ScyllaNode.start (ccmlib/scylla_node.py:670) accepts join_ring but never passes it to scylla, so node1 owns tokens (402b4b5ee7 works around it). Note: query 'col = 50' targets a nonexistent MV partition (col in 0..4). Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "ccmlib/scylla_node.py:670",
+          "text": "node1.start(join_ring=False) is a no-op in scylla-ccm, so node1 owns tokens; not a pure coordinator."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cql_tests.py:989",
+          "text": "Query 'col = 50' targets a nonexistent MV partition (col in 0..4)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cql_tests.py:817-1020",
+          "text": "Cassandra-only branches dead under scylla (read_iteration_delay_ms jvm_args, timeout=1000, 'Some operations timed out' wait, unused mark)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/assertions.py:85",
+          "text": "assert_unavailable accepts almost any failure (Unavailable/ReadTimeout/.../NoHostAvailable), not specifically a timeout."
+        }
+      ]
     },
     "TestMiscellaneousCQL::test_large_collection": {
       "description": "Single node with compaction_collection_elements_count_warning_threshold=1000. Fills a map to exactly 1000 elements, flush+compact, asserts no 'Writing large collection' log and no system.large_cells row; adds one more element, flush+compact, asserts the warning log and exactly one system.large_cells row. Replacement for C*-only large_collection_errors test.",
@@ -184,7 +276,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "All assertions covered by scylla tests combined: boundary (sstable_3_x_test::test_sstable_too_many_collection_elements), system.large_cells row (cql_query_large_test::test_large_cells_dual_threshold), warning log below/above threshold (cqlpy test_large_data_guardrail::test_collection_*). Single-node, nothing distributed."
+      "reason": "All assertions covered by scylla tests combined: boundary (sstable_3_x_test::test_sstable_too_many_collection_elements), system.large_cells row (cql_query_large_test::test_large_cells_dual_threshold), warning log below/above threshold (cqlpy test_large_data_guardrail::test_collection_*). Single-node, nothing distributed.",
+      "issues": []
     },
     "TestMiscellaneousCQL::test_prepared_statement_invalidation": {
       "description": "Single node. Prepares wildcard and explicit-column SELECTs; after ALTER TABLE DROP c the wildcard statement is transparently re-prepared by the driver and returns 3 columns while the explicit one fails with InvalidRequest; after ADD d wildcard returns the new column; after ALTER d TYPE blob both statements re-prepare and work. Guards CASSANDRA-7910 (stale result metadata of prepared statements after schema change).",
@@ -222,7 +315,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server-side invalidation covered by boost schema_change_test (test_prepared_statement_is_invalidated_by_schema_change / _when_referenced_column_is_dropped); unique part is end-to-end driver re-prepare incl. ALTER TYPE int->blob, which could live in cqlpy. Cheap (5s, single node)."
+      "reason": "Server-side invalidation covered by boost schema_change_test (test_prepared_statement_is_invalidated_by_schema_change / _when_referenced_column_is_dropped); unique part is end-to-end driver re-prepare incl. ALTER TYPE int->blob, which could live in cqlpy. Cheap (5s, single node).",
+      "issues": []
     },
     "TestMiscellaneousCQL::test_reverse_query": {
       "description": "4 nodes (3 racks), RF=3, one partition with 10000 rows (pk, ck, ck1) of ~1KB, flushed. Reads with IN on both clustering keys (10 values each) and ORDER BY ck DESC, ck1 DESC at QUORUM, with and without BYPASS CACHE, expecting 10 rows. Regression for scylladb#6171 (sstable reader read-range upper bound wrong for reverse slices with many clustering ranges, fixed in scylla 791acc7f38).",
@@ -248,7 +342,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fix 791acc7f38 shipped its own reproducer, now test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges (comments 'See #6171'); dtest adds only a 4-node RF=3 cluster irrelevant to the sstable-reader bug. Slow (29s avg, 10000 sequential inserts)."
+      "reason": "Fix 791acc7f38 shipped its own reproducer, now test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges (comments 'See #6171'); dtest adds only a 4-node RF=3 cluster irrelevant to the sstable-reader bug. Slow (29s avg, 10000 sequential inserts).",
+      "issues": []
     },
     "TestMiscellaneousCQL::test_normal_query": {
       "description": "Same setup as test_reverse_query (4 nodes, RF=3, 10000 rows, flushed) but reads ascending: IN on ck and ck1 without ORDER BY, with and without BYPASS CACHE, expecting 10 rows. Control case for scylladb#6171 (which only affected reverse reads).",
@@ -279,7 +374,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Control case for reverse-only bug scylladb#6171 (fix 791acc7f38); forward clustering IN reads are basic functionality exercised everywhere (test/cqlpy/test_restrictions.py, test_cql_query.py::test_reversed_slice_with_many_clustering_ranges for the sstable path). Slow (29s avg) + redundant."
+      "reason": "Control case for reverse-only bug scylladb#6171 (fix 791acc7f38); forward clustering IN reads are basic functionality exercised everywhere (test/cqlpy/test_restrictions.py, test_cql_query.py::test_reversed_slice_with_many_clustering_ranges for the sstable path). Slow (29s avg) + redundant.",
+      "issues": []
     },
     "TestMiscellaneousCQL::test_range_slice": {
       "description": "2-node cluster, RF=1, inserts 2 rows and asserts a full-table SELECT returns 2 rows. Regression for CASSANDRA-1337 (Cassandra range-slice bug, 2012).",
@@ -313,7 +409,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Cassandra-only regression (CASSANDRA-1337, c83fabf3); trivial 2-row multi-node scan fully covered by test/cluster/test_tablets2.py::test_scans and many dtests. Note: hardcoded time.sleep(0.2)/sleep(1) (cql_tests.py:515/528)."
+      "reason": "Cassandra-only regression (CASSANDRA-1337, c83fabf3); trivial 2-row multi-node scan fully covered by test/cluster/test_tablets2.py::test_scans and many dtests. Note: hardcoded time.sleep(0.2)/sleep(1) (cql_tests.py:515/528).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "cql_tests.py:515,528",
+          "text": "Hardcoded time.sleep(0.2)/sleep(1)."
+        }
+      ]
     },
     "TestMiscellaneousCQL::test_query_failed_when_node_is_down": {
       "description": "Params stop_gently x {point, count}. 2 nodes in 2 racks, RF=2, random read/range timeout 1-10s; inserts 1000 rows at ALL, stops node2 (gently or kill) and on node1 checks CL=ONE read works and CL=QUORUM read fails with Unavailable-family error within a bounded time: <=1s for gentle stop, <= 1+timeout+min(timeout*retries,20)+1 for kill. count variant goes through mapreduce service and also accepts NoHostAvailable.",
@@ -353,7 +457,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique check that QUORUM reads (point and mapreduce count) fail fast with Unavailable after a node is stopped or killed, with a timing bound; scylla tests only cover adjacent cases (test_long_query_timeout_erm, test_multidc). 100% pass, 23s avg."
+      "reason": "Unique check that QUORUM reads (point and mapreduce count) fail fast with Unavailable after a node is stopped or killed, with a timing bound; scylla tests only cover adjacent cases (test_long_query_timeout_erm, test_multidc). 100% pass, 23s avg.",
+      "issues": []
     },
     "TestMiscellaneousCQL::test_reverse_query_ck_collect": {
       "description": "4 nodes (3 racks), RF=3. Table with frozen<list<text>> clustering key, 26 rows (['a'].. ['z']) of ~1KB, flushed. Reads IN (['a'],['k'],['u']) ORDER BY ck DESC at QUORUM, with/without BYPASS CACHE, expecting 3 rows. Labeled as regression for scylladb#6171 (reverse read with many clustering ranges on sstables).",
@@ -389,7 +494,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "#6171 fully covered by test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges; this variant uses only 26 small rows so likely doesn't even reach the buggy path; frozen-list reverse covered by test_frozen_collection.py. 21s for a 4-node cluster with no distributed aspect."
+      "reason": "#6171 fully covered by test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges; this variant uses only 26 small rows so likely doesn't even reach the buggy path; frozen-list reverse covered by test_frozen_collection.py. 21s for a 4-node cluster with no distributed aspect.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cql_tests.py:437",
+          "text": "26 small rows (~26KB < column_index_size) likely never reach the #6171 promoted-index read-range path."
+        }
+      ]
     },
     "TestMiscellaneousCQL::test_reverse_query_table_desc": {
       "description": "4 nodes (3 racks), RF=3. Table WITH CLUSTERING ORDER BY (ck DESC, ck1 DESC), 10000 rows of ~1KB, flushed, count checked. Intended to read IN on both cks ORDER BY DESC with/without BYPASS CACHE (scylladb#6171), but the IN list is empty so the query is `ck in () and ck1 in ()` and expected result is [].",
@@ -421,7 +534,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: cql_tests.py:494 `in_list = [i for i in range(10000, 0, 1000)]` is always empty (step positive, start>stop) since origin 962102d7c8 -> query is `IN ()` and expected [] -> test asserts nothing about reverse reads. #6171 fully covered by test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges. 28s wasted on 10000 sequential inserts."
+      "reason": "Bug: cql_tests.py:494 `in_list = [i for i in range(10000, 0, 1000)]` is always empty (step positive, start>stop) since origin 962102d7c8 -> query is `IN ()` and expected [] -> test asserts nothing about reverse reads. #6171 fully covered by test/cqlpy/test_cql_query.py::test_reversed_slice_with_many_clustering_ranges. 28s wasted on 10000 sequential inserts.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "cql_tests.py:494",
+          "text": "in_list = range(10000, 0, 1000) is always empty; query is IN () expecting [], nothing about reverse reads asserted."
+        }
+      ]
     },
     "TestStorageProxyCQL::test_keyspace": {
       "description": "2 nodes in dc0/dc1 with GossipingPropertyFileSnitch. CREATE KEYSPACE SimpleStrategy RF=1 DURABLE_WRITES=true, USE, ALTER to NTS {'dc1':1} DURABLE_WRITES=false (retry while ConfigurationException up to 60s for gossip), DROP, then USE ks must fail. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -467,7 +588,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Plain CREATE/USE/ALTER/DROP KEYSPACE covered by test/cqlpy/test_keyspace.py + test_cql_query.py::test_rf_expand; only extra is a 2-DC GPFS cluster that asserts nothing beyond no error. Bug: cql_tests.py:92-101 retry loop has no else/raise -> if ALTER keeps failing after 60s it spins forever (busy loop, no sleep). Note: class marked single_node but test starts 2 nodes; runs only in consistent-topology job (skipped with tablets)."
+      "reason": "Plain CREATE/USE/ALTER/DROP KEYSPACE covered by test/cqlpy/test_keyspace.py + test_cql_query.py::test_rf_expand; only extra is a 2-DC GPFS cluster that asserts nothing beyond no error. Note: cql_tests.py:92-101 retry loop has no else/raise -> if ALTER keeps failing after 60s it spins forever (busy loop, no sleep). Note: class marked single_node but test starts 2 nodes; runs only in consistent-topology job (skipped with tablets).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cql_tests.py:92-101",
+          "text": "Retry loop has no else/raise: spins forever (busy, no sleep) if ALTER keeps failing past 60s."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cql_tests.py:65",
+          "text": "Class marked single_node but test starts 2 nodes."
+        }
+      ]
     },
     "TestStorageProxyCQL::test_table": {
       "description": "Single node. CREATE TABLE (regular + COMPACT STORAGE), ALTER TABLE ADD column, inserts 10 rows each, selects, TRUNCATE both, verifies empty, DROP both, SELECT must fail. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -511,7 +646,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single-node DDL/DML smoke fully covered by cqlpy (truncate_test.py::testTruncate, compact_storage_test.py, test_alter_table.py, drop_test.py); Cassandra StorageProxy-path rationale doesn't apply."
+      "reason": "Single-node DDL/DML smoke fully covered by cqlpy (truncate_test.py::testTruncate, compact_storage_test.py, test_alter_table.py, drop_test.py); Cassandra StorageProxy-path rationale doesn't apply.",
+      "issues": []
     },
     "TestStorageProxyCQL::test_index": {
       "description": "Single node. CREATE INDEX on regular column, 10 inserts, SELECT by indexed column returns 1 row, DROP INDEX, same SELECT must fail without ALLOW FILTERING. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -542,7 +678,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Basic CREATE/DROP INDEX + lookup is fully covered by test/cqlpy/test_secondary_index.py and cassandra_tests secondary_index_test.py; single-node, no distributed aspect."
+      "reason": "Basic CREATE/DROP INDEX + lookup is fully covered by test/cqlpy/test_secondary_index.py and cassandra_tests secondary_index_test.py; single-node, no distributed aspect.",
+      "issues": []
     },
     "TestStorageProxyCQL::test_type": {
       "description": "Single node. CREATE TYPE, table using frozen UDT, ALTER TYPE ADD field, another table, DROP tables + TYPE, then CREATE TABLE using dropped type must fail. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -573,7 +710,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "UDT create/alter/drop fully covered by test/cqlpy/cassandra_tests/validation/entities/user_types_test.py (testAlterUDT, testInvalidUDTStatementsAlter, ...). Only final assert_invalid checks anything; no data inserted."
+      "reason": "UDT create/alter/drop fully covered by test/cqlpy/cassandra_tests/validation/entities/user_types_test.py (testAlterUDT, testInvalidUDTStatementsAlter, ...). Only final assert_invalid checks anything; no data inserted.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cql_tests.py:163",
+          "text": "Only final assert_invalid checks anything; no data inserted."
+        }
+      ]
     },
     "TestStorageProxyCQL::test_user": {
       "description": "Single node with PasswordAuthenticator/CassandraAuthorizer; CREATE USER, ALTER USER password, DROP USER. No assertions beyond statements not erroring. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -603,7 +748,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Zero assertions (no login with new password, no check user exists/gone); CREATE/ALTER/DROP USER fully covered by test/cluster/dtest/auth_test.py (and dtest auth_test.py). Bug: no-op test, only checks statements don't throw."
+      "reason": "Zero assertions (no login with new password, no check user exists/gone); CREATE/ALTER/DROP USER fully covered by test/cluster/dtest/auth_test.py (and dtest auth_test.py). Bug: no-op test, only checks statements don't throw.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cql_tests.py:180",
+          "text": "Zero assertions: no login with new password, no check user exists/gone; only no-throw."
+        }
+      ]
     },
     "TestStorageProxyCQL::test_statements": {
       "description": "Single node. INSERT 20 rows in 2 partitions, SELECT COUNT with =, IN, IN+ck, SELECT rows, UPDATE, DELETE partition, verify empty and COUNT=0. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -649,7 +802,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Basic single-node DML fully covered by cqlpy select_test/update_test/delete_test/test_aggregate. Note: dtest_smoke mark is unused for this file (Jenkinsfile:415 runs `-m dtest_smoke bootstrap_test.py` only); dtest_debug selection would lose one cheap sanity test."
+      "reason": "Basic single-node DML fully covered by cqlpy select_test/update_test/delete_test/test_aggregate. Note: dtest_smoke mark is unused for this file (Jenkinsfile:415 runs `-m dtest_smoke bootstrap_test.py` only); dtest_debug selection would lose one cheap sanity test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "cql_tests.py:192",
+          "text": "dtest_smoke mark unused for this file (Jenkinsfile runs -m dtest_smoke only on bootstrap_test.py)."
+        }
+      ]
     },
     "TestStorageProxyCQL::test_batch": {
       "description": "Single node. Executes a logged BATCH (2 INSERT, UPDATE, DELETE column) at QUORUM. No assertion on resulting data. Class TestStorageProxyCQL is a Cassandra-era smoke ('ensure we execute the code path in StorageProxy', in-depth validation left to Java unit tests), single node, RF=1.",
@@ -684,7 +845,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: no assertions at all (cql_tests.py:234-261), only checks batch doesn't throw. Fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatch and dtest batch_test.py."
+      "reason": "Bug: no assertions at all (cql_tests.py:234-261), only checks batch doesn't throw. Fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatch and dtest batch_test.py.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cql_tests.py:234-261",
+          "text": "No assertions on resulting data; only checks the batch doesn't throw."
+        }
+      ]
     },
     "TestTruncate::test_cql_query_filtering_without_indexes": {
       "description": "2 nodes, RF=1. t1: 500 rows; ALLOW FILTERING on ck+regular, pk+regular, pk+ck+regular for a random row, expect that row. t2: 500 rows with unique random `time` values; ALLOW FILTERING on time > threshold (count), IN on clustering item_name (count), and LIMIT (count). Guards scylladb#2025 (filtering without indexes, closed).",
@@ -729,7 +898,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Filtering semantics (pk/ck/regular restrictions, IN, LIMIT) fully covered by test/boost/filtering_test.cc and cqlpy test_filtering.py; 2-node RF=1 adds nothing specific (multi-node filtering also in dtest paging_test.py). Note: misplaced in TestTruncate (unrelated to truncate); random data with count-only assertions (q2-q4 check len, not rows); had 2 flakiness fixes (ae9804dff3, 96433bbd55)."
+      "reason": "Filtering semantics (pk/ck/regular restrictions, IN, LIMIT) fully covered by test/boost/filtering_test.cc and cqlpy test_filtering.py; 2-node RF=1 adds nothing specific (multi-node filtering also in dtest paging_test.py). Note: misplaced in TestTruncate (unrelated to truncate); random data with count-only assertions (q2-q4 check len, not rows); had 2 flakiness fixes (ae9804dff3, 96433bbd55).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cql_tests.py:723",
+          "text": "Misplaced in TestTruncate (unrelated to truncate)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cql_tests.py:723",
+          "text": "Random data with count-only assertions for q2-q4 (len, not rows)."
+        }
+      ]
     },
     "TestTruncate::test_truncate_after_restart": {
       "description": "Starts 1 node, creates ks.test1 (RF=1), bootstraps node2, writes 30 rows and reads them back. Restarts node2, then via 3 exclusive connections to node2 (\"to exercise many shards\") re-inserts data, TRUNCATEs and asserts the table is empty at CL=ALL. Regression for scylladb/scylladb#3798: after restart, non-zero shards kept stale gossiper STATUS (shutdown) for the restarted node, so TRUNCATE coordinated on a non-zero shard skipped the node and data survived.",
@@ -767,7 +950,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique-ish regression for scylladb#3798 (truncate coordinated by a restarted node on non-zero shards, vnodes path still gossiper-based); no scylla test covers post-restart vnode truncate. Downgraded from GREEN for issues. Note: 'many connections to exercise many shards' (cql_tests.py:~716) does not guarantee different coordinator shards with the shard-aware driver, so the #3798 trigger is probabilistic. Note: in the tablets job truncate takes the topology-coordinator path, so the guarded gossiper path is not exercised there. Note: refs closed issue #3798 (fixed 2018, scylla c4ec81e126)."
+      "reason": "Unique-ish regression for scylladb#3798 (truncate coordinated by a restarted node on non-zero shards, vnodes path still gossiper-based); no scylla test covers post-restart vnode truncate. Downgraded from GREEN for issues. Note: 'many connections to exercise many shards' (cql_tests.py:~716) does not guarantee different coordinator shards with the shard-aware driver, so the #3798 trigger is probabilistic. Note: in the tablets job truncate takes the topology-coordinator path, so the guarded gossiper path is not exercised there. Note: refs closed issue #3798 (fixed 2018, scylla c4ec81e126).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cql_tests.py:716-717",
+          "text": "3 connections don't guarantee non-zero coordinator shard with shard-aware driver; #3798 trigger probabilistic."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cql_tests.py:700",
+          "text": "In tablets job truncate takes topology-coordinator path; guarded gossiper path only exercised in vnodes job."
+        }
+      ]
     },
     "TestTruncate::test_truncate_before_restart": {
       "description": "3 nodes / 3 racks, RF=3: writes 30 rows (QUORUM), truncates, asserts empty at CL=ALL, and on every node checks system.truncated has an entry for the table and system.local.truncated_at is null. Restarts node2 and asserts the table is still empty and system.truncated truncated_at values are unchanged. Guards the 2019 'move truncation records to separate table' feature (scylla 12ebcf1ec7) and that truncation records survive restart (no commitlog resurrection).",
@@ -806,7 +1003,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Core scenario (truncate -> restart -> records persist, no data) covered by test/cluster/test_truncate_with_drop.py::test_truncation_records_pruned_on_dirty_restart, but only single node/RF=1; dtest adds 3-node RF=3 vnode path and per-node truncated_at equality. Bug: docstring says 'Validate that truncated entries were removed' but test asserts they persist (cql_tests.py:~643, from 2bcbf004). Bug: tools/data.py:320 get_truncated_time_from_system_truncated returns only the first row ([ts], truthy even if ts is None), so per-shard records are not really checked. Note: system.local truncated_at == [[None]] check is trivially true, nothing writes it (db/system_keyspace.cc:537 schema only). Note: flaky DTEST-319 fixed only 2026-10-18 (0393a35b)."
+      "reason": "Core scenario (truncate -> restart -> records persist, no data) covered by test/cluster/test_truncate_with_drop.py::test_truncation_records_pruned_on_dirty_restart, but only single node/RF=1; dtest adds 3-node RF=3 vnode path and per-node truncated_at equality. Note: docstring says 'Validate that truncated entries were removed' but test asserts they persist (cql_tests.py:~643, from 2bcbf004). Note: tools/data.py:320 get_truncated_time_from_system_truncated returns only the first row ([ts], truthy even if ts is None), so per-shard records are not really checked. Note: system.local truncated_at == [[None]] check is trivially true, nothing writes it (db/system_keyspace.cc:537 schema only). Note: flaky DTEST-319 fixed only 2026-10-18 (0393a35b).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cql_tests.py:644",
+          "text": "Docstring says 'Validate that truncated entries were removed' but test asserts they persist."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/data.py:320",
+          "text": "get_truncated_time_from_system_truncated checks only the first row, not per-shard records; missing record still fails."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "tools/data.py:309",
+          "text": "system.local truncated_at == [[None]] check trivially true; nothing in scylla writes it."
+        }
+      ]
     },
     "TestTruncate::test_truncate_twice": {
       "description": "3 nodes / 3 racks, RF=3: writes 30 rows, truncates, asserts empty and system.truncated entries exist (system.local.truncated_at null). Sleeps 1s, truncates the (already empty) table again, asserts empty and entries exist, then asserts len(first) <= len(second). Meant to check that a second truncate completes and updates the truncation record.",
@@ -851,7 +1068,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only unique part (second truncate updates the record) is not asserted: final check len(truncated_time_per_node) <= len(sec_truncated_time_per_node) (cql_tests.py:~697) compares per-node list lengths (always 3 == 3), a no-op; the rest is a strict subset of test_truncate_before_restart plus scylla truncate tests (database_test.cc::test_truncate_saves_replay_position, cqlpy truncate_test.py). Bug: no-op final assert. Bug: second truncate runs on an already-empty table (no re-insert), so 'no data left' is trivial. Bug: first-row-only system.truncated helper (tools/data.py:320). Note: system.local truncated_at check trivially true."
+      "reason": "Only unique part (second truncate updates the record) is not asserted: final check len(truncated_time_per_node) <= len(sec_truncated_time_per_node) (cql_tests.py:~697) compares per-node list lengths (always 3 == 3), a no-op; the rest is a strict subset of test_truncate_before_restart plus scylla truncate tests (database_test.cc::test_truncate_saves_replay_position, cqlpy truncate_test.py). Bug: no-op final assert. Note: second truncate runs on an already-empty table (no re-insert), so 'no data left' is trivial. Note: first-row-only system.truncated helper (tools/data.py:320). Note: system.local truncated_at check trivially true.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "cql_tests.py:697",
+          "text": "Final len(first) <= len(second) compares per-node list lengths (3 == 3); record update never checked."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cql_tests.py:692-693",
+          "text": "Second truncate runs on an already-empty table, so 'no data left' is trivial."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/data.py:320",
+          "text": "get_truncated_time_from_system_truncated checks only the first row, not per-shard records; missing record still fails."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "tools/data.py:309",
+          "text": "system.local truncated_at == [[None]] check trivially true; nothing in scylla writes it."
+        }
+      ]
     }
   }
 }

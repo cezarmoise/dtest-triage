@@ -28,7 +28,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Strict subset of test_parallel_operations_for_10_ks_1_table_per_ks and test_parallel_operations_create_clear_per_ks_and_all (same helpers, same race, more ks/tables). Fast (5.6s), so not RED under slow+redundant rule; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential)."
+      "reason": "Strict subset of test_parallel_operations_for_10_ks_1_table_per_ks and test_parallel_operations_create_clear_per_ks_and_all (same helpers, same race, more ks/tables). Fast (5.6s), so not RED under slow+redundant rule; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_for_10_ks_1_table_per_ks": {
       "description": "1 node, 10 ks x 1 table x 1 row. After an initial per-table snapshot, concurrently runs per-table 'snapshot ksN.table_cf0' for all ks and 'clearsnapshot ksN' for all ks. Asserts empty stderr / zero exit.",
@@ -57,7 +58,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Covered by test_parallel_operations_create_clear_per_ks_and_all (superset: same ops, 10 tables/ks, plus create-all/clear-all). Fast (14.7s), so YELLOW not RED. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential)."
+      "reason": "Covered by test_parallel_operations_create_clear_per_ks_and_all (superset: same ops, 10 tables/ks, plus create-all/clear-all). Fast (14.7s), so YELLOW not RED. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_for_10ks_and_10tables_and_clearallsnapshots": {
       "description": "1 node, 10 ks x 10 tables x 1 row. Concurrently (barrier, 3 threads) runs per-table snapshot of all 100 tables, 'clearsnapshot ksN' for each ks and 'clearsnapshot' (all). Asserts empty stderr / zero exit.",
@@ -81,7 +83,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (100s avg) and strictly covered by test_parallel_operations_create_clear_per_ks_and_all (55s), which runs the same three ops on the same 10x10 schema plus create-all. Bug: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small."
+      "reason": "Slow (100s avg) and strictly covered by test_parallel_operations_create_clear_per_ks_and_all (55s), which runs the same three ops on the same 10x10 schema plus create-all. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:83-92",
+          "text": "create_snapshots_per_keyspace_table appends stderr outside the cf loop, only last table per ks checked; nonzero exit still raises."
+        }
+      ]
     },
     "TestParallelSnapshotOperations::test_parallel_operation_create_clear_for_all_ks": {
       "description": "1 node, 10 ks x 10 tables. Concurrently runs 'snapshot -t <uuid>' (all ks) and 'clearsnapshot' (all) synced by barrier, plus another unsynced create-all and clear-all. Asserts empty stderr / zero exit.",
@@ -110,7 +120,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Its four ops are a strict subset of test_parallel_operations_create_clear_per_ks_and_all and test_parallel_operations_create_list_clear_for_all_ks. Fast (12s), so YELLOW not RED; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential)."
+      "reason": "Its four ops are a strict subset of test_parallel_operations_create_clear_per_ks_and_all and test_parallel_operations_create_list_clear_for_all_ks. Fast (12s), so YELLOW not RED; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all": {
       "description": "1 node, 10 ks x 10 tables. 6 threads: create-all snapshot, clear-all, per-table snapshot of 100 tables, per-ks clearsnapshot (synced by barrier), plus unsynced create-all and clear-all. Asserts empty stderr / zero exit for every command, i.e. snapshot-modifying ops serialize safely with no errors.",
@@ -133,8 +144,16 @@
           "note": "complex test races create-all/per-table/clear-all with periodic list/clear but has no per-ks clear"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Most complete create/clear race (superset of 3 sibling tests) with no scylla equivalent; would be GREEN. Bug: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small."
+      "decision": "GREEN",
+      "reason": "Most complete create/clear race (superset of 3 sibling tests) with no scylla equivalent. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:83-92",
+          "text": "create_snapshots_per_keyspace_table appends stderr outside the cf loop, only last table per ks checked; nonzero exit still raises."
+        }
+      ]
     },
     "TestParallelSnapshotOperations::test_parallel_operations_create_list_clear_for_all_ks": {
       "description": "1 node, 30 ks x 10 tables x 10 rows. Runs create-all snapshot and clear-all (synced by barrier) together with 'listsnapshots', plus unsynced create-all/clear-all/listsnapshots. Asserts empty stderr / zero exit. Reproducer for scylladb/scylladb#5603 (listsnapshots failing with 'stat failed: No such file' while a snapshot is cleared), fixed by scylla 682fb3acfd.",
@@ -164,7 +183,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheapest regression for scylladb/scylladb#5603 (list vs concurrent clear); no scylla test races listsnapshots with clearsnapshot. Does not use the buggy per-table helper."
+      "reason": "Cheapest regression for scylladb/scylladb#5603 (list vs concurrent clear); no scylla test races listsnapshots with clearsnapshot. Does not use the buggy per-table helper.",
+      "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_with_large_data_size": {
       "description": "1 node, 15 ks x 15 tables x 1000 rows of 1000-char values (~225MB). Runs per-table snapshot of 225 tables and per-ks clearsnapshot (barrier), together with unsynced create-all, listsnapshots and clear-all. Asserts empty stderr / zero exit. Was gated on #5603 until 6b133cb32d.",
@@ -194,7 +214,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (166s) and largely overlaps test_snapshot_parallel_in_complex_mode_creating_listing_clearing (same data size, same ops except per-ks clear) and test_parallel_operations_create_list_clear_for_all_ks; probably keep only one of the large-data tests. Bug: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small."
+      "reason": "Slow (166s) and largely overlaps test_snapshot_parallel_in_complex_mode_creating_listing_clearing (same data size, same ops except per-ks clear) and test_parallel_operations_create_list_clear_for_all_ks; probably keep only one of the large-data tests. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:83-92",
+          "text": "create_snapshots_per_keyspace_table appends stderr outside the cf loop, only last table per ks checked; nonzero exit still raises."
+        }
+      ]
     },
     "TestParallelSnapshotOperations::test_snapshot_parallel_in_complex_mode_creating_listing_clearing": {
       "description": "1 node, 15 ks x 15 tables x 1000 rows of 1000-char values. Runs two create-all snapshots, per-table snapshot of all 225 tables and clear-all (barrier), while background threads run listsnapshots every 1s and clearsnapshot every 2s until done. Asserts every command has empty stderr / zero exit. Was gated on #5603 until 6b133cb32d.",
@@ -224,7 +252,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Most thorough list/clear/create stress (no scylla equivalent) but slow (169s) and overlaps test_parallel_operations_with_large_data_size; keep one of the two. Bug: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small."
+      "reason": "Most thorough list/clear/create stress (no scylla equivalent) but slow (169s) and overlaps test_parallel_operations_with_large_data_size; keep one of the two. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:83-92",
+          "text": "create_snapshots_per_keyspace_table appends stderr outside the cf loop, only last table per ks checked; nonzero exit still raises."
+        }
+      ]
     },
     "TestSchemaFileInSnapshot::test_restore_data_for_all_native_data_types_from_snapshot_with_refresh": {
       "description": "1 node. Creates a table with one column per native CQL type (20 types), inserts 3 rows, takes a ks snapshot (copied to tmp), records DESCRIBE TABLE. Drops ks + data dir, recreates ks, recreates the table from the snapshot's schema.cql, checks it's empty, copies snapshot sstables to upload/ and runs nodetool refresh, then asserts count(*)==3 and DESCRIBE matches the original. Guards the schema.cql round trip for all native types (scylladb/scylladb#4192).",
@@ -258,8 +294,16 @@
           "note": "DESCRIBE round trip of random tables, not via snapshot schema.cql"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique all-native-types snapshot->schema.cql->refresh round trip (8s), only partly covered by test/cluster/object_store/test_auto_snapshot_restore.py (2026-07-29, simple table). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed."
+      "decision": "GREEN",
+      "reason": "Unique all-native-types snapshot->schema.cql->refresh round trip (8s), only partly covered by test/cluster/object_store/test_auto_snapshot_restore.py (2026-07-29, simple table). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:953",
+          "text": "Data restore checked only by row count, not column values."
+        }
+      ]
     },
     "TestSchemaFileInSnapshot::test_restore_data_from_snapshot_with_frozen_udt_with_refresh": {
       "description": "1 node. Creates UDT all_native_types (20 native-typed fields) and a table with a frozen<all_native_types> column, inserts 3 rows, snapshots the ks, records DESCRIBE. Drops ks + files, recreates ks and the UDT by hand (snapshot_test.py:894; schema.cql holds only the table), recreates the table from schema.cql, refreshes sstables from the snapshot, asserts count(*)==3 and DESCRIBE matches.",
@@ -288,8 +332,22 @@
           "note": "schema.cql + refresh restore, no UDT"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No scylla test restores a frozen-UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed. The UDT is recreated by hand, so the test doesn't check that the type is captured anywhere in the snapshot."
+      "decision": "GREEN",
+      "reason": "No scylla test restores a frozen-UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed. The UDT is recreated by hand, so the test doesn't check that the type is captured anywhere in the snapshot.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:953",
+          "text": "Data restore checked only by row count, not column values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:894",
+          "text": "UDT recreated by hand; doesn't check the type is captured in the snapshot."
+        }
+      ]
     },
     "TestSchemaFileInSnapshot::test_restore_data_from_snapshot_with_udt_with_refresh": {
       "description": "1 node. Creates UDT all_native_types (20 native-typed fields) and a table with a non-frozen all_native_types column, inserts 3 rows, snapshots the ks, records DESCRIBE. Drops ks + files, recreates ks and the UDT by hand, recreates the table from schema.cql, asserts empty, copies snapshot sstables to upload/ + refresh, asserts count(*)==3 and DESCRIBE matches.",
@@ -319,8 +377,22 @@
           "note": "recreate table from snapshot schema.cql + nodetool refresh (load_method=refresh), checks values; auto_snapshot on DROP instead of explicit nodetool snapshot, no DESCRIBE comparison"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No scylla test restores a non-frozen (multi-cell) UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values. The UDT is recreated by hand (snapshot_test.py:894), so the test doesn't check that the type is captured in the snapshot."
+      "decision": "GREEN",
+      "reason": "No scylla test restores a non-frozen (multi-cell) UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values. The UDT is recreated by hand (snapshot_test.py:894), so the test doesn't check that the type is captured in the snapshot.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:953",
+          "text": "Data restore checked only by row count, not column values."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:894",
+          "text": "UDT recreated by hand; doesn't check the type is captured in the snapshot."
+        }
+      ]
     },
     "TestSchemaFileInSnapshot::test_restoring_by_schema_file_with_refresh": {
       "description": "1 node, auto_snapshot off. ks.cf (int key, text val), 100 rows, nodetool snapshot ks -cf cf -t basic, record DESCRIBE, write 100 more rows. Drop ks + data dir, recreate ks, recreate table from schema.cql, assert DESCRIBE equal and table empty, copy snapshot sstables to upload/ + refresh, assert count(*)==100 (post-snapshot writes gone).",
@@ -358,7 +430,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Basic case of the schema.cql restore flow; covered by its dtest siblings (all-native-types variant + test_basic_snapshot_and_restore_with_refresh) and partly by scylla test_auto_snapshot_restore_table (refresh, value checks, but auto_snapshot). Fast (8.7s), drop candidate. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values; redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:824."
+      "reason": "Basic case of the schema.cql restore flow; covered by its dtest siblings (all-native-types variant + test_basic_snapshot_and_restore_with_refresh) and partly by scylla test_auto_snapshot_restore_table (refresh, value checks, but auto_snapshot). Fast (8.7s), drop candidate. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values; redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:824.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:953",
+          "text": "Data restore checked only by row count, not column values."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:824",
+          "text": "Redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it."
+        }
+      ]
     },
     "TestSchemaFileInSnapshot::test_schema_file_contains_altering_table_changes": {
       "description": "1 node, ks.cf, 100 rows, snapshot 'basic' and keep its schema.cql + DESCRIBE; ALTER TABLE ADD val1 text, snapshot 'basic1'. Drop ks + files, recreate ks, recreate table from the second schema.cql. Asserts restored DESCRIBE == altered DESCRIBE != original, and the two schema.cql files differ. No data restore.",
@@ -392,7 +478,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "ALTER-after-snapshot reflected in schema.cql: scylla test_auto_snapshot_restore.py covers the harder DROP/re-ADD cases with data checks; ADD-only is trivial since schema.cql is a describe of the current schema (replica/table.cc:4441). Cheap (9.5s); partial overlap."
+      "reason": "ALTER-after-snapshot reflected in schema.cql: scylla test_auto_snapshot_restore.py covers the harder DROP/re-ADD cases with data checks; ADD-only is trivial since schema.cql is a describe of the current schema (replica/table.cc:4441). Cheap (9.5s); partial overlap.",
+      "issues": []
     },
     "TestSchemaFileInSnapshot::test_schema_file_created": {
       "description": "1 node, ks.cf with 100 rows, nodetool snapshot ks -cf cf, asserts schema.cql exists in the copied snapshot dir, records DESCRIBE, drops ks + files, recreates ks and the table from schema.cql, asserts DESCRIBE equal.",
@@ -431,7 +518,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Strict subset of test_restoring_by_schema_file_with_refresh (create_restore_data_with_snapshot, snapshot_test.py:792: same schema.cql existence + recreate + DESCRIBE equality, then data restore). Existence also asserted in test/boost/database_test.cc::table_snapshot_works. Fast (7.6s), so not RED under slow+redundant; drop candidate."
+      "reason": "Strict subset of test_restoring_by_schema_file_with_refresh (create_restore_data_with_snapshot, snapshot_test.py:792: same schema.cql existence + recreate + DESCRIBE equality, then data restore). Existence also asserted in test/boost/database_test.cc::table_snapshot_works. Fast (7.6s), so not RED under slow+redundant; drop candidate.",
+      "issues": []
     },
     "TestSchemaFileInSnapshot::test_schema_file_created_by_multiple_tables": {
       "description": "1 node, 5 tables cf0..cf4 with 100 rows, single 'nodetool snapshot ks -cf cf0,...,cf4 -t basic'. Asserts schema.cql exists for each table, records DESCRIBE, drops ks + files, recreates each table from its schema.cql and asserts DESCRIBE equal.",
@@ -474,7 +562,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Combination of covered pieces: schema.cql round trip (test_schema_file_created / test_restoring_by_schema_file_with_refresh), multi-table snapshot (scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot, test/nodetool/test_snapshot.py), and 2-table variant test_upper_case_of_table_name_is_saved_mixed_case. 17s; partial overlap only."
+      "reason": "Combination of covered pieces: schema.cql round trip (test_schema_file_created / test_restoring_by_schema_file_with_refresh), multi-table snapshot (scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot, test/nodetool/test_snapshot.py), and 2-table variant test_upper_case_of_table_name_is_saved_mixed_case. 17s; partial overlap only.",
+      "issues": []
     },
     "TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved": {
       "description": "1 node, table \"UPPER_CASE_CF\" with quoted columns \"KEY\"/\"VAL\", 1 row; snapshot ks -cf UPPER_CASE_CF, asserts schema.cql exists, records DESCRIBE, drops ks + files, recreates table from schema.cql, asserts DESCRIBE equal. Guards case-sensitive identifier quoting in schema.cql.",
@@ -508,7 +597,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Strict subset of test_upper_case_of_table_name_is_saved_mixed_case (identical upper-case table steps and DESCRIBE assert, snapshot_test.py:766-790). No scylla test recreates a quoted-name table from schema.cql. Fast (7.6s), drop candidate in favor of the mixed-case one."
+      "reason": "Strict subset of test_upper_case_of_table_name_is_saved_mixed_case (identical upper-case table steps and DESCRIBE assert, snapshot_test.py:766-790). No scylla test recreates a quoted-name table from schema.cql. Fast (7.6s), drop candidate in favor of the mixed-case one.",
+      "issues": []
     },
     "TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved_mixed_case": {
       "description": "1 node, quoted \"UPPER_CASE_CF\" (1 row) + lower-case cf (10 rows); one snapshot 'ks -cf UPPER_CASE_CF,cf'. Asserts schema.cql exists for both, records DESCRIBEs, drops ks + files, recreates both tables from their schema.cql, asserts both DESCRIBEs equal. Guards case-sensitive names in multi-table snapshot and schema.cql.",
@@ -545,7 +635,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of case-sensitive table names through nodetool snapshot cf list -> snapshot dir -> schema.cql -> recreate; no scylla test does snapshot + schema.cql with quoted identifiers (grep test/ for schema.cql). Cheap (10s), 100% pass."
+      "reason": "Only test of case-sensitive table names through nodetool snapshot cf list -> snapshot dir -> schema.cql -> recreate; no scylla test does snapshot + schema.cql with quoted identifiers (grep test/ for schema.cql). Cheap (10s), 100% pass.",
+      "issues": []
     },
     "TestSnapshot::test_basic_mulitple_tables_snapshot_and_restore_with_refresh": {
       "description": "1 node, ks with 5 tables cf0..cf4, 100 rows each; 'nodetool snapshot ks -cf cf0,...,cf4 -t basic' (copied to tmp), 100 more rows, assert 200. Drop ks + rm data dir, recreate ks/tables by hand, assert 0, copy each table's snapshot sstables to upload/ + refresh, assert count(*)==100 per table.",
@@ -591,7 +682,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Multi-table snapshot + refresh restore discarding post-snapshot writes; pieces covered by test_basic_snapshot_and_restore_with_refresh (restore), scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-table snapshot) and test/nodetool/test_snapshot.py (cf list). Keep one of the three flag variants (this one). Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237."
+      "reason": "Multi-table snapshot + refresh restore discarding post-snapshot writes; pieces covered by test_basic_snapshot_and_restore_with_refresh (restore), scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-table snapshot) and test/nodetool/test_snapshot.py (cf list). Keep one of the three flag variants (this one). Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:149",
+          "text": "Data checked only by count(*) (validate_rows_count_in_all_tables)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:237",
+          "text": "Redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it."
+        }
+      ]
     },
     "TestSnapshot::test_basic_mulitple_tables_snapshot_using_column_family": {
       "description": "1 node, ks with 5 tables cf0..cf4, 100 rows each; 'nodetool snapshot ks --column-family cf0,...,cf4 -t basic' (copied to tmp), 100 more rows, assert 200. Drop ks + rm data dir, recreate ks/tables by hand, assert 0, copy each table's snapshot sstables to upload/ + refresh, assert count(*)==100 per table. Identical to the -cf variant except the flag alias.",
@@ -624,7 +729,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--column-family' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237."
+      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--column-family' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:149",
+          "text": "Data checked only by count(*) (validate_rows_count_in_all_tables)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:237",
+          "text": "Redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it."
+        }
+      ]
     },
     "TestSnapshot::test_basic_mulitple_tables_snapshot_using_table": {
       "description": "1 node, ks with 5 tables cf0..cf4, 100 rows each; 'nodetool snapshot ks --table cf0,...,cf4 -t basic' (copied to tmp), 100 more rows, assert 200. Drop ks + rm data dir, recreate ks/tables by hand, assert 0, copy each table's snapshot sstables to upload/ + refresh, assert count(*)==100 per table. Identical to the -cf variant except the flag alias.",
@@ -657,7 +776,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--table' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237."
+      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--table' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:149",
+          "text": "Data checked only by count(*) (validate_rows_count_in_all_tables)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:237",
+          "text": "Redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it."
+        }
+      ]
     },
     "TestSnapshot::test_basic_snapshot_and_restore_with_refresh": {
       "description": "1 node, ks with 1 table cf0, 100 rows; 'nodetool snapshot ks -t basic' (keyspace-level, copied to tmp), 100 more rows, assert 200. DROP KEYSPACE + rm data dir, recreate ks/table by hand, assert 0, copy snapshot sstables to upload/ + 'nodetool refresh', assert count(*)==100 (post-snapshot writes discarded). Guards basic snapshot -> refresh restore workflow.",
@@ -707,7 +840,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Fast (6s) e2e snapshot+refresh restore, but strict subset of scenario covered by scylla test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables (ks snapshot -> upload/ -> refresh, exact key check) plus the multi-table dtest sibling; only extra is drop+recreate and discarding post-snapshot writes. Drop candidate. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237."
+      "reason": "Fast (6s) e2e snapshot+refresh restore, but strict subset of scenario covered by scylla test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables (ks snapshot -> upload/ -> refresh, exact key check) plus the multi-table dtest sibling; only extra is drop+recreate and discarding post-snapshot writes. Drop candidate. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:149",
+          "text": "Data checked only by count(*) (validate_rows_count_in_all_tables)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:237",
+          "text": "Redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it."
+        }
+      ]
     },
     "TestSnapshot::test_cleaning_snapshot_created_by_ks": {
       "description": "1 node, ks with tables cf, cf1 (100 rows each), flush, 'nodetool snapshot ks -t per_cf'; asserts both tables have snapshots/per_cf dirs; REST DELETE /storage_service/snapshots?tag=per_cf&kn=ks&cf=cf; asserts cf's snapshot dir gone and cf1's remains. Guards per-table snapshot clearing within a ks-wide tag.",
@@ -747,7 +894,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Fast (6s) and checks filesystem directly, but the scenario (clear one table from a tag, others survive) is covered by scylla test/rest_api/test_storage_service.py::test_snapshot_delete_cf_multi_keyspace and test/boost/database_test.cc::clear_multiple_snapshots; only difference is the snapshot was taken ks-wide. Drop candidate; keep at most this one of the two cleaning variants. Note: requests.delete status not checked (snapshot_test.py:155), caught only indirectly by the following filesystem assert; first os.path.exists check in search_cf_in_snapshot (snapshot_test.py:389) is dead - cf_id comes from os.listdir of the same dir."
+      "reason": "Fast (6s) and checks filesystem directly, but the scenario (clear one table from a tag, others survive) is covered by scylla test/rest_api/test_storage_service.py::test_snapshot_delete_cf_multi_keyspace and test/boost/database_test.cc::clear_multiple_snapshots; only difference is the snapshot was taken ks-wide. Drop candidate; keep at most this one of the two cleaning variants. Note: requests.delete status not checked (snapshot_test.py:155), caught only indirectly by the following filesystem assert; first os.path.exists check in search_cf_in_snapshot (snapshot_test.py:389) is dead - cf_id comes from os.listdir of the same dir.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:155",
+          "text": "requests.delete status not checked; caught only indirectly by the filesystem assert."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:389",
+          "text": "First os.path.exists check in search_cf_in_snapshot is dead (cf_id from os.listdir of same dir)."
+        }
+      ]
     },
     "TestSnapshot::test_cleaning_snapshot_created_by_multiple_cf": {
       "description": "Same as test_cleaning_snapshot_created_by_ks but the snapshot is taken with 'nodetool snapshot ks -cf cf,cf1 -t per_cf' (multi-table REST call); then REST DELETE of cf from tag, asserts cf's snapshot dir gone, cf1's remains.",
@@ -792,7 +953,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only differs from test_cleaning_snapshot_created_by_ks in how the snapshot is created; multi-table creation is covered by scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (cf list, exact per-table check) and the dtest test_basic_mulitple_tables_snapshot_and_restore_with_refresh, and per-table delete keeping the rest by test/rest_api/test_storage_service.py::test_snapshot_delete_cf_multi_keyspace. Note: requests.delete status not checked (snapshot_test.py:155), caught only indirectly by the following filesystem assert; first os.path.exists check in search_cf_in_snapshot (snapshot_test.py:389) is dead - cf_id comes from os.listdir of the same dir."
+      "reason": "Only differs from test_cleaning_snapshot_created_by_ks in how the snapshot is created; multi-table creation is covered by scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (cf list, exact per-table check) and the dtest test_basic_mulitple_tables_snapshot_and_restore_with_refresh, and per-table delete keeping the rest by test/rest_api/test_storage_service.py::test_snapshot_delete_cf_multi_keyspace. Note: requests.delete status not checked (snapshot_test.py:155), caught only indirectly by the following filesystem assert; first os.path.exists check in search_cf_in_snapshot (snapshot_test.py:389) is dead - cf_id comes from os.listdir of the same dir.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "snapshot_test.py:155",
+          "text": "requests.delete status not checked; caught only indirectly by the filesystem assert."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:389",
+          "text": "First os.path.exists check in search_cf_in_snapshot is dead (cf_id from os.listdir of same dir)."
+        }
+      ]
     },
     "TestSnapshot::test_nodetool_snapshot_during_major_compaction": {
       "description": "1 node; c-s write 1M keys (10k in debug) into keyspace1.standard1 with STCS auto-compaction disabled (many sstables); start 'nodetool compact' in a thread, wait for log 'User initiated compaction started on behalf of keyspace1.standard1', sleep 0.1s, run 'nodetool snapshot'; asserts no 'link failed' error and empty stderr; waits for compaction. Reproducer for scylladb/scylladb#4051 (snapshot hard-linking sstables being deleted by compaction).",
@@ -827,8 +1002,16 @@
           "note": "same bug, snapshot right after restart"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test (dtest or scylla) that deterministically overlaps a snapshot with a running major compaction (log-synchronized) - regression guard for #4051; no scylla test covers snapshot vs compaction. Best of the three #4051 tests; 75s. Note: the 'link failed' substring assert (snapshot_test.py:364) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested. YELLOW only due to the redundant assert note; otherwise keep."
+      "decision": "GREEN",
+      "reason": "Only test (dtest or scylla) that deterministically overlaps a snapshot with a running major compaction (log-synchronized) - regression guard for #4051; no scylla test covers snapshot vs compaction. Best of the three #4051 tests; 75s. Note: the 'link failed' substring assert (snapshot_test.py:364) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:364",
+          "text": "'link failed' substring assert redundant; node.nodetool raises NodetoolError on non-zero exit."
+        }
+      ]
     },
     "TestSnapshot::test_nodetool_snapshot_race_condition_with_compaction_after_node_start": {
       "description": "1 node; c-s write 10k keys, stop node, start node, immediately 'nodetool snapshot -t <uuid>'; asserts no 'link failed' error and empty stderr. Intended to hit compactions triggered at startup (#4051).",
@@ -862,7 +1045,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Weak reproducer: with 10k keys (d0d2cc5149 cut from 1M) the node has few sstables after restart, so there is no guarantee any compaction overlaps the snapshot; nothing synchronizes with compaction. Same bug as the deterministic test_nodetool_snapshot_during_major_compaction. 23s. Drop candidate. Note: the 'link failed' substring assert (snapshot_test.py:329) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested."
+      "reason": "Weak reproducer: with 10k keys (d0d2cc5149 cut from 1M) the node has few sstables after restart, so there is no guarantee any compaction overlaps the snapshot; nothing synchronizes with compaction. Same bug as the deterministic test_nodetool_snapshot_during_major_compaction. 23s. Drop candidate. Note: the 'link failed' substring assert (snapshot_test.py:329) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "d0d2cc5149",
+          "text": "With 10k keys few sstables exist after restart; nothing guarantees a compaction overlaps the snapshot (#4051)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:329",
+          "text": "'link failed' substring assert redundant; node.nodetool raises NodetoolError on non-zero exit."
+        }
+      ]
     },
     "TestSnapshot::test_nodetool_snapshot_race_condition_with_compaction_under_stress": {
       "description": "1 node; c-s write duration=1m, 100 threads, seq pop up to 1e8, in background; meanwhile loops 'nodetool snapshot -t <uuid>' until stress finishes; asserts no 'link failed' error / empty stderr each time and c-s success. Reproducer for #4051 under regular (background) compaction.",
@@ -899,7 +1096,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Covers the #4051 race with background (regular) compaction under write load, which the major-compaction test doesn't, but overlap is probabilistic; 75s + high_memory c-s. Partial overlap with test_nodetool_snapshot_during_major_compaction; keep only if regular-compaction path is wanted. Note: the 'link failed' substring assert (snapshot_test.py:302) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested."
+      "reason": "Covers the #4051 race with background (regular) compaction under write load, which the major-compaction test doesn't, but overlap is probabilistic; 75s + high_memory c-s. Partial overlap with test_nodetool_snapshot_during_major_compaction; keep only if regular-compaction path is wanted. Note: the 'link failed' substring assert (snapshot_test.py:302) is redundant - ccm node.nodetool raises NodetoolError on non-zero exit (scylla-ccm/ccmlib/node.py:851), which is how the #4051 failure manifested.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:302",
+          "text": "'link failed' substring assert redundant; node.nodetool raises NodetoolError on non-zero exit."
+        }
+      ]
     },
     "TestSnapshot::test_snapshot_for_2kc_and_cf_failure": {
       "description": "1 node, ks and ks1 each with table cf0; 'nodetool snapshot ks,ks1 -cf cf0 -t basic' must raise NodetoolError containing 'Only one keyspace allowed when specifying a column family'. Native nodetool treats 'ks,ks1' as one positional so it reaches the server: REST kn=ks,ks1&cf=cf0 rejected by api/storage_service.cc:2018.",
@@ -924,8 +1129,16 @@
           "note": "nodetool-side rejection of '--table tbl1 ks1 ks2' (separate positionals), mock server, no REST request; server-side check not exercised"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test of the server-side 'Only one keyspace allowed when specifying a column family' check (api/storage_service.cc:2018); scylla covers only the nodetool-side variant (test/nodetool/test_snapshot.py::test_snapshot_multiple_keyspace_with_table). Cheap (5s) but would fit better as a scylla test/rest_api case. Bug: insert_rows/validate_rows_count_in_all_tables hardcode 'ks.' (snapshot_test.py:145,151), so session1 writes/validates ks.cf0 again and ks1.cf0 is never populated (data setup is irrelevant to the assertion anyway)."
+      "decision": "GREEN",
+      "reason": "Only test of the server-side 'Only one keyspace allowed when specifying a column family' check (api/storage_service.cc:2018); scylla covers only the nodetool-side variant (test/nodetool/test_snapshot.py::test_snapshot_multiple_keyspace_with_table). Cheap (5s) but would fit better as a scylla test/rest_api case. Note: insert_rows/validate_rows_count_in_all_tables hardcode 'ks.' (snapshot_test.py:145,151), so session1 writes/validates ks.cf0 again and ks1.cf0 is never populated (data setup is irrelevant to the assertion anyway).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "snapshot_test.py:145,151",
+          "text": "insert_rows/validate_rows_count_in_all_tables hardcode 'ks.', ks1.cf0 never populated; data irrelevant to the assert."
+        }
+      ]
     },
     "TestSnapshotOptions::test_snapshot_defaults_to_all_keyspaces": {
       "description": "1 node, ks0..ks2 x 2 tables, 1 row each; 'nodetool snapshot' with no args; asserts set of keyspace dirs in the copied snapshot == all keyspaces in system_schema.keyspaces (incl. system ones, minus system_auth when 'consistent-topology-changes' feature is set).",
@@ -958,7 +1171,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only extra over scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot is that system keyspaces are included; fast (6s). Note: system_auth exclusion keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), which is UNUSED in scylla (db/config.cc:2123), so the guard depends on job config, not scylla behavior. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter."
+      "reason": "Only extra over scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot is that system keyspaces are included; fast (6s). Note: system_auth exclusion keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), which is UNUSED in scylla (db/config.cc:2123), so the guard depends on job config, not scylla behavior. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "snapshot_test.py:1143-1149",
+          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:1165-1166",
+          "text": "_get_snapshot_dir_paths filters with 'path.is_dir' without call; always truthy, no-op filter."
+        }
+      ]
     },
     "TestSnapshotOptions::test_snapshot_of_specified_keyspaces_only": {
       "description": "Same setup; 'nodetool snapshot ksA,ksB' (2 of 3 keyspaces, random, comma-joined single positional); asserts snapshot keyspace dirs == exactly the requested keyspaces.",
@@ -991,7 +1218,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Fast strict subset of scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-ks snapshot, exact set) + test/nodetool/test_snapshot.py::test_snapshot_keyspace; drop candidate. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter."
+      "reason": "Fast strict subset of scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-ks snapshot, exact set) + test/nodetool/test_snapshot.py::test_snapshot_keyspace; drop candidate. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:1165-1166",
+          "text": "_get_snapshot_dir_paths filters with 'path.is_dir' without call; always truthy, no-op filter."
+        }
+      ]
     },
     "TestSnapshotOptions::test_snapshot_of_specified_keyspaces_only_with_kc_list_option": {
       "description": "Same as test_snapshot_of_specified_keyspaces_only but passes the keyspaces via '-kc ksA,ksB' (alias of --keyspace-table-list); asserts snapshot keyspace dirs == requested keyspaces.",
@@ -1024,7 +1259,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Pure flag-alias duplicate: '-kc ks0,ks2' parsing fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_ktlist (-kc with 'ks1,ks2' -> kn=ks1,ks2); server sees the same request as test_snapshot_of_specified_keyspaces_only. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter."
+      "reason": "Pure flag-alias duplicate: '-kc ks0,ks2' parsing fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_ktlist (-kc with 'ks1,ks2' -> kn=ks1,ks2); server sees the same request as test_snapshot_of_specified_keyspaces_only. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1165-1166) - always truthy, no-op filter.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:1165-1166",
+          "text": "_get_snapshot_dir_paths filters with 'path.is_dir' without call; always truthy, no-op filter."
+        }
+      ]
     },
     "TestSnapshotOptions::test_snapshot_tagging": {
       "description": "Single node with 3 ks x 2 tables; runs 'nodetool snapshot -t charybdis' (all keyspaces) and asserts stdout contains 'Snapshot directory: charybdis'. Only checks nodetool output; does not inspect on-disk snapshot dirs or listsnapshots.",
@@ -1061,7 +1304,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Fast (5.8s) strict subset: output-only check covered by test/nodetool/test_snapshot.py::test_snapshot_options_matrix (check_snapshot_out asserts 'Snapshot directory: <tag>'); -t alias exercised by many dtests (backup_restore_tests.py). Keep only if nodetool_additional_test.py::TestNodetool::test_snapshot_tag (marked RED, citing this) goes; drop one of the two. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent."
+      "reason": "Fast (5.8s) strict subset: output-only check covered by test/nodetool/test_snapshot.py::test_snapshot_options_matrix (check_snapshot_out asserts 'Snapshot directory: <tag>'); -t alias exercised by many dtests (backup_restore_tests.py). Keep only if nodetool_additional_test.py::TestNodetool::test_snapshot_tag (marked RED, citing this) goes; drop one of the two. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "snapshot_test.py:1143-1149",
+          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
+        }
+      ]
     },
     "TestSnapshotOptions::test_snapshot_skip_flush": {
       "description": "Inserts 2 rows into ks0.table_cf0, reads 'Memtable data size' and 'Memtable switch count' from nodetool tablestats, runs 'nodetool snapshot --skip-flush -cf table_cf0 ks0' (make_snapshot, tools/snapshots.py:15), re-reads tablestats and asserts data size post >= pre and switch count unchanged (i.e. no memtable flush). Guards that sf=true reaches snapshot_options.skip_flush end-to-end on a real node.",
@@ -1093,7 +1344,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Combined scylla tests cover both halves: test/boost/database_test.cc::snapshot_skip_flush_works (no flush, stronger on-disk check) + test/nodetool/test_snapshot.py::test_snapshot_options_matrix (--skip-flush -> sf=true); only REST 'sf' parsing (api/storage_service.cc:2002) is uniquely end-to-end here. Fast (6.6s), real assertion (switch count ==). Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1165-1166), no-op filter. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent."
+      "reason": "Combined scylla tests cover both halves: test/boost/database_test.cc::snapshot_skip_flush_works (no flush, stronger on-disk check) + test/nodetool/test_snapshot.py::test_snapshot_options_matrix (--skip-flush -> sf=true); only REST 'sf' parsing (api/storage_service.cc:2002) is uniquely end-to-end here. Fast (6.6s), real assertion (switch count ==). Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1165-1166), no-op filter. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1149), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "snapshot_test.py:1165-1166",
+          "text": "Snapshot dir listing result ignored; _get_snapshot_dir_paths 'path.is_dir' without call is a no-op filter."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "snapshot_test.py:1143-1149",
+          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-21",

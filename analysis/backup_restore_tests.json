@@ -57,7 +57,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Logic mostly covered by boost database_test::clear_multiple_snapshots + nodetool/test_snapshot.py arg mapping + snapshot_test.py clears; only gap is cross-keyspace isolation of 'clearsnapshot -t X -- ks1' end-to-end. Cheap and stable; candidate for merge into snapshot_test.py."
+      "reason": "Logic mostly covered by boost database_test::clear_multiple_snapshots + nodetool/test_snapshot.py arg mapping + snapshot_test.py clears; only gap is cross-keyspace isolation of 'clearsnapshot -t X -- ks1' end-to-end. Cheap and stable; candidate for merge into snapshot_test.py.",
+      "issues": []
     },
     "TestBackupRestore::test_failure_durring_restore_no_corrupt_data": {
       "description": "Single node: insert data, snapshot ks.cf, drop ks, recreate with swapped values, drain, delete live sstables, copy snapshot into upload/, start 'nodetool refresh' and kill -9 the node a random 0-1s after 'Loading new SSTables' log line. Delete commitlogs, restart, refresh again and assert all original rows/values present. Guards crash-safety of refresh (upload dir processing) - no corruption, restore can be resumed.",
@@ -102,7 +103,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla or other dtest covers a node crash mid-refresh followed by restart + re-refresh; behavior (upload dir / refresh) is live on vnodes and tablets. Stable since 2020 deflake (376f010e7f)."
+      "reason": "No scylla or other dtest covers a node crash mid-refresh followed by restart + re-refresh; behavior (upload dir / refresh) is live on vnodes and tablets. Stable since 2020 deflake (376f010e7f).",
+      "issues": []
     },
     "TestBackupRestore::test_failure_durring_snapshot_no_corrupt_data": {
       "description": "Single node: insert 1000 rows, run 'nodetool snapshot' in a thread and kill -9 the node after a random 0-1s sleep (no log sync), restart, assert all rows/values readable. Intended to check a crash during snapshot does not corrupt live data. Snapshot directory itself is not checked.",
@@ -140,7 +142,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No direct duplicate, but assertion is weak: random 0-1s kill without sync (start_nodetool_and_kill_node with message=None) means the crash window is rarely hit, and only live data (not snapshot) is checked - mostly a commitlog-replay check. Keep only if strengthened (error injection mid-snapshot)."
+      "reason": "No direct duplicate, but assertion is weak: random 0-1s kill without sync (start_nodetool_and_kill_node with message=None) means the crash window is rarely hit, and only live data (not snapshot) is checked - mostly a commitlog-replay check. Keep only if strengthened (error injection mid-snapshot).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "backup_restore_tests.py start_nodetool_and_kill_node",
+          "text": "Random 0-1s kill with no sync point (message=None): crash window mid-snapshot rarely hit; effectively a commitlog-replay check."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "backup_restore_tests.py",
+          "text": "Snapshot directory itself is not checked, only live data."
+        }
+      ]
     },
     "TestBackupRestore::test_incremental_backup": {
       "description": "Single node smp=1, 'nodetool enablebackup', insert + flush; assert cf/backups/ contains exactly the flushed sstables; major compact; assert backups/ unchanged (compaction outputs not backed up). Guards incremental_backups semantics (scylla#1308: compacted sstables must not land in backups).",
@@ -183,7 +199,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only functional test of incremental backups found: no scylla test checks the backups/ dir (grep of test/ for incremental_backups/backups dir only hits config_test, mutation_test cfg=false, nodetool mock). Feature live, fast and stable."
+      "reason": "Only functional test of incremental backups found: no scylla test checks the backups/ dir (grep of test/ for incremental_backups/backups dir only hits config_test, mutation_test cfg=false, nodetool mock). Feature live, fast and stable.",
+      "issues": []
     },
     "TestBackupRestore::test_no_data_resurrection_or_loss_after_restore": {
       "description": "Single node: insert 10 rows, flush, ALTER DROP c2 + ADD c2, insert 10 more rows, flush. Stop node, copy sstables, save 'DESC KEYSPACE ks WITH INTERNALS'; drop ks, rmtree data, recreate schema from the description, assert re-described schema equals the original, copy sstables back offline and restart. Assert old rows have c2=null (no resurrection) and new rows keep c2 (no loss). Guards the documented backup procedure (DESC SCHEMA WITH INTERNALS emitting 'ALTER TABLE ... DROP c2 USING TIMESTAMP'), scylladb PR 18115.",
@@ -217,7 +234,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-full overlap with new scylla test_auto_snapshot_restore_table_with_dropped_and_readded_column + cqlpy test_desc_table_internals; remaining unique bit is the CQL DESC WITH INTERNALS -> re-execute round-trip of the documented backup procedure. Candidate RED if that is deemed covered by test_desc_table_internals."
+      "reason": "Near-full overlap with new scylla test_auto_snapshot_restore_table_with_dropped_and_readded_column + cqlpy test_desc_table_internals; remaining unique bit is the CQL DESC WITH INTERNALS -> re-execute round-trip of the documented backup procedure. Candidate RED if that is deemed covered by test_desc_table_internals.",
+      "issues": []
     },
     "TestBackupRestore::test_replay_restore_no_additional_data": {
       "description": "Single node: insert 1000 rows, snapshot, drop ks, recreate ks/cf (new table id), flush, copy snapshot to upload/, refresh, verify rows; refresh again and verify rows again. Intends to check a repeated refresh adds no extra data.",
@@ -261,7 +279,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Core flow (snapshot->drop->recreate->upload->refresh->verify) covered by scylla test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh] and dtest snapshot_test.py::test_basic_snapshot_and_restore_with_refresh (same next-dtest jobs); the 'second refresh adds nothing' check cannot fail by construction (same keys/timestamps, upload dir emptied per test_refresh_deletes_uploaded_sstables)."
+      "reason": "Core flow (snapshot->drop->recreate->upload->refresh->verify) covered by scylla test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh] and dtest snapshot_test.py::test_basic_snapshot_and_restore_with_refresh (same next-dtest jobs); the 'second refresh adds nothing' check cannot fail by construction (same keys/timestamps, upload dir emptied per test_refresh_deletes_uploaded_sstables).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "backup_restore_tests.py",
+          "text": "'Second refresh adds nothing' can't fail: upload/ emptied by first refresh, and same keys/timestamps would pass even if loaded twice."
+        }
+      ]
     },
     "TestBackupRestore::test_restore_snapshot_from_cassandra": {
       "description": "Single node smp=1: create ks.cf (key, c1 text, c2 text), copy pre-generated Cassandra 2.1 'ka' sstables (cassandra-sstables/restore-snapshot-from-cassandra, 1000 rows) into upload/, refresh, assert all 1000 rows/values. Guards loading Cassandra-format sstables via refresh.",
@@ -303,7 +329,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by migration_test.py::TestMigration/TestMigrationUpgradeSSTables (Cassandra 2.1 ka sstables into same c1/c2 schema via upload/ + refresh, plus 2.2/3.0 and many data variants; 100% pass). Only adds row count (1000 vs 1). Note: coverage moves from next_gating to dtest_full-only jobs; no scylla in-tree test loads ka via refresh."
+      "reason": "Fully covered by migration_test.py::TestMigration/TestMigrationUpgradeSSTables (Cassandra 2.1 ka sstables into same c1/c2 schema via upload/ + refresh, plus 2.2/3.0 and many data variants; 100% pass). Only adds row count (1000 vs 1). Note: coverage moves from next_gating to dtest_full-only jobs; no scylla in-tree test loads ka via refresh.",
+      "issues": []
     },
     "TestBackupRestore::test_restore_snapshot_using_different_smp_setting": {
       "description": "Single node with smp=1: insert, snapshot, drop ks; restart with smp=2, recreate ks/cf, copy snapshot to upload/, refresh, assert all rows/values. Guards refresh of sstables produced under a different shard count (resharding/shard distribution on load).",
@@ -346,7 +373,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Resharding and multi-shard refresh are covered piecemeal (boost sstable_directory_test reshard tests, test_refresh.py smp=2 test, dtest resharding_test.py), but no single test does snapshot at smp=1 -> refresh at smp=2 end-to-end. Cheap and stable."
+      "reason": "Resharding and multi-shard refresh are covered piecemeal (boost sstable_directory_test reshard tests, test_refresh.py smp=2 test, dtest resharding_test.py), but no single test does snapshot at smp=1 -> refresh at smp=2 end-to-end. Cheap and stable.",
+      "issues": []
     },
     "TestBackupRestore::test_restore_snapshot_using_old_token_ownership": {
       "description": "Single node: insert, snapshot; add node2 (token ownership changes), drop ks, recreate, copy node1's snapshot to upload/ and plain refresh on node1; only asserts 'SELECT COUNT(*) FROM ks.cf' executes (result not checked). Intends to check refresh of sstables containing ranges no longer owned by the node.",
@@ -386,7 +414,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Asserts nothing meaningful: only that SELECT COUNT(*) does not throw (result unchecked), so removal loses no real coverage. Also vnodes-only (skipped under tablets since 45967b0cde, dtest#5881). Proper multi-node restore with data checks lives in scylla test_refresh.py::test_refresh_with_streaming_scopes (load-and-stream, partial)."
+      "reason": "Asserts nothing meaningful: only that SELECT COUNT(*) does not throw (result unchecked), so removal loses no real coverage. Also vnodes-only (skipped under tablets since 45967b0cde, dtest#5881). Proper multi-node restore with data checks lives in scylla test_refresh.py::test_refresh_with_streaming_scopes (load-and-stream, partial).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "backup_restore_tests.py",
+          "text": "Only asserts SELECT COUNT(*) executes; result unchecked."
+        }
+      ]
     }
   }
 }

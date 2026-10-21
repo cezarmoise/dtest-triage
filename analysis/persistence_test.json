@@ -39,7 +39,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~10s, 100% pass) smoke test of write->graceful restart->read; this scenario is implicitly exercised by many restart tests but no scylla test is an exact match (closest test/cluster/test_commitlog.py::test_reboot, dev/debug only). Low unique value; keep only as a gating smoke test. Note: restart_cluster uses arbitrary time.sleep(0.5) (persistence_test.py:22,24)."
+      "reason": "Cheap (~10s, 100% pass) smoke test of write->graceful restart->read; this scenario is implicitly exercised by many restart tests but no scylla test is an exact match (closest test/cluster/test_commitlog.py::test_reboot, dev/debug only). Low unique value; keep only as a gating smoke test. Note: restart_cluster uses arbitrary time.sleep(0.5) (persistence_test.py:22,24).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "persistence_test.py:22,24",
+          "text": "restart_cluster uses arbitrary time.sleep(0.5)."
+        }
+      ]
     },
     "TestPersistence::test_persist_small_columns": {
       "description": "1-node cluster; cassandra-stress writes 5 rows with one 1-byte column (cl=ALL, RF=1), graceful cluster restart, then cassandra-stress reads the same 5 rows; passes if the c-s read does not fail. Part of the original persistence suite for scylladb#1581; helper stress_with_col_size is parameterized but only size=1 is ever used.",
@@ -71,7 +79,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with test_persist_simple in the same file (same write->restart->read scenario, stronger assertion), while being ~3x slower (27s vs 10s) and depending on cassandra-stress. Note: stress_with_col_size helper only ever called with size=1 (persistence_test.py:36-41,75); the assertion is only implicit (c-s read not erroring)."
+      "reason": "Redundant with test_persist_simple in the same file (same write->restart->read scenario, stronger assertion), while being ~3x slower (27s vs 10s) and depending on cassandra-stress. Note: stress_with_col_size helper only ever called with size=1 (persistence_test.py:36-41,75); the assertion is only implicit (c-s read not erroring).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "persistence_test.py:36-41,75",
+          "text": "stress_with_col_size helper parameterized but only ever called with size=1."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "persistence_test.py:75",
+          "text": "Assertion only implicit: c-s read not erroring."
+        }
+      ]
     },
     "TestPersistence::test_data_persistence_of_map_with_empty_keys": {
       "description": "Regression for scylla-enterprise#909 (2019.1: map cell with empty-string key lost after flush+compact, visible only after restart since the read came from cache). Creates table with map<text,text>, inserts {'': ts}, reads row (memtable), nodetool flush + compact, restarts the cluster, re-reads and asserts the row equals the pre-restart row (now served from sstable).",
@@ -110,7 +132,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No scylla test covers empty map key through flush/compact/sstable read, but the original bug (scylla-enterprise#909) was in the removed ka/la writer and could be replaced by a cqlpy test (map {'':x}, nodetool.flush, compaction, SELECT BYPASS CACHE) instead of an 11s cluster restart. Note: docstring says keyspace 'ks' but code uses 'keyspace1'; last_seen column unused; origin commit 3ba85292 has an unrelated subject."
+      "reason": "No scylla test covers empty map key through flush/compact/sstable read, but the original bug (scylla-enterprise#909) was in the removed ka/la writer and could be replaced by a cqlpy test (map {'':x}, nodetool.flush, compaction, SELECT BYPASS CACHE) instead of an 11s cluster restart. Note: docstring says keyspace 'ks' but code uses 'keyspace1'; last_seen column unused; origin commit 3ba85292 has an unrelated subject.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "persistence_test.py",
+          "text": "Docstring says keyspace 'ks' but code uses 'keyspace1'."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "persistence_test.py",
+          "text": "last_seen column unused."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

@@ -52,7 +52,15 @@
         "9c8eb9ea44": "origin: added replace active/nonexistent node tests (Cassandra dtest).",
         "370396d247": "class added to next_gating.",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo param irrelevant (fails before streaming); both param ids run the identical scenario."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_nonexistent_node": {
       "description": "3-node cluster; start node4 with replace_node_host_id=random uuid; assert node4 logs 'Replaced node with Host ID <id> not found' and exits (check_not_running). Guards validation of the replace target host id.",
@@ -64,8 +72,8 @@
       },
       "relevance": "Live: service/storage_service.cc:2497 throws 'Replaced node with Host ID {} not found'.",
       "duplicates": [],
-      "decision": "YELLOW",
-      "reason": "No scylla test found for replacing an unknown host id (test/cluster grep: none; pylib itself refuses unknown ids, test/pylib/scylla_cluster.py:171). Cheap (14s), unique. Note: rbo param irrelevant (fails before streaming) so both param ids are identical runs; otherwise GREEN.",
+      "decision": "GREEN",
+      "reason": "No scylla test found for replacing an unknown host id (test/cluster grep: none; pylib itself refuses unknown ids, test/pylib/scylla_cluster.py:171). Cheap (14s), unique. Note: rbo param irrelevant (fails before streaming) so both param ids are identical runs.",
       "commits": {
         "45e0149c79": "replace via replace_node_host_id only (drop deprecated replace_address[_first_boot] / use_host_id param).",
         "9ffd273f04": "formatting",
@@ -94,7 +102,15 @@
         "9c8eb9ea44": "origin: added replace active/nonexistent node tests (Cassandra dtest).",
         "370396d247": "class added to next_gating.",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo param irrelevant (fails before streaming); both param ids run the identical scenario."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_first_boot": {
       "description": "3-rack cluster, c-s write n=10000 RF=3, read LIMIT 1 at CL=THREE; stop node3, CL=THREE read must fail; replace with node4 (replace_node_host_id); same read returns same row; node4 owns node3's tokens, node3 owns none; restart node3 -> must not run (check_not_running); restart node4 (without replace option) -> data and tokens unchanged. Name refers to the old replace_address_first_boot option (CASSANDRA-7356), which the test no longer uses.",
@@ -168,7 +184,15 @@
         "01d097e67a": "origin of replace_first_boot_test: replace with replace_address_first_boot then restart replacing node (Cassandra dtest, CASSANDRA-7356).",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper.",
         "370396d247": "class added to next_gating."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "45e0149c79",
+          "text": "Name refers to replace_address_first_boot, no longer used; purpose obsolete."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_no_hibernate_state": {
       "description": "3 nodes ({r1:2,r2:1}), c-s RF=2; stop node2; start node4 replacing node2 (no_wait) and stop it immediately; assert gossipinfo has no 'STATUS:hibernate,true'; replace node2 with node5; assert no hibernate, node4 IP not in gossip, CL=ALL read returns same row, node5 has node2's tokens, system.peers == [(node3,256),(node5,256)]. Guards scylla#5449 (failed replacing node stays in gossip).",
@@ -218,7 +242,27 @@
         "99e1d68019": "origin: interrupted replace must not leave HIBERNATE status; retry replace (scylla#5449).",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper.",
         "370396d247": "class added to next_gating."
-      }
+      },
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "replace_address_test.py:503,515",
+          "text": "'STATUS:hibernate,true' asserts can't fail since HIBERNATE gossip status was removed (scylla 15a34f650d)."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "node4 stopped right after no_wait start; how far the first replace gets is timing-dependent."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "https://github.com/scylladb/scylladb/issues/21718",
+          "text": "skip_if references scylladb#21718, closed 2025-04-24."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_diff_ip": {
       "description": "5 nodes ({r1:2,r2:2,r3:1}), ks RF=3, insert 1000 keys at CL=ALL; stop node5; replace with node6 (new IP, same rack); wait on all nodes for 'gossip - Finished to force remove node <node5>'; assert node6 has node5's tokens (nodetool ring, ks/cf with tablets) and node5 owns none.",
@@ -247,7 +291,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (93s) and redundant: diff-IP replace + token check is done by test_replace_stopped_node/test_replace_shutdown_node in this file and test/cluster/test_replace.py::test_replace_different_ip*. Bug: rbo_status param is ignored (test calls cluster.populate directly, not init_cluster), so both param ids are identical runs; inserted data is never read back.",
+      "reason": "Slow (93s) and redundant: diff-IP replace + token check is done by test_replace_stopped_node/test_replace_shutdown_node in this file and test/cluster/test_replace.py::test_replace_different_ip*. Note: rbo_status param is ignored (test calls cluster.populate directly, not init_cluster), so both param ids are identical runs; inserted data is never read back.",
       "commits": {
         "8a0b5006fc": "3-rack layout {r1:2,r2:2,r3:1}; replacing node in replaced node's rack.",
         "d12cf3fe44": "dropped gossip-topology branch; expected log/messages now raft-only.",
@@ -268,7 +312,21 @@
         "1adf93d5ce": "unskipped diff_ip and take_write tests with tablets (DTEST-307).",
         "370396d247": "class added to next_gating.",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo_status param ignored (cluster.populate, not init_cluster); both param ids are identical runs."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Inserted data never read back; only tokens checked."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_same_ip": {
       "description": "5 nodes ({r1:2,r2:2,r3:1}), ks RF=3, 1000 keys at CL=ALL; stop node5, clear its data, restart it with replace_node_host_id=<own host id> (same IP). Only asserts that the replace start succeeds (wait_for_binary_proto); no data/token checks.",
@@ -302,7 +360,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cluster/test_replace.py::test_replace_reuse_ip(_using_host_id) and test_replace_with_same_ip_twice.py, which assert more. Bug: no assertions beyond startup; rbo_status param ignored (no init_cluster), so both param ids are identical 93s runs.",
+      "reason": "Fully covered by test/cluster/test_replace.py::test_replace_reuse_ip(_using_host_id) and test_replace_with_same_ip_twice.py, which assert more. Note: no assertions beyond startup; rbo_status param ignored (no init_cluster), so both param ids are identical 93s runs.",
       "commits": {
         "c3d9db24d6": "closed_error ignore regex accepts both exception formats.",
         "056f5dc7a8": "formatting",
@@ -316,7 +374,21 @@
         "b2c72281d5": "origin (Asias He): added diff_ip / same_ip / *_take_write replace tests.",
         "370396d247": "class added to next_gating.",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "No assertions beyond replace startup (wait_for_binary_proto); no data/token checks."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo_status param ignored (cluster.populate, not init_cluster); both param ids are identical runs."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_diff_ip_take_write": {
       "description": "5 nodes ({r1:2,r2:2,r3:1}), stream_io_throughput_mb_per_sec=8, 30MB at CL=ALL; stop node5; replace with node6 (new IP); once sync starts ('raft_topology - start streaming', or tablet rebuild start with tablets) run a QUORUM writer; compare node6 scylla_database_total_writes at sync start/done; assert >=1 round completed and node6 got >= rounds*100 writes; wait for force-remove log. Guards that a replacing node (pending replica) takes writes during data sync.",
@@ -340,7 +412,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test_serve_writes_during_bootstrap (same file, diff-IP, stronger data check). Bug: rbo_status param ignored (populate, not init_cluster) -> duplicated 98s runs. Note: get_node_metrics (tools/metrics.py:19) matches by re.search, so 'scylla_database_total_writes' also sums *_failed/_timedout/_rate_limited counters and system-keyspace writes, weakening the per-round assert. No other dtest (repair_based_node_operations_test, cluster_replacement_test, update_cluster_layout_tests) checks the replacer receives writes during sync.",
+      "reason": "Partial overlap with test_serve_writes_during_bootstrap (same file, diff-IP, stronger data check). Note: rbo_status param ignored (populate, not init_cluster) -> duplicated 98s runs. Note: get_node_metrics (tools/metrics.py:19) matches by re.search, so 'scylla_database_total_writes' also sums *_failed/_timedout/_rate_limited counters and system-keyspace writes, weakening the per-round assert. No other dtest (repair_based_node_operations_test, cluster_replacement_test, update_cluster_layout_tests) checks the replacer receives writes during sync.",
       "commits": {
         "5c341abfcb": "with tablets measure writes between tablet-rebuild start/done logs (old 'Tablet rebuild ... succeeded' log gone).",
         "8a0b5006fc": "3-rack layout {r1:2,r2:2,r3:1}; replacing node in replaced node's rack.",
@@ -367,7 +439,21 @@
         "3a555509a9": "removed closed issue marks; left bare skip_if(with_feature('tablets')) on diff_ip/take_write tests.",
         "1adf93d5ce": "unskipped diff_ip and take_write tests with tablets (DTEST-307).",
         "370396d247": "class added to next_gating."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo_status param ignored (cluster.populate, not init_cluster); both param ids are identical runs."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/metrics.py:19",
+          "text": "get_node_metrics re.search also sums total_writes_failed/_timedout/... and system writes, loosening the per-round assert."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_same_ip_take_write": {
       "description": "Same as diff_ip_take_write but node5 is cleared and restarted as its own replacement (same IP, replace_node_host_id=own id); QUORUM writer during sync, assert node5's total_writes grows by >= rounds*100 between sync start/done logs.",
@@ -391,7 +477,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test/cluster/test_replace.py::test_replace_reuse_ip (same-IP writes during replace, data checked). Bug: rbo_status param ignored (no init_cluster) -> duplicated 106s runs. Note: get_node_metrics (tools/metrics.py:19) substring match also counts total_writes_failed/_timedout/... and system writes. No other dtest (repair_based_node_operations_test, cluster_replacement_test, update_cluster_layout_tests) checks the replacer receives writes during sync.",
+      "reason": "Partial overlap with test/cluster/test_replace.py::test_replace_reuse_ip (same-IP writes during replace, data checked). Note: rbo_status param ignored (no init_cluster) -> duplicated 106s runs. Note: get_node_metrics (tools/metrics.py:19) substring match also counts total_writes_failed/_timedout/... and system writes. No other dtest (repair_based_node_operations_test, cluster_replacement_test, update_cluster_layout_tests) checks the replacer receives writes during sync.",
       "commits": {
         "5c341abfcb": "with tablets measure writes between tablet-rebuild start/done logs (old 'Tablet rebuild ... succeeded' log gone).",
         "8a0b5006fc": "3-rack layout {r1:2,r2:2,r3:1}; replacing node in replaced node's rack.",
@@ -417,7 +503,21 @@
         "3a555509a9": "removed closed issue marks; left bare skip_if(with_feature('tablets')) on diff_ip/take_write tests.",
         "1adf93d5ce": "unskipped diff_ip and take_write tests with tablets (DTEST-307).",
         "370396d247": "class added to next_gating."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "rbo_status param ignored (cluster.populate, not init_cluster); both param ids are identical runs."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/metrics.py:19",
+          "text": "get_node_metrics re.search also sums total_writes_failed/_timedout/... and system writes, loosening the per-round assert."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_using_the_same_ip_then_shut_down": {
       "description": "3 nodes (2 racks + non-seed node3 in r3); kill node3; node4 replaces it with node3's IP (replace_node_host_id); after node4 is NORMAL start a 1-2 min QUORUM c-s write (RF=3) and immediately kill node4; assert c-s succeeds. Regression for scylla-enterprise#2852 (writes failed after the node that replaced another went down).",
@@ -440,7 +540,7 @@
           "note": "background writes across replace + later stop of another node."
         }
       ],
-      "decision": "YELLOW",
+      "decision": "GREEN",
       "reason": "Unique regression coverage for scylla-enterprise#2852, no direct scylla equivalent. Note: since 2da97c0434 c-s starts only after replacement completes and node4 is killed right away (c-s docker startup can take ~60s), so writes run mostly with node4 already down; raft::transport_error ignore is appended after the test body (replace_address_test.py:173) and refs closed scylladb#15713.",
       "commits": {
         "2da97c0434": "start the 1-2 min c-s AFTER node4 is NORMAL, then kill node4 (SCYLLADB-2753 deflake); drop unmark next_gating.",
@@ -452,7 +552,21 @@
         "370396d247": "class added to next_gating.",
         "1ca3a28b01": "class parametrized by rbo_status (rbo_enabled/rbo_disabled); get_node_metrics helper.",
         "ea8943561e": "adjust stress duration for debug mode."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "2da97c0434",
+          "text": "c-s starts only after replace completes and node4 is killed right away, so writes run mostly with node4 already down."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "replace_address_test.py:173",
+          "text": "raft::transport_error ignore (appended after body, active at teardown) cites closed #15713; error still logged at ERROR (raft/server.cc:1732), inertness unverified."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_node_using_new_ip_then_shut_down": {
       "description": "Same as the same-IP variant but node4 uses a new IP: kill node3, replace with node4, start QUORUM c-s write after node4 is NORMAL, kill node4, assert c-s succeeds. Variant for scylla-enterprise#2852 (seen in SCT TerminateAndReplaceNode).",
@@ -484,7 +598,21 @@
         "ea8943561e": "adjust stress duration for debug mode.",
         "2da97c0434": "start the 1-2 min c-s AFTER node4 is NORMAL, then kill node4 (SCYLLADB-2753 deflake); drop unmark next_gating.",
         "db8781c9e8": "unmark next_gating (scylladb#15918)."
-      }
+      },
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "2da97c0434",
+          "text": "c-s starts only after replace completes and node4 is killed immediately; effectively QUORUM writes with one replica down."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "https://github.com/scylladb/scylladb/issues/15918",
+          "text": "References scylladb#15918 (c-s timeout), closed."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_stopped_node": {
       "description": "3 nodes in 3 racks, c-s writes 10k rows RF=3, node3 killed (gently=False); CL=THREE read must fail; node4 (same rack) replaces node3 by host id. Asserts a CL=THREE LIMIT 1 read returns the same row as before, node4 owns exactly node3's tokens (nodetool ring), node3 owns none, and after restarting old node3 it is absent from nodetool status on the other nodes. Guards basic dead-node replace; flaky history scylladb#15786.",
@@ -545,7 +673,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Canonical kill+replace dtest (gating, 59s, 100% pass), partially overlapped by test/cluster/test_replace.py::test_replace_different_ip* (no data/token check there). Keep one of stopped/shutdown pair. Bug: 'verifying that it is not listening' check (replace_address_test.py:161-167) is weak: wait_for(node3.hostid() is not None) returns immediately since hostid() is cached (scylla-ccm ccmlib/scylla_node.py:1569), so nodetool status is read right after node3 is launched; absence from status holds after replace regardless of node3 being rejected. Note: data check is a single row (LIMIT 1, :123,:145)."
+      "reason": "Canonical kill+replace dtest (gating, 59s, 100% pass), partially overlapped by test/cluster/test_replace.py::test_replace_different_ip* (no data/token check there). Keep one of stopped/shutdown pair. Bug: 'verifying that it is not listening' check (replace_address_test.py:161-167) is weak: wait_for(node3.hostid() is not None) returns immediately since hostid() is cached (scylla-ccm ccmlib/scylla_node.py:1569), so nodetool status is read right after node3 is launched; absence from status holds after replace regardless of node3 being rejected. Note: data check is a single row (LIMIT 1, :123,:145).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "replace_address_test.py:161-167",
+          "text": "'not listening' check: wait_for(hostid()) returns at once (cached), status read right after launch; absence holds regardless of rejection."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "replace_address_test.py:123,145",
+          "text": "Data check is a single row (LIMIT 1)."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "https://github.com/scylladb/scylladb/issues/15786",
+          "text": "unmark_if cites scylladb#15786, closed 2025-01-23."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_shutdown_node": {
       "description": "Same as test_replace_stopped_node (_replace_node_test, replace_address_test.py:111) but node3 is stopped gracefully (gently=True). Origin CASSANDRA-9871 (replace of a gracefully shut-down node, whose gossip status is 'shutdown'). Asserts CL=THREE read fails while down, same LIMIT 1 row after replace, token ownership moved to node4, node3 absent from status after restart.",
@@ -573,7 +721,7 @@
         "129c4b308710c302a648ba834ecd62ea61400594": "re-enable in gating via unmark_if(issue_open(#15602)) (issue closed 2024-04-16)",
         "e0f1a55fba708c3c47ac56da1c241caebd083e28": "ungate (unmark next_gating) due to flaky scylladb#15602"
       },
-      "relevance": "Live (replace via raft topology). Graceful shutdown \u2192 node is 'shutdown' in gossip; in raft topology the replace path is the same as for a killed node. rbo param effective (init_cluster); in tablets job keyspace1 is tablets so rbo only affects vnode system keyspaces. scylladb#15602 closed 2024-04-16 so unmark_if is dead.",
+      "relevance": "Live (replace via raft topology). Graceful shutdown → node is 'shutdown' in gossip; in raft topology the replace path is the same as for a killed node. rbo param effective (init_cluster); in tablets job keyspace1 is tablets so rbo only affects vnode system keyspaces. scylladb#15602 closed 2024-04-16 so unmark_if is dead.",
       "duplicates": [
         {
           "path": "test/cluster/test_replace.py::test_replace_different_ip",
@@ -602,7 +750,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Same body as test_replace_stopped_node, only gently differs; graceful-stop replace also in test/cluster/test_replace.py::test_replace_reuse_ip and test_topology_ops.py. Keep one of the pair. Bug: 'verifying that it is not listening' check (replace_address_test.py:161-167) is weak: wait_for(node3.hostid() is not None) returns immediately since hostid() is cached (scylla-ccm ccmlib/scylla_node.py:1569), so nodetool status is read right after node3 is launched; absence from status holds after replace regardless of node3 being rejected. Note: data check is a single row (LIMIT 1, :123,:145)."
+      "reason": "Same body as test_replace_stopped_node, only gently differs; graceful-stop replace also in test/cluster/test_replace.py::test_replace_reuse_ip and test_topology_ops.py. Keep one of the pair. Bug: 'verifying that it is not listening' check (replace_address_test.py:161-167) is weak: wait_for(node3.hostid() is not None) returns immediately since hostid() is cached (scylla-ccm ccmlib/scylla_node.py:1569), so nodetool status is read right after node3 is launched; absence from status holds after replace regardless of node3 being rejected. Note: data check is a single row (LIMIT 1, :123,:145).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "replace_address_test.py:161-167",
+          "text": "'not listening' check: wait_for(hostid()) returns at once (cached), status read right after launch; absence holds regardless of rejection."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "replace_address_test.py:123,145",
+          "text": "Data check is a single row (LIMIT 1)."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "https://github.com/scylladb/scylladb/issues/15602",
+          "text": "unmark_if cites scylladb#15602, closed 2024-04-16."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_stopped_node_with_schema_rf_1": {
       "description": "3-node cluster, c-s writes 10k rows into an RF=1 keyspace, node3 killed and replaced by node4 (host id). With rbo disabled waits for the range_streamer WARN 'Unable to find sufficient sources to stream range ... RF = 1 for replace operation'; asserts node4 took node3's tokens, node3 owns none, node4 is live. Regression for scylladb#6351 (replace aborted with 'unable to find sufficient sources' when RF=1 keyspace exists).",
@@ -619,7 +787,7 @@
         "5f0e535375e6678aed87f687b0083bf3020e2cee": "origin: replace_stopped_node_with_schema_rf_1_test + replace_node_with_schema_rf_1 helper",
         "e5b290e02b3bf5063e3acd57485396f25c5d933f": "init_cluster with enable_repair_based_node_ops param (rbo_enabled/disabled) used by this test"
       },
-      "relevance": "Live: dht/range_streamer.cc:66-72 logs the WARN (instead of throwing) for stream_reason::replace with RF=1 (scylla 81f0260816, scylladb#6351). rbo param effective (init_cluster; rbo_disabled \u2192 boot_strapper/range_streamer, storage_service.cc:5348). Single rack (init_cluster(num_nodes=3)), RF=1 is rack-valid. Note: c-s keyspace1 is NTS (cassandra-stress default) \u2192 tablets in next-dtest-tablets, where tablet rebuild doesn't use range_streamer; source of the WARN there not verified. Runs only in next-dtest-* jobs.",
+      "relevance": "Live: dht/range_streamer.cc:66-72 logs the WARN (instead of throwing) for stream_reason::replace with RF=1 (scylla 81f0260816, scylladb#6351). rbo param effective (init_cluster; rbo_disabled → boot_strapper/range_streamer, storage_service.cc:5348). Single rack (init_cluster(num_nodes=3)), RF=1 is rack-valid. Note: c-s keyspace1 is NTS (cassandra-stress default) → tablets in next-dtest-tablets, where tablet rebuild doesn't use range_streamer; source of the WARN there not verified. Runs only in next-dtest-* jobs.",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets_removenode.py::test_replace",
@@ -648,7 +816,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No scylla test for the vnode RF=1 replace path (range_streamer.cc:70 WARN); tablets case partly in test/cluster/test_tablets_removenode.py::test_replace. Note: node4.is_live() assert (replace_address_test.py:673) is trivial after wait_for_binary_proto; rbo_enabled branch only logs (no RF=1 check); data loss not checked (expected). Cheap (70s)."
+      "reason": "No scylla test for the vnode RF=1 replace path (range_streamer.cc:70 WARN); tablets case partly in test/cluster/test_tablets_removenode.py::test_replace. Note: node4.is_live() assert (replace_address_test.py:673) is trivial after wait_for_binary_proto; rbo_enabled branch only logs (no RF=1 check); data loss not checked (expected). Cheap (70s).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "replace_address_test.py:673",
+          "text": "node4.is_live() assert trivial after wait_for_binary_proto."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "replace_address_test.py:647",
+          "text": "rbo_enabled branch only logs, no RF=1-specific check."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_shutdown_node_with_schema_rf_1": {
       "description": "Same as test_replace_stopped_node_with_schema_rf_1 (replace_node_with_schema_rf_1, replace_address_test.py:647) but node3 stopped gracefully. RF=1 c-s keyspace, replace node3, rbo_disabled expects the RF=1 range_streamer WARN, tokens moved, node4 live. scylladb#6351.",
@@ -665,7 +847,7 @@
         "5f0e535375e6678aed87f687b0083bf3020e2cee": "origin: replace_shutdown_node_with_schema_rf_1_test",
         "e5b290e02b3bf5063e3acd57485396f25c5d933f": "init_cluster with enable_repair_based_node_ops param (rbo_enabled/disabled) used by this test"
       },
-      "relevance": "Live: dht/range_streamer.cc:66-72 logs the WARN (instead of throwing) for stream_reason::replace with RF=1 (scylla 81f0260816, scylladb#6351). rbo param effective (init_cluster; rbo_disabled \u2192 boot_strapper/range_streamer, storage_service.cc:5348). Single rack (init_cluster(num_nodes=3)), RF=1 is rack-valid. Note: c-s keyspace1 is NTS (cassandra-stress default) \u2192 tablets in next-dtest-tablets, where tablet rebuild doesn't use range_streamer; source of the WARN there not verified. Runs only in next-dtest-* jobs.",
+      "relevance": "Live: dht/range_streamer.cc:66-72 logs the WARN (instead of throwing) for stream_reason::replace with RF=1 (scylla 81f0260816, scylladb#6351). rbo param effective (init_cluster; rbo_disabled → boot_strapper/range_streamer, storage_service.cc:5348). Single rack (init_cluster(num_nodes=3)), RF=1 is rack-valid. Note: c-s keyspace1 is NTS (cassandra-stress default) → tablets in next-dtest-tablets, where tablet rebuild doesn't use range_streamer; source of the WARN there not verified. Runs only in next-dtest-* jobs.",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets_removenode.py::test_replace",
@@ -694,7 +876,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Duplicate of the stopped variant except gently=True; the RF=1 range_streamer path (range_streamer.cc:66-72) is independent of shutdown mode, so a candidate to drop keeping the stopped one. Note: node4.is_live() assert trivial; rbo_enabled branch asserts nothing RF=1 specific."
+      "reason": "Duplicate of the stopped variant except gently=True; the RF=1 range_streamer path (range_streamer.cc:66-72) is independent of shutdown mode, so a candidate to drop keeping the stopped one. Note: node4.is_live() assert trivial; rbo_enabled branch asserts nothing RF=1 specific.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "replace_address_test.py:673",
+          "text": "node4.is_live() assert trivial after wait_for_binary_proto."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "replace_address_test.py:647",
+          "text": "rbo_enabled branch only logs, no RF=1-specific check."
+        }
+      ]
     },
     "TestReplaceAddress::test_replace_with_background_workload": {
       "description": "4 nodes (r3 has 2), c-s QUORUM background writes (NTS RF=3, whitelisted surviving nodes) run while node3 is killed and replaced by node5; stress keeps re-running until 30s after replace. Asserts c-s exits 0 (run_stress raises ToolError, tools/stress.py:195-201) and that no node log contains 'unknown endpoint'. Meant to reproduce scylladb#4705 (gossip 'unknown endpoint' spam about the replaced node).",
@@ -705,7 +901,7 @@
         "summary": "add replace_with_background_workload_test for scylladb#4705 (PR body: 'can't be reproduced with scylla master')"
       },
       "commits": {
-        "c4259206f128222e365391a6e3cef79aa2cdb7c7": "raise wait-for-first-row timeout 60\u2192120s (c-s docker startup)",
+        "c4259206f128222e365391a6e3cef79aa2cdb7c7": "raise wait-for-first-row timeout 60→120s (c-s docker startup)",
         "009f481ec612e07d29ba63c0db609086e1985092": "c-s -node whitelist of surviving nodes (java-driver#920 hang)",
         "6cc13c6b3bac9ada7a852d0dffb178fa84b0b9fc": "pre-create keyspace1 via create_stress_compatible_table (NTS RF=3); wait for first row instead of keyspace",
         "2905bca74394d4b4a1be0ab73b928a3e1bfd40ad": "run_stress helper with c-s timeout=duration+60 to dump stack if stuck",
@@ -713,7 +909,7 @@
         "fadc612ebf29ad8ebd6ce12b892bcdcdc09fee13": "3-rack topology, replacing node in r3 (rf-rack-valid)",
         "45e0149c792f57c4ed8d3f9025622e94d0acb784": "replace via replace_node_host_id only",
         "cba3131e64d47095f68f9376ca2d865340df540c": "unmark_if next_gating while scylladb#19645 open (closed 2026-03-26)",
-        "3e2457d856919c3fed724b8a5d01b5903727a76c": "stress_to_log \u2192 node1.stress (c-s in docker)",
+        "3e2457d856919c3fed724b8a5d01b5903727a76c": "stress_to_log → node1.stress (c-s in docker)",
         "549e7fac6fc25d0a37e184e579803f7c13863f7d": "loop re-running stress until 30s after replace; drop explicit '>30s' assert",
         "4fede3a000700d01898547b878fb407f683ebfb3": "enable for raft topology: kill + wait_other_notice, failure_detector_timeout_in_ms=5000",
         "5556e9b3ac9090686414628c77afc6b87196fc94": "wait for keyspace creation instead of sleep(5)",
@@ -727,7 +923,7 @@
         "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
         "5151eadc73062375f51a182380441a028227d316": "origin"
       },
-      "relevance": "Replace under write load is live. But the asserted log line is gone: gossiper 'unknown endpoint {}' warn was removed in scylla 8a92a1c699 (2023-07-12, gossiper::is_alive); only remaining match is storage_service.cc:1876 at debug level (not enabled here) and a REST reply string (api/failure_detector.cc:103). scylladb#4705 closed 2021. keyspace1 is NTS \u2192 tablets in next-dtest-tablets (rbo param then affects only vnode system keyspaces).",
+      "relevance": "Replace under write load is live. But the asserted log line is gone: gossiper 'unknown endpoint {}' warn was removed in scylla 8a92a1c699 (2023-07-12, gossiper::is_alive); only remaining match is storage_service.cc:1876 at debug level (not enabled here) and a REST reply string (api/failure_detector.cc:103). scylladb#4705 closed 2021. keyspace1 is NTS → tablets in next-dtest-tablets (rbo param then affects only vnode system keyspaces).",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_ops.py::test_topology_ops",
@@ -751,7 +947,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: the 'unknown endpoint' assert (replace_address_test.py:626-629) can't fail since scylla 8a92a1c699 removed that warn; only c-s success remains, covered by test/cluster/test_topology_ops.py and test_replace.py::test_replace_reuse_ip. Slow (130s) with a long flakiness/fix history (scylladb#19645, 7 fixes 2024-2026). Note: enable_nodetool_debug=False (:564) makes nodetool_thread dead code."
+      "reason": "Bug: the 'unknown endpoint' assert (replace_address_test.py:626-629) can't fail since scylla 8a92a1c699 removed that warn; only c-s success remains, covered by test/cluster/test_topology_ops.py and test_replace.py::test_replace_reuse_ip. Slow (130s) with a long flakiness/fix history (scylladb#19645, 7 fixes 2024-2026). Note: enable_nodetool_debug=False (:564) makes nodetool_thread dead code.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "replace_address_test.py:626-629",
+          "text": "'unknown endpoint' log assert can't fail since scylla 8a92a1c699 removed that warn."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "replace_address_test.py:564",
+          "text": "enable_nodetool_debug=False makes nodetool_thread dead code."
+        }
+      ]
     },
     "TestReplaceAddress::test_serve_writes_during_bootstrap": {
       "description": "3 nodes in 3 racks, RF=3 table with 150k rows (15k in debug), flushed; node3 stopped, node4 (same rack) replaces it with no_wait. Once streaming/repair (vnodes) or the tablet rebuild wait (tablets) starts, 1000 more rows are written and counted at QUORUM. After replace: node4 owns node3's tokens (ring per ks/table with tablets), node3 none; then nodes 1,2 are stopped and node4 alone must return all rows with exact content (assert_all, :331). Guards that a replacing node receives writes during streaming (no repair needed after replace).",
@@ -783,7 +993,7 @@
         "5be2ab3a22a5e2029bc0216bfd0f0fe5bbbff3eb": "formatting (port to pytest)",
         "e5b290e02b3bf5063e3acd57485396f25c5d933f": "use init_cluster (rbo param)",
         "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting",
-        "e8da106fb7bf8d5cb607f5da9e52a9e6df2e4bed": "token check: >= \u2192 ==",
+        "e8da106fb7bf8d5cb607f5da9e52a9e6df2e4bed": "token check: >= → ==",
         "1963da2c550e74e0861c748accbf58f8db6b47ab": "fix token check via get_sorted_tokens",
         "b12db35a77d4e569634ffce1aeb7031816c136a7": "origin"
       },
@@ -806,7 +1016,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test verifying writes issued during replace streaming are present on the replacing node alone (nodes 1,2 down, assert_all at replace_address_test.py:331), for vnodes and tablets; scylla test_replace.py::test_replace_reuse_ip reads at QUORUM only. Recently maintained for tablets (PR 7483), 100% pass."
+      "reason": "Only test verifying writes issued during replace streaming are present on the replacing node alone (nodes 1,2 down, assert_all at replace_address_test.py:331), for vnodes and tablets; scylla test_replace.py::test_replace_reuse_ip reads at QUORUM only. Recently maintained for tablets (PR 7483), 100% pass.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "With tablets the trigger also accepts the 'have been rebuilt' message, so extra writes may land after rebuild finished."
+        }
+      ]
     },
     "TestReplaceAddress::test_shutdown_all_and_replace_node": {
       "description": "3 nodes, all stopped, nodes 1,2 restarted, node4 replaces dead node3 by host id. Only asserts that node4 starts (no data/token checks). Regression for scylladb#4325 ('Cannot replace token x which does not exist': after full restart, gossip lost node3's STATUS so the replacing node had no token info).",
@@ -839,7 +1057,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Original scylladb#4325 mechanism is gossip-topology-only (removed: scylla ed52d1a292, d35b83bec8); scenario covered with stronger checks by repair_based_node_operations_test.py::test_replace_node_after_cluster_restart. Note: no assertions beyond node4 startup (replace_address_test.py:333-344), no data written."
+      "reason": "Original scylladb#4325 mechanism is gossip-topology-only (removed: scylla ed52d1a292, d35b83bec8); scenario covered with stronger checks by repair_based_node_operations_test.py::test_replace_node_after_cluster_restart. Note: no assertions beyond node4 startup (replace_address_test.py:333-344), no data written.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "replace_address_test.py:333-344",
+          "text": "No assertions beyond node4 startup; no data written."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

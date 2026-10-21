@@ -36,7 +36,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Trivial scenario; output string covered by test/nodetool/test_snapshot.py::test_listsnapshots_no_snapshots (mock) and empty listing on fresh node by nodetool_additional_test.py::TestNodetool::test_global_snapshot. Only gap is real server returning [] on a fresh node; RED candidate. Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored."
+      "reason": "Trivial scenario; output string covered by test/nodetool/test_snapshot.py::test_listsnapshots_no_snapshots (mock) and empty listing on fresh node by nodetool_additional_test.py::TestNodetool::test_global_snapshot. Only gap is real server returning [] on a fresh node; RED candidate. Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "listsnapshots_test.py:201",
+          "text": "Helper size comparison passes vacuously on zero parsed rows; irrelevant here (no snapshots expected, output string checked)"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "listsnapshots_test.py:173",
+          "text": "True size column and 'Total TrueDiskSpaceUsed' are parsed but ignored"
+        }
+      ]
     },
     "TestNodetoolListSnapshots::test_one_ks_one_snapshot": {
       "description": "Creates my_ks.my_cf with 1 row, takes table-level snapshot (`nodetool snapshot my_ks -cf my_cf`), runs listsnapshots and checks each listed 'Size on disk' lies between logical and allocated size of the snapshot's sstable files on disk. Guards scylladb/scylladb#3572 (listsnapshots broken) and #9898 (size accounting).",
@@ -76,7 +90,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only end-to-end check of listsnapshots size accuracy vs filesystem; scylla tests (rest_api, boost, mocked nodetool) only check zero/non-zero sizes or formatting. Would be GREEN but: Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored."
+      "reason": "Only end-to-end check of listsnapshots size accuracy vs filesystem; scylla tests (rest_api, boost, mocked nodetool) only check zero/non-zero sizes or formatting. Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "listsnapshots_test.py:201",
+          "text": "compare_filesize_and_output never checks row count or expected ks/cf/snapshot; all([]) is True, passes vacuously if the regex stops matching"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "listsnapshots_test.py:173",
+          "text": "True size column and 'Total TrueDiskSpaceUsed' are parsed but ignored"
+        }
+      ]
     },
     "TestNodetoolListSnapshots::test_snapshots_of_system_ks": {
       "description": "Snapshots the `system` keyspace and checks listsnapshots sizes for all system tables vs on-disk files. This is the original scylladb/scylladb#3572 scenario (system.local la sstables in snapshot dir rejected by path regex).",
@@ -116,7 +144,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique: no scylla test lists snapshots of the system keyspace (rest_api/boost tests snapshot user tables only); direct regression for #3572. Would be GREEN but: Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored."
+      "reason": "Unique: no scylla test lists snapshots of the system keyspace (rest_api/boost tests snapshot user tables only); direct regression for #3572. Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "listsnapshots_test.py:201",
+          "text": "compare_filesize_and_output never checks row count or expected ks/cf/snapshot; all([]) is True, passes vacuously if the regex stops matching"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "listsnapshots_test.py:173",
+          "text": "True size column and 'Total TrueDiskSpaceUsed' are parsed but ignored"
+        }
+      ]
     },
     "TestNodetoolListSnapshots::test_snapshot_for_several_kses": {
       "description": "3 keyspaces x 3 tables with 1 row each; keyspace-level snapshot of each ks; checks listsnapshots sizes vs disk for all 9 rows.",
@@ -153,7 +195,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_several_snapshots_for_several_kses in same file (same kses/cfes, same populate + per-ks snapshot, same final assertion over all listed rows). Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored."
+      "reason": "Strict subset of test_several_snapshots_for_several_kses in same file (same kses/cfes, same populate + per-ks snapshot, same final assertion over all listed rows). Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "listsnapshots_test.py:201",
+          "text": "compare_filesize_and_output never checks row count or expected ks/cf/snapshot; all([]) is True, passes vacuously if the regex stops matching"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "listsnapshots_test.py:173",
+          "text": "True size column and 'Total TrueDiskSpaceUsed' are parsed but ignored"
+        }
+      ]
     },
     "TestNodetoolListSnapshots::test_several_snapshots_for_several_kses": {
       "description": "3 keyspaces x 3 tables; snapshot each ks, insert ~10k rows per table, snapshot each ks again; checks all 18 listsnapshots rows' sizes vs on-disk snapshot files (two snapshots per table with different sizes).",
@@ -193,7 +249,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique end-to-end size accuracy with multiple snapshots per table; scylla tests check only zero/non-zero sizes (test/rest_api/test_storage_service.py::test_storage_service_snapshot). Would be GREEN but: Note: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored."
+      "reason": "Unique end-to-end size accuracy with multiple snapshots per table; scylla tests check only zero/non-zero sizes (test/rest_api/test_storage_service.py::test_storage_service_snapshot). Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "listsnapshots_test.py:201",
+          "text": "compare_filesize_and_output never checks row count or expected ks/cf/snapshot; all([]) is True, passes vacuously if the regex stops matching"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "listsnapshots_test.py:173",
+          "text": "True size column and 'Total TrueDiskSpaceUsed' are parsed but ignored"
+        }
+      ]
     }
   }
 }

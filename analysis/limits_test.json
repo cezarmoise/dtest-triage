@@ -5,7 +5,12 @@
   "tests": {
     "TestLimits::test_accepted_large_request": {
       "description": "Single node, --smp 2, --memory 2G, --commitlog-total-space-in-mb 1024, run over SSL and non-SSL CQL. Inserts a ~30MB text value (bigger than half a commitlog segment, i.e. oversized/fragmented commitlog entry), reads it back from a new session and asserts equality, then overwrites with a 6MB value and reads it back. Guards scylladb/scylladb#19472 (commitlog: handle oversized entries) end-to-end through CQL, incl. large TLS frames.",
-      "origin": {"sha": "752dce7bb4", "date": "2024-09-17", "pr": 4955, "summary": "Added as a 'semi-copy' of test_request_too_large when commitlog started accepting oversized mutations (scylladb#19472); fixes scylla-dtest#4953."},
+      "origin": {
+        "sha": "752dce7bb4",
+        "date": "2024-09-17",
+        "pr": 4955,
+        "summary": "Added as a 'semi-copy' of test_request_too_large when commitlog started accepting oversized mutations (scylladb#19472); fixes scylla-dtest#4953."
+      },
       "commits": {
         "eccda80e42": "formatting (ruff 0.9.4, string concat joined)",
         "752dce7bb4": "origin: new test asserting 30MB insert succeeds with 1GB commitlog",
@@ -15,15 +20,36 @@
       },
       "relevance": "Live: commitlog oversized/fragmented entry support (db/commitlog/commitlog.cc, 'Handle oversized entries' 05bf2ae5d7), CQL shedding limit (~10% shard memory) is above the 30MB request with 1GB/shard. client_encryption_options live.",
       "duplicates": [
-        {"path": "test/cluster/dtest/commitlog_test.py::TestCommitLog::test_one_big_mutation_replay_on_startup", "coverage": "partial", "note": "inserts ~20MB mutation (above max mutation size) via CQL and reads it back (also replay); non-SSL only"},
-        {"path": "test/boost/commitlog_test.cc::test_oversized_entry_large / test_oversized_single_entry / test_commitlog_replay_single_large_mutation", "coverage": "partial", "note": "commitlog-level oversized entry handling"}
+        {
+          "path": "test/cluster/dtest/commitlog_test.py::TestCommitLog::test_one_big_mutation_replay_on_startup",
+          "coverage": "partial",
+          "note": "inserts ~20MB mutation (above max mutation size) via CQL and reads it back (also replay); non-SSL only"
+        },
+        {
+          "path": "test/boost/commitlog_test.cc::test_oversized_entry_large / test_oversized_single_entry / test_commitlog_replay_single_large_mutation",
+          "coverage": "partial",
+          "note": "commitlog-level oversized entry handling"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly overlaps scylla's ported commitlog_test big-mutation tests and boost oversized-entry tests; only the SSL large-frame path is unique. Note: SSL helper (limits_test.py create_cql_session_with_ssl) still forces deprecated ssl.PROTOCOL_TLSv1_2 as workaround for python-driver#261, which is CLOSED (a9b0676fc1)."
+      "reason": "Mostly overlaps scylla's ported commitlog_test big-mutation tests and boost oversized-entry tests; only the SSL large-frame path is unique. Note: SSL helper (limits_test.py create_cql_session_with_ssl) still forces deprecated ssl.PROTOCOL_TLSv1_2 as workaround for python-driver#261, which is CLOSED (a9b0676fc1).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "limits_test.py:224-227",
+          "text": "create_cql_session_with_ssl forces deprecated PROTOCOL_TLSv1_2 as workaround for closed python-driver#261"
+        }
+      ]
     },
     "TestLimits::test_max_columns_and_query_parameters": {
       "description": "Single node (4G, long request/raft timeouts). Creates tables with 2^n-1 columns for n=1..16 (up to 65535 int columns), inserts one row with all columns, drops the table; at 131071 columns expects CREATE TABLE to fail with raft 'Command size N is greater than the configured limit M'. Guards schema changes with very wide tables and the group0 max command size limit (max_command_size = schema commitlog max_record_size/2).",
-      "origin": {"sha": "e2f4f735a5", "date": "2016-01-17", "pr": 207, "summary": "Benoit Canet added max_columns_test (C* limits suite); renamed max_columns_and_query_parameters_test in 76ea10172d (PR 210, refs scylla#173/#176)."},
+      "origin": {
+        "sha": "e2f4f735a5",
+        "date": "2016-01-17",
+        "pr": 207,
+        "summary": "Benoit Canet added max_columns_test (C* limits suite); renamed max_columns_and_query_parameters_test in 76ea10172d (PR 210, refs scylla#173/#176)."
+      },
       "commits": {
         "48fe63fa08": "raise group0_raft_op_timeout_in_ms to 180s (DTEST-133)",
         "93a36966c8": "TIMEOUT 30->90s; wait_for_schema_agreement after DROP TABLE to avoid raft errors at shutdown (DTEST-133)",
@@ -48,14 +74,37 @@
       },
       "relevance": "Live: raft command size limit (raft/raft.hh:325 'Command size {} is greater than the configured limit {}', service/raft/raft_group0.cc:248 max_command_size = max_record_size()/2); wide-table schema handling live.",
       "duplicates": [
-        {"path": "test/cluster/dtest/schema_management_test.py::TestSchemaManagement::test_dropping_keyspace_with_many_columns", "coverage": "partial", "note": "despite name only creates 8 small tables; no wide-table or command-size coverage"}
+        {
+          "path": "test/cluster/dtest/schema_management_test.py::TestSchemaManagement::test_dropping_keyspace_with_many_columns",
+          "coverage": "partial",
+          "note": "despite name only creates 8 small tables; no wide-table or command-size coverage"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage of very wide tables and raft group0 command-size rejection (no scylla test hits 'Command size ... greater than the configured limit'); kept out of gating (6978a52ca5) and repeatedly flaky (DTEST-128/133). Note: name is misleading, INSERT uses literal values, no bind markers, so the 65535 query-parameter limit is not tested; Note: query_tombstone_page_limit set to 9999999 in config then lowered to 100000 via system.config (limits_test.py:104/113), contradictory config."
+      "reason": "Unique coverage of very wide tables and raft group0 command-size rejection (no scylla test hits 'Command size ... greater than the configured limit'); kept out of gating (6978a52ca5) and repeatedly flaky (DTEST-128/133). Note: name is misleading, INSERT uses literal values, no bind markers, so the 65535 query-parameter limit is not tested. Note: query_tombstone_page_limit set to 9999999 in config then lowered to 100000 via system.config (limits_test.py:104/113), contradictory config.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "limits_test.py:96",
+          "text": "name says query_parameters but INSERT uses literals, no bind markers; 65535 parameter limit not tested"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "limits_test.py:104,113",
+          "text": "query_tombstone_page_limit=9999999 in config, then overridden to 100000 via system.config"
+        }
+      ]
     },
     "TestLimits::test_request_too_large": {
       "description": "Single node --smp 2 (default 512MB/shard), commitlog total 60MB / segment 6MB, SSL and non-SSL. Inserts a ~30MB string and expects NoHostAvailable, WriteFailure or InvalidRequest; then from a new session asserts the row is absent, and that a 6MB insert succeeds and reads back. Originally (2022) guarded scylla fa29b79c2 'close connection on too large request' (memory-based shedding); since 752dce7bb4 intended to hit commitlog 'Mutation ... too large for potentially available disk space'.",
-      "origin": {"sha": "ca213764bf", "date": "2022-01-31", "pr": 2575, "summary": "Test that too-large CQL request (>10% shard memory) gets connection closed, SSL and non-SSL (scylla commit fa29b79c2)."},
+      "origin": {
+        "sha": "ca213764bf",
+        "date": "2022-01-31",
+        "pr": 2575,
+        "summary": "Test that too-large CQL request (>10% shard memory) gets connection closed, SSL and non-SSL (scylla commit fa29b79c2)."
+      },
       "commits": {
         "eccda80e42": "formatting (ruff 0.9.4)",
         "ef7a42edb9": "also accept InvalidRequest ('request size too large' from CQL shedding)",
@@ -70,15 +119,48 @@
       },
       "relevance": "Live: CQL request shedding (transport, 'request size too large') and commitlog disk-space check (db/commitlog/commitlog.cc:1665 'too large for potentially available disk space').",
       "duplicates": [
-        {"path": "test/cqlpy/test_shedding.py::test_shed_too_large_request", "coverage": "partial", "note": "too-large request shed with 'request size too large', connection still usable; non-SSL"},
-        {"path": "test/boost/commitlog_test.cc::test_exceed_record_limit / test_commitlog_delete_when_over_disk_limit", "coverage": "partial", "note": "commitlog-level rejection; not the disk-space-available check via CQL"}
+        {
+          "path": "test/cqlpy/test_shedding.py::test_shed_too_large_request",
+          "coverage": "partial",
+          "note": "too-large request shed with 'request size too large', connection still usable; non-SSL"
+        },
+        {
+          "path": "test/boost/commitlog_test.cc::test_exceed_record_limit / test_commitlog_delete_when_over_disk_limit",
+          "coverage": "partial",
+          "note": "commitlog-level rejection; not the disk-space-available check via CQL"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Assertion is weak: accepts any of NoHostAvailable/WriteFailure/InvalidRequest, so it can't tell which path rejected the request. With default 512MB/shard the shed limit is ~48MB (msg in ef7a42edb9) vs ~62MB estimate for the 30MB frame, so CQL shedding (covered by cqlpy test_shed_too_large_request) likely always fires first and the 60MB-commitlog path is never reached. Note: SSL helper uses deprecated PROTOCOL_TLSv1_2 workaround for CLOSED python-driver#261."
+      "reason": "Assertion is weak: accepts any of NoHostAvailable/WriteFailure/InvalidRequest, so it can't tell which path rejected the request. With default 512MB/shard the shed limit is ~48MB (msg in ef7a42edb9) vs ~62MB estimate for the 30MB frame, so CQL shedding (covered by cqlpy test_shed_too_large_request) likely always fires first and the 60MB-commitlog path is never reached. Note: SSL helper uses deprecated PROTOCOL_TLSv1_2 workaround for CLOSED python-driver#261.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "limits_test.py:202",
+          "text": "accepts any of NoHostAvailable/WriteFailure/InvalidRequest; can't tell which path rejected the request"
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "limits_test.py:202",
+          "text": "with 512MB/shard CQL shedding (~48MB limit) likely fires first; 60MB-commitlog disk-space path never reached"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "limits_test.py:224-227",
+          "text": "create_cql_session_with_ssl forces deprecated PROTOCOL_TLSv1_2 as workaround for closed python-driver#261"
+        }
+      ]
     },
     "TestMaxCQLConnections::test_max_cql_connections": {
       "description": "Single node --smp 1 with --max-networking-io-control-blocks 10500; spawns 10 subprocesses (scripts/create_dummy_cql_connections.py) each opening 1050 driver sessions, asserts all 10500 created and scylla_transport_cql_connections{shard=0} >= created, closes them, repeats once. Regression for 2021 crash at >10000 connections per shard (scylladb PR #9052 / commit 2cfc517874 'adjust number of networking iocbs').",
-      "origin": {"sha": "ea4e3582a2", "date": "2022-01-14", "pr": 2539, "summary": "Test that many CQL connections (5x3000) can be opened and re-opened after close, verifying scylla PR #9052."},
+      "origin": {
+        "sha": "ea4e3582a2",
+        "date": "2022-01-14",
+        "pr": 2539,
+        "summary": "Test that many CQL connections (5x3000) can be opened and re-opened after close, verifying scylla PR #9052."
+      },
       "commits": {
         "1831efb0ff": "10 workers x 1050 connections (5% above 10000), require exact count (scylla-dtest#5451)",
         "16eda344f8": "use script-reported count, 5% slack, better messages (scylla-dtest#5364)",
@@ -92,7 +174,27 @@
       "relevance": "Live: seastar max-networking-io-control-blocks (scylla main.cc:761 default now 50000), metric cql-connections (transport/server.cc:350). scylladb#9056 (crash when idle connections exceed limit, now 50,000) still OPEN and not tested.",
       "duplicates": [],
       "decision": "YELLOW",
-      "reason": "No scylla test opens >10k CQL connections, but checks are weak. Bug: scylla_transport_cql_connections is a cumulative counter (transport/server.cc:350 make_counter('cql-connections', _stats.connects)), not the current_connections gauge, so the second assert after closing is trivially true and connection release isn't actually verified. Bug: `except ValueError` (limits_test.py:279) can't catch the AttributeError from a failed regex match, so the diagnostic message is dead. Note: passes --max-networking-io-control-blocks 10500, lowering scylla's default 50000 (main.cc:761), so default config isn't tested; slow (~125s)."
+      "reason": "No scylla test opens >10k CQL connections, but checks are weak. Bug: scylla_transport_cql_connections is a cumulative counter (transport/server.cc:350 make_counter('cql-connections', _stats.connects)), not the current_connections gauge, so the second assert after closing is trivially true and connection release isn't actually verified. Note: `except ValueError` (limits_test.py:279) can't catch the AttributeError from a failed regex match, so the diagnostic message is dead. Note: passes --max-networking-io-control-blocks 10500, lowering scylla's default 50000 (main.cc:761), so default config isn't tested; slow (~125s).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "limits_test.py:262,296",
+          "text": "scylla_transport_cql_connections is a cumulative counter, not current-connections gauge; post-close assert trivially true"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "limits_test.py:279",
+          "text": "`except ValueError` can't catch AttributeError from failed regex match; diagnostic message dead, test still fails"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "limits_test.py:251",
+          "text": "--max-networking-io-control-blocks 10500 lowers scylla default 50000; default config not tested"
+        }
+      ]
     }
   }
 }

@@ -36,7 +36,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique e2e check that write limit is per partition and not affected by read limit; only partial overlap with throughput_limits_test::test_per_partition_rate_limit and boost rate_limiter_test. Cheap (~65s), 100% pass."
+      "reason": "Unique e2e check that write limit is per partition and not affected by read limit; only partial overlap with throughput_limits_test::test_per_partition_rate_limit and boost rate_limiter_test. Cheap (~65s), 100% pass.",
+      "issues": []
     },
     "TestPerPartitionRateLimiting::test_reads": {
       "description": "Mirror of test_writes for reads: write-only limit doesn't reject reads; max_reads_per_second=10 limits single-partition reads to (5,16)/s; reads of distinct partitions are not rejected.",
@@ -70,8 +71,16 @@
           "note": "max_reads_per_second=1, checks no C++ exceptions only."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique e2e coverage of per-partition read limiting and separation from write limit; partial overlap with throughput_limits_test. Cheap (~65s), 100% pass. Note: stale comments ('for 10s', 'each write modifies')."
+      "decision": "GREEN",
+      "reason": "Unique e2e coverage of per-partition read limiting and separation from write limit; only partial overlap with throughput_limits_test. Cheap (~65s), 100% pass. Note: stale comments ('for 10s', 'each write modifies').",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Stale comments ('for 10s', 'each write modifies')"
+        }
+      ]
     },
     "TestPerPartitionRateLimiting::test_read_write_independence": {
       "description": "1 node RF=1; concurrent writes and reads on the same partition. With only write limit: writes rate-limited, reads no rejects. Then only read limit (ALTER replaces map): writes no rejects, reads rate-limited. Guards that read and write counters are separate.",
@@ -101,7 +110,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking concurrent reads/writes on one partition use independent limits; no scylla test covers it (rate_limiter_test is unit-level only). ~45s, 100% pass."
+      "reason": "Only test checking concurrent reads/writes on one partition use independent limits; no scylla test covers it (rate_limiter_test is unit-level only). ~45s, 100% pass.",
+      "issues": []
     },
     "TestPerPartitionRateLimiting::test_table_independence": {
       "description": "1 node RF=1, two tables; write limit only on cf1; concurrent single-partition writes to both: cf1 rate-limited, cf2 no rejects. Guards per-table limiter labels.",
@@ -127,7 +137,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "E2E check that the limit applies per table; unit test test_rate_limiter_partition_label_separation covers only the limiter label logic. Cheap (~25s), 100% pass."
+      "reason": "E2E check that the limit applies per table; unit test test_rate_limiter_partition_label_separation covers only the limiter label logic. Cheap (~25s), 100% pass.",
+      "issues": []
     },
     "TestPerPartitionRateLimiting::test_multinode_accuracy": {
       "description": "4 nodes in 4 racks, RF=4, read+write limit 10; for token-aware(shuffle) and round-robin policies, validates accept rate for writes and reads at CL ONE/TWO/THREE/ALL in (5, 10*4*1.5+e). Then RF=1 and CL=ALL with bound (5,16). Checks distributed accounting stays within limit..RF*limit.",
@@ -159,7 +170,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (~433s, 20 workload runs) with very loose bounds (upper 6x limit at RF=4); scylla dev Micha\u0142 Chojnowski in 2e4a1e7572 / PR #5664: 'This test doesn't really have a clear purpose anyway... multinode tests are overkill and overly black-box'. Partial overlap with throughput_limits_test::test_per_partition_rate_limit; already excluded from gating (ba173739d5)."
+      "reason": "Slow (~433s, 20 workload runs) with very loose bounds (upper 6x limit at RF=4); scylla dev Michał Chojnowski in 2e4a1e7572 / PR #5664: 'This test doesn't really have a clear purpose anyway... multinode tests are overkill and overly black-box'. Partial overlap with throughput_limits_test::test_per_partition_rate_limit; already excluded from gating (ba173739d5).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Very loose accept-rate bounds (upper ~6x limit at RF=4); still catches missing limiting"
+        }
+      ]
     },
     "TestPerPartitionRateLimiting::test_multidc_accuracy": {
       "description": "2 DCs (2+3 nodes, one rack each), RF {dc1:2,dc2:3}, read+write limit 10, round-robin and token-aware policies; validates accept rate in (5, 10*5*1.5+e) for CL ONE/TWO/THREE/ALL/LOCAL_ONE/LOCAL_QUORUM and EACH_QUORUM (writes). Checks rate limiting across DCs and CLs.",
@@ -192,7 +211,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slowest test (~553s, 26 workload runs), bound so loose (accepted < 7.5x limit at rf_error=5 for every CL, incl. LOCAL_ONE) that CL-specific behavior is barely asserted; largely overlaps test_multinode_accuracy; scylla dev called multinode variants 'overkill and overly black-box' (2e4a1e7572, PR #5664). Already out of gating (ba173739d5)."
+      "reason": "Slowest test (~553s, 26 workload runs), bound so loose (accepted < 7.5x limit at rf_error=5 for every CL, incl. LOCAL_ONE) that CL-specific behavior is barely asserted; largely overlaps test_multinode_accuracy; scylla dev called multinode variants 'overkill and overly black-box' (2e4a1e7572, PR #5664). Already out of gating (ba173739d5).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "Same loose bound (<7.5x limit) for every CL incl. LOCAL_ONE; CL-specific behavior barely asserted"
+        }
+      ]
     }
   }
 }

@@ -53,7 +53,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage: no scylla test runs continuous LWT load with data validation across vnode/tablets add+decommission+reboot; 32 runs 100% pass, ~295s, in next gating (tablets + consistent-topology). Would be GREEN but downgraded for issues. Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+      "reason": "Unique coverage: no scylla test runs continuous LWT load with data validation across vnode/tablets add+decommission+reboot; 32 runs 100% pass, ~295s, in next gating (tablets + consistent-topology). Would be GREEN but downgraded for issues. Note: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Bug: allow_log_errors=True (line 46) hides all scylla log errors. Note: header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Note: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "lwt_random_test.py:46",
+          "text": "Class fixture sets allow_log_errors=True, hiding all scylla log errors."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "lwt_random_test.py:49-59",
+          "text": "Class pytest_runtest_makereport hook never registered and checks unset self.test_info; repro code never printed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "lwt_random_test.py:3",
+          "text": "Header 'Currently we don't validate the workload' is stale; dsr validates every key."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "dsr/scylla_cluster/cluster.py:113,135-145",
+          "text": "cant_delete errors collected but never reported; failed deletes only surface as extra_rows."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "dsr/scylla_cluster/cluster.py:85",
+          "text": "Validation runs `nodetool rebuild` on every node before reading, which can mask replica data loss."
+        }
+      ]
     },
     "TestRandomPaxos::test_topology_grow": {
       "description": "Grows a 3-node (NTS RF=3) cluster with AddNode(auto_bootstrap) under LWT loaders, randomly choosing: plain grow with CL QUORUM or ALL; grow after decommissioning an added node4; or grow after decommissioning seed node3 (4-node start). Final validation reads every key and checks expected values. Guards LWT correctness during bootstrap/streaming.",
@@ -98,7 +130,51 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage of LWT under node bootstrap incl. after seed decommission; 37 runs 100% pass, ~200s. Downgraded for issues. Note: docstring case 2 'less than QUORUM nodes' (line 103) and comment at line 136 are stale since b63523ab1b raised initial nodes to 3: cluster never drops below RF, so CL=ALL branch never sees unmet consistency. Note: module-level random.choice (lines 107-122) not captured by dsr save/load -> branch not reproducible. Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+      "reason": "Unique coverage of LWT under node bootstrap incl. after seed decommission; 37 runs 100% pass, ~200s. Downgraded for issues. Note: docstring case 2 'less than QUORUM nodes' (line 103) and comment at line 136 are stale since b63523ab1b raised initial nodes to 3: cluster never drops below RF, so CL=ALL branch never sees unmet consistency. Note: module-level random.choice (lines 107-122) not captured by dsr save/load -> branch not reproducible. Note: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Bug: allow_log_errors=True (line 46) hides all scylla log errors. Note: header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Note: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "lwt_random_test.py:103,136",
+          "text": "Docstring case 2 'less than QUORUM nodes' stale since b63523ab1b: cluster never drops below RF, CL=ALL never unmet."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "lwt_random_test.py:107-122",
+          "text": "Module-level random.choice not captured by dsr save/load; branch not reproducible."
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "lwt_random_test.py:46",
+          "text": "Class fixture sets allow_log_errors=True, hiding all scylla log errors."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "lwt_random_test.py:49-59",
+          "text": "Class pytest_runtest_makereport hook never registered and checks unset self.test_info; repro code never printed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "lwt_random_test.py:3",
+          "text": "Header 'Currently we don't validate the workload' is stale; dsr validates every key."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "dsr/scylla_cluster/cluster.py:113,135-145",
+          "text": "cant_delete errors collected but never reported; failed deletes only surface as extra_rows."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "dsr/scylla_cluster/cluster.py:85",
+          "text": "Validation runs `nodetool rebuild` on every node before reading, which can mask replica data loss."
+        }
+      ]
     },
     "TestRandomPaxos::test_topology_replace": {
       "description": "3-node cluster (NTS RF=3) grows to 5 via two AddNode, then 5 random ReplaceNode actions: stop a non-seed node, start a new node with replace_node_host_id, move loader, remove old node; LWT loaders run throughout. Final validation of all keys vs expected values. Guards Paxos correctness across node replace.",
@@ -144,7 +220,45 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage of repeated replace under continuous LWT load with validation (scylla test_lwt_state_is_preserved_on_tablet_rebuild covers only a single LWT on tablets); 32 runs 100% pass, ~368s, next gating. Downgraded for issues. Note: only non-seed nodes (added 4,5 and their replacements) can be replaced, seed replace is 'TBD' (line 154, dsr actions.py ReplaceNode is_seed branch dead). Bug: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Note: allow_log_errors=True (line 46) hides all scylla log errors; header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Bug: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss."
+      "reason": "Unique coverage of repeated replace under continuous LWT load with validation (scylla test_lwt_state_is_preserved_on_tablet_rebuild covers only a single LWT on tablets); 32 runs 100% pass, ~368s, next gating. Downgraded for issues. Note: only non-seed nodes (added 4,5 and their replacements) can be replaced, seed replace is 'TBD' (line 154, dsr actions.py ReplaceNode is_seed branch dead). Note: class-level pytest_runtest_makereport hook (lwt_random_test.py:49) is never registered (pytest only loads hooks from conftest/plugins) and checks self.test_info (line 59) which nobody sets since 8d91b5dfee -> repro code for a failed random sequence is never printed. Bug: allow_log_errors=True (line 46) hides all scylla log errors. Note: header comment 'Currently we don't validate the workload' (line 3) is stale, dsr validates every key. Note: dsr/scylla_cluster/cluster.py:113 collects cant_delete errors but the report chain (lines 135-145) never outputs them. Note: validation runs `nodetool rebuild` on every node (cluster.py:85) before reading, which can mask replica data loss.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "lwt_random_test.py:154",
+          "text": "Only non-seed nodes can be replaced; seed replace 'TBD' (dsr ReplaceNode is_seed branch dead)."
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "lwt_random_test.py:46",
+          "text": "Class fixture sets allow_log_errors=True, hiding all scylla log errors."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "lwt_random_test.py:49-59",
+          "text": "Class pytest_runtest_makereport hook never registered and checks unset self.test_info; repro code never printed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "lwt_random_test.py:3",
+          "text": "Header 'Currently we don't validate the workload' is stale; dsr validates every key."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "dsr/scylla_cluster/cluster.py:113,135-145",
+          "text": "cant_delete errors collected but never reported; failed deletes only surface as extra_rows."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "dsr/scylla_cluster/cluster.py:85",
+          "text": "Validation runs `nodetool rebuild` on every node before reading, which can mask replica data loss."
+        }
+      ]
     }
   }
 }

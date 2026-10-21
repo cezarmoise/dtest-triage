@@ -36,7 +36,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Server side fully covered by test_simple_backup_and_restore (s3+gs) and CLI mapping by test/nodetool mocks; only thing unique is real nodetool->real server e2e in one run. Cheap (35s, 100% pass), so keep as a single nodetool smoke test or drop; second opinion."
+      "reason": "Server side fully covered by test_simple_backup_and_restore (s3+gs) and CLI mapping by test/nodetool mocks; only thing unique is real nodetool->real server e2e in one run. Cheap (35s, 100% pass), so keep as a single nodetool smoke test or drop; second opinion.",
+      "issues": []
     },
     "TestBackupRestoreObjectStorage::test_restore_into_different_table": {
       "description": "Back up ks.cf1 (rows 1..20), truncate it, create ks.cf2 with rows 1..9, `nodetool restore --table cf2` with cf1's TOCs, verify cf2 now holds the cf1 rows. Guards restoring a backup into a differently named (non-empty) table.",
@@ -61,7 +62,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scylla test_restore_into_renamed_target (s3+gs, 4 schema/topology variants) covers restoring into a differently named table more thoroughly; nodetool path is same as test_backup_restore_with_nodetool."
+      "reason": "Scylla test_restore_into_renamed_target (s3+gs, 4 schema/topology variants) covers restoring into a differently named table more thoroughly; nodetool path is same as test_backup_restore_with_nodetool.",
+      "issues": []
     },
     "TestBackupRestoreObjectStorage::test_restore_after_emptying_bucket": {
       "description": "Back up, truncate, delete all backed-up objects from bucket, then `nodetool restore` with the TOC list; assert NodetoolError with storage_io_error 404 (S3 'Code: 117 ... 404 Not Found' / GCP 'object doesn't exist (404)'), and table stays empty. Guards proper failure when backup objects are missing.",
@@ -92,7 +94,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Missing objects at restore time is the same scenario as test_restore_nonexistent_argument[prefix] in this file and scylla test_restore_with_non_existing_sstable (s3+gs, asserts 'Not Found'). Exact-error-string regex has needed 3 maintenance fixes (da55093d94, c3d9db24d6, 6bdb656bf8)."
+      "reason": "Missing objects at restore time is the same scenario as test_restore_nonexistent_argument[prefix] in this file and scylla test_restore_with_non_existing_sstable (s3+gs, asserts 'Not Found'). Exact-error-string regex has needed 3 maintenance fixes (da55093d94, c3d9db24d6, 6bdb656bf8).",
+      "issues": []
     },
     "TestBackupRestoreObjectStorage::test_backup_nonexistent_argument": {
       "description": "Parametrized (endpoint, bucket, keyspace, table, snapshot) x (s3, gcs): `nodetool backup` with one nonexistent argument must fail with the specific error (endpoint not found / storage_io_error / snapshot ... not found for table / no_such_column_family) and nothing must be uploaded. Guards backup argument validation and error propagation through nodetool.",
@@ -126,7 +129,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "3 of 5 params (endpoint/bucket/snapshot) duplicated by scylla test_backup_with_non_existing_parameters on s3+gs; keyspace/table go through the same 'snapshot not found' path post-#30838 but aren't explicitly tested in scylla. Costs 10 x ~33s; post-check is a no-op (check_bucket_empty bug). Trim to ks/table or port those to scylla. Bug: check_bucket_empty does `assert \"\" not in endpoint_objects` on a list of dicts/Blobs, always true since 6f075a3194 (GCS backend), so 'nothing uploaded' is never verified (docstring also wrong, copied from check_bucket_contents). Old regex alternatives (no_such_column_family, 'snapshot does not exist at') are dead on master since #30838 fix 3f489173c1; drop once backports land."
+      "reason": "3 of 5 params (endpoint/bucket/snapshot) duplicated by scylla test_backup_with_non_existing_parameters on s3+gs; keyspace/table go through the same 'snapshot not found' path post-#30838 but aren't explicitly tested in scylla. Costs 10 x ~33s; post-check is a no-op (check_bucket_empty bug). Trim to ks/table or port those to scylla. Bug: check_bucket_empty does `assert \"\" not in endpoint_objects` on a list of dicts/Blobs, always true since 6f075a3194 (GCS backend), so 'nothing uploaded' is never verified (docstring also wrong, copied from check_bucket_contents). Old regex alternatives (no_such_column_family, 'snapshot does not exist at') are dead on master since #30838 fix 3f489173c1; drop once backports land.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "backup_restore_object_storage_tests.py:138,244",
+          "text": "check_bucket_empty asserts `\"\" not in endpoint_objects` on a list of dicts/Blobs; always true since 6f075a3194, 'nothing uploaded' never verified"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "backup_restore_object_storage_tests.py:138",
+          "text": "check_bucket_empty docstring copied from check_bucket_contents"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "3f489173c1",
+          "text": "Regex alternatives no_such_column_family / 'snapshot does not exist at' dead on master since #30838 fix"
+        }
+      ]
     },
     "TestBackupRestoreObjectStorage::test_restore_nonexistent_argument": {
       "description": "Parametrized (endpoint, bucket, keyspace, table, prefix, tocs) x (s3, gcs): back up, truncate, then `nodetool restore` with one nonexistent argument; must fail with specific error (endpoint not found / storage_io_error 404 / no_such_column_family / malformed_sstable_exception for bad TOC names) and table must remain empty. Guards restore argument validation and that failed restore doesn't partially load data.",
@@ -166,7 +189,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only prefix param is duplicated (scylla test_restore_with_non_existing_sstable); nonexistent endpoint/bucket/keyspace/table and bogus TOC names on restore have no scylla coverage found (grep of test/ for api.restore with bad args). Stable 100%; consider dropping [prefix] param (~12 x 34s total)."
+      "reason": "Only prefix param is duplicated (scylla test_restore_with_non_existing_sstable); nonexistent endpoint/bucket/keyspace/table and bogus TOC names on restore have no scylla coverage found (grep of test/ for api.restore with bad args). Stable 100%; consider dropping [prefix] param (~12 x 34s total).",
+      "issues": []
     }
   },
   "analyzed_at": "2026-10-20",

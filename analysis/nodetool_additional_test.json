@@ -27,7 +27,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test that trace probability resets after restart, but low-value (runtime-only knob) and slow (~61s, 4 node restarts; one restart would suffice). Bug: assert message at nodetool_additional_test.py:2374 says 'Expect: {valid_value}' while comparing to default_value (misleading)."
+      "reason": "Only test that trace probability resets after restart, but low-value (runtime-only knob) and slow (~61s, 4 node restarts; one restart would suffice). Note: assert message at nodetool_additional_test.py:2374 says 'Expect: {valid_value}' while comparing to default_value (misleading).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:2374",
+          "text": "Assert message says 'Expect: {valid_value}' while comparing to default_value."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:2365",
+          "text": "4 node restarts; one restart would suffice."
+        }
+      ]
     },
     "TestGetTraceProbability::test_invalid_value_not_changing_trace_probability": {
       "description": "Sets probability 0.001 on node1, then tries `settraceprobability -- <v>` for -0.1, 1.01, 'a'; expects NodetoolError with matching message and probability still 0.001.",
@@ -58,7 +72,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Tests nodetool CLI arg validation, fully covered by test/nodetool/test_traceprobability.py (same messages); server never sees the invalid values. Note: legacy Java-nodetool alternatives in invalid_values_map are dead; assert message at :2338 is literal 'Expected: message' (missing f-string braces)."
+      "reason": "Tests nodetool CLI arg validation, fully covered by test/nodetool/test_traceprobability.py (same messages); server never sees the invalid values. Note: legacy Java-nodetool alternatives in invalid_values_map are dead; assert message at :2338 is literal 'Expected: message' (missing f-string braces).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2376",
+          "text": "Legacy Java-nodetool alternatives in invalid_values_map are dead."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:2338",
+          "text": "Assert message is literal 'Expected: message' (missing f-string braces)."
+        }
+      ]
     },
     "TestGetTraceProbability::test_valid_value_affect_only_one_node": {
       "description": "Sets node2 probability 0.1234, then for each valid value sets node1 and asserts node1 reports the new value and node2 still 0.1234 — settraceprobability is node-local.",
@@ -91,7 +119,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheap (~22s) real multi-node set/get round trip of trace probability; no scylla test checks node-locality. Assertion is near-trivial by design (REST is per node); could be merged with other TestGetTraceProbability tests."
+      "reason": "Cheap (~22s) real multi-node set/get round trip of trace probability; no scylla test checks node-locality. Assertion is near-trivial by design (REST is per node); could be merged with other TestGetTraceProbability tests.",
+      "issues": []
     },
     "TestGetTraceProbability::test_value_affect_tracing_table": {
       "description": "Creates ks (RF=2) and table; for each probability (0.01/10000 keys, 0/500, 0.6/10000, 1/500) sets it on all nodes, inserts N non-prepared rows via node1 (exclusive connection), polls system_traces.sessions until stable (2s write period) and asserts traced INSERT fraction within tolerance (0.01:[0.005,0.015], 0:0, 0.6:[0.3,0.9], 1:1).",
@@ -131,7 +160,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of fractional trace probability actually sampling sessions; stable now (32/32 pass) after past flakiness (scylladb#9163, #15231, both closed). Slow (~71s) and tolerances are wide (0.6 -> [0.3,0.9])."
+      "reason": "Only test of fractional trace probability actually sampling sessions; stable now (32/32 pass) after past flakiness (scylladb#9163, #15231, both closed). Slow (~71s) and tolerances are wide (0.6 -> [0.3,0.9]).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:2395",
+          "text": "Wide tolerances (0.6 -> [0.3,0.9]); still catches probability ignored."
+        }
+      ]
     },
     "TestNodetool::test_binary": {
       "description": "Single node: asserts `statusbinary` = running, `disablebinary` -> not running, `enablebinary` -> running.",
@@ -159,10 +196,35 @@
           "path": "nodetool_additional_test.py::TestNodetool::test_nodetool_refresh_with_data_perms / nodetool_context(disablebinary) at :2251",
           "coverage": "partial",
           "note": "use enable/disablebinary but don't check status"
+        },
+        {
+          "path": "test/cqlpy/test_native_transport.py::test_enable_disable_binary",
+          "coverage": "partial",
+          "note": "real-server disable -> NoHostAvailable -> enable -> query works, via REST; no statusbinary readback"
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~7s) real-server round trip of native transport stop/start + status; scylla tests only mock it. Weak: doesn't verify CQL connectivity actually drops/returns. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Cheap (~7s) real-server round trip of native transport stop/start + status; mostly covered: test/cqlpy/test_native_transport.py::test_enable_disable_binary disables/enables the real server via REST and checks connectivity, test/nodetool/test_binary.py covers the nodetool->REST mapping; only the real-server statusbinary readback is unique. Note: doesn't verify CQL connectivity actually drops/returns. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:770-787",
+          "text": "Checks statusbinary readback only; doesn't verify CQL connectivity actually drops/returns."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_backup": {
       "description": "Single node: asserts `statusbackup` = not running, `enablebackup` -> running, `disablebackup` -> not running (incremental backups toggle).",
@@ -198,7 +260,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Toggle is covered on a real node by system_tables_test::test_content_toggle_item[incremental_backup_enabled] and CLI by test/nodetool/test_backup.py; only the real GET /incremental_backups via statusbackup is unique. Cheap (~9s); RED candidate. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Toggle is covered on a real node by system_tables_test::test_content_toggle_item[incremental_backup_enabled] and CLI by test/nodetool/test_backup.py; only the real GET /incremental_backups via statusbackup is unique. Cheap (~9s); RED candidate. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_cfhistograms": {
       "description": "2-node cluster, c-s write 10s (seq=1..10000, rf=1), `cfhistograms keyspace1 standard1` on node1: checks ks/cf header, write-latency percentiles non-zero and monotonic, read latency 0, percentiles < c-s max latency; then c-s mixed 10s and same checks incl. read latency.",
@@ -237,8 +313,34 @@
           "note": "same command, SSTables column only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only real-server check that histogram latencies are populated/monotonic after load; ~51s. Note: times=10000 is ignored since stress() uses duration when set (nodetool_additional_test.py:1744); 2-node cluster unnecessary (cfhistograms is local, rf=1). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "decision": "GREEN",
+      "reason": "Only real-server check that histogram latencies are populated/monotonic after load; ~51s. Note: times=10000 is ignored since stress() uses duration when set (nodetool_additional_test.py:1744); 2-node cluster unnecessary (cfhistograms is local, rf=1). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "nodetool_additional_test.py:1067",
+          "text": "times=10000 ignored since stress() uses duration when set."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:1065",
+          "text": "2-node cluster unnecessary (cfhistograms local, rf=1)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_cfstats": {
       "description": "Single node, c-s write 1000 rows + flush; parses `nodetool cfstats` (all, keyspace1): required fields present, Write Count=1000, keys estimate=1000, SSTable count>=1; then c-s mixed 1000 and asserts many table metrics (snapshots 0, compression ratio 0, local read/write counts match keyspace counts, bloom filter mem 512..128K, partition sizes <=259/310, live/tombstone cell stats 0, etc.).",
@@ -285,7 +387,45 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only real-server check of cfstats values after load (~18s); keep-worthy but has issues. Bug: latency assertions commented out since 6f2aa7af80 (nodetool_additional_test.py:345-351); assert_map_great_equal builds msg with container[key] before `key in container` check (:133, KeyError not assert); assert_map_less_equal msg says 'not >=' (:151); unused cursor/strs (:308,:311). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Only real-server check of cfstats values after load (~18s); keep-worthy but has issues. Bug: latency assertions commented out since 6f2aa7af80 (nodetool_additional_test.py:345-351). Note: assert_map_great_equal builds msg with container[key] before `key in container` check (:133, KeyError not assert); assert_map_less_equal msg says 'not >=' (:151); unused cursor/strs (:308,:311). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "nodetool_additional_test.py:345-351",
+          "text": "Read/write latency assertions commented out since 6f2aa7af80."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:133",
+          "text": "assert_map_great_equal builds msg with container[key] before key check (KeyError, not assert)."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:151",
+          "text": "assert_map_less_equal message says 'not >='."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:308,311",
+          "text": "Unused cursor/strs."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_cfstats_syntax": {
       "description": "Single node with ks1/ks2 x 2 tables; checks `cfstats` with '', 'ks1', 'ks2 ks1', 'ks2.ks2_cf2', 'ks1/ks1_cf2', 'ks1/' lists exactly the expected keyspaces/tables (ignoring system/audit).",
@@ -310,7 +450,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~9s); multi-keyspace and slash syntax not covered by test/nodetool mocks. Could be ported to test/nodetool. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Cheap (~9s); multi-keyspace and slash syntax not covered by test/nodetool mocks. Could be ported to test/nodetool. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_decommission": {
       "description": "2-node cluster, nodetool status shows 2 nodes, `nodetool decommission` on node2, status shows 1 node.",
@@ -346,7 +500,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Trivial 2-node decommission + status count; fully covered by test/cluster/test_topology_ops.py::test_topology_ops (real decommission + topology checks) and test/nodetool/test_nodeops.py::test_decommission (nodetool->REST). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Trivial 2-node decommission + status count; fully covered by test/cluster/test_topology_ops.py::test_topology_ops (real decommission + topology checks) and test/nodetool/test_nodeops.py::test_decommission (nodetool->REST). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_describecluster": {
       "description": "3-node cluster, runs `nodetool describecluster`, parses YAML output and asserts cluster Name=='test', Murmur3Partitioner, Snitch prefix org.apache.cassandra.locator., and that every schema version lists all 3 hosts (schema agreement). Basic real-server smoke of the describecluster REST endpoints (cluster_name, snitch/name, partitioner_name, storage_proxy/schema_versions).",
@@ -378,7 +546,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (14s), 100% pass, but thin: formatting covered by mock test, schema-agreement path exercised by other dtests via describecluster. Bug: duplicate `assert_map_equal(cluster, \"Name\", \"test\")` at nodetool_additional_test.py:1183 and :1191 (copy-paste). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Cheap (14s), 100% pass, but thin: formatting covered by mock test, schema-agreement path exercised by other dtests via describecluster. Note: duplicate `assert_map_equal(cluster, \"Name\", \"test\")` at nodetool_additional_test.py:1183 and :1191 (copy-paste). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:1183,1191",
+          "text": "Duplicate assert_map_equal(cluster, 'Name', 'test') (copy-paste)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_describering": {
       "description": "3-node vnodes cluster (dc1: rack1x2, rack2x1); after c-s load, `nodetool describering keyspace1` must return >=100 TokenRange entries with parseable endpoints/details. Then creates RF=2 keyspace and asserts each node owns ~256*RF ranges (±10%), re-checking after bootstrapping a 4th node, decommissioning it, and ALTERing RF to 1. Guards vnode token range distribution/describe_ring correctness through topology changes.",
@@ -421,7 +609,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only end-to-end check of vnode range distribution across bootstrap/decommission/RF change, but vnodes-only and 55s. Bug: all tablets branches are dead since dca5e3335a skip_if(tablets) (nodetool_additional_test.py:869-873, 876, 882-888, 906-908, 920; tablets-motivated flush :889-894); `len(res) >= 100` is a weak first assertion; verify_describering ignores its `session` arg (:848). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Only end-to-end check of vnode range distribution across bootstrap/decommission/RF change, but vnodes-only and 55s. Note: all tablets branches are dead since dca5e3335a skip_if(tablets) (nodetool_additional_test.py:869-873, 876, 882-888, 906-908, 920; tablets-motivated flush :889-894); `len(res) >= 100` is a weak first assertion; verify_describering ignores its `session` arg (:848). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:869-920",
+          "text": "All tablets branches dead since dca5e3335a skip_if(tablets)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:878",
+          "text": "First assertion len(res) >= 100 is weak; later per-node range counts are strict."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:848",
+          "text": "verify_describering ignores its session arg."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_disablebinary_and_disablegossip": {
       "description": "3-node/3-rack cluster: c-s write 100k keys CL=ALL, background throttled QUORUM read; on node1 disablebinary+disablegossip, wait node1 DN from node2, major compaction, then re-enable; asserts no 'gate closed' log on node1 in a 10s window and node1 returns to UN, then reads at CL=ALL from node1. Reproducer for scylla-enterprise#2897 (gossiper gate closed after disable/enable gossip; qa-tasks#1238).",
@@ -457,7 +677,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique regression for scylla-enterprise#2897 (gate closed after gossip re-enable). Bug: `assert_cs_success(result)` commented out (nodetool_additional_test.py:2238), so the write, background read and final CL=ALL 'validation' read never check c-s results. Note: unmark.next_gating references scylladb#16219, CLOSED 2025-11-25 (:2227) — could be re-gated; residual time.sleep(10) (:2258). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Unique regression for scylla-enterprise#2897 (gate closed after gossip re-enable). Bug: `assert_cs_success(result)` commented out (nodetool_additional_test.py:2238), so the write, background read and final CL=ALL 'validation' read never check c-s results. Note: unmark.next_gating references scylladb#16219, CLOSED 2025-11-25 (:2227) — could be re-gated; residual time.sleep(10) (:2258). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "nodetool_additional_test.py:2238",
+          "text": "assert_cs_success commented out: write, background read and final CL=ALL read never checked."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "nodetool_additional_test.py:2227",
+          "text": "unmark.next_gating cites scylladb#16219, closed 2025-11-25."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:2258",
+          "text": "Fixed time.sleep(10) log window."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_general_compact": {
       "description": "Single node with --compaction-enforce-min-threshold; two c-s writes of the same 1000 keys each followed by flush, asserts cfstats SSTable count >=2, runs global `nodetool compact`, asserts SSTable count decreased. Also parses compactionhistory before compacting.",
@@ -500,7 +752,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Basic major-compaction smoke, heavily exercised elsewhere (many dtests/cluster tests call compact and depend on it). Bug: compactionhistory() (nodetool_additional_test.py:634-639) discards its result and runs before any compaction (:669), rows_merged checks commented out awaiting #1097 (:648-650) — dead check; unused `cursor` (:656). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Basic major-compaction smoke, heavily exercised elsewhere (many dtests/cluster tests call compact and depend on it). Note: compactionhistory() (nodetool_additional_test.py:634-639) discards its result and runs before any compaction (:669), rows_merged checks commented out awaiting #1097 (:648-650) — dead check; unused `cursor` (:656). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:634-650,669",
+          "text": "compactionhistory() runs before compaction and result is discarded; rows_merged checks commented out (#1097)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:656",
+          "text": "Unused cursor."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_general_flush": {
       "description": "Single node, c-s writes 1 row, asserts cfstats SSTable count==0, runs global `nodetool flush`, asserts count==1. Guards that global flush persists memtables to an sstable visible in table stats.",
@@ -535,8 +813,22 @@
           "note": "same _flush helper with keyspace arg"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Cheap (19s), 100% pass; only test asserting global flush via nodetool actually creates an sstable on a real server (rest_api test only checks status codes). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "decision": "GREEN",
+      "reason": "Cheap (19s), 100% pass; only test asserting global flush via nodetool actually creates an sstable on a real server (rest_api test only checks status codes). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_general_ring": {
       "description": "2-node cluster, c-s load, `nodetool ring` parsed: datacenter1, 512 token entries for vnodes (2x256) or 4..8 for tablets (with keyspace1.standard1), each entry valid IP/rack/Up-Down/Normal/owns/token; Owns must be '?' without keyspace and set with keyspace.",
@@ -566,8 +858,22 @@
           "note": "real server token endpoints, no ring output"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Cheap (22s), 100% pass in both gating jobs; only real-server check of ring output for vnodes and tablets. Note: sibling test_keyspace_ring skipped for #1057 (nodetool_additional_test.py:990). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "decision": "GREEN",
+      "reason": "Cheap (22s), 100% pass in both gating jobs; only real-server check of ring output for vnodes and tablets. Note: sibling test_keyspace_ring skipped for #1057 (nodetool_additional_test.py:990). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_get_sstable": {
       "description": "Single node; creates 3 tables with int, blob and text partition keys, inserts one row each, flushes, and asserts `nodetool getsstables` returns the table's sstable path for the existing key and empty output for a missing key, for each key type.",
@@ -596,8 +902,22 @@
           "note": "real server, int key, only HTTP status / error injection"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Cheap (9s), 100% pass; unique real-server positive+negative lookup for int/blob/text keys. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "decision": "GREEN",
+      "reason": "Cheap (9s), 100% pass; unique real-server positive+negative lookup for int/blob/text keys. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_getendpoints": {
       "description": "3-node cluster, RF=1 table with one row, runs `nodetool getendpoints ks1 tbl1 4` and only asserts output starts with '127.0.'.",
@@ -632,7 +952,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion (only checks an IP prefix, never that it is the actual replica) and getendpoints is exercised with real dependency on correctness in read_repair_test.py:94 and auth_test.py:136, plus mock test/nodetool/test_getendpoints.py and rest_api natural_endpoints tests. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Low-value assertion (only checks an IP prefix, never that it is the actual replica) and getendpoints is exercised with real dependency on correctness in read_repair_test.py:94 and auth_test.py:136, plus mock test/nodetool/test_getendpoints.py and rest_api natural_endpoints tests. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1235",
+          "text": "Only asserts output starts with '127.0.', never that it is the actual replica."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_global_create_after_clean": {
       "description": "Single node, c-s load, global `nodetool snapshot`, verifies listsnapshots shows it for keyspace1, `clearsnapshot`, verifies gone, then takes a second global snapshot and verifies it is listed. Checks snapshot can be re-created after clearing.",
@@ -670,7 +1010,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: create->clear->create global snapshot is covered by snapshot_test.py parallel create/clear tests and test_global_snapshot in this file. Bug: `snapshot = m[0]` before `assert m` (nodetool_additional_test.py:620-621) -> IndexError not assertion; second snapshot result unchecked (:627); unused cursor/strs (:616-617). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Redundant: create->clear->create global snapshot is covered by snapshot_test.py parallel create/clear tests and test_global_snapshot in this file. Note: `snapshot = m[0]` before `assert m` (nodetool_additional_test.py:620-621) -> IndexError not assertion; second snapshot result unchecked (:627); unused cursor/strs (:616-617). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:620-627",
+          "text": "snapshot = m[0] before assert m (IndexError, not assert); second snapshot's m unasserted."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:616-617",
+          "text": "Unused cursor/strs."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_global_snapshot": {
       "description": "Single node, c-s load, asserts no snapshots, global `nodetool snapshot`, parses numeric (timestamp) snapshot name, checks every non-system_schema table dir has snapshots/<name>/manifest.json, listsnapshots shows keyspace1 and system, then clearsnapshot removes it.",
@@ -724,7 +1090,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of test_snapshot_tag (same checks, only default timestamp name differs) and global snapshots covered by snapshot_test.py and rest_api test_storage_service_snapshot; unique bit is per-table manifest.json on-disk check for an untagged global snapshot. Cheap (22s). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Near-duplicate of test_snapshot_tag (same checks, only default timestamp name differs) and global snapshots covered by snapshot_test.py and rest_api test_storage_service_snapshot; unique bit is per-table manifest.json on-disk check for an untagged global snapshot. Cheap (22s). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_gossip_control": {
       "description": "Single node: asserts `nodetool info` 'Gossip active'=true and `statusgossip`=running; `disablegossip` -> false/not running; `enablegossip` -> true/running. Guards gossip stop/start REST + its status reporting.",
@@ -761,7 +1141,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~11s) real-server toggle of gossip with info/statusgossip readback; only partial overlap elsewhere, otherwise GREEN like test_binary. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "Cheap (~11s) real-server toggle of gossip with info/statusgossip readback; only partial overlap elsewhere, otherwise GREEN like test_binary. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_gossipinfo": {
       "description": "2-node cluster: `nodetool gossipinfo` (parsed by tools.status.nodetool_gossipinfo) must list 2 endpoints, each with generation, heartbeat, STATUS, HOST_ID, RELEASE_VERSION, SCHEMA, NET_VERSION, LOAD, RACK, RPC_ADDRESS, DC; retried until success.",
@@ -798,8 +1192,28 @@
           "note": "uses same parser for other assertions"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only real-server check that gossipinfo exposes the expected app states; cheap (~11s). Note: tools/status.py nodetool_gossipinfo uses bare `except:` as line-type switch. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "decision": "GREEN",
+      "reason": "Only real-server check that gossipinfo exposes the expected app states; cheap (~11s). Note: tools/status.py nodetool_gossipinfo uses bare `except:` as line-type switch. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "tools/status.py nodetool_gossipinfo",
+          "text": "Parser uses bare `except:` as line-type switch."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_info": {
       "description": "2-node cluster: `nodetool info` on node1 via verify_info: ID, Gossip active=true, Native Transport, Load, Generation No, Heap/Off-heap memory (MB|MiB), DC/rack, Exceptions=0, Key/Row/Counter cache, Token present; sleeps 10s and checks Uptime advanced by 10..40s.",
@@ -822,8 +1236,34 @@
           "note": "mocked REST, output formatting only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only real-server check that `nodetool info` fields are populated and uptime advances; ~20s. Note: 2-node cluster unnecessary (info is local, :1427) and fixed time.sleep(10) is half the runtime (verify_info). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "decision": "GREEN",
+      "reason": "Only real-server check that `nodetool info` fields are populated and uptime advances; ~20s. Note: 2-node cluster unnecessary (info is local, :1427) and fixed time.sleep(10) is half the runtime (verify_info). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:1349",
+          "text": "Fixed time.sleep(10) in verify_info is half the runtime."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:1427",
+          "text": "2-node cluster unnecessary (info is local)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_keyspace_flush": {
       "description": "Single node, c-s writes 1 row, cfstats SSTable count==0, `nodetool flush keyspace1`, count==1 (shared _flush helper with test_general_flush).",
@@ -859,7 +1299,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Keyspace-scoped flush effect covered by test/rest_api/test_column_family.py::test_sstables_total_disk_space_sanity and CLI mapping by test/nodetool/test_flush.py::test_flush_one_keyspace; near-copy of test_general_flush. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "Keyspace-scoped flush effect covered by test/rest_api/test_column_family.py::test_sstables_total_disk_space_sanity and CLI mapping by test/nodetool/test_flush.py::test_flush_one_keyspace; near-copy of test_general_flush. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_keyspace_column_family_flush": {
       "description": "Single node, c-s writes 1 row, cfstats SSTable count==0, `nodetool flush keyspace1 standard1`, count==1 (shared _flush helper).",
@@ -895,7 +1349,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Table-scoped flush effect asserted by test/cqlpy/test_select_from_mutation_fragments.py::test_smoke (and relied on by ~116 cqlpy tests), CLI mapping by test/nodetool/test_flush.py::test_flush_one_table; near-copy of test_general_flush. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "Table-scoped flush effect asserted by test/cqlpy/test_select_from_mutation_fragments.py::test_smoke (and relied on by ~116 cqlpy tests), CLI mapping by test/nodetool/test_flush.py::test_flush_one_table; near-copy of test_general_flush. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_node_graceful_stop_during_stress_and_decommission": {
       "description": "4-node cluster (HH on, batch commitlog), c-s write QUORUM 300 threads on node2 in background, decommission node4; once decommission streaming starts (raft: 'request decommission' + 'sync data ... started|Beginning stream session'), gracefully stop node3. Asserts node3 shows DN from node2 and its process exited. Reproducer for scylladb#4491 (node hangs on shutdown while another node decommissions under traffic; closed 2021-01).",
@@ -948,7 +1416,57 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only regression for scylladb#4491 (shutdown hang during peer's decommission streaming); hang detection actually comes from node3.stop() raising NodeError after 127s, final `node3_process.is_running()` assert is redundant. ~35s but 4 ignore-pattern churn commits 2024-26. Bug: decommission exceptions swallowed (:2134-2139) so decommission outcome unchecked; c-s result never checked and `stress_thread.cancel()` on a running future is a no-op (:2183); docstring says rf=3 but c-s has no -schema (rf=1 default); params starting_size/node_count/rf unused/overwritten (:2099,2118); docstring says HH disabled, code enables it; dead 'DECOMMISSIONING: unbootstrap starts' branch (:2161). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "Only regression for scylladb#4491 (shutdown hang during peer's decommission streaming); hang detection actually comes from node3.stop() raising NodeError after 127s, final `node3_process.is_running()` assert is redundant. ~35s but 4 ignore-pattern churn commits 2024-26. Note: decommission exceptions swallowed (:2134-2139) so decommission outcome unchecked; c-s result never checked and `stress_thread.cancel()` on a running future is a no-op (:2183). Bug: docstring says rf=3 but c-s has no -schema (rf=1 default). Note: params starting_size/node_count/rf unused/overwritten (:2099,2118); docstring says HH disabled, code enables it; dead 'DECOMMISSIONING: unbootstrap starts' branch (:2161). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "nodetool_additional_test.py:2103,2132",
+          "text": "Docstring/repro use rf=3 but c-s has no -schema, so runs rf=1."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "nodetool_additional_test.py:2134-2139",
+          "text": "Decommission exceptions swallowed (expected to fail once node3 stops) and c-s result never checked."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2183",
+          "text": "stress_thread.cancel() on a running future is a no-op."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2111",
+          "text": "Docstring says HH disabled, code enables it."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "nodetool_additional_test.py:2100,2118",
+          "text": "Params starting_size/node_count/rf unused or overwritten."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2161",
+          "text": "Gossip-mode 'DECOMMISSIONING: unbootstrap starts' branch dead (message gone from scylla)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_nodetool_refresh_with_data_perms": {
       "description": "Single node, c-s 10k rows, flush+compact, successful `refresh keyspace1 standard1`; then chmod node data dir, asserts enablebinary/enablegossip still succeed with no 'Permission denied' in log, and `refresh` fails with 'Storage I/O error: 13|Permission denied'; restores perms in finally.",
@@ -989,7 +1507,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No scylla test of refresh failing on unreadable data dir; ~23s. Bug: `_change_data_perms(node, \"data\", 644)` (:1552) passes decimal 644 = 0o1204 (sticky, owner write-only), not 0o644; data dir becomes non-readable/non-traversable, not 'not writable' as docstring claims, so the scenario differs from the stated intent; restore uses 0o700 not original mode (:1567). enablebinary/enablegossip are no-ops on an already running node. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "No scylla test of refresh failing on unreadable data dir; ~23s. Bug: `_change_data_perms(node, \"data\", 644)` (:1552) passes decimal 644 = 0o1204 (sticky, owner write-only), not 0o644; data dir becomes non-readable/non-traversable, not 'not writable' as docstring claims, so the scenario differs from the stated intent. Note: restore uses 0o700 not original mode (:1567). enablebinary/enablegossip are no-ops on an already running node. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "nodetool_additional_test.py:1552",
+          "text": "chmod with decimal 644 (=0o1204) makes data dir non-readable/non-traversable, not 'not writable' as claimed."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "nodetool_additional_test.py:1567",
+          "text": "Restore uses 0o700, not the original mode."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:1553-1561",
+          "text": "enablebinary/enablegossip are no-ops on an already running node."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_nodetool_refresh_with_wrong_upload_modes": {
       "description": "Single node, c-s 10k rows, flush, copy table sstables into upload/; `nodetool refresh` must fail with: 'Directory cannot be accessed .* write' when upload dir is 0555, 'File cannot be accessed for read|open failed: Permission denied' when files are 0044, 'Must be either a regular file or a directory' with a broken symlink.",
@@ -1019,8 +1569,34 @@
           "note": "mocked REST, no error paths"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of refresh upload-dir mode/owner verification errors (no scylla test hits utils/directories.cc verification messages); ~22s; otherwise GREEN. Note: chmod restores not in try/finally (:1615-1626); test fails if run as root. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "decision": "GREEN",
+      "reason": "Unique coverage of refresh upload-dir mode/owner verification errors (no scylla test hits utils/directories.cc verification messages); ~22s. Note: chmod restores not in try/finally (:1615-1626); test fails if run as root. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "nodetool_additional_test.py:1615-1626",
+          "text": "chmod restores not in try/finally."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "nodetool_additional_test.py:1615",
+          "text": "Fails if run as root (permission checks bypassed)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_nodetool_refresh_with_load_and_stream": {
       "description": "Single node, empty table ks.cf: `refresh -las -- ks cf` must log 'Loading new SSTables ... load_and_stream=true, primary_replica_only=false'; plain `refresh` logs load_and_stream=false (vnodes) or 'auto-enabled-for-tablets' (tablets). Only checks option plumbing to the log; no sstables are loaded.",
@@ -1061,7 +1637,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only asserts a log line for a no-op refresh; CLI mapping fully covered by test/nodetool/test_refresh.py::test_refresh_load_and_stream and real behavior by test/cluster/test_refresh.py + test/cluster/test_tablets2.py::test_tablet_load_and_stream. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "reason": "Only asserts a log line for a no-op refresh; CLI mapping fully covered by test/nodetool/test_refresh.py::test_refresh_load_and_stream and real behavior by test/cluster/test_refresh.py + test/cluster/test_tablets2.py::test_tablet_load_and_stream. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:1642-1647",
+          "text": "Only asserts load_and_stream flag in log line for a no-op refresh; no sstables loaded."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_proxyhistograms": {
       "description": "2-node cluster, c-s write+mixed n=10000, 10 token-range SELECTs of 10 rows; `nodetool proxyhistograms` parsed: for Read/Write/Range latency, all percentiles Min..Max non-zero and monotonic.",
@@ -1090,8 +1686,34 @@
           "note": "mocked REST, formatting only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only real-server check that coordinator latency histograms get populated and are monotonic; ~35s. Bug: `assert latency_val, 0.0 != f\"...\"` (:1675, from pytest port 8765668713) - non-zero check still works via truthiness, but message is a bool. Note: 2-node cluster unnecessary. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed)."
+      "decision": "GREEN",
+      "reason": "Only real-server check that coordinator latency histograms get populated and are monotonic; ~35s. Note: `assert latency_val, 0.0 != f\"...\"` (:1675, from pytest port 8765668713) - non-zero check still works via truthiness, but message is a bool. Note: 2-node cluster unnecessary. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86, dead since concurrent tests removed).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:1675",
+          "text": "`assert latency_val, 0.0 != f\"...\"`: non-zero check works via truthiness, message is a bool."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:1687",
+          "text": "2-node cluster unnecessary."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_snapshot_tag": {
       "description": "Single node, c-s 1000 writes, `nodetool snapshot -t snaptag` (all keyspaces); asserts output names tag, every non-system-schema table dir has snapshots/snaptag/manifest.json, listsnapshots shows keyspace1+system, then `clearsnapshot -t snaptag` removes it (checked only for keyspace1).",
@@ -1138,7 +1760,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Near-copy of test_global_snapshot (same helper logic, only -t tag) and tag/clear-by-tag covered by snapshot_test.py::TestSnapshotOptions::test_snapshot_tagging, test_cleaning_snapshot_created_by_ks (-t per_cf) and rest_api test_storage_service_snapshot; 22s of c-s load for an on-disk dir check. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Near-copy of test_global_snapshot (same helper logic, only -t tag) and tag/clear-by-tag covered by snapshot_test.py::TestSnapshotOptions::test_snapshot_tagging, test_cleaning_snapshot_created_by_ks (-t per_cf) and rest_api test_storage_service_snapshot; 22s of c-s load for an on-disk dir check. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_snapshot_tag_keyspace": {
       "description": "Same as test_snapshot_tag with `snapshot -t snaptag keyspace1`: asserts snapshot dirs+manifest.json only under keyspace1 tables and absent elsewhere, listsnapshots shows keyspace1, clearsnapshot -t removes it.",
@@ -1180,7 +1816,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Keyspace-scoped tagged snapshot (only-that-keyspace on disk) fully covered by snapshot_test.py::TestSnapshotOptions::test_snapshot_of_specified_keyspaces_only and test_cleaning_snapshot_created_by_ks; CLI mapping by test/nodetool/test_snapshot.py; near-copy of test_snapshot_tag. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Keyspace-scoped tagged snapshot (only-that-keyspace on disk) fully covered by snapshot_test.py::TestSnapshotOptions::test_snapshot_of_specified_keyspaces_only and test_cleaning_snapshot_created_by_ks; CLI mapping by test/nodetool/test_snapshot.py; near-copy of test_snapshot_tag. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_snapshot_tag_keyspace_cf": {
       "description": "tst_snapshot with `snapshot -t snaptag -cf tables system_schema`: asserts snapshot dir+manifest.json only for system_schema.tables, absent elsewhere; listsnapshots shows system_schema; clearsnapshot -t.",
@@ -1217,7 +1867,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "Table-scoped tagged snapshot covered by snapshot_test.py::test_cleaning_snapshot_created_by_multiple_cf and test_basic_mulitple_tables_snapshot_* (-cf/--table, with restore) and test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table. Bug: post-clear check verify_snapshot(node1,'keyspace1',exists=False) (nodetool_additional_test.py:513) is a no-op here since keyspace1 was never snapshotted; c-s load into keyspace1 is wasted (snapshot targets system_schema.tables). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Table-scoped tagged snapshot covered by snapshot_test.py::test_cleaning_snapshot_created_by_multiple_cf and test_basic_mulitple_tables_snapshot_* (-cf/--table, with restore) and test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table. Bug: post-clear check verify_snapshot(node1,'keyspace1',exists=False) (nodetool_additional_test.py:513) is a no-op here since keyspace1 was never snapshotted. Note: c-s load into keyspace1 is wasted (snapshot targets system_schema.tables). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "nodetool_additional_test.py:513",
+          "text": "Post-clear verify_snapshot on keyspace1 is a no-op: keyspace1 never snapshotted, so clearsnapshot unverified."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:445",
+          "text": "c-s load into keyspace1 wasted; snapshot targets system_schema.tables."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_snapshot_tag_kc": {
       "description": "tst_snapshot with `snapshot -t snaptag -kc system_schema.tables`: asserts snapshot dir+manifest.json only for system_schema.tables, listsnapshots shows system_schema; clearsnapshot -t.",
@@ -1254,7 +1930,33 @@
         }
       ],
       "decision": "RED",
-      "reason": "-kc ks.tbl is translated by nodetool to the same REST request as `-cf tbl ks` (test/nodetool/test_snapshot.py::test_snapshot_ktlist proves mapping), so server side is identical to test_snapshot_tag_keyspace_cf; -kc on real server covered by snapshot_test.py::test_snapshot_of_specified_keyspaces_only_with_kc_list_option. Bug: post-clear check verify_snapshot(node1,'keyspace1',exists=False) (nodetool_additional_test.py:513) is a no-op here since keyspace1 was never snapshotted; c-s load into keyspace1 is wasted (snapshot targets system_schema.tables). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "-kc ks.tbl is translated by nodetool to the same REST request as `-cf tbl ks` (test/nodetool/test_snapshot.py::test_snapshot_ktlist proves mapping), so server side is identical to test_snapshot_tag_keyspace_cf; -kc on real server covered by snapshot_test.py::test_snapshot_of_specified_keyspaces_only_with_kc_list_option. Bug: post-clear check verify_snapshot(node1,'keyspace1',exists=False) (nodetool_additional_test.py:513) is a no-op here since keyspace1 was never snapshotted. Note: c-s load into keyspace1 is wasted (snapshot targets system_schema.tables). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "nodetool_additional_test.py:513",
+          "text": "Post-clear verify_snapshot on keyspace1 is a no-op: keyspace1 never snapshotted, so clearsnapshot unverified."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:445",
+          "text": "c-s load into keyspace1 wasted; snapshot targets system_schema.tables."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_scrub_sstable_with_invalid_fragment": {
       "description": "Single node, creates ks.cf (pk,ck,static s,v) with NullCompactionStrategy, stops node, copies test-sstables/sstable_with_invalid_fragment (generated by scylla boost sstable_scrub_test) into table dir, restarts, runs `nodetool scrub -m SKIP ks cf`; asserts nodetool exit ok or 'scrub failed' message, and log shows an invalid-fragment error for ks.cf plus 'Finished scrubbing'.",
@@ -1309,7 +2011,45 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: SKIP semantics covered in-process by test/boost/scrub_test.cc and offline by test/cqlpy/test_tools.py::test_scrub_skip_mode; unique part is nodetool->REST scrub on a live node with a corrupt sstable, but assertion is log-only. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836); regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; 'Skipping invalid (clustering row|partition)' (:2033) is dead (scylla logs '...; Skipping', compaction.cc:1694/1736), harmless as it is OR-ed; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Partial overlap: SKIP semantics covered in-process by test/boost/scrub_test.cc and offline by test/cqlpy/test_tools.py::test_scrub_skip_mode; unique part is nodetool->REST scrub on a live node with a corrupt sstable, but assertion is log-only. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836). Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; 'Skipping invalid (clustering row|partition)' (:2033) is dead (scylla logs '...; Skipping', compaction.cc:1694/1736), harmless as it is OR-ed; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1831-1836,2040",
+          "text": "Only asserts log lines (invalid-fragment error + 'Finished scrubbing'); no data/sstable check, and nodetool 'scrub failed' accepted too."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2033",
+          "text": "'Skipping invalid (clustering row|partition)' never logged by scylla; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_scrub_ks_sstable_with_invalid_fragment": {
       "description": "Single node, creates ks.cf (pk,ck,static s,v) with NullCompactionStrategy, stops node, copies test-sstables/sstable_with_invalid_fragment (generated by scylla boost sstable_scrub_test) into table dir, restarts, runs `nodetool scrub -m SKIP ks`; asserts nodetool exit ok or 'scrub failed' message, and log shows an invalid-fragment error for ks.cf plus 'Finished scrubbing'. Keyspace-wide variant (originally multi-table for scylla#8212).",
@@ -1374,7 +2114,51 @@
         }
       ],
       "decision": "RED",
-      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_scrub_sstable_with_invalid_fragment except the CLI arg; scylla#8212 multi-table scenario (its reason to exist) is no longer exercised; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836); regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; 'Skipping invalid (clustering row|partition)' (:2033) is dead (scylla logs '...; Skipping', compaction.cc:1694/1736), harmless as it is OR-ed; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_scrub_sstable_with_invalid_fragment except the CLI arg; scylla#8212 multi-table scenario (its reason to exist) is no longer exercised; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836). Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; 'Skipping invalid (clustering row|partition)' (:2033) is dead (scylla logs '...; Skipping', compaction.cc:1694/1736), harmless as it is OR-ed; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "0edba4b0",
+          "text": "cf2 removed, keyspace has one table, so scylla#8212 multi-table keyspace scrub is no longer exercised."
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1831-1836,2040",
+          "text": "Only asserts log lines (invalid-fragment error + 'Finished scrubbing'); no data/sstable check, and nodetool 'scrub failed' accepted too."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2033",
+          "text": "'Skipping invalid (clustering row|partition)' never logged by scylla; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_scrub_segregate_sstable_with_invalid_fragment": {
       "description": "Single node, creates ks.cf (pk,ck,static s,v) with NullCompactionStrategy, stops node, copies test-sstables/sstable_with_invalid_fragment (generated by scylla boost sstable_scrub_test) into table dir, restarts, runs `nodetool scrub -m SEGREGATE ks cf`; asserts nodetool exit ok or 'scrub failed' message, and log shows an invalid-fragment error for ks.cf plus 'Finished scrubbing'.",
@@ -1429,7 +2213,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: SEGREGATE semantics covered in-process by test/boost/scrub_test.cc and offline by test/cqlpy/test_tools.py::test_scrub_segregate_mode; unique part is nodetool->REST scrub on a live node with a corrupt sstable, but assertion is log-only. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836); regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Partial overlap: SEGREGATE semantics covered in-process by test/boost/scrub_test.cc and offline by test/cqlpy/test_tools.py::test_scrub_segregate_mode; unique part is nodetool->REST scrub on a live node with a corrupt sstable, but assertion is log-only. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836). Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1831-1836,2040",
+          "text": "Only asserts log lines (invalid-fragment error + 'Finished scrubbing'); no data/sstable check, and nodetool 'scrub failed' accepted too."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_scrub_segregate_ks_sstable_with_invalid_fragment": {
       "description": "Single node, creates ks.cf (pk,ck,static s,v) with NullCompactionStrategy, stops node, copies test-sstables/sstable_with_invalid_fragment (generated by scylla boost sstable_scrub_test) into table dir, restarts, runs `nodetool scrub -m SEGREGATE ks`; asserts nodetool exit ok or 'scrub failed' message, and log shows an invalid-fragment error for ks.cf plus 'Finished scrubbing'. Keyspace-wide variant (originally multi-table for scylla#8212).",
@@ -1494,7 +2310,45 @@
         }
       ],
       "decision": "RED",
-      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_scrub_segregate_sstable_with_invalid_fragment except the CLI arg; scylla#8212 multi-table scenario (its reason to exist) is no longer exercised; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836); regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_scrub_segregate_sstable_with_invalid_fragment except the CLI arg; scylla#8212 multi-table scenario (its reason to exist) is no longer exercised; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: only asserts log lines (one invalid-fragment error + 'Finished scrubbing') — no check of surviving data, sstable count or segregation result; the scrub_keyspace except path accepts nodetool failure ('scrub failed: aborted') too (:1831-1836). Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's report format; docstrings stale ('by refresh', '--skip-corrupted', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "0edba4b0",
+          "text": "cf2 removed, keyspace has one table, so scylla#8212 multi-table keyspace scrub is no longer exercised."
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1831-1836,2040",
+          "text": "Only asserts log lines (invalid-fragment error + 'Finished scrubbing'); no data/sstable check, and nodetool 'scrub failed' accepted too."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_resetlocalschema_api_issue_7811": {
       "description": "2-node (2 racks) cluster, ks rf=2. Parametrized TWCS/STCS: CREATE TABLE with invalid compaction option (compaction_window_unit/min_sstable_size='NOPE') must fail with exact error; describecluster shows 1 schema version; recreating cf with valid options succeeds, node2 logs 'Schema version changed to', and still 1 schema version. Guards scylla#7811 (failed CREATE with bad compaction options left a half-applied table -> \"Can't find a column family with UUID\" / schema disagreement).",
@@ -1528,7 +2382,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial: option validation covered by cqlpy test_compaction_strategy_validation.py; unique bit is 2-node schema agreement + successful recreate after rejected CREATE (scylla#7811, closed). Bug: name says resetlocalschema API but since a8e11132d6 it never calls it; send_storage_restful_api helper (nodetool_additional_test.py:1283) is unused; @unmark.next_gating refs scylla#14710 closed 2023-09-22 (:1290), so it only runs in dtest-release jobs. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Partial: option validation covered by cqlpy test_compaction_strategy_validation.py; unique bit is 2-node schema agreement + successful recreate after rejected CREATE (scylla#7811, closed). Note: name says resetlocalschema API but since a8e11132d6 it never calls it; send_storage_restful_api helper (nodetool_additional_test.py:1283) is unused; @unmark.next_gating refs scylla#14710 closed 2023-09-22 (:1290), so it only runs in dtest-release jobs. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:1291",
+          "text": "Name says resetlocalschema API but test never calls it since a8e11132d6."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:1283",
+          "text": "send_storage_restful_api helper unused."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "nodetool_additional_test.py:1290",
+          "text": "unmark.next_gating cites scylladb#14710, closed 2023-09-22."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_shutdown_during_sstable_upgrade": {
       "description": "2-node (2 racks) cluster, smp 1; keyspace1 rf=2, standard1 with LZ4; autocompaction disabled, ~4 c-s rounds + flush; ALTER to Snappy; launches `nodetool upgradesstables -a` in a thread and immediately stops node1 gently; asserts no sstable has Snappy after stop, then restart + rerun upgradesstables and asserts Snappy present. Guards scylla 59693e6da3 (rewrite_sstables bails out on stop instead of hanging).",
@@ -1564,7 +2450,51 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique scenario but racy/weak: no proof the rewrite was in progress at stop (no log wait for upgrade start/abort), so it mostly tests that stop before/at upgrade start leaves old sstables; 98s. Bug: upgrade thread future never checked and both nodetool calls swallow all exceptions (nodetool_additional_test.py:584-594, noqa BLE001) — final Snappy assert is the only real check; stress loop runs 4 rounds not 3 (range(1, 30003, 10000)); second CQL session never closed; docstring says 'sstableupgrade'. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Unique scenario but racy/weak: no proof the rewrite was in progress at stop (no log wait for upgrade start/abort), so it mostly tests that stop before/at upgrade start leaves old sstables; 98s. Note: upgrade thread future never checked and both nodetool calls swallow all exceptions (nodetool_additional_test.py:584-594, noqa BLE001) — final Snappy assert is the only real check; stress loop runs 4 rounds not 3 (range(1, 30003, 10000)); second CQL session never closed; docstring says 'sstableupgrade'. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "nodetool_additional_test.py:594-596",
+          "text": "Racy: no proof rewrite was in progress at stop (no log wait), may only test stop before upgrade starts."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "nodetool_additional_test.py:584-594",
+          "text": "Upgrade future never checked and nodetool exceptions swallowed; final Snappy assert is the only real check."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:570",
+          "text": "Stress loop runs 4 rounds not 3 (range(1, 30003, 10000))."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "nodetool_additional_test.py:578",
+          "text": "Second CQL session never closed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:553",
+          "text": "Docstring says 'sstableupgrade'."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_specific_compact": {
       "description": "Single node with --compaction-enforce-min-threshold; two c-s writes of the same 1000 keys each followed by flush, asserts cfstats SSTable count >=2, runs `nodetool compact keyspace1 standard1`, asserts SSTable count decreased. Table-scoped variant of test_general_compact (shared _compact helper).",
@@ -1607,7 +2537,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of test_general_compact (only CLI args differ); CLI mapping mocked in test/nodetool/test_compact.py::test_table and real keyspace compaction covered by test/rest_api/test_compaction_task.py and test_compactionhistory.py; keep at most one of general/specific. Bug: compactionhistory() (:634-639) discards its result and runs before compaction (:669), rows_merged checks commented out awaiting #1097 (:648-650) - dead check; unused `cursor` (:656). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Near-duplicate of test_general_compact (only CLI args differ); CLI mapping mocked in test/nodetool/test_compact.py::test_table and real keyspace compaction covered by test/rest_api/test_compaction_task.py and test_compactionhistory.py; keep at most one of general/specific. Note: compactionhistory() (:634-639) discards its result and runs before compaction (:669), rows_merged checks commented out awaiting #1097 (:648-650) - dead check; unused `cursor` (:656). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:634-650,669",
+          "text": "compactionhistory() runs before compaction and result is discarded; rows_merged checks commented out (#1097)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:656",
+          "text": "Unused cursor."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_sstable_info": {
       "description": "Single node, creates ks1.tbl1, inserts one row, flushes, runs `nodetool sstableinfo ks1 tbl1` and asserts only that 'ks1' and 'tbl1' appear in the output. Added as a smoke test for the Java nodetool sstableinfo command (scylla-tools-java#105).",
@@ -1634,7 +2590,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion: only checks the ks/table names appear in output (:2224-2225); native CLI output fully checked by test/nodetool/test_sstable.py::test_sstableinfo and real REST endpoint exercised by test/cluster tests via get_sstable_info; original target (Java nodetool, scylla-tools-java#105) is gone. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Low-value assertion: only checks the ks/table names appear in output (:2224-2225); native CLI output fully checked by test/nodetool/test_sstable.py::test_sstableinfo and real REST endpoint exercised by test/cluster tests via get_sstable_info; original target (Java nodetool, scylla-tools-java#105) is gone. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:2224-2225",
+          "text": "Only asserts ks/table names appear in output; passes with no sstables listed."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_sstables_in_tablehistograms": {
       "description": "Single node, ks.cf with autocompaction disabled; writes + flushes 10 times (overlapping keys) to create many sstables, runs 1000 (100 in debug) IN-queries with BYPASS CACHE, then compares `nodetool cfhistograms ks cf` SSTables Min/Max with values computed from REST /column_family/metrics/sstables_per_read_histogram and asserts no overflow bucket. Regression test for scylla-jmx PR 200 (wrong min/max sstables per read).",
@@ -1663,7 +2639,39 @@
         }
       ],
       "decision": "RED",
-      "reason": "Guards a scylla-jmx bug (scylla-jmx#200) in a component no longer used; native nodetool min/max computation is fully asserted by test/nodetool/test_tablehistograms.py. Bug: only self-consistency (nodetool vs same REST data) - never asserts the histogram is populated or max>1, so an all-zero histogram passes (:1160-1164); uses `cfhistograms` alias despite name (:1035); step numbering in docstring duplicated. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Guards a scylla-jmx bug (scylla-jmx#200) in a component no longer used; native nodetool min/max computation is fully asserted by test/nodetool/test_tablehistograms.py. Bug: only self-consistency (nodetool vs same REST data) - never asserts the histogram is populated or max>1, so an all-zero histogram passes (:1160-1164). Note: uses `cfhistograms` alias despite name (:1035); step numbering in docstring duplicated. Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1160-1164",
+          "text": "Only nodetool vs REST self-consistency; all-zero histogram passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:1035",
+          "text": "Uses cfhistograms alias despite tablehistograms name."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "nodetool_additional_test.py:1124-1129",
+          "text": "Docstring step numbering duplicated."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_status": {
       "description": "Two-node cluster, c-s write to keyspace1, then `nodetool status`, `status keyspace1`, `status keyspace1 standard1`; asserts 2 nodes, Datacenter=datacenter1 and per-node fields (status, IP, load, host id UUID, rack) and that owns/tokens are '?' or numeric depending on tablets vs vnodes (tablets: keyspace-only -> owns and tokens '?').",
@@ -1702,7 +2710,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: mocked formatting in test/nodetool/test_status.py, real-cluster status in test/cluster/test_nodetool.py, ownership REST in test/rest_api; unique only as end-to-end ks/table status on real tablets cluster. c-s used just to create keyspace1/standard1 (:1406). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Partial overlap: mocked formatting in test/nodetool/test_status.py, real-cluster status in test/cluster/test_nodetool.py, ownership REST in test/rest_api; unique only as end-to-end ks/table status on real tablets cluster. c-s used just to create keyspace1/standard1 (:1406). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "nodetool_additional_test.py:1406",
+          "text": "c-s used just to create keyspace1/standard1."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_validate_with_one_node_expect_data_loss": {
       "description": "Single node (abort_on_malformed_sstable_error=false, abort_on_internal_error=false), ks.cf NullCompactionStrategy, inserts 10000 keys in two flushes, overwrites random bytes at a random offset of a random sstable, restarts, runs `nodetool scrub -m VALIDATE ks cf`, watches log for validate start/finish; retries up to 3 times if no corruption found. For VALIDATE the final SELECT only runs if no corruption was found and its exceptions are swallowed.",
@@ -1746,7 +2774,45 @@
         }
       ],
       "decision": "RED",
-      "reason": "No effective assertion: random corruption, 'found no corruption' pytest.fail was replaced by break in f229207f, retries end silently after 3 tries (:1924-1927), UnicodeDecodeError swallowed (:1928), final SELECT wrapped in bare except/pass and skipped when corruption found (:1932-1937); deterministic validate-on-corruption fully covered by test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_* and nodetool path by test_validate_sstable_with_invalid_fragment. SEGREGATE sibling already skipped for the same random-corruption reason (8e7ba9de, scylla#15693 closed 2026-03-23). Bug: 'expect_data_loss' misnomer (VALIDATE is read-only); patterns 'Scrub ks\\.cf <jobid>...' (:1899, :1909) never match validate-mode logs (compaction.cc:2251/2262 have no '[Scrub ks.cf uuid]' prefix); unused `addr` (:1890). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "No effective assertion: random corruption, 'found no corruption' pytest.fail was replaced by break in f229207f, retries end silently after 3 tries (:1924-1927), UnicodeDecodeError swallowed (:1928), final SELECT wrapped in bare except/pass and skipped when corruption found (:1932-1937); deterministic validate-on-corruption fully covered by test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_* and nodetool path by test_validate_sstable_with_invalid_fragment. SEGREGATE sibling already skipped for the same random-corruption reason (8e7ba9de, scylla#15693 closed 2026-03-23). Note: 'expect_data_loss' misnomer (VALIDATE is read-only); patterns 'Scrub ks\\.cf <jobid>...' (:1899, :1909) never match validate-mode logs (compaction.cc:2251/2262 have no '[Scrub ks.cf uuid]' prefix); unused `addr` (:1890). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "nodetool_additional_test.py:1924-1937",
+          "text": "No effective assertion: retries end silently, UnicodeDecodeError swallowed, final SELECT in bare except and skipped on corruption."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2081",
+          "text": "'expect_data_loss' misnomer; VALIDATE is read-only."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:1899,1909",
+          "text": "'Scrub ks\\.cf <jobid>' patterns never match validate-mode logs; OR-ed with validate patterns."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:1890",
+          "text": "Unused addr."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_validate_sstable_with_invalid_fragment": {
       "description": "Single node, creates ks.cf (pk,ck,static s,v) with NullCompactionStrategy, stops node, copies test-sstables/sstable_with_invalid_fragment (from scylla boost sstable_validate_test) into table dir, restarts, runs `nodetool scrub -m VALIDATE ks cf`; asserts nodetool exit ok or 'scrub failed' message, and log shows an invalid-fragment error for ks.cf plus 'Finished scrubbing'.",
@@ -1804,7 +2870,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: validate on corrupt sstables covered in-process by test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_* and offline by test/cqlpy/test_tools.py::test_scrub_validate_mode; unique part is nodetool->REST VALIDATE on a live node with an invalid sstable, but assertions are log-only. Bug: helper only asserts log lines (one invalid-fragment error + 'Finished scrubbing', :2036) - no check that nodetool reports invalid sstables or that the sstable was quarantined; _scrub_keyspace accepts both nodetool success and 'scrub failed: ...' (:1830-1836), so nodetool exit status is not verified; regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's '[Scrub compaction ks.cf] mismatching index/data...' (compaction.cc:1623, sstables/mx/reader.cc:2078); docstrings stale ('by refresh', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Partial overlap: validate on corrupt sstables covered in-process by test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_* and offline by test/cqlpy/test_tools.py::test_scrub_validate_mode; unique part is nodetool->REST VALIDATE on a live node with an invalid sstable, but assertions are log-only. Bug: helper only asserts log lines (one invalid-fragment error + 'Finished scrubbing', :2036) - no check that nodetool reports invalid sstables or that the sstable was quarantined; _scrub_keyspace accepts both nodetool success and 'scrub failed: ...' (:1830-1836), so nodetool exit status is not verified. Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's '[Scrub compaction ks.cf] mismatching index/data...' (compaction.cc:1623, sstables/mx/reader.cc:2078); docstrings stale ('by refresh', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1830-1836,2040",
+          "text": "Log-only: no check nodetool reports invalid sstables or quarantine; both nodetool success and 'scrub failed' accepted."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_validate_ks_sstable_with_invalid_fragment": {
       "description": "Same as test_validate_sstable_with_invalid_fragment but runs `nodetool scrub -m VALIDATE ks` (keyspace-wide). Originally the keyspace had two tables (multi-table scrub, scylla#8212).",
@@ -1867,7 +2965,45 @@
         }
       ],
       "decision": "RED",
-      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_validate_sstable_with_invalid_fragment except the CLI arg; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: helper only asserts log lines (one invalid-fragment error + 'Finished scrubbing', :2036) - no check that nodetool reports invalid sstables or that the sstable was quarantined; _scrub_keyspace accepts both nodetool success and 'scrub failed: ...' (:1830-1836), so nodetool exit status is not verified; regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's '[Scrub compaction ks.cf] mismatching index/data...' (compaction.cc:1623, sstables/mx/reader.cc:2078); docstrings stale ('by refresh', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Since 0edba4b0 removed cf2, the keyspace has one table, so this is identical to test_validate_sstable_with_invalid_fragment except the CLI arg; keyspace vs table scrub REST covered by test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub. Bug: helper only asserts log lines (one invalid-fragment error + 'Finished scrubbing', :2036) - no check that nodetool reports invalid sstables or that the sstable was quarantined; _scrub_keyspace accepts both nodetool success and 'scrub failed: ...' (:1830-1836), so nodetool exit status is not verified. Note: regex '\\]  mismatching index/data' has a double space (:2031) and never matches scylla's '[Scrub compaction ks.cf] mismatching index/data...' (compaction.cc:1623, sstables/mx/reader.cc:2078); docstrings stale ('by refresh', boost test name). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "0edba4b0",
+          "text": "cf2 removed, keyspace has one table, so scylla#8212 multi-table keyspace scrub is no longer exercised."
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_additional_test.py:1830-1836,2040",
+          "text": "Log-only: no check nodetool reports invalid sstables or quarantine; both nodetool success and 'scrub failed' accepted."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:2031",
+          "text": "Regex '\\]  mismatching index/data' has double space, never matches; harmless OR-ed alternative."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "nodetool_additional_test.py:2010-2012",
+          "text": "Docstrings stale: 'by refresh', '--skip-corrupted', wrong boost test name."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     },
     "TestNodetool::test_version": {
       "description": "Single node, runs `nodetool version` and asserts output matches 'ReleaseVersion: 3.x.y'.",
@@ -1894,7 +3030,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value: REST returns a hardcoded constant (version.hh:26) and CLI formatting is fully asserted by test/nodetool/test_version.py::test_version; costs a cluster start (~6s). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86)."
+      "reason": "Low-value: REST returns a hardcoded constant (version.hh:26) and CLI formatting is fully asserted by test/nodetool/test_version.py::test_version; costs a cluster start (~6s). Note: class fixture sets start_rpc=true, UNUSED in scylla (db/config.cc:1288; nodetool_additional_test.py:59); fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses (:68-86).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "nodetool_additional_test.py:59",
+          "text": "Class fixture sets start_rpc=true, unused in scylla (db/config.cc:1288)."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "nodetool_additional_test.py:68-86",
+          "text": "fixture_set_cluster_settings builds queries_method_list/multi_dc_queries_method_list that nothing uses."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

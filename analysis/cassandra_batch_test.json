@@ -5,7 +5,12 @@
   "tests": {
     "TestBatch::test_batch_prepared_with_slow_query_log": {
       "description": "Single node. Enables slow query logging via REST POST /storage_service/slow_query (threshold=0), runs the batch_ttl_conditional_interaction scenario (driver BatchStatements containing a prepared conditional UPDATE), disables slow log, asserts the log has no 'No \"query\" parameter set for a session requesting a slow_query_log record' line and that system_traces.node_slow_log contains a row with command == the conditional UPDATE text. Guards scylladb/scylladb#5843 (slow-log of batches of prepared statements logged an ERROR and dropped the record), fixed by scylla 0afa738a8f.",
-      "origin": {"sha": "f5b24c7452d6f1fb2648b454b39cf6bdd0a76fa2", "date": "2020-11-09", "pr": 1754, "summary": "Added test for #5843; refactored batch_ttl_conditional_interaction_test into a helper with update_command param."},
+      "origin": {
+        "sha": "f5b24c7452d6f1fb2648b454b39cf6bdd0a76fa2",
+        "date": "2020-11-09",
+        "pr": 1754,
+        "summary": "Added test for #5843; refactored batch_ttl_conditional_interaction_test into a helper with update_command param."
+      },
       "commits": {
         "b866c65bce39b63c83e94f047b96fd8483945a50": "REST URL uses node.api_port instead of hardcoded 10000; keyspace creation to f-string.",
         "55c4c0f7381cae8685271a2023a6611732685df4": "Replaced tablets skip (scylladb#18068) with @pytest.mark.lwt (LWT over tablets enabled).",
@@ -22,15 +27,54 @@
       },
       "relevance": "Live: REST /storage_service/slow_query (api/api-doc/storage_service.json:2473), system_traces.node_slow_log, slow-log record building in tracing/trace_keyspace_helper.cc. The grepped message still exists but since the #5843 fix (0afa738a8f, 2020-09-28, before this test was written) it is logged at TRACE level (trace_keyspace_helper.cc:317).",
       "duplicates": [
-        {"path": "test/boost/tracing_test.cc::tracing_slow_query_fast_mode", "coverage": "partial", "note": "Slow-query tracing in general, no batches."},
-        {"path": "cql_tracing_test.py::TestCqlTracing::test_fast_slow_query_tracing", "coverage": "partial", "note": "dtest: slow query tracing enable/validate, no batches."}
+        {
+          "path": "test/boost/tracing_test.cc::tracing_slow_query_fast_mode",
+          "coverage": "partial",
+          "note": "Slow-query tracing in general, no batches."
+        },
+        {
+          "path": "cql_tracing_test.py::TestCqlTracing::test_fast_slow_query_tracing",
+          "coverage": "partial",
+          "note": "dtest: slow query tracing enable/validate, no batches."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only test touching slow-log of batches (#5843, no regression test in scylla commit 0afa738a8f), but assertions are weak. Bug: grep_log targets a message that is TRACE-level since the fix (tracing/trace_keyspace_helper.cc:317), so it only fires if the fix is reverted to ERROR level. Bug: counter[update_command]>0 is satisfied by the PREPARE trace session (transport/server.cc:1707 add_query on PREPARE), not by the batch, so batch slow-logging isn't actually verified. Note: reruns the whole ~18s-sleep TTL scenario just to produce batches; slow log disable not in finally."
+      "reason": "Only test touching slow-log of batches (#5843, no regression test in scylla commit 0afa738a8f), but assertions are weak. Bug: grep_log targets a message that is TRACE-level since the fix (tracing/trace_keyspace_helper.cc:317), so it only fires if the fix is reverted to ERROR level. Bug: counter[update_command]>0 is satisfied by the PREPARE trace session (transport/server.cc:1707 add_query on PREPARE), not by the batch, so batch slow-logging isn't actually verified. Note: reruns the whole ~18s-sleep TTL scenario just to produce batches; slow log disable not in finally.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tracing/trace_keyspace_helper.cc:317",
+          "text": "grep_log targets a message TRACE-level since the #5843 fix; fires only if the log level is reverted too"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "transport/server.cc:1707",
+          "text": "counter[update_command]>0 satisfied by the PREPARE trace session; batch slow-logging not verified"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "",
+          "text": "Reruns the whole ~18s-sleep TTL scenario just to produce batches"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "Slow log disable not in finally"
+        }
+      ]
     },
     "TestBatch::test_batch_ttl_conditional_interaction": {
       "description": "Single node port of Cassandra BatchTest.testBatchTTLConditionalInteraction: sequence of driver BatchStatements mixing (prepared) inserts/deletes/range deletes with conditional UPDATE/INSERT/DELETE (LWT) and TTL'd statements on a clustered table; asserts table contents after each batch, that a failed condition skips the entire batch, and TTL expiry after 6s sleeps.",
-      "origin": {"sha": "b99bc7b4361ccc343904c0fc6856bef29b83392d", "date": "2020-02-28", "pr": 1359, "summary": "Port of Cassandra non-CQL tests (BatchTest.java) to dtest."},
+      "origin": {
+        "sha": "b99bc7b4361ccc343904c0fc6856bef29b83392d",
+        "date": "2020-02-28",
+        "pr": 1359,
+        "summary": "Port of Cassandra non-CQL tests (BatchTest.java) to dtest."
+      },
       "commits": {
         "55c4c0f7381cae8685271a2023a6611732685df4": "Replaced tablets skip (scylladb#18068) with @pytest.mark.lwt.",
         "98d0b4c5e0c9fccaac0ed097bd8fe1c1cdc631df": "Revert of cace0240: back to tablets skip.",
@@ -45,15 +89,42 @@
       },
       "relevance": "Live: LWT in batches + TTL; LWT on tablets now enabled (55c4c0f7).",
       "duplicates": [
-        {"path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction", "coverage": "full", "note": "Same Cassandra test translated (scylla 383aa326cc), identical cmd1..cmd12 sequence and expected rows; uses textual BEGIN BATCH instead of driver BATCH message with prepared statements. Marked tier2 (runs in next/nightly)."},
-        {"path": "test/cqlpy/test_lwt.py::test_lwt_with_batch_conflict_*", "coverage": "partial", "note": "LWT batch semantics."}
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction",
+          "coverage": "full",
+          "note": "Same Cassandra test translated (scylla 383aa326cc), identical cmd1..cmd12 sequence and expected rows; uses textual BEGIN BATCH instead of driver BATCH message with prepared statements. Marked tier2 (runs in next/nightly)."
+        },
+        {
+          "path": "test/cqlpy/test_lwt.py::test_lwt_with_batch_conflict_*",
+          "coverage": "partial",
+          "note": "LWT batch semantics."
+        }
       ],
       "decision": "RED",
-      "reason": "Same scenario fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction (same Cassandra source, same steps/assertions); single node, nothing dtest-specific; ~33s mostly sleeps. Only difference is prepared statements in a protocol BATCH vs textual batch. Note: helper defines many statement strings that are overwritten/unused before use (dead code, cassandra_batch_test.py:86-93); update_command param default duplicates the slow-log test's value."
+      "reason": "Same scenario fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchTTLConditionalInteraction (same Cassandra source, same steps/assertions); single node, nothing dtest-specific; ~33s mostly sleeps. Only difference is prepared statements in a protocol BATCH vs textual batch. Note: helper defines many statement strings that are overwritten/unused before use (dead code, cassandra_batch_test.py:86-93); update_command param default duplicates the slow-log test's value.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cassandra_batch_test.py:86-93",
+          "text": "Helper statement strings overwritten/unused before use"
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "update_command param default duplicates the slow-log test's value"
+        }
+      ]
     },
     "TestBatch::test_batch_static_ttl_conditional_interaction": {
       "description": "Single node port of Cassandra BatchTest.testBatchStaticTTLConditionalInteraction: batches on a table with a static column, mixing conditional updates on static (IF sval=...), static updates, deletes, range deletes, IF NOT EXISTS and TTL statements; asserts rows after each batch, that a non-matching static condition skips the batch, and TTL expiry after sleeps.",
-      "origin": {"sha": "b99bc7b4361ccc343904c0fc6856bef29b83392d", "date": "2020-02-28", "pr": 1359, "summary": "Port of Cassandra non-CQL tests (BatchTest.java) to dtest."},
+      "origin": {
+        "sha": "b99bc7b4361ccc343904c0fc6856bef29b83392d",
+        "date": "2020-02-28",
+        "pr": 1359,
+        "summary": "Port of Cassandra non-CQL tests (BatchTest.java) to dtest."
+      },
       "commits": {
         "b866c65bce39b63c83e94f047b96fd8483945a50": "Keyspace creation to f-string (formatting).",
         "55c4c0f7381cae8685271a2023a6611732685df4": "Replaced tablets skip (scylladb#18068) with @pytest.mark.lwt.",
@@ -72,11 +143,27 @@
       },
       "relevance": "Live: LWT with static-column conditions in batches + TTL.",
       "duplicates": [
-        {"path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchStaticTTLConditionalInteraction", "coverage": "full", "note": "Same Cassandra test translated (scylla 383aa326cc); dtest version also uses textual (non-prepared) statements, so effectively identical. Marked tier2 (runs in next/nightly)."},
-        {"path": "test/cqlpy/test_lwt.py::test_lwt_static_condition", "coverage": "partial", "note": "Static-column LWT conditions."}
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchStaticTTLConditionalInteraction",
+          "coverage": "full",
+          "note": "Same Cassandra test translated (scylla 383aa326cc); dtest version also uses textual (non-prepared) statements, so effectively identical. Marked tier2 (runs in next/nightly)."
+        },
+        {
+          "path": "test/cqlpy/test_lwt.py::test_lwt_static_condition",
+          "coverage": "partial",
+          "note": "Static-column LWT conditions."
+        }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchStaticTTLConditionalInteraction (same Cassandra source, same steps; dtest also uses plain-text statements); single node, ~40s mostly sleeps. Note: statement-template variables at the top are overwritten/unused except clustering_static_conditional_delete (dead code, cassandra_batch_test.py:230-245)."
+      "reason": "Fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatchStaticTTLConditionalInteraction (same Cassandra source, same steps; dtest also uses plain-text statements); single node, ~40s mostly sleeps. Note: statement-template variables at the top are overwritten/unused except clustering_static_conditional_delete (dead code, cassandra_batch_test.py:230-245).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cassandra_batch_test.py:230-245",
+          "text": "Statement-template variables overwritten/unused except clustering_static_conditional_delete"
+        }
+      ]
     }
   }
 }

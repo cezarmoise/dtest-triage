@@ -65,7 +65,51 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: test cannot detect a broken rebuild - NodetoolError is caught and counted in rebuild_errors/unexpected_errors (rebuild_test.py:89-104) but the asserts were removed in 4b23df18a6, and the final check reads at CL=ALL with node1 (source) alive (rebuild_test.py:110-111), which returns the row even if node2 has nothing. Candidate RED: test_rebuild_everywhere covers the same cross-dc rebuild with a real per-node check; alternatively fix (re-add assert, read node2 alone/LOCAL_ONE in dc2). Note: comments say auto_bootstrap: false but 0619a308ef dropped it; docstring CASSANDRA-9119 refers to removed check; skip mark refs closed #23525; rebuild is a no-op for tablet ks. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Bug: test cannot detect a broken rebuild - NodetoolError is caught and counted in rebuild_errors/unexpected_errors (rebuild_test.py:89-104) but the asserts were removed in 4b23df18a6, and the final check reads at CL=ALL with node1 (source) alive (rebuild_test.py:110-111), which returns the row even if node2 has nothing. Candidate RED: test_rebuild_everywhere covers the same cross-dc rebuild with a real per-node check; alternatively fix (re-add assert, read node2 alone/LOCAL_ONE in dc2). Note: comments say auto_bootstrap: false but 0619a308ef dropped it; docstring CASSANDRA-9119 refers to removed check; skip mark refs closed #23525; rebuild is a no-op for tablet ks. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "rebuild_test.py:89-104",
+          "text": "NodetoolError caught and counted in rebuild_errors/unexpected_errors, asserts removed in 4b23df18a6"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "rebuild_test.py:110-111",
+          "text": "Final read at CL=ALL with source node1 alive returns rows even if node2 has nothing"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Comments say auto_bootstrap: false (dropped in 0619a308ef); docstring CASSANDRA-9119 refers to removed check"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "scylladb#23525",
+          "text": "skip_if(tablets & issue_open(#23525)) inert, issue closed; runs in tablets job"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "With tablets rebuild is a no-op; only ALTER-driven streaming checked there"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_everywhere": {
       "description": "node1 in dc1 with vnode ks (tablets=0) holding 1000 keys, node2 in dc2, ALTER ks to EverywhereStrategy, `nodetool rebuild dc1` on node2; then stops cluster and starts each node alone, reading all keys at CL=ONE. Verifies rebuild of an EverywhereStrategy (scylla-only) keyspace from another DC delivers all data.",
@@ -100,8 +144,22 @@
           "note": "only checks strategy/tablets compatibility, no rebuild."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique coverage of cross-DC rebuild for EverywhereStrategy with a real per-node data check (each node alone, CL=ONE); recently cleaned up and deflaked (PR 7482), 100% pass in both jobs, ~19s. Class-level notes (start_rpc Unused, allow_log_errors) do not weaken its data assertions. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "decision": "YELLOW",
+      "reason": "Unique coverage of cross-DC rebuild for EverywhereStrategy with a real per-node data check (each node alone, CL=ONE); recently cleaned up and deflaked (PR 7482), 100% pass in both jobs, ~19s. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test (its per-node data assertions are unaffected).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_many_tables": {
       "description": "Single DC: node1 with ks (dc1:1) and 100 tables x 100 keys; add node2, ALTER ks to dc1:2, `nodetool rebuild` on node2, kill node1 and read every key at CL=ONE from node2. Checks rebuild handles many tables in a keyspace. Vnodes only.",
@@ -142,7 +200,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Note: log says node2 starts with auto_bootstrap: false (rebuild_test.py:245) but add_node does not set it (dropped in 0619a308ef), so node2 bootstraps and already streams its RF=1 ranges; rebuild only fills the rest - the 'rebuild a non-bootstrapped node' intent is lost. Largely overlaps test_rebuild_many_keyspaces; 65s, vnode-only. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Note: log says node2 starts with auto_bootstrap: false (rebuild_test.py:245) but add_node does not set it (dropped in 0619a308ef), so node2 bootstraps and already streams its RF=1 ranges; rebuild only fills the rest - the 'rebuild a non-bootstrapped node' intent is lost. Largely overlaps test_rebuild_many_keyspaces; 65s, vnode-only. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "rebuild_test.py:245",
+          "text": "Log says node2 starts with auto_bootstrap: false but it bootstraps (0619a308ef); rebuild only fills the rest"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_many_keyspaces": {
       "description": "Single DC: node1 with 50 keyspaces x 2 tables x 100 keys (RF dc1:1); add node2, ALTER every ks to dc1:2, `nodetool rebuild` on node2, kill node1, read all keys at CL=ONE. Checks rebuild across many keyspaces. Vnodes only.",
@@ -178,7 +256,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Note: same lost auto_bootstrap=False as many_tables (rebuild_test.py:297 log vs add_node, 0619a308ef), so node2 bootstraps first. Slowest test in file (104s) and near-duplicate of test_rebuild_many_tables (rebuild iterates keyspaces either way); keep at most one. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Note: same lost auto_bootstrap=False as many_tables (rebuild_test.py:297 log vs add_node, 0619a308ef), so node2 bootstraps first. Slowest test in file (104s) and near-duplicate of test_rebuild_many_tables (rebuild iterates keyspaces either way); keep at most one. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "rebuild_test.py:297",
+          "text": "Log says auto_bootstrap: false but node2 bootstraps (0619a308ef); rebuild only fills the rest"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_keyspace_with_rf_1": {
       "description": "3 nodes, enable_repair_based_node_ops=false, ks RF=1 with 1000 keys; stop node3, replace it with node4 (replace_node_host_id); expect a WARN 'Unable to find sufficient sources ... with RF = 1 for replace operation' instead of a failed replace, run `nodetool rebuild` on node4, and assert data was lost (some keys missing at CL=ALL). Guards scylladb#6351 (replace failed with 'unable to find sufficient sources' for RF=1).",
@@ -205,7 +303,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique vnode coverage of scylladb#6351 (non-RBNO replace with RF=1 must warn, not fail). Note: WARN regex matches any keyspace (rebuild_test.py:338), so it doesn't prove ks itself was handled; with tablets the ks path is not exercised and `nodetool rebuild` is a no-op, i.e. the tablets-job run adds little. 'rebuild' step only asserts it doesn't fail. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Unique vnode coverage of scylladb#6351 (non-RBNO replace with RF=1 must warn, not fail). Note: WARN regex matches any keyspace (rebuild_test.py:338), so it doesn't prove ks itself was handled; with tablets the ks path is not exercised and `nodetool rebuild` is a no-op, i.e. the tablets-job run adds little. 'rebuild' step only asserts it doesn't fail. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "rebuild_test.py:338",
+          "text": "WARN regex matches any keyspace; rebuild step only asserted not to fail"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "With tablets ks path not exercised and rebuild is a no-op; exercised on vnodes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_add_new_dc_with_tablets": {
       "description": "Tablets only. 2 nodes in dc1 (racks r1,r2), ks dc1:2 with 25 keys (10 debug); add 2 nodes in dc2, ALTER ks dc2:0->1->2 (rack list if auto-expanded), each ALTER waits for tablet streaming; then read every 5th key at CL=ALL. Checks adding a DC with tablets via RF change (no nodetool rebuild needed).",
@@ -240,7 +364,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: data check reads at CL=ALL with dc1 replicas alive (rebuild_test.py:402-403), returns rows even if dc2 got nothing, and only every 5th of 25 keys (5 keys); the real check is just that ALTER completes, which scylla test_multi_rf_change_multi_dc_0_N covers with placement asserts. Note: name says rebuild but no rebuild is run. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Bug: data check reads at CL=ALL with dc1 replicas alive (rebuild_test.py:402-403), returns rows even if dc2 got nothing, and only every 5th of 25 keys (5 keys); the real check is just that ALTER completes, which scylla test_multi_rf_change_multi_dc_0_N covers with placement asserts. Note: name says rebuild but no rebuild is run. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "rebuild_test.py:402-403",
+          "text": "Reads at CL=ALL with dc1 replicas alive and only every 5th of 25 keys; passes even if dc2 got nothing"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Name says rebuild but no rebuild is run"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     },
     "TestRebuild::test_rebuild_del_dc_with_tablets": {
       "description": "Tablets only. 2+2 nodes in dc1/dc2 (racks), ks dc1:2,dc2:2 with 25000 keys (10000 debug); ALTER dc2 2->1->0, stop dc2 nodes, read all keys at CL=ALL. Checks removing a DC's replicas via RF change with tablets: CL=ALL would fail (Unavailable) if dc2 still held replicas.",
@@ -275,7 +425,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with scylla test_tablets.py RF-drop tests (placement-level); dtest adds end-to-end read with dc2 down. Note: 25000 keys inserted though decreasing RF streams nothing (c5673f85b8 says so), making it 66s; 'removing nodes' only stops them (rebuild_test.py:454-456); no rebuild despite name. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused); fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test."
+      "reason": "Partial overlap with scylla test_tablets.py RF-drop tests (placement-level); dtest adds end-to-end read with dc2 down. Note: 25000 keys inserted though decreasing RF streams nothing (c5673f85b8 says so), making it 66s; 'removing nodes' only stops them (rebuild_test.py:454-456); no rebuild despite name. Note (class): cluster_options start_rpc=true is dead config (scylla db/config.cc:1288 value_status::Unused). Bug (class): fixture sets allow_log_errors=True (rebuild_test.py:32), so ERROR log lines never fail any test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "c5673f85b8",
+          "text": "25000 keys inserted though RF decrease streams nothing (~66s)"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "rebuild_test.py:454-456",
+          "text": "'removing nodes' only stops them; no rebuild despite name"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "rebuild_test.py:27",
+          "text": "Class cluster_options start_rpc=true is dead config (Unused in scylla)"
+        },
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "rebuild_test.py:32",
+          "text": "Class fixture sets allow_log_errors=True, so ERROR log lines never fail any test"
+        }
+      ]
     }
   }
 }

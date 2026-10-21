@@ -24,7 +24,8 @@
       "relevance": "Live: cql3/statements/alter_table_statement.cc:410-411 throws 'Cannot drop columns from a non-CQL3 table'. But COMPACT STORAGE is deprecated, gated by enable_create_table_with_compact_storage (db/config.cc:1752, default false, 'will eventually be removed').",
       "duplicates": [],
       "decision": "YELLOW",
-      "reason": "No scylla test found asserting the non-CQL3 DROP rejection (grep 'Cannot drop columns' in test/ empty), so coverage is unique, but it is a trivial single-node CQL validation of a deprecated feature (db/config.cc:1752) better placed in cqlpy (e.g. test/cqlpy/test_guardrail_compact_storage.py). Note: class marks single_node/next_gating; 5s, 100% pass."
+      "reason": "No scylla test found asserting the non-CQL3 DROP rejection (grep 'Cannot drop columns' in test/ empty), so coverage is unique, but it is a trivial single-node CQL validation of a deprecated feature (db/config.cc:1752) better placed in cqlpy (e.g. test/cqlpy/test_guardrail_compact_storage.py). Note: class marks single_node/next_gating; 5s, 100% pass.",
+      "issues": []
     },
     "TestSchema::test_drop_column_compaction": {
       "description": "Single node, server-side timestamps: insert 3 rows, ALTER TABLE DROP c1, ADD c1 int, insert 1 more row, flush+compact, reconnect and assert SELECT c1 returns [None,None,None,4] (assert_all, ignore_order, tools/assertions.py:193 '=='). Originally (CASSANDRA-3919) it also erased dropped_columns from system.schema_columnfamilies and restarted, to prove compaction physically purged the dropped data.",
@@ -70,7 +71,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: since d31b560756 the dropped_columns erase+restart was removed, so the assertion (comment 'c1 values have been compacted away', schema_test.py:48) passes whether or not compaction purged the data - dropped_columns filtering at read hides it either way; effectively test_drop_column_queries + flush/compact. Partial overlap with cqlpy alter_test.py::testDropWithTimestamp/testAlterDropEmptySSTable."
+      "reason": "Bug: since d31b560756 the dropped_columns erase+restart was removed, so the assertion (comment 'c1 values have been compacted away', schema_test.py:48) passes whether or not compaction purged the data - dropped_columns filtering at read hides it either way; effectively test_drop_column_queries + flush/compact. Partial overlap with cqlpy alter_test.py::testDropWithTimestamp/testAlterDropEmptySSTable.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "schema_test.py:48",
+          "text": "Claims c1 values were compacted away, but since d31b560756 (no dropped_columns erase+restart) read-time filtering hides them either way."
+        }
+      ]
     },
     "TestSchema::test_drop_column_queries": {
       "description": "Single node, server-side timestamps: insert 3 rows, DROP c1, ADD c1, insert a 4th row (all in memtable), then asserts old c1 values are not resurrected: SELECT c1 / SELECT * / point SELECTs via assert_all and assert_one (tools/assertions.py:193/135, strict '=='). Originally also checked a secondary index on c2, commented out in scylla (99e1e0dba0).",
@@ -118,7 +127,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with cqlpy alter_test.py::testDropWithTimestamp (drop/re-add hides old values); dtest adds server-side timestamps + memtable reads, a single-node CQL check that fits cqlpy. Note: dead commented-out secondary-index checks (schema_test.py:57-58,75-81, 'Indexes not supported yet' from 99e1e0dba0) though scylla supports SI now."
+      "reason": "Partial overlap with cqlpy alter_test.py::testDropWithTimestamp (drop/re-add hides old values); dtest adds server-side timestamps + memtable reads, a single-node CQL check that fits cqlpy. Bug: dead commented-out secondary-index checks (schema_test.py:57-58,75-81, 'Indexes not supported yet' from 99e1e0dba0) though scylla supports SI now.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "schema_test.py:57-58,75-81",
+          "text": "Secondary-index checks commented out ('Indexes not supported yet', 99e1e0dba0), though scylla supports SI now."
+        }
+      ]
     },
     "TestSchema::test_restart_with_large_tables": {
       "description": "Reproducer for scylladb#2623 (boot hang): sets max_cached_partition_size_in_kb=1, creates 100 tables each with a 1KB column name (large system schema partitions), restarts the node and runs SELECTs on first/last table. Only asserts the node boots and queries don't error. The hang was a deadlock in row_cache when a partition exceeded max_cached_partition_size_in_kb and a second sstable reader was created under the read-concurrency semaphore (fix 0ac2c388b6, branch-1.7).",
@@ -140,7 +157,15 @@
       "relevance": "Option max_cached_partition_size_in_kb and the wide-partition cache bypass were removed from scylla master in 77f944880c (2017-02-09, 'cache: Remove support for wide partitions'), before this test was added; 0ac2c388b6 message says the problem doesn't exist in 2.0/master (row-granularity cache). The option is now an unknown yaml key (utils/config_file.cc:307 'Unknown option').",
       "duplicates": [],
       "decision": "RED",
-      "reason": "Tested option/code path removed: max_cached_partition_size_in_kb gone since scylla 77f944880c (2017), so the scylla#2623 deadlock (fix 0ac2c388b6, 1.7-only) can't be reproduced; what remains is a generic 'restart with 100 tables' smoke with no assertions beyond queries succeeding. Bug: config sets a dead option (schema_test.py:106)."
+      "reason": "Tested option/code path removed: max_cached_partition_size_in_kb gone since scylla 77f944880c (2017), so the scylla#2623 deadlock (fix 0ac2c388b6, 1.7-only) can't be reproduced; what remains is a generic 'restart with 100 tables' smoke with no assertions beyond queries succeeding. Note: config sets a dead option (schema_test.py:106).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "schema_test.py:106",
+          "text": "Sets max_cached_partition_size_in_kb, removed in scylla 77f944880c (unknown option)."
+        }
+      ]
     },
     "TestSchema::test_alter_keyspace_then_table_with_udt": {
       "description": "2 nodes (2 racks, 1 DC): create keyspace RF=1, UDT ks.my_type, table cf with a UDT column (STCS), ALTER KEYSPACE to RF=2 (or rack list ['rack1','rack2'] when RF is auto-expanded), then ALTER TABLE compaction to LCS. Passes if no 'Unknown type ks.my_type' error. Reproducer for scylla-enterprise#2989 / scylladb#14139 (ALTER KEYSPACE dropped in-memory UDT metadata, fixed by scylla 1a521172ec).",
@@ -169,7 +194,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "cqlpy test_keyspace.py::test_alter_keyspace_preserves_udt (db0871a644) is the dedicated reproducer for the same root cause (scylladb#14139, fixed by 1a521172ec); the dtest only adds a 2nd node and an RF change, no extra assertions. Note: class mark single_node (schema_test.py:14) is wrong for this 2-node test."
+      "reason": "cqlpy test_keyspace.py::test_alter_keyspace_preserves_udt (db0871a644) is the dedicated reproducer for the same root cause (scylladb#14139, fixed by 1a521172ec); the dtest only adds a 2nd node and an RF change, no extra assertions. Note: class mark single_node (schema_test.py:14) is wrong for this 2-node test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "schema_test.py:14",
+          "text": "Class mark single_node is wrong for this 2-node test."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-20",

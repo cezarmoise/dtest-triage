@@ -32,7 +32,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end check that a full rolling add+decommission replacement of every node keeps RF=1 data; scylla test/cluster only covers single ops (test_topology_ops). Cheap (~57s), 100% pass in both gating jobs."
+      "reason": "Unique end-to-end check that a full rolling add+decommission replacement of every node keeps RF=1 data; scylla test/cluster only covers single ops (test_topology_ops). Cheap (~57s), 100% pass in both gating jobs.",
+      "issues": []
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_live_nodes_multi_dc": {
       "description": "2 DCs x 3 nodes (no explicit racks), RF dc1:1 dc2:1, 10000 rows. All nodes replaced in reverse order (dc2 first, then dc1) by add-new-node-in-same-DC + decommission old, then all rows verified at CL=ONE. Guards multi-DC rolling replacement with RF=1 per DC.",
@@ -63,7 +64,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Multi-DC rolling add+decommission with RF=1 per DC and data verification has no scylla test/cluster equivalent (test_topology_ops is single DC, single op). ~110s, 100% pass."
+      "reason": "Multi-DC rolling add+decommission with RF=1 per DC and data verification has no scylla test/cluster equivalent (test_topology_ops is single DC, single op). ~110s, 100% pass.",
+      "issues": []
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes": {
       "description": "Single DC, racks r1 (2 nodes) and r2 (1 node), RF=2, 10000 rows. Each original node is stopped and replaced (replace by host id, repair-based / tablet rebuild) via RepairBasedNodeOperationsScenarios.replace_node, the new node added as seed; finally all rows verified at CL=ONE. Guards rolling dead-node replacement of the whole cluster without data loss.",
@@ -108,7 +110,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Live, mostly unique coverage (rolling replace of all nodes incl. seeds, data verified) - otherwise keep. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+      "reason": "Live, mostly unique coverage (rolling replace of all nodes incl. seeds, data verified) - otherwise keep. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "repair_based_node_operations_test.py:173",
+          "text": "replace_node helper has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' (removed in scylla d35b83bec8)"
+        }
+      ]
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_multi_dc": {
       "description": "2 DCs x 2 racks x 1 node, RF dc1:2 dc2:2, 10000 rows. All nodes replaced in reverse order (dc2 first) via rbnos.replace_node with new nodes as seeds; rows verified at CL=ONE. Guards multi-DC rolling dead-node replace; was blocked on tablets by scylladb/scylladb#16527.",
@@ -146,8 +156,22 @@
           "note": "single-node replace variants (ignore_dead_nodes, multi-dc/rack); not rolling replacement of all nodes"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Multi-DC rolling replace with data check is not covered in scylla test/cluster - otherwise keep. Note: ignore_log_patterns 'Could not retrieve CDC streams with timestamp' (cluster_replacement_test.py:134, from origin) is dead - message removed from scylla in 6a7e850161 (cdc: remove legacy code, 2026-02-12). Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+      "decision": "GREEN",
+      "reason": "Multi-DC rolling replace with data check is not covered in scylla test/cluster. Note: ignore_log_patterns 'Could not retrieve CDC streams with timestamp' (cluster_replacement_test.py:134, from origin) is dead - message removed from scylla in 6a7e850161 (cdc: remove legacy code, 2026-02-12). Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cluster_replacement_test.py:134",
+          "text": "ignore_log_patterns 'Could not retrieve CDC streams with timestamp' is dead; message removed in scylla 6a7e850161"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "repair_based_node_operations_test.py:173",
+          "text": "replace_node helper has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' (removed in scylla d35b83bec8)"
+        }
+      ]
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_multi_dc_rf_1": {
       "description": "2 DCs x 2 nodes, RF dc1:1 dc2:1, 10000 rows. Each node is stopped and replaced (reverse order), with full CL=ONE data verification after every replacement. Reproducer for scylladb/scylladb#16826: RBNO replace used only the local DC as source, losing data when the DC has RF=1 (fixed by scylladb 5f655e41e3 'use source_dc only when safe').",
@@ -175,8 +199,22 @@
           "note": "single-node replace variants (ignore_dead_nodes, multi-dc/rack); not rolling replacement of all nodes"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only regression test for scylladb/scylladb#16826 (grep of scylla test/ finds none) - otherwise keep. Note: @pytest.mark.require('scylladb/scylladb#16826') (cluster_replacement_test.py:147) is stale, issue closed 2024-09-04. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735)."
+      "decision": "GREEN",
+      "reason": "Only regression test for scylladb/scylladb#16826 (grep of scylla test/ finds none). Note: @pytest.mark.require('scylladb/scylladb#16826') (cluster_replacement_test.py:147) is stale, issue closed 2024-09-04. Note: helper RepairBasedNodeOperationsScenarios.replace_node (repair_based_node_operations_test.py:173-176) has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' - message no longer in scylla, gossiper topology code removed in scylladb d35b83bec8, force_gossip_topology_changes is Deprecated (db/config.cc:1735).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "cluster_replacement_test.py:147",
+          "text": "@pytest.mark.require('scylladb/scylladb#16826') is stale; issue closed 2024-09-04, test runs"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "repair_based_node_operations_test.py:173",
+          "text": "replace_node helper has a dead gossip-topology branch waiting for 'has been silent for 30000ms, removing' (removed in scylla d35b83bec8)"
+        }
+      ]
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_remove_and_add": {
       "description": "Single DC, 2 racks x 2 nodes, RF=2, 10000 rows. Each original node is killed, removed via nodetool removenode from another live node, then a new node is bootstrapped in the same dc/rack; finally rows verified at CL=ONE. Guards the remove-then-add replacement procedure across the whole cluster.",
@@ -206,7 +244,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Rolling removenode+bootstrap of every node with data verification is not covered by scylla tests (test_tablets_removenode::test_removenode / test_topology_ops do a single removenode). ~260s, 100% pass."
+      "reason": "Rolling removenode+bootstrap of every node with data verification is not covered by scylla tests (test_tablets_removenode::test_removenode / test_topology_ops do a single removenode). ~260s, 100% pass.",
+      "issues": []
     },
     "TestClusterReplacement::test_rolling_cluster_replacement_sequentially_dead_nodes_remove_and_add_multi_dc": {
       "description": "2 DCs x 2 racks x 2 nodes, RF dc1:2 dc2:2, 10000 rows. All 8 nodes, dc2 first, are killed, removenode'd and replaced by a newly bootstrapped node in the same dc/rack; rows verified at CL=ONE. Multi-DC variant of the remove-and-add procedure.",
@@ -238,7 +277,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only multi-DC rolling removenode+add test with data check; no scylla equivalent. Slowest in module (~490s) but 100% pass in both gating jobs."
+      "reason": "Only multi-DC rolling removenode+add test with data check; no scylla equivalent. Slowest in module (~490s) but 100% pass in both gating jobs.",
+      "issues": []
     },
     "TestClusterReplacement::test_rack_loss_recovery": {
       "description": "Tablets only. 1 DC, 3 racks x 2 nodes, keyspace with rack-list RF ['rack1','rack2','rack3'], 10000 rows. Both rack3 nodes are killed and marked excluded via /storage_service/exclude_node, ALTER drops rack3 from RF, removenode both, bootstrap 2 nodes in new rack4, ALTER adds rack4, then all rows verified from a live node. Guards recovery from total rack loss without replace (scylla rack-list RF + excludenode, scylladb/scylladb#21281).",
@@ -269,7 +309,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario mostly unique (scylla test_tablets.py::test_excludenode is partial, no data check) - otherwise keep. Note: docstring step 4/6 stale - says nodes are marked down via failing removenode, code uses exclude_node since ee9745f6a9 (cluster_replacement_test.py:195). Note: 'from tools.marks import with_feature' (line 14, added by f06daf9294) unused; session at line 227 never closed."
+      "reason": "Scenario mostly unique (scylla test_tablets.py::test_excludenode is partial, no data check) - otherwise keep. Note: docstring step 4/6 stale - says nodes are marked down via failing removenode, code uses exclude_node since ee9745f6a9 (cluster_replacement_test.py:195). Note: 'from tools.marks import with_feature' (line 14, added by f06daf9294) unused; session at line 227 never closed.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cluster_replacement_test.py:195",
+          "text": "Docstring steps 4/6 say nodes are marked down via failing removenode; code uses exclude_node since ee9745f6a9"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cluster_replacement_test.py:14",
+          "text": "Unused import 'from tools.marks import with_feature' (f06daf9294)"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cluster_replacement_test.py:227",
+          "text": "Session opened at line 227 is never closed"
+        }
+      ]
     }
   }
 }

@@ -35,7 +35,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla test checks count(*) over a multi-page full scan with LIMIT and varying fetch_size on a multi-node cluster; only partial overlap (index/mutation_fragments variants). Cheap (~17s), 32/32 pass."
+      "reason": "No scylla test checks count(*) over a multi-page full scan with LIMIT and varying fetch_size on a multi-node cluster; only partial overlap (index/mutation_fragments variants). Cheap (~17s), 32/32 pass.",
+      "issues": []
     },
     "TestAggregatePaging::test_paged_count_with_clustering_key": {
       "description": "1234 rows in one partition (pk=0, ck1=1, random ck2). `SELECT count(*) WHERE pk=0 AND ck1=1 ORDER BY ck1 asc, ck2 asc` with fetch_size=100 at CL=ALL; asserts one page with count 1234. Guards scylla#1684 (aggregate with clustering-key restriction stopping at page/100-row boundary).",
@@ -69,7 +70,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla test found counting a CK-restricted slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass."
+      "reason": "No scylla test found counting a CK-restricted slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass.",
+      "issues": []
     },
     "TestAggregatePaging::test_paged_count_with_clustering_key_reversed": {
       "description": "1234 rows in one partition (pk=0, ck1=1, random ck2). `SELECT count(*) WHERE pk=0 AND ck1=1 ORDER BY ck1 desc, ck2 desc` with fetch_size=100 at CL=ALL; asserts one page with count 1234. Guards scylla#1684 (aggregate with clustering-key restriction stopping at page/100-row boundary); reversed-order variant exercises reverse reads under aggregation.",
@@ -100,7 +102,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla test found counting a CK-restricted reversed slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass."
+      "reason": "No scylla test found counting a CK-restricted reversed slice spanning multiple internal pages; only partial overlaps. Cheap (~15s), 32/32 pass.",
+      "issues": []
     },
     "TestLargePaging::test_large_page_range_queries": {
       "description": "1000 partitions each with one 64KiB row, RF=3. Full scan at CL=ALL with fetch_size=1000; asserts total rows=1000 and every page <= fetch_size. Exercises byte-size-limited short pages (pages cut by result-size limit, not row count) on range scans across 3 nodes.",
@@ -141,8 +144,16 @@
           "note": "selection of page size limit, no end-to-end scan"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique end-to-end multi-node check that large-value range scans are split into size-limited pages without losing rows; scylla tests cover pieces only. Note: `page <= fetch_size` assert is weak (pages are far smaller due to 1MB limit); 32/32 pass, ~20s."
+      "decision": "GREEN",
+      "reason": "Unique end-to-end multi-node check that large-value range scans are split into size-limited pages without losing rows; scylla tests cover pieces only. Note: `page <= fetch_size` assert is weak (pages are far smaller due to 1MB limit); 32/32 pass, ~20s.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "`page <= fetch_size` assert is trivially true (1MB size limit makes pages far smaller); total row count still checked"
+        }
+      ]
     },
     "TestLargePaging::test_large_page_range_queries_static_columns": {
       "description": "1000 partitions with only a 64KiB static cell and no clustering rows. Full scan at CL=ALL, fetch_size=1000; asserts 1000 results and page sizes <= fetch_size. Guards size-limited paging when partitions contain only static rows (no live clustering row).",
@@ -183,8 +194,16 @@
           "note": "static column paging but small values, no size-limited pages"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of static-only partitions in size-limited paged range scans; only partial overlaps. Note: weak `page <= fetch_size` assert. 32/32 pass, ~20s."
+      "decision": "GREEN",
+      "reason": "Unique coverage of static-only partitions in size-limited paged range scans; only partial overlaps. Note: weak `page <= fetch_size` assert. 32/32 pass, ~20s.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "`page <= fetch_size` assert is trivially true (1MB size limit makes pages far smaller); total row count still checked"
+        }
+      ]
     },
     "TestLargePaging::test_large_page_single_partition": {
       "description": "One partition with 1000 rows of 32KiB each, RF=3. `SELECT * WHERE pk=0` at CL=ALL with fetch_size=400; asserts 1000 rows, pages <= fetch_size, and on every node querier_cache_lookups == pages-1 with drops/time-based evictions 0 and misses == resource_based_evictions. Verifies querier (reader) reuse across pages of a large single partition (scylla#1865 cache partially consumed readers).",
@@ -220,7 +239,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass."
+      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass.",
+      "issues": []
     },
     "TestLargePaging::test_small_page_single_partition": {
       "description": "One partition with 1000 rows of 32KiB each, RF=3. `SELECT * WHERE pk=0` at CL=ALL with fetch_size=15; asserts 1000 rows, pages <= fetch_size, and on every node querier_cache_lookups == pages-1 with drops/time-based evictions 0 and misses == resource_based_evictions. Verifies querier (reader) reuse across pages of a large single partition (scylla#1865 cache partially consumed readers).",
@@ -256,7 +276,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass."
+      "reason": "Only multi-node end-to-end check that every replica reuses its querier on each page of a large partition (CL=ALL); scylla unit tests cover the cache in isolation. Was skipped on scylladb#23399 until 03406e92c0 fixed metrics for rf=3; now 32/32 pass.",
+      "issues": []
     },
     "TestPagingSavedQueryStateSingularRanges::test_replica_usage": {
       "description": "6-row partition, RF=3, CL=ONE, fetch_size=1, speculative_retry=NONE. Pages through 7 pages while the driver round-robins coordinators; asserts every node coordinated at least once (storage_proxy_coordinator_reads) and querier_cache metrics show exactly one replica with lookups=pages-1 and the others untouched, i.e. coordinators honor paging_state last_replicas and stick to the same replica.",
@@ -282,8 +303,22 @@
           "note": "cache only; no coordinator replica stickiness"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of replica stickiness across pages from different coordinators. Note: passes dead table option dclocal_read_repair_chance=0.0 (obsolete/ignored since scylla c323c93fa4, scylla 6.0, cql3/statements/cf_prop_defs.cc obsolete_keywords) at paging_additional_test.py:356; test self-documents it relies on driver round-robin (line 371-375)."
+      "decision": "GREEN",
+      "reason": "Unique coverage of replica stickiness across pages from different coordinators. Note: passes dead table option dclocal_read_repair_chance=0.0 (obsolete/ignored since scylla c323c93fa4, scylla 6.0, cql3/statements/cf_prop_defs.cc obsolete_keywords) at paging_additional_test.py:356; test self-documents it relies on driver round-robin (line 371-375).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "paging_additional_test.py:356",
+          "text": "dclocal_read_repair_chance=0.0 table option obsolete/ignored since scylla c323c93fa4"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "paging_additional_test.py:371-375",
+          "text": "Relies on driver round-robin to hit every coordinator (self-documented)"
+        }
+      ]
     },
     "TestPagingSavedQueryStateSingularRanges::test_per_query_read_repair_decision": {
       "description": "Same 6-row partition, CL=ONE, fetch_size=1, with dclocal_read_repair_chance=0.5 and tombstone_failure_threshold=500. Asserts 7 pages, correct data, and querier metrics consistent with a read-repair decision made once on page 1 and kept for all pages (scylla commit eee9bda85b 'Make the read-repair decision only once').",
@@ -310,7 +345,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Tested feature removed: read_repair_chance options removed in scylla c323c93fa4 (scylladb/scylladb#3502), RR decision always NONE, so the test degenerates into a subset of test_replica_usage. Bug: dead options dclocal_read_repair_chance=0.5 (line 392) and tombstone_failure_threshold (Unused, line 389)."
+      "reason": "Tested feature removed: read_repair_chance options removed in scylla c323c93fa4 (scylladb/scylladb#3502), RR decision always NONE, so the test degenerates into a subset of test_replica_usage. Note: dead options dclocal_read_repair_chance=0.5 (line 392) and tombstone_failure_threshold (Unused, line 389).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "paging_additional_test.py:392",
+          "text": "dclocal_read_repair_chance=0.5 ignored since scylla c323c93fa4; RR decision always NONE"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "paging_additional_test.py:389",
+          "text": "tombstone_failure_threshold is Unused in scylla"
+        }
+      ]
     },
     "TestPagingQueryAlternativeConsistencyLevel::test_consistency_level_quorum": {
       "description": "Inserts 1000 rows at CL=QUORUM, reads full table once with default fetch size (5000, so effectively one page) and once with fetch_size=100, asserts both non-empty and sorted results identical. Written to reproduce scylla#10049 (missing row with paged select, SCT paged_query).",
@@ -341,7 +390,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Generic paged-vs-unpaged scan equality; motivating issue scylladb/scylladb#10049 closed INVALID and many paging_test.py tests cover multi-page scans (mostly CL=ALL). Note: 'without paging' query is actually paged with default fetch_size 5000 (1000 rows fit one page), line 425."
+      "reason": "Generic paged-vs-unpaged scan equality; motivating issue scylladb/scylladb#10049 closed INVALID and many paging_test.py tests cover multi-page scans (mostly CL=ALL). Note: 'without paging' query is actually paged with default fetch_size 5000 (1000 rows fit one page), line 425.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "paging_additional_test.py:425",
+          "text": "'without paging' query is paged with default fetch_size 5000 (1000 rows fit one page)"
+        }
+      ]
     },
     "TestPagingSavedQueryStateSingularRanges::test_single_partition": {
       "description": "RF=3 (1 dc/3 racks), 4-row partition pk=1, SELECT at CL=ALL with fetch_size=3 -> 2 pages. Asserts returned rows and page count, and that every node's querier_cache metrics show lookups=1 (=pages-1) and zero misses/drops/evictions, i.e. the replica-side querier saved after page 1 is found and reused on page 2. Guards scylla's paging reader-reuse (querier cache, 2018).",
@@ -379,7 +436,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only end-to-end check that paged CQL reads hit the querier cache on every replica; scylla coverage is unit-level only (test/boost/querier_cache_test.cc). Fast (~15s), 100% pass in 32 runs. Does not use dead options (setup_simple_table called without kwargs, no tombstone_failure_threshold)."
+      "reason": "Only end-to-end check that paged CQL reads hit the querier cache on every replica; scylla coverage is unit-level only (test/boost/querier_cache_test.cc). Fast (~15s), 100% pass in 32 runs. Does not use dead options (setup_simple_table called without kwargs, no tombstone_failure_threshold).",
+      "issues": []
     },
     "TestPagingSavedQueryStateSingularRanges::test_two_partitions": {
       "description": "RF=3, SELECT ... WHERE pk IN (1,2) at CL=ALL with fetch_size=5 over 4+6 rows -> 3 pages. Asserts data and page count, and that every node shows querier_cache lookups=2 and drops=1: when a page boundary crosses partitions the coordinator discards part of the replica result, replica detects position mismatch on lookup and drops the cached querier instead of reusing it.",
@@ -419,7 +477,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end coverage of querier drop on position mismatch for multi-partition IN paging; scylla only has unit-level lookup_with_original_range_drops (test/boost/querier_cache_test.cc). Fast (~16s), 100% pass in 32 runs. No dead options used."
+      "reason": "Unique end-to-end coverage of querier drop on position mismatch for multi-partition IN paging; scylla only has unit-level lookup_with_original_range_drops (test/boost/querier_cache_test.cc). Fast (~16s), 100% pass in 32 runs. No dead options used.",
+      "issues": []
     }
   }
 }

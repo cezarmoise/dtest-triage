@@ -39,7 +39,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_and_global_secondary_index with stronger assertions (index read counters); multi-node local index querying is already exercised by test_delete_local_indexed_rows and the node-action tests in this class."
+      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_and_global_secondary_index with stronger assertions (index read counters); multi-node local index querying is already exercised by test_delete_local_indexed_rows and the node-action tests in this class.",
+      "issues": []
     },
     "TestLocalIndexes::test_query_data_created_before_local_index": {
       "description": "4 nodes RF=3, users table: inserts 2 rows, creates 3 local indexes (gender, state, birth_year) and waits for build, inserts 2 more rows, asserts total count 4 and count 1 for key='user4' AND state='TX' (post-index row) and key='user2' AND state='CA' (pre-index row, must come from view building). Guards local-index view building over pre-existing data.",
@@ -72,7 +73,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Thin assertions: only 1 pre-index row is checked through the index; the gender and birth_year local indexes are created/built but never queried (secondary_indexes_test.py:~1455-1468). Pre-existing-data local index build is checked more thoroughly (1000 rows) by _node_action_after_index_build tests in this class."
+      "reason": "Thin assertions: only 1 pre-index row is checked through the index; the gender and birth_year local indexes are created/built but never queried (secondary_indexes_test.py:~1455-1468). Pre-existing-data local index build is checked more thoroughly (1000 rows) by _node_action_after_index_build tests in this class.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "secondary_indexes_test.py:1444",
+          "text": "Only 1 pre-index row (user2/CA) is checked through the index; still catches missing view build"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1444",
+          "text": "gender and birth_year local indexes are created/built but never queried"
+        }
+      ]
     },
     "TestLocalIndexes::test_query_data_by_ck_and_local_index": {
       "description": "4 nodes RF=3: inserts 4 rows, then creates local index ((key), v) and waits for build; asserts count(*)=4, count 1 for key+c+v matching (CL=ALL) and 0 for key+c with wrong v. Guards queries restricting full primary key plus local-indexed column.",
@@ -105,7 +120,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same query shape (pk + full ck + local-indexed column, match and non-match) is covered by test/boost/secondary_index_test.cc::test_local_index_prefix_optimization; the only extra (index built over pre-existing rows) is covered by _node_action_after_index_build tests here. Assertions are 3 count(*) checks."
+      "reason": "Same query shape (pk + full ck + local-indexed column, match and non-match) is covered by test/boost/secondary_index_test.cc::test_local_index_prefix_optimization; the only extra (index built over pre-existing rows) is covered by _node_action_after_index_build tests here. Assertions are 3 count(*) checks.",
+      "issues": []
     },
     "TestLocalIndexes::test_insert_data_after_recreating_ks_with_local_index": {
       "description": "4 nodes RF=3: 10 rounds of DROP KEYSPACE, recreate ks (RF=1) + table + local index ((key), v), insert 10 rows, then assert each key+v='asdf' count is 1 (60x1s retries). Local-index mirror of the Cassandra regression 'data inserted right after dropping/recreating an indexed keyspace is not indexed'.",
@@ -141,7 +157,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (~74s) mirror of the global twin; 1/39 failed (dtest-release-with-raft #1151: OperationTimedOut on DDL). Bug: DROP KEYSPACE has no timeout tolerance - the retry_till_success fix 653bc07f7f was applied only to the CF-recreate twin; 'except ConfigurationException' on DROP is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0."
+      "reason": "Slow (~74s) mirror of the global twin; 1/39 failed (dtest-release-with-raft #1151: OperationTimedOut on DDL). Note: DROP KEYSPACE has no timeout tolerance - the retry_till_success fix 653bc07f7f was applied only to the CF-recreate twin; 'except ConfigurationException' on DROP is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "secondary_indexes_test.py:1515",
+          "text": "DROP KEYSPACE lacks the OperationTimedOut retry (653bc07f7f) applied to the CF twin; occasional DDL timeout"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1516",
+          "text": "'except ConfigurationException' on DROP is dead (ks always exists); initial config_keyspace dropped immediately in round 0"
+        }
+      ]
     },
     "TestLocalIndexes::test_local_indexed_values": {
       "description": "Parametrized [oversize]=66536 / [long]=8193 chars. 4 nodes RF=3: for 3 table shapes (indexed regular column, indexed clustering key, COMPACT STORAGE regular column) creates a local index ((a), col), inserts the value via prepared INSERT and via BATCH (assert_request). execute_and_assert (secondary_indexes_test.py:202): [long] reads the row back through the local index and asserts value length; [oversize] requires the write to fail with 'Key size too large|is longer than maximum' (InvalidRequest text or WriteFailure + log grep). Guards 64KiB view-key limit for local indexes (scylla#10366).",
@@ -184,7 +214,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of oversized/long values in a local-index view key (regular + compact-storage column), incl. BATCH path; no scylla cqlpy/boost local-index equivalent (cqlpy global variant still xfail #8627). Cheap (~19s). Note: docstring says 'inserts & updates' but only INSERT and BATCH are exercised."
+      "reason": "Only test of oversized/long values in a local-index view key (regular + compact-storage column), incl. BATCH path; no scylla cqlpy/boost local-index equivalent (cqlpy global variant still xfail #8627). Cheap (~19s). Note: docstring says 'inserts & updates' but only INSERT and BATCH are exercised.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1540",
+          "text": "Docstring says 'inserts & updates' but only INSERT and BATCH are exercised"
+        }
+      ]
     },
     "TestLocalIndexes::test_multi_column_local_index": {
       "description": "Single node: tries CREATE INDEX ((key), b, c) and ((key), b..g) on tables with 2 and 6 regular columns; assert_expected_error (tools/assertions.py:502, substring match) requires 'Only CUSTOM indexes support multiple columns'. Guards rejection of multi-column non-custom local indexes.",
@@ -212,7 +250,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Pure CQL validation, covered by test/boost/secondary_index_test.cc::test_malformed_local_index ('((p1,p2),c1,v)' rejected); the 6-column case adds nothing over the 2-column one. Only extra is the exact message text."
+      "reason": "Pure CQL validation, covered by test/boost/secondary_index_test.cc::test_malformed_local_index ('((p1,p2),c1,v)' rejected); the 6-column case adds nothing over the 2-column one. Only extra is the exact message text.",
+      "issues": []
     },
     "TestLocalIndexes::test_delete_local_indexed_rows": {
       "description": "4 nodes RF=3: local index ((key), b), insert 100 rows, delete 10 by primary key; asserts base row count 90 (CL=ALL, retried), each deleted key+b query returns none and each remaining returns its row (CL=ALL), and the backing index view has 90 rows. Guards propagation of base row deletions to the local index view.",
@@ -249,7 +288,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking that base deletions are reflected in a local index (both via index query and backing view row count) on a multi-node cluster; cheap (~15s), passes 38/38. Note: comment 'Delete 10 rows by index' is misleading - rows are deleted by primary key."
+      "reason": "Only test checking that base deletions are reflected in a local index (both via index query and backing view row count) on a multi-node cluster; cheap (~15s), passes 38/38. Note: comment 'Delete 10 rows by index' is misleading - rows are deleted by primary key.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1719",
+          "text": "Comment 'Delete 10 rows by index' is misleading; rows are deleted by primary key"
+        }
+      ]
     },
     "TestLocalIndexes::test_remove_node_after_local_index_build": {
       "description": "_node_action_after_index_build (4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'removenode' on the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
@@ -292,7 +339,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN (secondary_indexes_test.py mark skip_if(with_feature('tablets') & issue_open('#22394'))), so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN (secondary_indexes_test.py mark skip_if(with_feature('tablets') & issue_open('#22394'))), so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "secondary_indexes_test.py:1746",
+          "text": "skip_if(tablets & issue_open('#22394')): skipped under tablets while scylladb#22394 is open; runs on vnodes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1790",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1802",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestLocalIndexes::test_decommission_node_after_local_index_build": {
       "description": "_node_action_after_index_build (4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'decommission' on the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
@@ -337,7 +404,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+      "reason": "Partial overlap only (global twin in same file, scylla MV topology tests); local-index-specific topology coverage otherwise missing. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19 runs). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "secondary_indexes_test.py:1753",
+          "text": "skip_if(tablets & issue_open('#22394')): skipped under tablets while scylladb#22394 is open; runs on vnodes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1790",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1802",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestLocalIndexes::test_add_node_after_local_index_build": {
       "description": "_node_action_after_index_build (3 nodes RF=3): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then performs 'add node' on the last rack1 node (add_new_node adds a node to rack1; the selected node is unused); validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards local index view data surviving topology change (streaming of base+view).",
@@ -379,7 +466,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (global twin TestSecondaryIndexes::test_add_node_after_index_build, test/cluster/mv/test_mv_topology_change.py); runs in both jobs, 38/38 pass. Bug: docstring says 'Decommission one node' (copy-paste); node2/node2_ip selection and its 'node down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+      "reason": "Partial overlap only (global twin TestSecondaryIndexes::test_add_node_after_index_build, test/cluster/mv/test_mv_topology_change.py); runs in both jobs, 38/38 pass. Note: docstring says 'Decommission one node' (copy-paste); node2/node2_ip selection and its 'node down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:~1789) matches no log message in scylla source (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1762",
+          "text": "Docstring says 'Decommission one node' (copy-paste) for the add-node test"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1773",
+          "text": "node2/node2_ip selection and its 'node down' exclude_errors are irrelevant for 'add'"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1790",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1802",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestLocalIndexes::test_simple_local_index": {
       "description": "4 nodes RF=3: default create_cf table (key text, c varchar, v varchar, PRIMARY KEY(key, c)), local index ((key), v) built via config_keyspace; inserts 9 rows across 4 partitions with random c and distinct v, then asserts each key+v query returns exactly its row (assert_all, QUORUM, 30 retries). Basic local secondary index create + query.",
@@ -418,7 +531,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_secondary_index with stronger assertions (index read counter); multi-node local-index querying remains covered by test_delete_local_indexed_rows (GREEN) and the _node_action_after_index_build tests. Note: config_keyspace (secondary_indexes_test.py:~1358) ignores the random compaction_strategy; test_global_local_index_on_same_column's RED reason cites this test as multi-node coverage - re-point to test_delete_local_indexed_rows if removed."
+      "reason": "Scenario fully covered by test/boost/secondary_index_test.cc::test_local_secondary_index with stronger assertions (index read counter); multi-node local-index querying remains covered by test_delete_local_indexed_rows (GREEN) and the _node_action_after_index_build tests. Note: config_keyspace (secondary_indexes_test.py:~1358) ignores the random compaction_strategy; test_global_local_index_on_same_column's RED reason cites this test as multi-node coverage - re-point to test_delete_local_indexed_rows if removed.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "secondary_indexes_test.py:1339",
+          "text": "config_keyspace ignores the randomly selected compaction_strategy"
+        }
+      ]
     },
     "TestLocalIndexes::test_stop_node_after_local_index_build": {
       "description": "_node_action_after_index_build (4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates local index ((key), b) and waits for build, then stops (gently) the last rack1 node; validates every row via key+b index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows at QUORUM. Guards local index reads with one replica down.",
@@ -454,7 +575,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (global twin, scylla MV/LSI tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index reads trivially still have 2 replicas, nothing local-index specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1790) matches no scylla log message (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check."
+      "reason": "Partial overlap only (global twin, scylla MV/LSI tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index reads trivially still have 2 replicas, nothing local-index specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1790) matches no scylla log message (dead ignore pattern); check_errors(node1) at the end is redundant with teardown log check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1790",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1802",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestLocalIndexes::test_truncate_base_with_local_index": {
       "description": "4 nodes RF=3: table (key int, c0, c1, c2 text), local index ((key), c0); inserts 5 rows, flushes, reads each via key+c0 count (QUORUM, expects 1) and full row count 5; TRUNCATE base; asserts base count 0 and every key+c0 index count 0. Guards that truncating the base truncates the local index view (sstables + cache).",
@@ -490,7 +625,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: truncate path is generic over views (replica/database.cc database::truncate), and the global twin TestSecondaryIndexes::test_truncate_base runs the identical flow with stronger assertions (system.truncated per view per node); cqlpy test_materialized_view.py::test_truncate_base covers base->views truncation. Note: c2 column created but unused."
+      "reason": "Redundant: truncate path is generic over views (replica/database.cc database::truncate), and the global twin TestSecondaryIndexes::test_truncate_base runs the identical flow with stronger assertions (system.truncated per view per node); cqlpy test_materialized_view.py::test_truncate_base covers base->views truncation. Note: c2 column created but unused.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1612",
+          "text": "Column c2 is created but never used"
+        }
+      ]
     },
     "TestLocalIndexes::test_ttl_local_index_column": {
       "description": "Single node: table (key int, b, c), row (0,1,2), local index ((key), b) built; UPDATE USING TTL 60 SET b=3; asserts key+b=3 returns row, key+b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards view row expiry when indexed column has TTL.",
@@ -527,7 +670,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test whose scenario (TTL on indexed/view-key column expires the view row) is covered in seconds by test/cqlpy/test_materialized_view.py::test_view_update_with_ttl (same view-update path, local index = view with pk prefix) and cqlpy secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn. Note: docstring mentions default_time_to_live but the test uses USING TTL."
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test whose scenario (TTL on indexed/view-key column expires the view row) is covered in seconds by test/cqlpy/test_materialized_view.py::test_view_update_with_ttl (same view-update path, local index = view with pk prefix) and cqlpy secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn. Note: docstring mentions default_time_to_live but the test uses USING TTL.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1680",
+          "text": "Docstring mentions default_time_to_live but the test uses USING TTL"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "secondary_indexes_test.py:1691",
+          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+        }
+      ]
     },
     "TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk": {
       "description": "4 nodes RF=3: table (row PK, name, value) with global indexes on name and value, 8 rows inserted at QUORUM; asserts single-index queries on name / value return the right 4 rows, and that name+value without ALLOW FILTERING is rejected (exact 'Cannot execute this query as it might involve data filtering...' message) while with ALLOW FILTERING it returns the 2 matching rows (QUORUM, ignore_order).",
@@ -559,7 +716,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (+ single-index cqlpy queries); multi-node adds nothing but eventual-consistency flakiness (SCYLLADB-2441, fixed by 06aea5259c). Runs in gating (next-dtest-*). Note: `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809) is a no-op attribute on the driver Session (writes are QUORUM only because prepare() passes consistency_level); class lacks INDEX_TYPE."
+      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (+ single-index cqlpy queries); multi-node adds nothing but eventual-consistency flakiness (SCYLLADB-2441, fixed by 06aea5259c). Runs in gating (next-dtest-*). Note: `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809) is a no-op attribute on the driver Session (writes are QUORUM only because prepare() passes consistency_level); class lacks INDEX_TYPE.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1809",
+          "text": "session.consistency_level = QUORUM is a no-op attribute on the driver Session"
+        }
+      ]
     },
     "TestMultipleSecondaryIndexes::test_multy_secondary_query_with_pk": {
       "description": "Same fixture (row PK + global indexes on name and value): asserts row+name+value without ALLOW FILTERING is rejected and with it returns 1 row; row+name, row+value and row alone return the row without filtering (QUORUM). Guards restriction validation when full PK is combined with one vs two indexed columns.",
@@ -590,7 +755,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Pure CQL-restriction/single-row checks that belong in cqlpy; pk+one-index is covered by cqlpy test_allow_filtering_indexed_a_and_k, but the pk+two-indexes => ALLOW FILTERING required case has no explicit cqlpy equivalent found (could be moved there). Runs only in gating jobs, 32/32 pass. Note: no-op `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809)."
+      "reason": "Pure CQL-restriction/single-row checks that belong in cqlpy; pk+one-index is covered by cqlpy test_allow_filtering_indexed_a_and_k, but the pk+two-indexes => ALLOW FILTERING required case has no explicit cqlpy equivalent found (could be moved there). Runs only in gating jobs, 32/32 pass. Note: no-op `session.consistency_level = QUORUM` in _prepare_for_multi_index_test (secondary_indexes_test.py:1809).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1809",
+          "text": "session.consistency_level = QUORUM is a no-op attribute on the driver Session"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_add_node_after_index_build": {
       "description": "_node_action_after_index_build (global, 3 nodes RF=3): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then bootstraps a 4th node into rack1 (add_new_node); validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving bootstrap (view streaming).",
@@ -622,7 +795,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after bootstrap. 38/38 pass, ~14s. Bug: docstring says 'Decommission one node' (copy-paste, secondary_indexes_test.py:1164); node2/node2_ip selection and its 'node ... is down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after bootstrap. 38/38 pass, ~14s. Note: docstring says 'Decommission one node' (copy-paste, secondary_indexes_test.py:1164); node2/node2_ip selection and its 'node ... is down' exclude_errors are irrelevant for 'add'. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1164",
+          "text": "Docstring says 'Decommission one node' (copy-paste) for the add-node test"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1176",
+          "text": "node2/node2_ip selection and its 'node ... is down' exclude_errors are irrelevant for 'add'"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1193",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1209",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_agg_query_by_pk": {
       "description": "4 nodes RF=3: table t3 ((pk1, pk2), ck); 1 row; COUNT/SUM/MIN with pk1=1 ALLOW FILTERING; creates global index on pk1 (first partition key component); COUNT via index = 1; inserts 2 more rows in same partition; asserts COUNT=3, SUM(pk2)=3, MAX(ck)=3 via index (QUORUM). Regression test for wrong aggregate results on indexed selects (scylladb#7355, fix #7438) - 'whole_partitions' path.",
@@ -657,7 +856,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Regression for scylladb#7355 (CLOSED) is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (comment 'second failing example in issue #7355') with paging scenarios; pk1 vs pk2 hits the same whole_partitions branch (select_statement.cc ~1286). dtest adds only a 4-node cluster for 3 rows. Note: prepare(user_table=True) creates an unused users table; TestSecondaryIndexes is dtest_heavy for a trivial query test."
+      "reason": "Regression for scylladb#7355 (CLOSED) is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (comment 'second failing example in issue #7355') with paging scenarios; pk1 vs pk2 hits the same whole_partitions branch (select_statement.cc ~1286). dtest adds only a 4-node cluster for 3 rows. Note: prepare(user_table=True) creates an unused users table; TestSecondaryIndexes is dtest_heavy for a trivial query test.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:426",
+          "text": "prepare(user_table=True) creates an unused users table"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_agg_query_by_ck": {
       "description": "4 nodes RF=3: table t3 (pk1, ck, v), rows ck=1,4; COUNT/SUM/MIN with ck=1 ALLOW FILTERING; creates global index on ck (only clustering column); COUNT via index = 1; inserts ck=2,3; asserts COUNT(ck=1)=1, SUM(pk1)=1, MAX(v) WHERE ck=3 = 3 (QUORUM). Regression for scylladb#7355 ('partition_slices' path, index on first ck column).",
@@ -682,7 +889,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same scenario fully covered by test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation (explicit #7355 repro, paging scenarios); dtest uses 4 nodes for 4 rows and adds nothing distributed. Note: prepare(user_table=True) creates an unused users table."
+      "reason": "Same scenario fully covered by test/boost/secondary_index_test.cc::test_secondary_index_on_ck_first_column_and_aggregation (explicit #7355 repro, paging scenarios); dtest uses 4 nodes for 4 rows and adds nothing distributed. Note: prepare(user_table=True) creates an unused users table.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:481",
+          "text": "prepare(user_table=True) creates an unused users table"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_agg_query_by_second_ck": {
       "description": "4 nodes RF=3: table t3 (pk1, ck1, ck2) with PK(pk1, ck1, ck2); rows (1,1,1),(1,1,3); COUNT/SUM/MIN with ck2=1 ALLOW FILTERING; creates global index on ck2 (non-first clustering column); COUNT=1; inserts (1,1,2),(1,2,1); asserts COUNT=2, SUM(pk1)=2, MAX(ck1)=2 via index (QUORUM). Regression for scylladb#7355 on the row-by-row (neither whole_partitions nor partition_slices) path.",
@@ -717,7 +932,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Index on non-first ck uses the same per-row code path (select_statement.cc ~1280-1296) as test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation, which also covers paging; #7355 is CLOSED. dtest adds only 4 nodes for 4 rows. Note: prepare(user_table=True) creates an unused users table."
+      "reason": "Index on non-first ck uses the same per-row code path (select_statement.cc ~1280-1296) as test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation, which also covers paging; #7355 is CLOSED. dtest adds only 4 nodes for 4 rows. Note: prepare(user_table=True) creates an unused users table.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:509",
+          "text": "prepare(user_table=True) creates an unused users table"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_agg_query_by_second_pk": {
       "description": "4 nodes RF=3: table t3 ((pk1, pk2), ck); 2 rows in partition (1,1); COUNT/SUM/MIN with pk2=1 ALLOW FILTERING; creates global index on pk2 (second partition key component); COUNT=2 via index; inserts 2 more rows in same partition; asserts COUNT=4, SUM(pk1)=4, MAX(ck)=4 via index (QUORUM). Regression for scylladb#7355 (wrong aggregate on indexed select) - 'whole_partitions' path.",
@@ -747,7 +970,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same schema/index/aggregates as test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (index on pk2, #7355 repro) which additionally covers paging; #7355 is CLOSED. dtest adds only a 4-node cluster for 4 rows. Note: prepare(user_table=True) creates an unused users table."
+      "reason": "Same schema/index/aggregates as test/boost/secondary_index_test.cc::test_secondary_index_on_pk_column_and_aggregation (index on pk2, #7355 repro) which additionally covers paging; #7355 is CLOSED. dtest adds only a 4-node cluster for 4 rows. Note: prepare(user_table=True) creates an unused users table.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:453",
+          "text": "prepare(user_table=True) creates an unused users table"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_agg_query_by_two_ck": {
       "description": "4 nodes RF=3, fetch_size=1: table ((pk1,pk2), ck1, ck2), 3 rows; COUNT/AVG/MAX with ck1=1 AND ck2 IN (1,3) ALLOW FILTERING; then creates global indexes on ck1 and ck2 and re-checks COUNT with IN and with ck2>=1 range; inserts 2 more rows and checks COUNT (ck1=2, ck2 IN), SUM(pk2) (ck1=1, ck2>1)=5, AVG(pk1) (ck1=2, ck2>=1)=2. Guards aggregation correctness when two indexes exist and the query adds IN/range filtering on the second indexed ck (#7355/#7438), with page size 1 driving internal paging.",
@@ -781,8 +1012,16 @@
           "note": "Sibling, single index on ck2."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test combining two indexes + IN/range filtering on the second indexed ck + aggregates; scylla boost/cqlpy cover aggregation on a single indexed ck with paging (test_secondary_index_on_ck_first_column_and_aggregation) but not this combination. Better ported to cqlpy (pure single-node CQL semantics, 5 rows on 4 nodes). Note: prepare(user_table=True) creates an unused users table."
+      "decision": "GREEN",
+      "reason": "Only test combining two indexes + IN/range filtering on the second indexed ck + aggregates; scylla boost/cqlpy cover aggregation on a single indexed ck with paging (test_secondary_index_on_ck_first_column_and_aggregation) but not this combination. Could be ported to cqlpy (pure single-node CQL semantics, 5 rows on 4 nodes). Note: prepare(user_table=True) creates an unused users table.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:537",
+          "text": "prepare(user_table=True) creates an unused users table"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_group_by_pk_filter_by_index": {
       "description": "4 nodes RF=3: table t (pk, ck, v), 3 rows with v=3 in 2 partitions; SELECT pk ... v=3 GROUP BY pk ALLOW FILTERING; creates global index on v; asserts GROUP BY pk returns [1],[2] and pk,count(pk) GROUP BY pk returns [1,2],[2,1] via index (QUORUM). Guards GROUP BY on indexed (non-pk) column queries (#7355/#7432).",
@@ -812,7 +1051,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "GROUP BY pk on a regular-column index is covered (with paging) by test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation; the extra count(pk)-per-group check is the same aggregation path. 4 nodes for 3 rows adds nothing distributed. Note: docstring is copy-pasted from test_query_data_created_before_index and assert message says 'Index state_key' (index is v_key)."
+      "reason": "GROUP BY pk on a regular-column index is covered (with paging) by test/boost/secondary_index_test.cc::test_secondary_index_on_non_pk_ck_column_and_aggregation; the extra count(pk)-per-group check is the same aggregation path. 4 nodes for 3 rows adds nothing distributed. Note: docstring is copy-pasted from test_query_data_created_before_index and assert message says 'Index state_key' (index is v_key).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:566",
+          "text": "Docstring copy-pasted from test_query_data_created_before_index"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "secondary_indexes_test.py:578",
+          "text": "Assert message says 'Index state_key' but the index is v_key"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_decommission_node_after_index_build": {
       "description": "_node_action_after_index_build (global, 4 nodes RF=3 (3 racks)): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then decommissions the last rack1 node; validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving decommission (view streaming).",
@@ -847,7 +1100,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after decommission. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19/19 pass, ~17s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after decommission. Skipped under tablets (dtest-release) while scylladb#22394 is OPEN, so runs only on vnodes (19/19 pass, ~17s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "secondary_indexes_test.py:1155",
+          "text": "skip_if(tablets & issue_open('#22394')): skipped under tablets while scylladb#22394 is open; runs on vnodes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1193",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1209",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_delete_indexed_rows": {
       "description": "4 nodes RF=3: global index on b, insert 100 rows, delete 10 by primary key; asserts base row count 90 (CL=ALL, retried), each deleted key returns none by pk and by index, each remaining returns its row by pk and by index (CL=ALL), and the backing index view has 90 rows. Guards propagation of base row deletions to the global index view.",
@@ -888,7 +1161,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: cqlpy test_partition_deletion/test_static_column_index check base deletes are reflected in a global index (single node); dtest adds only multi-node CL=ALL reads (async view updates, cross-node view replicas). Cheap (~15s), 38/38 pass. Note: comment 'Delete 10 rows by index' (secondary_indexes_test.py:1118) is misleading - rows are deleted by primary key."
+      "reason": "Partial overlap: cqlpy test_partition_deletion/test_static_column_index check base deletes are reflected in a global index (single node); dtest adds only multi-node CL=ALL reads (async view updates, cross-node view replicas). Cheap (~15s), 38/38 pass. Note: comment 'Delete 10 rows by index' (secondary_indexes_test.py:1118) is misleading - rows are deleted by primary key.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1119",
+          "text": "Comment 'Delete 10 rows by index' is misleading; rows are deleted by primary key"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_index_same_key_twice": {
       "description": "Single node: table with uuid key and text c0,c1,c2, global index on c0, 5 rows; asserts SELECT count(*) ... WHERE c0='a' AND c0='b' returns 0. Regression for scylladb#7772 (assertion crash in single_column_restrictions::value_for on contradictory EQ restrictions of an indexed column).",
@@ -919,7 +1200,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "scylladb#7772 is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_clustering_key_query (added with fix 46b4b59945), which also checks the non-contradictory case; single-node dtest adds nothing. Note: docstring/PR say 'indexed part of the pkey' but the test indexes regular column c0; 'b' is not even a c0 value."
+      "reason": "scylladb#7772 is reproduced in test/boost/secondary_index_test.cc::test_secondary_index_clustering_key_query (added with fix 46b4b59945), which also checks the non-contradictory case; single-node dtest adds nothing. Note: docstring/PR say 'indexed part of the pkey' but the test indexes regular column c0; 'b' is not even a c0 value.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:900",
+          "text": "Docstring/PR say 'indexed part of the pkey' but the test indexes regular column c0; 'b' is not a c0 value"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_insert_data_after_recreating_cf": {
       "description": "4 nodes RF=3: ks 'ks' (RF=3), table cf (key text, col1 text) with global index on col1; 10 rounds of DROP COLUMNFAMILY (retried on OperationTimedOut), wait for schema agreement, recreate table+index (waits for build), insert 10 rows with col1='asdf', assert count via index = 10 (QUORUM, 60x1s retries). Scylla port of the Cassandra regression CASSANDRA-6924 (data inserted right after recreating an indexed table not indexed).",
@@ -965,7 +1254,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (~78s) multi-node schema-churn test; only partial scylla overlap (cqlpy test_instant_table_recreation/test_paging_and_recreate_table, single node, one round). 39/39 pass since the SCYLLADB-688 timeout fix 653bc07f7f. Note: the original Cassandra bug (CASSANDRA-6924, 2.0 native index) does not exist in scylla's MV-based index; test mostly exercises schema-change robustness."
+      "reason": "Slow (~78s) multi-node schema-churn test; only partial scylla overlap (cqlpy test_instant_table_recreation/test_paging_and_recreate_table, single node, one round). 39/39 pass since the SCYLLADB-688 timeout fix 653bc07f7f. Note: the original Cassandra bug (CASSANDRA-6924, 2.0 native index) does not exist in scylla's MV-based index; test mostly exercises schema-change robustness.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "secondary_indexes_test.py:753",
+          "text": "Ports CASSANDRA-6924 (native 2i bug absent in scylla's MV-based index); mostly exercises schema-change robustness"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_insert_data_after_recreating_ks": {
       "description": "4 nodes RF=3: 10 rounds of DROP KEYSPACE ks, recreate ks (RF=1) + table cf + global index on col1 (waits for build), insert 10 rows with col1='asdf', assert count via index = 10 (QUORUM, 60x1s retries). Scylla port of the Cassandra regression CASSANDRA-6924 (data inserted right after recreating keyspace with indexed table not indexed).",
@@ -1011,7 +1308,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slowest test of the chunk (~91s), only partial overlap (cf twin, local twin, cqlpy table recreation); 39/39 pass. Bug: DROP KEYSPACE (secondary_indexes_test.py:738) has no OperationTimedOut tolerance - the 653bc07f7f fix was applied only to the CF twin (the local twin failed this way, dtest-release-with-raft #1151); 'except ConfigurationException' is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0."
+      "reason": "Slowest test of the chunk (~91s), only partial overlap (cf twin, local twin, cqlpy table recreation); 39/39 pass. Note: DROP KEYSPACE (secondary_indexes_test.py:738) has no OperationTimedOut tolerance - the 653bc07f7f fix was applied only to the CF twin (the local twin failed this way, dtest-release-with-raft #1151); 'except ConfigurationException' is dead (ks always exists) and the initial config_keyspace before the loop is dropped immediately in round 0.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "secondary_indexes_test.py:741",
+          "text": "DROP KEYSPACE lacks the OperationTimedOut retry (653bc07f7f) applied to the CF twin; local twin failed this way"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:742",
+          "text": "'except ConfigurationException' on DROP is dead (ks always exists); initial config_keyspace dropped immediately in round 0"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_long_indexed_values": {
       "description": "4 nodes RF=3, compact storage enabled: for 5 table shapes (indexed regular column, clustering key, partition key component, COMPACT STORAGE regular column, static column) creates a global index, inserts an 8193-char value via prepared INSERT and via BATCH (assert_request); execute_and_assert (secondary_indexes_test.py:202) for INDEX_TYPE global reads 'select <col> from <table>' and asserts the value length. Intended to guard that long-but-valid (<64KiB) indexed values are accepted (CASSANDRA-8280 / scylla#3501).",
@@ -1045,7 +1356,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "No scylla test of long-valid global indexed values, but the assertion is weak. Bug: for INDEX_TYPE 'global' execute_and_assert reads the base table ('select {col} from {table}', secondary_indexes_test.py:208-209, since 3aaa053e32) - the index is never queried, so a missing/broken view row would pass; only base-write acceptance is verified. Fix: query by the indexed value as the local branch does."
+      "reason": "No scylla test of long-valid global indexed values, but the assertion is weak. Bug: for INDEX_TYPE 'global' execute_and_assert reads the base table ('select {col} from {table}', secondary_indexes_test.py:208-209, since 3aaa053e32) - the index is never queried, so a missing/broken view row would pass; only base-write acceptance is verified. Fix: query by the indexed value as the local branch does.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "secondary_indexes_test.py:208",
+          "text": "For INDEX_TYPE global execute_and_assert reads the base table, never the index; broken view row would pass"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_low_cardinality_indexes": {
       "description": "4 nodes RF=3: table cf (key text, col1 text) with global index on col1, 100 rows where each col1 value appears 3 times; asserts count(*) WHERE col1='1' = 3 (no LIMIT, LIMIT 100, LIMIT 3) and that SELECT * ... LIMIT 1/2 returns 1/2 rows (QUORUM, 20 retries). Docstring claims it checks low-cardinality subqueries run concurrently (CASSANDRA-1337), but the Scylla rewrite dropped that trace check.",
@@ -1106,7 +1425,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Its stated purpose (CASSANDRA-1337 concurrent range requests) is Cassandra-only and the check was removed in the Scylla rewrite 0cbab1d7d5; what remains (count/LIMIT over a 3-row global index result) is covered by test/boost/secondary_index_test.cc aggregation tests and cqlpy test_filter_and_limit. Note: docstring is stale."
+      "reason": "Its stated purpose (CASSANDRA-1337 concurrent range requests) is Cassandra-only and the check was removed in the Scylla rewrite 0cbab1d7d5; what remains (count/LIMIT over a 3-row global index result) is covered by test/boost/secondary_index_test.cc aggregation tests and cqlpy test_filter_and_limit. Note: docstring is stale.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:699",
+          "text": "Docstring claims CASSANDRA-1337 concurrent-subquery check, which the scylla rewrite 0cbab1d7d5 dropped"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_multi_column_index": {
       "description": "Single node: tries CREATE INDEX on (b, c) and on (b, c, d, e, f, g) (non-custom global index over several regular columns); assert_expected_error (tools/assertions.py, substring match) requires 'Only CUSTOM indexes support multiple columns'. Guards rejection of multi-column non-custom global indexes.",
@@ -1139,7 +1466,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of the global 2-single-column-target rejection branch (create_index_statement.cc:719, no scylla boost/cqlpy test found by grep for the message or '(a, b)' index targets); cheap (~4s, 38/38). Pure CQL validation, would fit better in cqlpy; the 6-column case adds nothing over the size>2 branch already covered by test_malformed_local_index."
+      "reason": "Only test of the global 2-single-column-target rejection branch (create_index_statement.cc:719, no scylla boost/cqlpy test found by grep for the message or '(a, b)' index targets); cheap (~4s, 38/38). Pure CQL validation, would fit better in cqlpy; the 6-column case adds nothing over the size>2 branch already covered by test_malformed_local_index.",
+      "issues": []
     },
     "TestSecondaryIndexes::test_multi_index_filtering_query": {
       "description": "4 nodes RF=3: table (key uuid, c0, c1, c2 text) with global indexes on c0 and c1, 5 rows; asserts count c0='a' = 4 (QUORUM, retried 5x1s), that c0='a' AND c1='b' without ALLOW FILTERING is rejected ('use ALLOW FILTERING'), and with it returns count 2. Guards that two indexes do not remove the ALLOW FILTERING requirement.",
@@ -1177,7 +1505,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (rejection + correct filtered result); multi-node adds only eventual-consistency retries (f08e1e8989). Same scenario as TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk (also RED). Note: c2 column unused."
+      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (rejection + correct filtered result); multi-node adds only eventual-consistency retries (f08e1e8989). Same scenario as TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk (also RED). Note: c2 column unused.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:876",
+          "text": "Column c2 is created but never used"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_query_data_by_ck_and_index": {
       "description": "4 nodes RF=3: table (key text, c, v), 4 rows inserted, then global index on v created and built; asserts count(*)=4, count v='f' = 2, count for key+c+v matching = 1 (CL ALL) and 0 for key+c with wrong v. Guards indexed queries restricted by full primary key (scylladb#3539).",
@@ -1217,7 +1553,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Query shape (full pk + ck + global-indexed column, match and non-match) is covered with stronger row checks by test/boost/secondary_index_test.cc::test_index_with_partition_key (#3539-era regression test); index build over pre-existing rows is covered by _node_action_after_index_build tests here (1000 rows). Assertions are 4 count(*) checks on 4 rows."
+      "reason": "Query shape (full pk + ck + global-indexed column, match and non-match) is covered with stronger row checks by test/boost/secondary_index_test.cc::test_index_with_partition_key (#3539-era regression test); index build over pre-existing rows is covered by _node_action_after_index_build tests here (1000 rows). Assertions are 4 count(*) checks on 4 rows.",
+      "issues": []
     },
     "TestSecondaryIndexes::test_query_data_by_pk_and_index": {
       "description": "4 nodes RF=3, users table: 4 rows inserted, then global index on gender created and built; asserts count(*)=4, count gender='f' = 2, KEY='user2' AND gender='m' returns the full row (CL ALL) and KEY='user1' AND gender='m' count 0. Guards indexed queries restricted by partition key (scylladb#3539).",
@@ -1259,7 +1596,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "pk + global-index query is covered by test/boost/secondary_index_test.cc::test_index_with_partition_key and test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a_and_k (correct rows, no-filtering requirement); #3539 CLOSED. Multi-node adds nothing (4 rows, CL ALL/QUORUM); index build over existing data covered by _node_action_after_index_build tests here."
+      "reason": "pk + global-index query is covered by test/boost/secondary_index_test.cc::test_index_with_partition_key and test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_a_and_k (correct rows, no-filtering requirement); #3539 CLOSED. Multi-node adds nothing (4 rows, CL ALL/QUORUM); index build over existing data covered by _node_action_after_index_build tests here.",
+      "issues": []
     },
     "TestSecondaryIndexes::test_query_data_created_before_index": {
       "description": "4 nodes RF=3, users table: inserts 2 rows, creates and waits for 3 global indexes (gender, state, birth_year), inserts 2 more rows; asserts count(*)=4, count state='TX' = 2 (1 pre-index + 1 post-index row) and state='CA' = 1 (pre-index row, must come from view building). Guards index view building over pre-existing data.",
@@ -1313,7 +1651,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: pre-existing-data global index build on 4 nodes is checked far more thoroughly (1000 rows, each queried + view count) by the _node_action_after_index_build tests in this class (kept YELLOW), and by cqlpy test_too_large_indexed_value_build; here only 2 pre-index rows are checked via the state index. Note: gender_key and birth_year_key indexes are created/built but never queried (secondary_indexes_test.py:622-632)."
+      "reason": "Redundant: pre-existing-data global index build on 4 nodes is checked far more thoroughly (1000 rows, each queried + view count) by the _node_action_after_index_build tests in this class (kept YELLOW), and by cqlpy test_too_large_indexed_value_build; here only 2 pre-index rows are checked via the state index. Note: gender_key and birth_year_key indexes are created/built but never queried (secondary_indexes_test.py:622-632).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:622",
+          "text": "gender_key and birth_year_key indexes are created/built but never queried"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_query_indexes_with_vnodes": {
       "description": "Single node, use_vnodes=True: two tables (key int, b int), one WITH COMPACT STORAGE, global index on b each; inserts 100 rows (b = i % 2) and asserts SELECT ... WHERE b = 0 returns 50 rows per table. Originally guarded CASSANDRA-11104 (index queries across vnode ranges).",
@@ -1351,7 +1697,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Guards a Cassandra-only bug (CASSANDRA-11104) whose multi-node vnode-range aspect was dropped in the Scylla single-node rewrite dfb3cf64db; what remains (global index query returning 50 of 100 partitions) is covered by test/cqlpy/test_secondary_index.py::test_index_paging_pk_only, compact-storage index queries by cqlpy compact_storage_test.py."
+      "reason": "Guards a Cassandra-only bug (CASSANDRA-11104) whose multi-node vnode-range aspect was dropped in the Scylla single-node rewrite dfb3cf64db; what remains (global index query returning 50 of 100 partitions) is covered by test/cqlpy/test_secondary_index.py::test_index_paging_pk_only, compact-storage index queries by cqlpy compact_storage_test.py.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:995",
+          "text": "Cites CASSANDRA-11104 (multi-node vnode ranges); single-node rewrite dfb3cf64db dropped that aspect"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_stop_node_after_index_build": {
       "description": "_node_action_after_index_build (global, 4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then stops (gently) the last rack1 node; validates every row via b= index query at QUORUM (validate_index_data, 60x1s retry) and that the index view has 1000 rows at QUORUM. Guards global index reads with one replica down.",
@@ -1383,7 +1737,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (local twin, scylla MV topology tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index/view reads still have 2 replicas, nothing SI-specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); low-strength scenario - with RF=3 and one node stopped, QUORUM index/view reads still have 2 replicas, nothing SI-specific is stressed. 38/38 pass, ~19s. Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1193",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1209",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_remove_node_after_index_build": {
       "description": "_node_action_after_index_build (global, 4 nodes RF=3, 3 racks): inserts 1000 rows at QUORUM, creates global index on b and waits for build, then removenode's the last rack1 node (tools.misc.remove_node); validates every row via b= index query at QUORUM (60x1s retry) and that the index view has 1000 rows. Guards global index view data surviving removenode (view streaming/repair).",
@@ -1416,7 +1784,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after removenode, and it is the reproducer for OPEN scylladb#22394 under tablets. Skipped under tablets (dtest-release), runs only on vnodes (19/19 pass, ~42s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown."
+      "reason": "Partial overlap only (local twin, scylla MV topology tests); no scylla test checks global SI query results after removenode, and it is the reproducer for OPEN scylladb#22394 under tablets. Skipped under tablets (dtest-release), runs only on vnodes (19/19 pass, ~42s). Note: exclude_errors 'Can\\'t send migration request: node ... is down' (secondary_indexes_test.py:1193) matches no scylla log message (dead ignore pattern); check_errors(node1) redundant with teardown.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "secondary_indexes_test.py:1148",
+          "text": "skip_if(tablets & issue_open('#22394')): skipped under tablets while scylladb#22394 is open; runs on vnodes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1193",
+          "text": "exclude_errors 'Can't send migration request: node ... is down' matches no scylla log message (dead ignore pattern)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:1209",
+          "text": "check_errors(node1) at the end is redundant with the teardown log check"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_truncate_base": {
       "description": "4 nodes RF=3: table (key uuid, c0, c1, c2) with global indexes on c0 and c1, 5 rows, flush, count via c0 index = 4 and row count 5; TRUNCATE base; asserts base count 0 and both index counts 0; on every node checks system.truncated has an entry for the base and both index views and system.local.truncated_at is null; reinserts data and rechecks the system.truncated entries. Guards base truncate propagating to SI views (sstables + cache) and truncation records moved to system.truncated.",
@@ -1463,7 +1851,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Each piece is covered separately (cqlpy MV truncate, boost truncation records per view, MV dtest multi-node truncate) but nothing combines SI views + per-node system.truncated records on a multi-node cluster; it is also the remaining coverage cited by the RED TestLocalIndexes::test_truncate_base_with_local_index. Note: the system.local truncated_at == [[None]] check (secondary_indexes_test.py:950-951, tools/data.py:312) can't fail - scylla never writes that legacy column; data reinserted after truncate is never queried; c2 column unused."
+      "reason": "Each piece is covered separately (cqlpy MV truncate, boost truncation records per view, MV dtest multi-node truncate) but nothing combines SI views + per-node system.truncated records on a multi-node cluster; it is also the remaining coverage cited by the RED TestLocalIndexes::test_truncate_base_with_local_index. Bug: the system.local truncated_at == [[None]] check (secondary_indexes_test.py:950-951, tools/data.py:312) can't fail - scylla never writes that legacy column. Note: data reinserted after truncate is never queried; c2 column unused.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "secondary_indexes_test.py:951",
+          "text": "system.local truncated_at == [[None]] check can't fail; scylla never writes that legacy column"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "secondary_indexes_test.py:987",
+          "text": "Data reinserted after truncate is never queried; only system.truncated entries rechecked"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:959",
+          "text": "Column c2 is created but never used"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_ttl_index_column": {
       "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built; UPDATE USING TTL 60 SET b=3; asserts b=3 returns row, b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards index row expiry when the indexed column has a TTL.",
@@ -1500,7 +1908,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (same TTL-on-indexed-column update, old/new value both gone after expiry). Note: docstring mentions default_time_to_live but the test uses USING TTL."
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (same TTL-on-indexed-column update, old/new value both gone after expiry). Note: docstring mentions default_time_to_live but the test uses USING TTL.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1059",
+          "text": "Docstring mentions default_time_to_live but the test uses USING TTL"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "secondary_indexes_test.py:1071",
+          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+        }
+      ]
     },
     "TestSecondaryIndexesOnCollections::test_frozen_list_indexes": {
       "description": "Single node: table users(key uuid, email text, uuids frozen<list<uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
@@ -1534,7 +1956,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Global rejection of a plain index on a frozen list is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen list' is misleading - full() indexes are supported and not tested here."
+      "reason": "Global rejection of a plain index on a frozen list is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen list' is misleading - full() indexes are supported and not tested here.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1294",
+          "text": "Docstring 'secondary indexes can't be created on frozen list' is misleading; full() indexes are supported (untested here)"
+        }
+      ]
     },
     "TestSecondaryIndexesOnCollections::test_frozen_set_indexes": {
       "description": "Single node: table users(key uuid, email text, uuids frozen<set<uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
@@ -1568,7 +1998,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Global rejection of a plain index on a frozen set is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen set' is misleading - full() indexes are supported and not tested here."
+      "reason": "Global rejection of a plain index on a frozen set is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen set' is misleading - full() indexes are supported and not tested here.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1300",
+          "text": "Docstring 'secondary indexes can't be created on frozen set' is misleading; full() indexes are supported (untested here)"
+        }
+      ]
     },
     "TestSecondaryIndexesOnCollections::test_frozen_map_indexes": {
       "description": "Single node: table users(key uuid, email text, uuids frozen<map<uuid, uuid>>); asserts that a plain global index (CREATE INDEX ON users(uuids)) and a local index ((key), uuids) both fail with InvalidRequest matching 'Cannot create index on (index_values|value) of frozen' (helper frozen_collection_indexes_run). Guards scylladb#3654 (non-full() index on frozen collection must be rejected).",
@@ -1602,7 +2040,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Global rejection of a plain index on a frozen map is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen map' is misleading - full() indexes are supported and not tested here."
+      "reason": "Global rejection of a plain index on a frozen map is fully covered by test/boost/secondary_index_test.cc::test_secondary_index_collections (scylla e4ec89473e, Fixes #3654); the local-index half hits the same validate_for_frozen_collection branch (create_index_statement.cc:545) and is pure CQL validation, no reason for a dtest. Note: docstring 'secondary indexes can't be created on frozen map' is misleading - full() indexes are supported and not tested here.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:1306",
+          "text": "Docstring 'secondary indexes can't be created on frozen map' is misleading; full() indexes are supported (untested here)"
+        }
+      ]
     },
     "TestSecondaryIndexes::test_ttl_non_index_column": {
       "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built (_prepare_for_ttl); UPDATE USING TTL 60 SET c=3; asserts row found by key and by b=1, index view has (0,1); sleeps 65s; asserts c is null and the row is still found via b=1 and still in the index view (CL ALL). Guards that TTL on a non-indexed column does not expire the index entry.",
@@ -1634,7 +2080,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (TTL on non-indexed column, row still returned by index with null value); the extra index-view row check is the same view-update path. Note: docstring typo 'imdex'."
+      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (TTL on non-indexed column, row still returned by index with null value); the extra index-view row check is the same view-update path. Note: docstring typo 'imdex'.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "secondary_indexes_test.py:1081",
+          "text": "Docstring typo 'imdex'"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "secondary_indexes_test.py:1092",
+          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+        }
+      ]
     },
     "TestSecondaryIndexesOnCollections::test_tuple_indexes": {
       "description": "Single node: table with tuple<int>, tuple<int,int>, tuple<int,int,int> and nested tuple<int,tuple<int,int>> columns; 250 rows inserted (5 per value), querying an unindexed tuple must require ALLOW FILTERING; builds global index on each tuple column and checks counts on pre-existing data (5 per value, 0 for -1), after 150 more inserts (8 per value, after time.sleep(5)), and after updating rows of values 0-4 to -999 (0 old, 40 for -999). Guards global SI on (nested) tuple columns: index build, live updates and value changes.",
@@ -1674,7 +2134,15 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test querying a secondary index on (nested) tuple columns, incl. index build over existing data and value updates; no scylla cqlpy/boost equivalent (tuple_type_test.py's tuple index part is commented out). Cheap (~16s), 32/32 pass in gating. Could be ported to cqlpy."
+      "reason": "Only test querying a secondary index on (nested) tuple columns, incl. index build over existing data and value updates; no scylla cqlpy/boost equivalent (tuple_type_test.py's tuple index part is commented out). Cheap (~16s), 32/32 pass in gating. Could be ported to cqlpy.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "secondary_indexes_test.py:1270",
+          "text": "Fixed time.sleep(5) after inserts"
+        }
+      ]
     }
   }
 }

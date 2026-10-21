@@ -32,7 +32,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single-page reversed query of 5 rows is a strict subset of test_with_more_results_than_page_size (same template) and of paging_test.py::TestPagingSize::test_with_order_by_reversed; spins a 3-node cluster for it."
+      "reason": "Single-page reversed query of 5 rows is a strict subset of test_with_more_results_than_page_size (same template) and of paging_test.py::TestPagingSize::test_with_order_by_reversed; spins a 3-node cluster for it.",
+      "issues": []
     },
     "TestReversedQueriesPaging::test_with_more_results_than_page_size": {
       "description": "3-node RF=3 cluster; 13 rows in one partition (ASC table), `ORDER BY id DESC` with fetch_size=5 at CL=ALL; asserts exactly 3 pages and rows 13..1. Guards paging of reversed reads (page boundaries / resume position in reverse).",
@@ -60,7 +61,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of paging_test.py::TestPagingSize::test_with_order_by_reversed (reversed read + multi-page + exact page count); only difference is ASC table queried DESC vs DESC table queried ASC. Candidate for RED if those paths are considered equivalent."
+      "reason": "Near-duplicate of paging_test.py::TestPagingSize::test_with_order_by_reversed (reversed read + multi-page + exact page count); only difference is ASC table queried DESC vs DESC table queried ASC. Candidate for RED if those paths are considered equivalent.",
+      "issues": []
     },
     "TestMultiPartitionReversedQueriesSelectors::test_reverse_selectors": {
       "description": "Single node, RF=1; populates 5 partitions (31 rows) and range/row tombstones in bucket 1 (BaseReversedQuerySelector.populate, lines 125-168). Runs 3 unpaged (fetch_size=0) multi-partition `bucket IN (1,2)` reversed queries - partial ordering, full ordering, full ordering + PER PARTITION LIMIT 3 - from memtable, after flush (cache) and with BYPASS CACHE (sstable); exact `==` row lists (run_multi_partition_selects, line 251).",
@@ -93,7 +95,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only 3 queries; IN+ORDER BY DESC+PER PARTITION LIMIT unpaged is covered by cqlpy select_limit_test.py (lines 79-92) and testOrderByForInClause; added value is range tombstones + memtable/cache/sstable sources. Note: yield_multi_partition_selects docstring says 'single partition' (line 224, copy-paste)."
+      "reason": "Only 3 queries; IN+ORDER BY DESC+PER PARTITION LIMIT unpaged is covered by cqlpy select_limit_test.py (lines 79-92) and testOrderByForInClause; added value is range tombstones + memtable/cache/sstable sources. Note: yield_multi_partition_selects docstring says 'single partition' (line 224, copy-paste).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "reversed_queries_test.py:224",
+          "text": "yield_multi_partition_selects docstring says 'single partition' (copy-paste)."
+        }
+      ]
     },
     "TestReversedQueriesMemoryUsage::test_memory": {
       "description": "2 nodes (one per rack), smp=1, memory=512M, RF=2. 10 workers write a ~1GB single partition (100k rows x 10KB) at CL=ALL. Then `ORDER BY id DESC LIMIT 200` (~2MB) must succeed, return 200 rows and be split into >1 page; and its page count must equal the forward `ORDER BY id LIMIT 200` page count. Guards that reversed reads of partitions larger than shard memory don't accumulate the whole partition (scylladb#9134) and use the same page size as forward reads (scylladb PR #9815).",
@@ -127,8 +137,16 @@
           "note": "reversed paged/unpaged queries vs unlimited-query limits; tiny data, no page-count comparison."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique end-to-end check that reversed reads over a partition larger than shard memory page like forward reads (scylla#9815); otherwise GREEN. Note: class marked @pytest.mark.single_node (line 315) but test_memory starts 2 nodes (prepare(2), line 334) - stale mark since c0fc64bded."
+      "decision": "GREEN",
+      "reason": "Unique end-to-end check that reversed reads over a partition larger than shard memory page like forward reads (scylla#9815). Note: class marked @pytest.mark.single_node (line 315) but test_memory starts 2 nodes (prepare(2), line 334) - stale mark since c0fc64bded.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "reversed_queries_test.py:315",
+          "text": "Class marked @single_node but test_memory starts 2 nodes (stale since c0fc64bded)."
+        }
+      ]
     },
     "TestReversedQueriesReadRepair::test_queries_with_read_repair": {
       "description": "2 nodes (2 racks), hinted handoff off, RF=2. node2 stopped, 100 rows written at CL=ONE to node1, node2 restarted. A reversed `ORDER BY ck DESC` read at CL=ALL must return all rows reversed; then node1 is stopped and a CL=ONE BYPASS CACHE read on node2 must return all rows, proving the reversed read repaired node2.",
@@ -161,7 +179,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Largely subsumed by TestReversedQueriesReadRepairBigMutationsSmallChanges (same assertions, bigger/multi-page data); differs only in replica having no data at all. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; repair here actually comes from CL=ALL digest-mismatch reconciliation. (line 393)"
+      "reason": "Largely subsumed by TestReversedQueriesReadRepairBigMutationsSmallChanges (same assertions, bigger/multi-page data); differs only in replica having no data at all. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; repair here actually comes from CL=ALL digest-mismatch reconciliation. (line 393)",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "reversed_queries_test.py:393",
+          "text": "read_repair_chance obsolete, silently ignored by scylla (c323c93fa4); repair comes from CL=ALL reconciliation."
+        }
+      ]
     },
     "TestReversedQueriesMerging::test_read_from_memtables_and_multiple_sstables": {
       "description": "2 nodes, hinted handoff off, RF=2, NullCompactionStrategy. Writes interleaving ck sets into 3 sstables on node1 only (node2 down), then 3 sstables on node2 only (node1 down), then a memtable on both; values overlap so newer writes win. CL=ALL reversed reads of pk=0 (via cache) and pk=1 (BYPASS CACHE) must equal the merged expected rows in descending order. Covers reversed combined reader across memtable + multiple sstables + cross-replica reconciliation.",
@@ -194,8 +220,16 @@
           "note": "reversed merging over sstable set."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique end-to-end combination (6 sstables split across replicas + memtable, reconciled in reverse); reader merging itself is covered by boost reverse mutation-source tests. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; reconciliation still happens via CL=ALL digest-mismatch reconciliation. (`read_repair_chance = 0.0`, line 454)."
+      "decision": "GREEN",
+      "reason": "Unique end-to-end combination (6 sstables split across replicas + memtable, reconciled in reverse); reader merging itself is covered by boost reverse mutation-source tests. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; reconciliation still happens via CL=ALL digest-mismatch reconciliation. (`read_repair_chance = 0.0`, line 454).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "reversed_queries_test.py:454",
+          "text": "read_repair_chance obsolete, silently ignored by scylla (c323c93fa4); repair comes from CL=ALL reconciliation."
+        }
+      ]
     },
     "TestReversedQueriesOnTableWithReversedOrder::test_reversed_query_on_table_with_reversed_order": {
       "description": "Single node; table WITH CLUSTERING ORDER BY (ck DESC), 100 rows inserted (memtable only), `ORDER BY ck ASC` must return rows ascending. Checks reversed read on a DESC-clustered table.",
@@ -230,7 +264,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by cqlpy select_order_by_test.py::testReversedComparator (same query shape, memtable + sstable) and dtest paging_test.py::TestPagingSize::test_with_order_by_reversed."
+      "reason": "Fully covered by cqlpy select_order_by_test.py::testReversedComparator (same query shape, memtable + sstable) and dtest paging_test.py::TestPagingSize::test_with_order_by_reversed.",
+      "issues": []
     },
     "TestReversedQueriesReadRepairBigMutationsSmallChanges::test_queries_with_read_repair": {
       "description": "2 nodes, hinted handoff off, RF=2, NullCompactionStrategy. Writes 10k rows at CL=ALL, every 1000 rows deletes one random row and flushes node2 (~10 sstables). Stops node2, deletes the first 9 files under data/ks (one sstable), restarts; CL=ALL reversed read must return all live rows reversed (multi-page); then node1 down and node2 CL=ONE BYPASS CACHE read must return everything, proving reversed read repair of a large partition with small differences.",
@@ -253,8 +288,22 @@
           "note": "suppress_features NATIVE_REVERSE_QUERIES injection on one of 2 nodes; wipes sstables on that node, then CL=ALL BYPASS CACHE reversed single/multi-partition queries (reconciliation); dev/debug only."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique multi-page reversed read-repair coverage. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; repair here actually comes from CL=ALL digest-mismatch reconciliation. (line 781). Note: sstable removal hardcodes 9 components and relies on sorted paths (lines 808-813); breaks silently/oddly if component set changes (e.g. sstable_format 'ms', db/config.cc:1520)."
+      "decision": "GREEN",
+      "reason": "Unique multi-page reversed read-repair coverage. Note: `read_repair_chance` is obsolete and silently ignored in scylla (removed by scylladb c323c93fa4, 2024-03-28; cql3/statements/cf_prop_defs.cc obsolete_keywords) - dead config; repair here actually comes from CL=ALL digest-mismatch reconciliation. (line 781). Note: sstable removal hardcodes 9 components and relies on sorted paths (lines 808-813); breaks silently/oddly if component set changes (e.g. sstable_format 'ms', db/config.cc:1520).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "reversed_queries_test.py:781",
+          "text": "read_repair_chance obsolete, silently ignored by scylla (c323c93fa4); repair comes from CL=ALL reconciliation."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "reversed_queries_test.py:808",
+          "text": "Deletes first 9 sorted files as one sstable; fragile if component set changes (default 'me' format still matches)."
+        }
+      ]
     },
     "TestReversedQueriesReadRepairDuringUpgrade::test_queries_during_upgrade": {
       "description": "Upgrade test: 3 nodes (3 racks) at release:2026.1, hinted handoff off, RF=3, BaseReversedQuerySelector data with tombstones; coordinator = middle node. For each node: upgrade, then wipe that node's user sstables (flush/stop/clear(only_data)/start) before and after every query, and run all single+multi-partition reversed selects with BYPASS CACHE at CL=ALL, forcing reconciliation between old and new version replicas.",
@@ -286,7 +335,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (avg 293s) and its original target (legacy vs native reverse format reconciliation) is covered by scylla test_reversed_queries_during_simulated_upgrade_process and can't occur on 2026.1->master. Note: adds experimental_features 'tablets' and 'views-with-tablets' (lines 643-646 / 712-715), both UNUSED in scylla db/config.cc:2126-2127 for every version in the path (has_views_with_tablets_experimental_feature returns True for >=2025.1, tools/cluster.py:171) - dead config. RED candidate unless real-binary RPC compat of reversed pages is wanted."
+      "reason": "Slow (avg 293s) and its original target (legacy vs native reverse format reconciliation) is covered by scylla test_reversed_queries_during_simulated_upgrade_process and can't occur on 2026.1->master. Note: adds experimental_features 'tablets' and 'views-with-tablets' (lines 643-646 / 712-715), both UNUSED in scylla db/config.cc:2126-2127 for every version in the path (has_views_with_tablets_experimental_feature returns True for >=2025.1, tools/cluster.py:171) - dead config. RED candidate unless real-binary RPC compat of reversed pages is wanted.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "reversed_queries_test.py:643",
+          "text": "experimental_features 'tablets'/'views-with-tablets' unused in scylla for every version in the upgrade path."
+        }
+      ]
     },
     "TestReversedQueriesSelectorsDuringUpgrade::test_queries_during_upgrade": {
       "description": "Upgrade test: 3 nodes (3 racks) at release:2026.1, RF=3, BaseReversedQuerySelector data with row/range tombstones; coordinator = middle node. Runs all single+multi-partition reversed selects at CL=ALL before upgrade and after each node upgrade (old coordinator in mixed cluster, new coordinator in mixed cluster, fully upgraded), then after enabling raft topology if it wasn't.",
@@ -323,7 +380,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test running real mixed-version reversed queries (57s), but the format transition it was built for no longer happens on this upgrade path; scylla simulated-upgrade test covers native/legacy mix. Note: adds experimental_features 'tablets' and 'views-with-tablets' (lines 643-646 / 712-715), both UNUSED in scylla db/config.cc:2126-2127 for every version in the path (has_views_with_tablets_experimental_feature returns True for >=2025.1, tools/cluster.py:171) - dead config."
+      "reason": "Only test running real mixed-version reversed queries (57s), but the format transition it was built for no longer happens on this upgrade path; scylla simulated-upgrade test covers native/legacy mix. Note: adds experimental_features 'tablets' and 'views-with-tablets' (lines 643-646 / 712-715), both UNUSED in scylla db/config.cc:2126-2127 for every version in the path (has_views_with_tablets_experimental_feature returns True for >=2025.1, tools/cluster.py:171) - dead config.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "reversed_queries_test.py:643",
+          "text": "experimental_features 'tablets'/'views-with-tablets' unused in scylla for every version in the upgrade path."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "reversed_queries_test.py:653",
+          "text": "enable_raft_topology branch likely dead: raft topology always on from 2026.1."
+        }
+      ]
     },
     "TestReversedQueriesWithOverlappingRangeTombstones::test_reversed_query_with_overlapping_range_tombstones": {
       "description": "Single node; 10 concurrent workers write 100k overlapping range deletes `ck >= i AND ck < i+100000` in pk=0, then insert one live row at ck=199990 (inside the tombstone span but written later) and run `ORDER BY ck DESC LIMIT 1 BYPASS CACHE` (memtable read), asserting exactly that row. On failure dumps sstables and MUTATION_FRAGMENTS. Guards reversed reads over a multi-version memtable partition with many overlapping RTs; commit msg claims 'resource usage not too high' but only correctness is asserted.",
@@ -360,7 +431,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Found a real bug (SCYLLADB-1253, fixed scylladb 21d9f54a9a) now covered deterministically by mvcc_test::test_reversed_maybe_refresh_keeps_latest_version_entry; dtest keeps end-to-end CQL coverage at 100k-RT scale (13s, 38/38 pass). Note: still @unmark.next_gating (fb556d0557) for the flakiness that the fix explains - could return to gating or be dropped. Note: `trace=True` result unused (trace logging commented out, line 589); 'resource usage' check from origin commit never asserted."
+      "reason": "Found a real bug (SCYLLADB-1253, fixed scylladb 21d9f54a9a) now covered deterministically by mvcc_test::test_reversed_maybe_refresh_keeps_latest_version_entry; dtest keeps end-to-end CQL coverage at 100k-RT scale (13s, 38/38 pass). Note: still @unmark.next_gating (fb556d0557) for the flakiness that the fix explains - could return to gating or be dropped. Note: `trace=True` result unused (trace logging commented out, line 589); 'resource usage' check from origin commit never asserted.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "fb556d0557",
+          "text": "@unmark.next_gating for flakiness explained by fixed SCYLLADB-1253."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "reversed_queries_test.py:589",
+          "text": "trace=True result unused (trace logging commented out)."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "",
+          "text": "'Resource usage not too high' from origin commit message never asserted; only correctness checked."
+        }
+      ]
     },
     "TestReversedQueriesWithTimeWindowCompactionStrategy::test_reversed_queries_with_time_window_compaction_strategy": {
       "description": "Single node; DESC-clustered table with TWCS (1-minute windows), autocompaction disabled, 300 rows inserted with USING TIMESTAMP and flushed every 60 rows; asserts 5 sstables, then `ORDER BY ck ASC` (reversed read) returns all 300 rows in order. Intended to check reversed queries over the TWCS time-series sstable set with data spread across windows.",
@@ -387,7 +478,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly covered by cqlpy test_twcs_reversed_restricted_query_* (more sstables, both TWCS read paths, restrictions) plus boost test_clustering_order_merger_sstable_set_reversed (order); dtest adds only exact-order check via CQL on a DESC table. Candidate RED. Bug: USING TIMESTAMP gets seconds (`int(time.time())`, line 749-751) but CQL timestamps are microseconds, so all 300 writes fall within 300us in one 1970 window; the '5 windows' comment (line 743) is false and the 5 sstables come only from the flushes."
+      "reason": "Mostly covered by cqlpy test_twcs_reversed_restricted_query_* (more sstables, both TWCS read paths, restrictions) plus boost test_clustering_order_merger_sstable_set_reversed (order); dtest adds only exact-order check via CQL on a DESC table. Candidate RED. Bug: USING TIMESTAMP gets seconds (`int(time.time())`, line 749-751) but CQL timestamps are microseconds, so all 300 writes fall within 300us in one 1970 window; the '5 windows' comment (line 743) is false and the 5 sstables come only from the flushes.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "reversed_queries_test.py:749",
+          "text": "USING TIMESTAMP in seconds, not microseconds: all 300 writes land in one 1970 window, so multi-window TWCS never exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "reversed_queries_test.py:743",
+          "text": "'5 windows' comment false; 5 sstables come only from flushes."
+        }
+      ]
     },
     "TestSinglePartitionReversedQueriesSelectors::test_reverse_selectors": {
       "description": "Single node RF=1; populates 3-column-key table, adds range/row tombstones in bucket 1 (BaseReversedQuerySelector.populate, line 129), then runs 11 single-partition `ORDER BY id DESC` queries (no restriction, =, IN, <, >, ranges, multi-column IN/ranges, independent INs) with exact expected rows, from memtable, from cache after flush, and from sstable with BYPASS CACHE (run_single_partition_selects, line 213). Guards native reversed reads with clustering restrictions over RTs across all three mutation sources.",
@@ -435,7 +540,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique CQL-level combination: clustering restrictions (single + multi-column) x range tombstones x memtable/cache/sstable for reversed reads, exact row assertions; cheap (5s, 32/32 pass). Scylla tests cover pieces only (cqlpy without RTs/source split, boost at reader level)."
+      "reason": "Unique CQL-level combination: clustering restrictions (single + multi-column) x range tombstones x memtable/cache/sstable for reversed reads, exact row assertions; cheap (5s, 32/32 pass). Scylla tests cover pieces only (cqlpy without RTs/source split, boost at reader level).",
+      "issues": []
     }
   },
   "analyzed_at": "2026-10-20",

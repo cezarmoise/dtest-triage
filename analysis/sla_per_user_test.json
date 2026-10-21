@@ -41,7 +41,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully subsumed by test_sla_attached_to_entity in the same file (identical create+validate_sl_list) and cqlpy service level tests; the 'Sla1' case-sensitivity param is covered by test/cqlpy/test_service_levels.py::test_manipulating_fake_default_service_level. Note: ServiceLevel.__eq__ (tools/sla.py:127) ignores the name, so name/case is only checked implicitly via LIST by quoted name."
+      "reason": "Fully subsumed by test_sla_attached_to_entity in the same file (identical create+validate_sl_list) and cqlpy service level tests; the 'Sla1' case-sensitivity param is covered by test/cqlpy/test_service_levels.py::test_manipulating_fake_default_service_level. Note: ServiceLevel.__eq__ (tools/sla.py:127) ignores the name, so name/case is only checked implicitly via LIST by quoted name.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/sla.py:127",
+          "text": "ServiceLevel.__eq__ ignores the name; name/case only checked implicitly via LIST by quoted name."
+        }
+      ]
     },
     "TestSLA::test_sla_attached_to_entity": {
       "description": "Creates SL 'sla1' (100 shares), a Role or User (plain, or role with password+LOGIN), attaches the SL, then checks LIST ALL/LIST SERVICE_LEVEL and LIST ATTACHED SERVICE_LEVEL OF <entity> return exactly that SL with matching attributes. Covers ATTACH to role vs user.",
@@ -87,7 +95,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: test_attach_2_slas_to_role[with_role/with_user] runs the identical steps and asserts, the auth role variant is exercised by test_sla_configuration, and cqlpy test_attached_service_level covers LIST ATTACHED. Bug: params attach_to_auth_user and attach_to_user are identical (User, password None, login False; sla_per_user_test.py:111) so the 'auth user' case tests nothing new."
+      "reason": "Redundant: test_attach_2_slas_to_role[with_role/with_user] runs the identical steps and asserts, the auth role variant is exercised by test_sla_configuration, and cqlpy test_attached_service_level covers LIST ATTACHED. Bug: params attach_to_auth_user and attach_to_user are identical (User, password None, login False; sla_per_user_test.py:111) so the 'auth user' case tests nothing new.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "sla_per_user_test.py:111",
+          "text": "attach_to_auth_user param identical to attach_to_user (User, no password, no login); 'auth user' case not exercised."
+        }
+      ]
     },
     "TestSLA::test_sla_usage": {
       "description": "Creates SL 'sla1', a superuser Role (password+LOGIN) or User (password) with the SL attached, validates listings, then runs a tiny cassandra-stress write (n=10, cl=ALL) as cassandra and as the entity. Added to catch SCT-style auth config issues (authorizer + superuser role usage); only asserts c-s does not fail, not that the SL is used.",
@@ -123,7 +139,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion (only that a 10-row c-s write succeeds as a role with an SL) and 5x slower (~24s) than its siblings; TestSLAConfig::test_sla_configuration in the same file logs in as such a role and additionally verifies the scheduling group, and scylla test_raft_service_levels/test_ldap_service_levels cover SL-attached users running queries."
+      "reason": "Low-value assertion (only that a 10-row c-s write succeeds as a role with an SL) and 5x slower (~24s) than its siblings; TestSLAConfig::test_sla_configuration in the same file logs in as such a role and additionally verifies the scheduling group, and scylla test_raft_service_levels/test_ldap_service_levels cover SL-attached users running queries.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "sla_per_user_test.py:146",
+          "text": "Only asserts a 10-row c-s write succeeds as the entity; doesn't verify the SL is used."
+        }
+      ]
     },
     "TestSLA::test_sla_no_shares": {
       "description": "Creates SL 'sla1' without shares, attaches it to a role, and checks LIST SERVICE_LEVEL / LIST ATTACHED report the default 1000 shares. Guards scylla-enterprise#2163 'Default values for Service Level not listed'.",
@@ -158,7 +182,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_default_shares_in_listings. Bug: the check cannot fail on the guarded bug, since ServiceLevel.__eq__ (tools/sla.py:131) maps shares None->1000, so a listing with null shares (enterprise#2163) still compares equal. Note: require('scylladb/scylla-enterprise#2163') (sla_per_user_test.py:181) refers to an issue closed 2025-01-15."
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_default_shares_in_listings. Bug: the check cannot fail on the guarded bug, since ServiceLevel.__eq__ (tools/sla.py:131) maps shares None->1000, so a listing with null shares (enterprise#2163) still compares equal. Note: require('scylladb/scylla-enterprise#2163') (sla_per_user_test.py:181) refers to an issue closed 2025-01-15.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/sla.py:131",
+          "text": "ServiceLevel.__eq__ maps shares None->1000, so a listing with null shares (enterprise#2163) still compares equal."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "sla_per_user_test.py:181",
+          "text": "require('scylladb/scylla-enterprise#2163') on issue closed 2025-01-15."
+        }
+      ]
     },
     "TestSLA::test_replace_sla": {
       "description": "Creates SLs sla50 and sla300 and a Role/User, attaches sla50, checks both SLs listed and only sla50 attached; then DETACH + ATTACH sla300 and checks only sla300 is attached while both still exist. Covers DETACH SERVICE_LEVEL and re-attach.",
@@ -199,7 +237,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: detach/re-attach with LIST ATTACHED verification exists in test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level but only under LDAPRoleManager; with CassandraRoleManager detach is only exercised (not verified) in cqlpy helpers. Cheap (4.5s); keep or fold into test_attach_2_slas_to_role."
+      "reason": "Partial overlap: detach/re-attach with LIST ATTACHED verification exists in test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level but only under LDAPRoleManager; with CassandraRoleManager detach is only exercised (not verified) in cqlpy helpers. Cheap (4.5s); keep or fold into test_attach_2_slas_to_role.",
+      "issues": []
     },
     "TestSLA::test_update_assigned_sla_service_shares": {
       "description": "Creates an SL without shares attached to a Role/User, checks it lists with default shares, then ALTER SERVICE_LEVEL ... WITH shares=500 and checks LIST SERVICE_LEVEL and LIST ATTACHED SERVICE_LEVEL report 500. Covers ALTER of an attached SL being reflected in listings.",
@@ -239,7 +278,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only (scylla tests ALTER shares without listing, or list after ALTER timeout). Bug: the default-shares half cannot fail on null shares because ServiceLevel.__eq__ maps None->1000 (tools/sla.py:131). Note: stale require('scylladb/scylla-enterprise#2163') at sla_per_user_test.py:231 (issue closed 2025-01-15); unused `entity` object distinct from the one created (sla_per_user_test.py:243-244), harmless since lookup is by name."
+      "reason": "Partial overlap only (scylla tests ALTER shares without listing, or list after ALTER timeout). Bug: the default-shares half cannot fail on null shares because ServiceLevel.__eq__ maps None->1000 (tools/sla.py:131). Note: stale require('scylladb/scylla-enterprise#2163') at sla_per_user_test.py:231 (issue closed 2025-01-15); unused `entity` object distinct from the one created (sla_per_user_test.py:243-244), harmless since lookup is by name.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/sla.py:131",
+          "text": "ServiceLevel.__eq__ maps shares None->1000, so a listing with null shares (enterprise#2163) still compares equal."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "sla_per_user_test.py:231",
+          "text": "require('scylladb/scylla-enterprise#2163') on issue closed 2025-01-15."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "sla_per_user_test.py:243-244",
+          "text": "Unused entity object distinct from the created one; harmless since lookup is by name."
+        }
+      ]
     },
     "TestSLA::test_attach_2_slas_to_role": {
       "description": "Creates sla1 (100 shares) attached to a Role/User, verifies, then creates sla2 (200) and ATTACHes it without DETACH; asserts both SLs exist and only sla2 is attached (ATTACH replaces the previous attachment).",
@@ -271,7 +330,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test verifying (via LIST ATTACHED) that ATTACH of a second SL replaces the first, for both roles and users; fast (4.5s), 100% pass."
+      "reason": "Only test verifying (via LIST ATTACHED) that ATTACH of a second SL replaces the first, for both roles and users; fast (4.5s), 100% pass.",
+      "issues": []
     },
     "TestSLA::test_drop_sl_and_attach_new_to_role": {
       "description": "Creates sla1 attached to a Role/User, DROPs sla1 and asserts LIST ATTACHED for the entity is empty, then creates sla2, attaches it and checks only sla2 exists and is attached. Covers DROP SERVICE_LEVEL removing attachments.",
@@ -296,7 +356,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test_ldap_attach_service_level (same drop->detached assertion, LDAP role manager only). Note: docstring is a copy of test_attach_2_slas_to_role's and doesn't mention the DROP (sla_per_user_test.py:366-377)."
+      "reason": "Partial overlap with test_ldap_attach_service_level (same drop->detached assertion, LDAP role manager only). Note: docstring is a copy of test_attach_2_slas_to_role's and doesn't mention the DROP (sla_per_user_test.py:366-377).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "sla_per_user_test.py:366-377",
+          "text": "Docstring copied from test_attach_2_slas_to_role; doesn't mention DROP."
+        }
+      ]
     },
     "TestSLA::test_chaos_sl_creation_altering_deletion": {
       "description": "4 nodes x 4 shards; 10 threads over 4 coordinator sessions for 300s loop CREATE SERVICE_LEVEL (random shares) -> read barrier -> ALTER shares -> DROP, two threads reusing the same names. Tolerated errors: 'no more scheduling groups exist', 'concurrent modification', 'doesn't exist', client timeouts (retried); anything else fails. Stress for concurrent group0 SL DDL and scheduling group create/rename/destroy; assertion is just 'no unexpected error' (+ dtest log error checks).",
@@ -345,7 +413,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only concurrent multi-coordinator SL DDL stress, but slow (~327s), weak assertion (only 'no unexpected exception'; no final consistency check of SLs/SGs across nodes) and needed 4 flakiness-fix PRs in 2026 (6904, 7276, 7318, 7338: SCYLLADB-1698, SCYLLADB-4652) that each widened the tolerated errors. Consider shortening the loop or adding an end-state check."
+      "reason": "Only concurrent multi-coordinator SL DDL stress, but slow (~327s), weak assertion (only 'no unexpected exception'; no final consistency check of SLs/SGs across nodes) and needed 4 flakiness-fix PRs in 2026 (6904, 7276, 7318, 7338: SCYLLADB-1698, SCYLLADB-4652) that each widened the tolerated errors. Consider shortening the loop or adding an end-state check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "sla_per_user_test.py:283",
+          "text": "Only asserts no unexpected exception; no end-state consistency check of SLs/SGs across nodes."
+        }
+      ]
     },
     "TestSLAConfig::test_sla_configuration": {
       "description": "3 nodes, service_levels_interval_ms=500; creates ks.cf with data, a login superuser role with SL test_sl (500 shares). Opens a role session per node, waits until /service_levels/count_connections shows the role in sl:test_sl, then traces a SELECT and asserts every trace event (coordinator and replicas) has sl:test_sl in thread_name and reader concurrency semaphore events name sl:test_sl. Verifies SL->scheduling group/semaphore propagation end to end.",
@@ -384,7 +460,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique multi-node check that replica-side execution (trace thread_name) and reader concurrency semaphore follow the coordinator's service level; scylla tests only check coordinator-side metrics/SG. Stable (100% in dtest-release/-with-raft, ~14s)."
+      "reason": "Unique multi-node check that replica-side execution (trace thread_name) and reader concurrency semaphore follow the coordinator's service level; scylla tests only check coordinator-side metrics/SG. Stable (100% in dtest-release/-with-raft, ~14s).",
+      "issues": []
     },
     "TestSLANegativeTests::test_create_sla_with_more_1000_shares": {
       "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = 1001 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given 1001)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
@@ -411,7 +488,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 1001 -> SyntaxException), which runs in seconds without a dtest cluster; dtest only adds the message text match."
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 1001 -> SyntaxException), which runs in seconds without a dtest cluster; dtest only adds the message text match.",
+      "issues": []
     },
     "TestSLANegativeTests::test_create_sla_with_0_shares": {
       "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = 0 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given 0)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
@@ -438,7 +516,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 0 -> SyntaxException); dtest only adds the message text match."
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (SHARES = 0 -> SyntaxException); dtest only adds the message text match.",
+      "issues": []
     },
     "TestSLANegativeTests::test_create_sla_with_negative_shares": {
       "description": "Single-node auth cluster; CREATE SERVICE_LEVEL sla1 WITH shares = -1 must raise SyntaxException matching \"'SHARES' can only take values of 1-1000 (given -1)\" (via _wrong_shares, sla_per_user_test.py:434). Guards the shares range check in cql3/statements/sl_prop_defs.cc:61-66.",
@@ -465,7 +544,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Same branch (sl_prop_defs.cc:63) as SHARES = 0, covered by cqlpy test_user_based_sla_queries; only unique bit is parsing a negative literal for SHARES. Cheap (4s); candidate to fold into a cqlpy case (add SHARES = -1) and drop."
+      "reason": "Same branch (sl_prop_defs.cc:63) as SHARES = 0, covered by cqlpy test_user_based_sla_queries; only unique bit is parsing a negative literal for SHARES. Cheap (4s); candidate to fold into a cqlpy case (add SHARES = -1) and drop.",
+      "issues": []
     },
     "TestSLANegativeTests::test_update_not_existing_sla": {
       "description": "Single-node auth cluster; ALTER SERVICE_LEVEL sla1 WITH shares = 100 on a never-created SL must raise InvalidRequest matching \"The service level 'sla1' doesn't exist.\". Originally guarded scylla-enterprise#776 (wrong error code, Server Error instead of Invalid).",
@@ -497,7 +577,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (ALTER of non-existing SL -> InvalidRequest, which is the error-code regression of enterprise#776); dtest only adds the message match."
+      "reason": "Fully covered by test/cqlpy/test_cql_query.py::test_user_based_sla_queries (ALTER of non-existing SL -> InvalidRequest, which is the error-code regression of enterprise#776); dtest only adds the message match.",
+      "issues": []
     },
     "TestSLATimeouts::test_timeout_valid_values": {
       "description": "Single-node auth cluster with 1000 rows; CREATE SERVICE_LEVEL with timeout 1000000ms / 5h / 23h2m2s2ms (no shares), attach to a login role, LIST SERVICE_LEVEL must equal the created SL (ServiceLevel.__eq__, tools/sla.py:127, compares timeout Duration), then the role logs in and SELECT * returns rows. Checks timeout parsing/storage for ms, h and compound durations.",
@@ -535,7 +616,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: create/list of SL timeouts covered by cqlpy test_set_service_level_timeouts + test_list_effective_service_level, and timeout effect on a role's queries by boost auth_test.cc test_alter_with_timeouts; the dtest's extra 'SELECT returns rows' with a large timeout is a low-value assertion. Only unique bit is a compound duration (23h2m2s2ms), which is generic duration parsing. Note: was flaky until 9f6e958fbe (scylladb/scylladb#19734)."
+      "reason": "Redundant: create/list of SL timeouts covered by cqlpy test_set_service_level_timeouts + test_list_effective_service_level, and timeout effect on a role's queries by boost auth_test.cc test_alter_with_timeouts; the dtest's extra 'SELECT returns rows' with a large timeout is a low-value assertion. Only unique bit is a compound duration (23h2m2s2ms), which is generic duration parsing. Note: was flaky until 9f6e958fbe (scylladb/scylladb#19734).",
+      "issues": []
     },
     "TestSLTimeoutsNegative::test_invalid_timeout_values": {
       "description": "Single-node auth cluster; CREATE SERVICE_LEVEL with timeout 1d, 2mo, 1000ns, -1200ms must raise InvalidRequest with the specific messages (days/months, millisecond granularity, nonnegative).",
@@ -566,7 +648,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_validate_service_level_timeouts (days, months/years, sub-ms, negative) and boost auth_test.cc test_alter_with_timeouts; CREATE and ALTER share sl_prop_defs::validate, dtest only adds message text matching."
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_validate_service_level_timeouts (days, months/years, sub-ms, negative) and boost auth_test.cc test_alter_with_timeouts; CREATE and ALTER share sl_prop_defs::validate, dtest only adds message text matching.",
+      "issues": []
     }
   },
   "analyzed_at": "2026-10-21",

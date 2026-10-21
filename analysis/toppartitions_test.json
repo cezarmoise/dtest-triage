@@ -28,7 +28,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Client-only help-text string check, no cluster started (0.9s); help mechanism covered by test/nodetool/test_help.py, toppartitions text itself only here. Low value; trivially portable to test/nodetool or droppable."
+      "reason": "Client-only help-text string check, no cluster started (0.9s); help mechanism covered by test/nodetool/test_help.py, toppartitions text itself only here. Low value; trivially portable to test/nodetool or droppable.",
+      "issues": []
     },
     "TestTopPartitions::test_any_of_required_parameters_is_missing": {
       "description": "Starts 1 node with keyspace1.columnfamily1, runs toppartitions with no args (expects success on Scylla>4.5, nothing asserted on output), then with only ks, ks+cf, and cf+duration; asserts via verify_error_message (tools/toppartitions.py:162) non-zero exit and 'toppartitions requires either a keyspace, column family name and duration or no arguments at all'.",
@@ -61,7 +62,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_missing_positional_args (validation at tools/scylla-nodetool.cc:3833 is client-side). Bug: line 139 calls self.verify_error_message (no such method, it's the module-level helper) in the dead `Version<=4.5`/non-Scylla branch (e4b9bf2045). Note: line 151 'ks is not passed' actually parses as keyspace=columnfamily1 table=100 (2 positional args), not a missing-ks case; no-arg run (142-143) does a real 5s sampling with no assertion."
+      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_missing_positional_args (validation at tools/scylla-nodetool.cc:3833 is client-side). Note: line 139 calls self.verify_error_message (no such method, it's the module-level helper) in the dead `Version<=4.5`/non-Scylla branch (e4b9bf2045). Note: line 151 'ks is not passed' actually parses as keyspace=columnfamily1 table=100 (2 positional args), not a missing-ks case; no-arg run (142-143) does a real 5s sampling with no assertion.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "toppartitions_test.py:139",
+          "text": "self.verify_error_message (no such method) only in dead Version<=4.5/non-Scylla branch"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "toppartitions_test.py:151",
+          "text": "'ks is not passed' case parses as keyspace=columnfamily1 table=100 (2 positional args), not missing ks"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "toppartitions_test.py:142-143",
+          "text": "No-arg run does a real 5s sampling with no assertion on output"
+        }
+      ]
     },
     "TestTopPartitions::test_for_empty_ks_cf": {
       "description": "Starts 1 node with fresh keyspace1.columnfamily1, runs toppartitions for 500ms with no traffic; verify_empty_result (tools/toppartitions.py:169) asserts both WRITES and READS partition lists are empty.",
@@ -94,7 +115,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: every write test asserts READS empty and every read test asserts WRITES empty via verify_counters_for_sample(..., expected_results=[]) (tools/toppartitions.py:190 len==0) on the same real-table setup; empty-output formatting covered by test/nodetool/test_toppartitions.py::test_toppartitions[empty_samplings=True]. Costs a cluster start (~6s) for no unique assertion."
+      "reason": "Redundant: every write test asserts READS empty and every read test asserts WRITES empty via verify_counters_for_sample(..., expected_results=[]) (tools/toppartitions.py:190 len==0) on the same real-table setup; empty-output formatting covered by test/nodetool/test_toppartitions.py::test_toppartitions[empty_samplings=True]. Costs a cluster start (~6s) for no unique assertion.",
+      "issues": []
     },
     "TestTopPartitions::test_writes_sample_for_10_partitions_with_100_op_and_empty_reads_sample": {
       "description": "Starts toppartitions on ks.cf (10s), waits for server 'toppartitions query:' log (wait_nodetool_toppartitions_start, tools/toppartitions.py:15), then run_operations_c1c2 (tools/toppartitions.py:97) writes 1000x each of k0..k9. Asserts samplers exactly {WRITES,READS} (verify_samples_present_in_result :174), WRITES has exactly k0..k9 each count>=90 and READS empty (verify_counters_for_sample :178). Guards basic write sampling with table filter.",
@@ -134,7 +156,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique real-server check of write counting per partition (core of the name: '100 op' counts), but Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 write operation' / '3 seconds' (actual 1000 ops, 10s)."
+      "reason": "Unique real-server check of write counting per partition (core of the name: '100 op' counts). Bug: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 write operation' / '3 seconds' (actual 1000 ops, 10s).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring says '1 write operation' / '3 seconds'; actual 1000 ops, 10s"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/toppartitions.py:193",
+          "text": "Count floor 0.9*100 vs 1000 sent per key; 'correctly counted' claim unverified, 10x undercount or any overcount passes."
+        }
+      ]
     },
     "TestTopPartitions::test_reads_sample_for_10_partitions_with_100_op_and_empty_writes_sample": {
       "description": "Pre-writes k0..k9, starts toppartitions on ks.cf (10s), waits for server log, then reads each key 1000x. Asserts samplers {WRITES,READS}, READS exactly k0..k9 each count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards read sampling (read-path data listener).",
@@ -171,7 +207,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test of read counting per partition with real reads (scylla tests cover writes only, test_toppartitions_pk_needs_escaping), but Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "reason": "Only test of read counting per partition with real reads (scylla tests cover writes only, test_toppartitions_pk_needs_escaping). Bug: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/toppartitions.py:193",
+          "text": "Count floor 0.9*100 vs 1000 sent per key; 'correctly counted' claim unverified, 10x undercount or any overcount passes."
+        }
+      ]
     },
     "TestTopPartitions::test_top_5_partitions_write_samplers_and_empty_read_sample": {
       "description": "Writes k0..k4 1000x and k5..k9 1500x concurrently after sampling starts, with `-k 5`. Asserts WRITES contains exactly k5..k9 (the hotter ones) with count>=90 and READS empty (verify_counters_for_sample tools/toppartitions.py:178). Guards -k top-count limiting and ranking (scylla #4529, fixed 2019).",
@@ -210,8 +254,16 @@
           "note": "real server, single write sampled with table filter; only presence of pk checked"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server check that -k limits output to the hottest partitions (exact set k5..k9 vs colder k0..k4); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Stable 32/32. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "decision": "GREEN",
+      "reason": "Unique real-server check that -k limits output to the hottest partitions (exact set k5..k9 vs colder k0..k4); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Stable 32/32. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_top_5_partitions_for_read_samplers_and_empty_write_sample": {
       "description": "Pre-writes k0..k9; reads k0..k4 1500x and k0..k9 1000x concurrently (k0..k4=2500, k5..k9=1000) with `-k 5`. Asserts READS is exactly k0..k4 with count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards -k ranking on the read sampler (scylla #4529).",
@@ -243,8 +295,16 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server read-sampler top-k ranking check (exact set, colder keys excluded); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "decision": "GREEN",
+      "reason": "Unique real-server read-sampler top-k ranking check (exact set, colder keys excluded); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_top_3_partitions_for_write_samplers_only": {
       "description": "Three concurrent writers (k0-4, k2-4, k4-9, 1000x each => k4=3000, k2/k3=2000, rest 1000) with `-k 3 -a writes`. Asserts only WRITES sampler printed (verify_samples_present_in_result :174) and WRITES exactly {k4,k3,k2} count>=90 (verify_counters_for_sample :178). Guards top-k ranking and -a sampler selection; this is the DTEST-305 test fixed by 31527e2454.",
@@ -276,8 +336,16 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server top-3 ranking with overlapping writers + -a writes; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "decision": "GREEN",
+      "reason": "Unique real-server top-3 ranking with overlapping writers + -a writes; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_top_3_partitions_for_read_samplers_only": {
       "description": "Pre-writes k0..k19; three concurrent readers (k0-8, k7-14, k7-9, 1000x each => k7/k8=3000, k9=2000) with `-k 3 -a reads`. Asserts only READS printed and READS exactly {k7,k8,k9} count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Guards read top-k ranking (scylla #4529).",
@@ -309,8 +377,16 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor (could assert >=0.9*actual since 31527e2454). Unique real-server read top-3 ranking with overlapping readers; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "decision": "GREEN",
+      "reason": "Unique real-server read top-3 ranking with overlapping readers; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_param_sampler_writes_and_capacity_size": {
       "description": "Writes 20 keys (evens 1000x, odds 1000x, k5/k10/k15 +2000x) with `-a writes -s 15 -k 3`, i.e. capacity 15 < cardinality 20. Asserts only WRITES printed and WRITES exactly {k5,k10,k15} count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Exercises stream-summary with capacity below cardinality.",
@@ -342,7 +418,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique real-server check of top-k under capacity<cardinality, but Bug: name/docstring claim capacity is validated, yet parsed 'capacity' (parse_toppartitions_output tools/toppartitions.py:82) is never asserted; mock test_toppartitions covers -s forwarding/printing. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "reason": "Unique real-server check of top-k under capacity<cardinality, but Bug: name/docstring claim capacity is validated, yet parsed 'capacity' (parse_toppartitions_output tools/toppartitions.py:82) is never asserted; mock test_toppartitions covers -s forwarding/printing. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/toppartitions.py:82",
+          "text": "Docstring claims capacity equal to parameter is validated; parsed capacity never asserted, ignored -s would pass"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_param_sampler_read_and_capacity_size": {
       "description": "Pre-writes k0..k19; reads evens 1000x, odds 1000x, k6/k12/k18 +2000x with `-a reads -s 15 -k 3`. Asserts only READS printed and READS exactly {k6,k12,k18} count>=90 (verify_counters_for_sample tools/toppartitions.py:178).",
@@ -375,7 +465,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique real-server read top-k under capacity<cardinality, but Bug: capacity never asserted despite name (parse_toppartitions_output tools/toppartitions.py:82 captures it); variable named expected_write_... for READS (line 410, cosmetic). Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly."
+      "reason": "Unique real-server read top-k under capacity<cardinality, but Bug: capacity never asserted despite name (parse_toppartitions_output tools/toppartitions.py:82 captures it); variable named expected_write_... for READS (line 410, cosmetic). Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/toppartitions.py:82",
+          "text": "Docstring claims capacity equal to parameter is validated; parsed capacity never asserted, ignored -s would pass"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "toppartitions_test.py:410",
+          "text": "Variable expected_write_toppartition_key_count used for READS"
+        }
+      ]
     },
     "TestTopPartitions::test_param_k": {
       "description": "Parametrized size in {5,10,15}: writes k0..k19 1000x each with `--samplers writes --capacity 20 --size N`; asserts only WRITES printed (verify_samples_present_in_result :174) and exactly N partitions returned (len check inline). Guards scylla-enterprise#2859 (JMX nodetool ignored size>10; native forwards list_size).",
@@ -406,7 +516,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only [15] (k>10, the actual scylla-enterprise#2859 case) adds coverage: k=5/k=3 limiting is checked by test_top_5_*/test_top_3_*, k=10 is the default; ~3x15s per run. Original JMX bug is moot (native nodetool forwards list_size, tools/scylla-nodetool.cc:3862). Note: inline `assert size <= 20` should be `<` (nodetool rejects size>=capacity, :3838); harmless for params used. Consider keeping only [15]."
+      "reason": "Only [15] (k>10, the actual scylla-enterprise#2859 case) adds coverage: k=5/k=3 limiting is checked by test_top_5_*/test_top_3_*, k=10 is the default; ~3x15s per run. Original JMX bug is moot (native nodetool forwards list_size, tools/scylla-nodetool.cc:3862). Note: inline `assert size <= 20` should be `<` (nodetool rejects size>=capacity, :3838); harmless for params used. Consider keeping only [15].",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "[5] and [10] add nothing over test_top_5/top_3 and default k; only [15] covers scylla-enterprise#2859"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "",
+          "text": "Inline 'assert size <= 20' should be '<' (nodetool rejects size>=capacity); harmless for used params"
+        }
+      ]
     },
     "TestTopPartitions::test_write_by_gaussian_key_distribution": {
       "description": "Runs c-s (docker) insert with profile cs_normal_distribution.yaml (pk gaussian(1..3000,1500), stddev~1) for up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic. Asserts each returned key is in _calc_expected_top_keys range 1494..1506 via verify_partition_keys (tools/toppartitions.py:196, membership only, no counts/order). Checks toppartitions finds the hot keys of a skewed write workload with cardinality >> capacity.",
@@ -449,7 +573,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique skewed-workload check but weak: verify_partition_keys (tools/toppartitions.py:196) is membership-only (no counts, no ordering, 1500 not required top); ~45s; overlaps compound-key variant. Note: unused `with ThreadPoolExecutor(...) as executor` (line 528, dead code); docstring says 30s/'same each time' (code 60s, sameness not asserted); `-port jmx=6868` c-s arg is JMX-era leftover. Consolidation candidate with the other 3 gaussian tests."
+      "reason": "Unique skewed-workload check but weak: verify_partition_keys (tools/toppartitions.py:196) is membership-only (no counts, no ordering, 1500 not required top); ~45s; overlaps compound-key variant. Note: unused `with ThreadPoolExecutor(...) as executor` (line 528, dead code); docstring says 30s/'same each time' (code 60s, sameness not asserted); `-port jmx=6868` c-s arg is JMX-era leftover. Consolidation candidate with the other 3 gaussian tests.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:196",
+          "text": "verify_partition_keys membership-only: no counts, no ordering"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "toppartitions_test.py:528",
+          "text": "Unused 'with ThreadPoolExecutor(...) as executor'"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring says 30s and 'same each time'; code 60s, sameness not asserted"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "c-s arg '-port jmx=6868' is JMX-era leftover"
+        }
+      ]
     },
     "TestTopPartitions::test_read_by_gaussian_key_distribution": {
       "description": "Inserts with c-s (ccm stress, 3s) using cs_normal_distribution.yaml, then c-s (docker) reads ops(single=1) gaussian keys up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic on READS. Asserts each key in 1494..1506 via verify_partition_keys (tools/toppartitions.py:196, membership only).",
@@ -483,7 +633,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique skewed-read check but weak assertion (verify_partition_keys (tools/toppartitions.py:196) membership only, no counts/order); ~63s; history of interval-width flakiness (dtest#4171, a3c2e413ac). Note: docstring says 30s/'same each time', not matching code; executor used only to run+join stress synchronously; `-port jmx=6868` leftover. Consolidation candidate with the other gaussian tests."
+      "reason": "Unique skewed-read check but weak assertion (verify_partition_keys (tools/toppartitions.py:196) membership only, no counts/order); ~63s; history of interval-width flakiness (dtest#4171, a3c2e413ac). Note: docstring says 30s/'same each time', not matching code; executor used only to run+join stress synchronously; `-port jmx=6868` leftover. Consolidation candidate with the other gaussian tests.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:196",
+          "text": "verify_partition_keys membership-only: no counts, no ordering"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring says 30s and 'same each time'; not matching code"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "",
+          "text": "Executor used only to run+join stress synchronously"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "c-s arg '-port jmx=6868' is JMX-era leftover"
+        }
+      ]
     },
     "TestTopPartitions::test_write_by_gaussian_key_distribution_for_compound_primary_key_and_large_rows_number": {
       "description": "c-s (docker) insert with cs_large_numbers_rows_per_partition.yaml (PRIMARY KEY((p_key,p_key1),cl_key), both pk parts gaussian(1..3000,1500), up to 1000 rows/partition) for up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic. Asserts each key is in hardcoded 5x5 grid 1498..1502:1498..1502 via verify_partition_keys (tools/toppartitions.py:196, membership only). Covers compound-pk 'a:b' output under skew.",
@@ -517,7 +693,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partially redundant: compound-pk formatting also checked (with counts) by test_write_into_one_partition_to_different_rows; skew covered by test_write_by_gaussian_key_distribution; ~72s; verify_partition_keys (tools/toppartitions.py:196) membership only. Note: unused ThreadPoolExecutor (line 656, dead code); hardcoded ±2σ grid while single-key tests use _calc_expected_top_keys confidence=6 widened after dtest#4171 - inconsistent; `-port jmx=6868` leftover."
+      "reason": "Partially redundant: compound-pk formatting also checked (with counts) by test_write_into_one_partition_to_different_rows; skew covered by test_write_by_gaussian_key_distribution; ~72s; verify_partition_keys (tools/toppartitions.py:196) membership only. Note: unused ThreadPoolExecutor (line 656, dead code); hardcoded ±2σ grid while single-key tests use _calc_expected_top_keys confidence=6 widened after dtest#4171 - inconsistent; `-port jmx=6868` leftover.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:196",
+          "text": "verify_partition_keys membership-only: no counts, no ordering"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "toppartitions_test.py:656",
+          "text": "Unused ThreadPoolExecutor"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "Hardcoded ±2σ key grid vs widened _calc_expected_top_keys interval (dtest#4171) used elsewhere; inconsistent"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "c-s arg '-port jmx=6868' is JMX-era leftover"
+        }
+      ]
     },
     "TestTopPartitions::test_read_by_gaussian_key_distribution_for_compound_primary_key_and_large_rows_number": {
       "description": "Starts node with `--abort-on-lsa-bad-alloc 0` and ignores 'std::bad_alloc' logs; inserts 15s via ccm stress with cs_large_numbers_rows_per_partition.yaml, then c-s (docker) multi_row reads (LIMIT 10, 2 threads) up to 60s; sample_top_keys_while_stress_runs (toppartitions_test.py:460) takes 3 non-empty 2s `-k 5` samples during c-s traffic on READS. Asserts each key in hardcoded 5x5 grid 1498..1502 via verify_partition_keys (tools/toppartitions.py:196).",
@@ -551,7 +753,39 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slowest test of the module (~97s), membership-only assertion (verify_partition_keys (tools/toppartitions.py:196)), overlaps the other gaussian/compound tests. Bug: `--abort-on-lsa-bad-alloc 0` (line 725) is dead config (abort_on_lsa_bad_alloc default false, db/config.cc:1495) and `ignore_log_patterns += ['std::bad_alloc']` (line 728) silently masks real OOMs, both unexplained since e4b9bf2045. Note: hardcoded ±2σ grid vs widened interval elsewhere; `-port jmx=6868` leftover."
+      "reason": "Slowest test of the module (~97s), membership-only assertion (verify_partition_keys (tools/toppartitions.py:196)), overlaps the other gaussian/compound tests. Note: `--abort-on-lsa-bad-alloc 0` (line 725) is dead config (abort_on_lsa_bad_alloc default false, db/config.cc:1495). Bug: `ignore_log_patterns += ['std::bad_alloc']` (line 728) silently masks real OOMs; both unexplained since e4b9bf2045. Note: hardcoded ±2σ grid vs widened interval elsewhere; `-port jmx=6868` leftover.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "toppartitions_test.py:728",
+          "text": "ignore_log_patterns += ['std::bad_alloc'] silently masks real OOMs, unexplained"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "toppartitions_test.py:725",
+          "text": "'--abort-on-lsa-bad-alloc 0' is already the default (db/config.cc:1495)"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:196",
+          "text": "verify_partition_keys membership-only: no counts, no ordering"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "Hardcoded ±2σ key grid vs widened _calc_expected_top_keys interval (dtest#4171) used elsewhere; inconsistent"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "c-s arg '-port jmx=6868' is JMX-era leftover"
+        }
+      ]
     },
     "TestTopPartitions::test_top_count_should_be_smaller_than_capacity": {
       "description": "Starts 1 node, runs `toppartitions -k 15 -s 12 keyspace1 columnfamily1 3000`; asserts NodetoolError and output matches 'TopK count (-k) option must be smaller th[ae]n the summary capacity (-s)'.",
@@ -583,7 +817,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_invalid_capacity (client-side validation, tools/scylla-nodetool.cc:3839); dtest only adds a cluster start. Note: regex th[ae]n (b1e21333a8) tolerates the removed JMX nodetool's 'then' typo (dead alternative)."
+      "reason": "Fully covered by test/nodetool/test_toppartitions.py::test_toppartitions_invalid_capacity (client-side validation, tools/scylla-nodetool.cc:3839); dtest only adds a cluster start. Note: regex th[ae]n (b1e21333a8) tolerates the removed JMX nodetool's 'then' typo (dead alternative).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "b1e21333a8",
+          "text": "Regex th[ae]n tolerates removed JMX nodetool's 'then' typo (dead alternative)"
+        }
+      ]
     },
     "TestTopPartitions::test_write_into_one_partition_to_different_rows": {
       "description": "Table ((key1,key2),ckey). After sampling starts, one thread writes 2500 rows spread over partitions 1:0..1:9 (250 each), another writes 2500 rows into partition 1:1 (different clustering rows). Asserts WRITES exactly {1:0..1:9} with 1:1 count>=135 and others >=13.5, READS empty (verify_counters_for_sample tools/toppartitions.py:178). Intent: per-partition (not per-row) counting and compound pk output format.",
@@ -624,7 +866,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique compound-pk + per-partition counting scenario, but the 'one hot partition' claim is not verified: verify_counters_for_sample (tools/toppartitions.py:178) checks membership and count >= 0.9*expected only (no ordering), expected 150/15 vs actual 2750/250 (e46e94fed1), so any partition with >=14 counts passes and 1:1 dominance is never asserted. Note: helper named write_25_ops_for_10_partitions does 250/partition; empty docstring."
+      "reason": "Unique compound-pk + per-partition counting scenario, but the 'one hot partition' claim is not verified: verify_counters_for_sample (tools/toppartitions.py:178) checks membership and count >= 0.9*expected only (no ordering), expected 150/15 vs actual 2750/250 (e46e94fed1), so any partition with >=14 counts passes and 1:1 dominance is never asserted. Note: helper named write_25_ops_for_10_partitions does 250/partition; empty docstring.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "Expected 150/15 vs actual 2750/250: any partition with >=14 counts passes, 1:1 dominance never asserted"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Helper write_25_ops_for_10_partitions does 250/partition; empty docstring"
+        }
+      ]
     },
     "TestTopPartitions::test_one_keyspace_multiple_column_families_reads_sample_and_empty_writes_sample": {
       "description": "Keyspace ks with cf1..cf3, pre-writes k0..k9 in each; runs toppartitions with `--ks-filters ks -d 10000` (run_generic_toppartitions_for) and reads k0..k2 1000x per cf. Asserts READS exactly the 9 '(ks:cfN) kI' partitions count>=90, WRITES empty (verify_counters_for_sample tools/toppartitions.py:178). Guards keyspace-filter sampling across tables.",
@@ -649,8 +905,22 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only test of --ks-filters with real traffic across multiple tables (mock only checks param forwarding, and only --cf-filters); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 read operation'."
+      "decision": "GREEN",
+      "reason": "Only test of --ks-filters with real traffic across multiple tables (mock only checks param forwarding, and only --cf-filters); No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says '1 read operation'.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring says '1 read operation'"
+        }
+      ]
     },
     "TestTopPartitions::test_one_keyspace_multiple_column_families_writes_sample_and_empty_reads_sample": {
       "description": "Keyspace ks with cf1..cf3; toppartitions `--ks-filters ks -d 3000`; writes k0..k2 1000x per cf. Asserts WRITES exactly the 9 '(ks:cfN) kI' partitions count>=90, READS empty (verify_counters_for_sample tools/toppartitions.py:178).",
@@ -675,8 +945,22 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of --ks-filters on the write path across tables; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says 10s, code uses 3000ms."
+      "decision": "GREEN",
+      "reason": "Only real-traffic test of --ks-filters on the write path across tables; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Docstring says 10s, code uses 3000ms.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "",
+          "text": "Docstring says 10s, code uses 3000ms"
+        }
+      ]
     },
     "TestTopPartitions::test_all_column_families_writes_only": {
       "description": "ks1{cf1..cf3}, ks2{cf1,cf2}; toppartitions with no filters (all tables) `-a writes -d 10000`; writes k0 5000x in each table. Asserts only WRITES printed and WRITES exactly the 5 '(ksX:cfY) k0' partitions count>=90 (verify_counters_for_sample tools/toppartitions.py:178). Guards unfiltered (include_all) sampling across keyspaces.",
@@ -701,8 +985,16 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of unfiltered toppartitions across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables; exact len==5 would break on background system writes (100% pass today)."
+      "decision": "GREEN",
+      "reason": "Only real-traffic test of unfiltered toppartitions across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables; exact len==5 would break on background system writes (100% pass today).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     },
     "TestTopPartitions::test_all_column_families_reads_only": {
       "description": "ks1{cf1..cf3}, ks2{cf1,cf2}, pre-writes k0 in each; unfiltered toppartitions `-k 5 -d 10000`; reads k0 1000x per table. Asserts READS exactly the 5 '(ksX:cfY) k0' partitions count>=90 and WRITES empty (verify_counters_for_sample tools/toppartitions.py:178).",
@@ -727,8 +1019,16 @@
           "note": "REST-mock: output format, -a/-k/-s/--cf-filters forwarding; no server-side sampling"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Keep; YELLOW only for weak count floor/notes below (could assert >=0.9*actual since 31527e2454). Only real-traffic test of unfiltered read sampling across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables and WRITES must be empty, so any background system-table write/read in the 10s window would fail it (100% pass today); with -k 5 equal to the expected count, a hot system-table read could also evict a test partition from the top 5."
+      "decision": "GREEN",
+      "reason": "Only real-traffic test of unfiltered read sampling across keyspaces; No scylla test runs real traffic and checks toppartitions counts/top-k: test/nodetool/test_toppartitions.py is a REST mock (formatting/arg parsing only), test/rest_api/test_storage_service.py::test_toppartitions_pk_needs_escaping checks one written pk appears (JSON escaping), test/boost/database_test.cc::toppartitions_cross_shard_schema_ptr is a crash regression. Note: verify_counters_for_sample (tools/toppartitions.py:178) only checks exact partition set + count >= 0.9*expected; expected '100' vs 1000+ actual ops per key (lowered in f52c2bc50b for slow hosts), so count floor is ~10x below reality; since 31527e2454 counts are exact and could be asserted tightly. Note: unfiltered includes system tables and WRITES must be empty, so any background system-table write/read in the 10s window would fail it (100% pass today); with -k 5 equal to the expected count, a hot system-table read could also evict a test partition from the top 5.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "tools/toppartitions.py:178",
+          "text": "verify_counters_for_sample checks exact partition set but count floor 0.9*100 vs 1000+ actual ops; ~10x below reality"
+        }
+      ]
     }
   }
 }

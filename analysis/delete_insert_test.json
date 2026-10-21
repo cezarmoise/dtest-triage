@@ -5,7 +5,12 @@
   "tests": {
     "TestDeleteInsert::test_delete_insert_search": {
       "description": "2 DCs x 2 racks x 1 node, NTS RF dc1:2 dc2:2, table with secondary index on `group`. Inserts 1000 rows in 4 random groups, deletes all group2 rows by PK (IN batches of 100), re-inserts them, then runs 20 parallel LOCAL_QUORUM `SELECT ... WHERE group='group2'` from random nodes expecting the count to equal the re-inserted rows. Guards SI correctness after delete + re-insert of the same keys (Cassandra CASSANDRA-5510 port); in scylla this exercises MV-based index view updates (tombstone vs re-insert shadowing).",
-      "origin": {"sha": "b5b8dc484df4fdafad5d493246ad46e57061c88a", "date": "2013-11-07", "pr": null, "summary": "Ryan McGuire, Cassandra dtest 'Adds delete_insert_test from CASSANDRA-5510' (forced C* 1.2.5); inherited from Cassandra dtest, not scylla-specific."},
+      "origin": {
+        "sha": "b5b8dc484df4fdafad5d493246ad46e57061c88a",
+        "date": "2013-11-07",
+        "pr": null,
+        "summary": "Ryan McGuire, Cassandra dtest 'Adds delete_insert_test from CASSANDRA-5510' (forced C* 1.2.5); inherited from Cassandra dtest, not scylla-specific."
+      },
       "commits": {
         "39edad09d649659c591daffd76b17cf21791465d": "populate([2,2]) -> generate_cluster_topology(2 DCs x 2 racks x 1 node) for RF-rack-validity",
         "c35eab0e6f6ed586f4136ac99cb105af46bd7f1b": "create_ddl mutable default rf -> None (no behavior change)",
@@ -24,12 +29,50 @@
       },
       "relevance": "Live: secondary indexes (MV-backed in scylla), NTS multi-DC, LOCAL_QUORUM reads all current. Delete+re-insert shadowing in index view updates is real scylla logic (db/view).",
       "duplicates": [
-        {"path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_delete_indexed_rows", "coverage": "partial", "note": "deletes rows and verifies index/view no longer return them at CL=ALL; no re-insert step"},
-        {"path": "test/cqlpy/test_secondary_index.py::test_partition_deletion", "coverage": "partial", "note": "SI consistency after partition delete; single node, no re-insert"},
-        {"path": "test/cqlpy/test_materialized_view.py::test_base_partition_deletion_in_batch_with_insert", "coverage": "partial", "note": "MV view update for delete+insert of same base row; single node"}
+        {
+          "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_delete_indexed_rows",
+          "coverage": "partial",
+          "note": "deletes rows and verifies index/view no longer return them at CL=ALL; no re-insert step"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_partition_deletion",
+          "coverage": "partial",
+          "note": "SI consistency after partition delete; single node, no re-insert"
+        },
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_base_partition_deletion_in_batch_with_insert",
+          "coverage": "partial",
+          "note": "MV view update for delete+insert of same base row; single node"
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario (SI query after delete+re-insert, multi-DC) is live and only partially covered elsewhere, but the test asserts nothing. Bug: delete_insert_test.py:94 `concurrent.futures.wait(...)` never calls `.result()`, so assertion and query errors in run_query (l.82-85) are swallowed -- has never asserted since origin (threads in b5b8dc48, kept by a461138c). Bug: l.52 `ids[start:-1]` skips deleting the last group2 row (786bc0e7). Note: l.69 `session.consistency_level = \"LOCAL_QUORUM\"` is a no-op attribute (writes use driver default CL); 20 extra connections never closed. Fix (`for f in threads: f.result()`) or remove."
+      "reason": "Scenario (SI query after delete+re-insert, multi-DC) is live and only partially covered elsewhere, but the test asserts nothing. Bug: delete_insert_test.py:94 `concurrent.futures.wait(...)` never calls `.result()`, so assertion and query errors in run_query (l.82-85) are swallowed -- has never asserted since origin (threads in b5b8dc48, kept by a461138c). Note: l.52 `ids[start:-1]` skips deleting the last group2 row (786bc0e7). Note: l.69 `session.consistency_level = \"LOCAL_QUORUM\"` is a no-op attribute (writes use driver default CL); 20 extra connections never closed. Fix (`for f in threads: f.result()`) or remove.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "delete_insert_test.py:94",
+          "text": "concurrent.futures.wait() never calls .result(); assertion/query errors in run_query (l.82-85) swallowed, never asserted since origin"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "delete_insert_test.py:52",
+          "text": "`ids[start:-1]` skips deleting the last group2 row (786bc0e7); rest of delete+re-insert still exercised"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "delete_insert_test.py:69",
+          "text": "`session.consistency_level = \"LOCAL_QUORUM\"` is a no-op attribute; writes use driver default CL"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "delete_insert_test.py:91",
+          "text": "20 extra CQL connections never closed"
+        }
+      ]
     }
   }
 }

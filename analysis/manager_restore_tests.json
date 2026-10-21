@@ -5,7 +5,12 @@
   "tests": {
     "TestRestoreWithEaR::test_basic_restore_with_kms_rotate_key": {
       "description": "2-node cluster with a KMS-encrypted table ks.cf1 (local-kms docker, KmsKeyProviderFactory); inserts 20 rows, runs a Scylla Manager backup to s3/gcs (minio/fake-gcs), then rotates the KMS master key (create new key, repoint alias), rolling-restarts, runs `nodetool upgradesstables -a` (re-encrypt live sstables with the new key), and restores the old backup (sstables encrypted under the old key) via `sctool restore --restore-tables`. Asserts restore task reaches DONE and rows k1..k20 are readable. Guards that Manager restore (rclone/native load&stream) can load sstables encrypted with a rotated-out KMS key. Parametrized s3/gcs x rclone/native.",
-      "origin": {"sha": "4008c8a86f7295b0de1f015f338b483319f25dc7", "date": "2023-07-25", "pr": 3315, "summary": "Israel Fruchter: new test - KMS-configured cluster, backup, rotate KMS key, rolling restart, restore (PR 'simple backup test with KMS', merged 2023-11-13)."},
+      "origin": {
+        "sha": "4008c8a86f7295b0de1f015f338b483319f25dc7",
+        "date": "2023-07-25",
+        "pr": 3315,
+        "summary": "Israel Fruchter: new test - KMS-configured cluster, backup, rotate KMS key, rolling restart, restore (PR 'simple backup test with KMS', merged 2023-11-13)."
+      },
       "commits": {
         "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "backup location f's3:...' -> f'{self.backend}:...' (s3+gcs params).",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
@@ -17,12 +22,32 @@
       },
       "relevance": "Live: KMS provider in scylla ent/encryption/kms_key_provider.cc, kms_host.cc; Manager restore --restore-tables and native method live; object_storage_endpoints config live.",
       "duplicates": [
-        {"path": "manager_backup_tests.py::TestBackupWithEaR::test_basic_backup_with_encryption_at_rest", "coverage": "partial", "note": "Same Manager backup+restore of EaR table with all providers incl. kms, and it truncates before restore; no key rotation."},
-        {"path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore[encrypt]", "coverage": "partial", "note": "Scylla-native backup/restore with system (user_info) encryption via LocalFileSystem provider; no Manager, no KMS, no rotation."},
-        {"path": "test/cluster/test_encryption.py::test_per_table_master_key", "coverage": "partial", "note": "KMS key/alias handling in scylla, no backup/restore."}
+        {
+          "path": "manager_backup_tests.py::TestBackupWithEaR::test_basic_backup_with_encryption_at_rest",
+          "coverage": "partial",
+          "note": "Same Manager backup+restore of EaR table with all providers incl. kms, and it truncates before restore; no key rotation."
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore[encrypt]",
+          "coverage": "partial",
+          "note": "Scylla-native backup/restore with system (user_info) encryption via LocalFileSystem provider; no Manager, no KMS, no rotation."
+        },
+        {
+          "path": "test/cluster/test_encryption.py::test_per_table_master_key",
+          "coverage": "partial",
+          "note": "KMS key/alias handling in scylla, no backup/restore."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only test of Manager restore of sstables encrypted under a rotated-out KMS key; overlap with TestBackupWithEaR (manager_backup_tests.py:1356) is only partial. Bug: test never truncates ks.cf1 before restore (unlike insert_data_backup_and_cleanup / clean_restore_and_verify_backup), and Manager does not truncate (scylla-manager docs/source/restore/restore-tables.rst:39), so verify_c1c2 passes on the original data; only the restore task DONE status is real evidence (manager_restore_tests.py:533-560)."
+      "reason": "Only test of Manager restore of sstables encrypted under a rotated-out KMS key; overlap with TestBackupWithEaR (manager_backup_tests.py:1356) is only partial. Bug: test never truncates ks.cf1 before restore (unlike insert_data_backup_and_cleanup / clean_restore_and_verify_backup), and Manager does not truncate (scylla-manager docs/source/restore/restore-tables.rst:39), so verify_c1c2 passes on the original data; only the restore task DONE status is real evidence (manager_restore_tests.py:533-560).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "manager_restore_tests.py:533-560",
+          "text": "ks.cf1 never truncated before restore (Manager doesn't truncate), so verify_c1c2 passes on original data; only task DONE is real evidence."
+        }
+      ]
     }
   }
 }

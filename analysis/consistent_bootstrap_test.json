@@ -5,7 +5,12 @@
   "tests": {
     "TestBootstrapConsistency::test_consistent_reads_after_bootstrap": {
       "description": "2-node cluster (rack1/rack2), RF=2, hinted handoff off. Writes keys 10-19 at CL=ALL, stops node1, writes keys 30-999 at CL=ONE (only node2 has them), restarts node1 without repair, bootstraps node3 into rack2, then reads every key from node3 at CL=ALL. Guards consistent range movement on bootstrap (CASSANDRA-2434): the new node must stream from the replica that gives up ownership (node2, full data), not from the stale node1, otherwise CL=ALL reads lose data. In scylla it exercises vnode bootstrap streaming/RBNO (consistent-topology job) and tablet migration on bootstrap (tablets job).",
-      "origin": {"sha": "a23e2834d134603932ab9d36f63ac4e2fbea42ac", "date": "2014-05-01", "pr": null, "summary": "Cassandra dtest: Add consistent bootstrap tests for CASSANDRA-2434 (T Jake Luciani); data JSON PR #52 is the upstream merge, not the origin."},
+      "origin": {
+        "sha": "a23e2834d134603932ab9d36f63ac4e2fbea42ac",
+        "date": "2014-05-01",
+        "pr": null,
+        "summary": "Cassandra dtest: Add consistent bootstrap tests for CASSANDRA-2434 (T Jake Luciani); data JSON PR #52 is the upstream merge, not the origin."
+      },
       "commits": {
         "e264c6cb6dfec8a661ab62ae6381957ea9ac5cc0": "rf-rack-valid support: populate with 2 racks via generate_cluster_topology, add node3 in rack2 (workaround for scylladb/scylladb#23426)",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format, tree-wide)",
@@ -28,11 +33,39 @@
       },
       "relevance": "Live: bootstrap data movement (vnodes streaming/RBNO and tablet migration) and CL=ALL reads. Config hinted_handoff_enabled, read/write_request_timeout_in_ms are Used in scylla db/config.cc; dynamic_snitch_badness_threshold is value_status::Unused (db/config.cc:1298). Passes 32/32 runs (~19s) in next-dtest-tablets and next-dtest-consistent-topology (gating).",
       "duplicates": [
-        {"path": "test/cluster/test_tablets_migration.py::test_tablet_transition_sanity", "coverage": "partial", "note": "tablet migration preserves data, but not the stale-replica (node down during CL=ONE writes, no repair) + bootstrap scenario"},
-        {"path": "scylla-dtest bootstrap_test.py::test_simple_bootstrap / test_read_from_bootstrapped_node", "coverage": "partial", "note": "data readable after bootstrap, but all replicas consistent beforehand"}
+        {
+          "path": "test/cluster/test_tablets_migration.py::test_tablet_transition_sanity",
+          "coverage": "partial",
+          "note": "tablet migration preserves data, but not the stale-replica (node down during CL=ONE writes, no repair) + bootstrap scenario"
+        },
+        {
+          "path": "scylla-dtest bootstrap_test.py::test_simple_bootstrap / test_read_from_bootstrapped_node",
+          "coverage": "partial",
+          "note": "data readable after bootstrap, but all replicas consistent beforehand"
+        }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of bootstrap with a stale replica (no scylla test found for node-down CL=ONE writes then bootstrap then CL=ALL read); cheap and stable, would be GREEN. Note: comment at consistent_bootstrap_test.py:45-47 refs closed issue scylladb/scylladb#23426 (closed 2026-02-03) as reason for rack2 placement - workaround may be obsolete. Note: dead config dynamic_snitch_badness_threshold (Unused in scylla); redundant second cluster.start() at line 24 after populate().start()."
+      "decision": "GREEN",
+      "reason": "Unique coverage of bootstrap with a stale replica (no scylla test found for node-down CL=ONE writes then bootstrap then CL=ALL read); cheap and stable. Note: comment at consistent_bootstrap_test.py:45-47 refs closed issue scylladb/scylladb#23426 (closed 2026-02-03) as reason for rack2 placement - workaround may be obsolete. Note: dead config dynamic_snitch_badness_threshold (Unused in scylla); redundant second cluster.start() at line 24 after populate().start().",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "consistent_bootstrap_test.py:45-47",
+          "text": "Comment cites closed scylladb/scylladb#23426 as reason for rack2 placement; workaround may be obsolete."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "",
+          "text": "dynamic_snitch_badness_threshold is Unused in scylla."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "consistent_bootstrap_test.py:24",
+          "text": "Redundant second cluster.start() after populate().start()."
+        }
+      ]
     }
   }
 }

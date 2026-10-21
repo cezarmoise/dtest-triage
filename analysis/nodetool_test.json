@@ -5,7 +5,12 @@
   "tests": {
     "TestNodetool::test_decommission_after_drain_is_invalid": {
       "description": "3-node cluster; drain node1 (waits for DRAINED in log), then `nodetool decommission` on it must fail with NodetoolError whose stdout/stderr contains 'Node in DRAINED state'. Guards storage_service::decommission rejecting non-NORMAL operation mode (originally CASSANDRA-8741). Runs in gating (next-dtest-tablets / consistent-topology).",
-      "origin": {"sha": "d881ee2866bb422a266871c1b426d76c669025da", "date": "2015-08-27", "pr": null, "summary": "Test for CASSANDRA-8741 (Cassandra upstream dtest, Stefania Alborghetti); data PR #52 is the 'Merge upstream' bulk import."},
+      "origin": {
+        "sha": "d881ee2866bb422a266871c1b426d76c669025da",
+        "date": "2015-08-27",
+        "pr": null,
+        "summary": "Test for CASSANDRA-8741 (Cassandra upstream dtest, Stefania Alborghetti); data PR #52 is the 'Merge upstream' bulk import."
+      },
       "commits": {
         "f75038cb46111ff901ed1e91be33b079b4575c27": "Match expected message in stderr too (native nodetool writes errors to stderr); dropped ASan stderr check.",
         "aa5b2c6bbf3568090cde45ceee4f157fc9491f9f": "Filter ASan warnings from stderr before asserting.",
@@ -17,14 +22,24 @@
       },
       "relevance": "Live: service/storage_service.cc:2818-2819 decommission() throws 'Node in {} state; wait for status to become normal or restart' when _operation_mode != NORMAL; DRAINED mode still exists (storage_service.hh:497).",
       "duplicates": [
-        {"path": "test/nodetool/test_nodeops.py", "coverage": "partial", "note": "mock REST only; checks nodetool decommission request, not server-side mode check."}
+        {
+          "path": "test/nodetool/test_nodeops.py",
+          "coverage": "partial",
+          "note": "mock REST only; checks nodetool decommission request, not server-side mode check."
+        }
       ],
       "decision": "GREEN",
-      "reason": "No scylla or other dtest test exercises decommission of a drained node against a real server; cheap (16s), 100% pass in gating."
+      "reason": "No scylla or other dtest test exercises decommission of a drained node against a real server; cheap (16s), 100% pass in gating.",
+      "issues": []
     },
     "TestNodetool::test_correct_dc_rack_in_nodetool_info": {
       "description": "2 DCs x 2 nodes with GossipingPropertyFileSnitch, racks rack0/rack1 set via cassandra-rackdc.properties. For each node runs `nodetool info`, asserts stderr empty (ASan filtered) and that 'Data Center' / 'Rack' lines end with the node's configured dc/rack. Originally CASSANDRA-10382 (info reported wrong dc/rack).",
-      "origin": {"sha": "67586e17273f4639afc4a83d594d82774940da84", "date": "2015-09-24", "pr": null, "summary": "Test for CASSANDRA-10382 (Cassandra upstream dtest); data PR #52 is the 'Merge upstream' bulk import."},
+      "origin": {
+        "sha": "67586e17273f4639afc4a83d594d82774940da84",
+        "date": "2015-09-24",
+        "pr": null,
+        "summary": "Test for CASSANDRA-10382 (Cassandra upstream dtest); data PR #52 is the 'Merge upstream' bulk import."
+      },
       "commits": {
         "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
         "aa5b2c6bbf3568090cde45ceee4f157fc9491f9f": "Filter ASan warnings from stderr before `assert not err`.",
@@ -38,16 +53,41 @@
       },
       "relevance": "Live: scylla-nodetool info reads /snitch/datacenter and /snitch/rack REST endpoints; GossipingPropertyFileSnitch is the standard snitch.",
       "duplicates": [
-        {"path": "test/nodetool/test_info.py", "coverage": "partial", "note": "mock REST: verifies 'Data Center'/'Rack' output formatting from /snitch/datacenter,/snitch/rack, not real server values."},
-        {"path": "test/cluster/test_no_dc_rack_change.py", "coverage": "partial", "note": "real cluster with GossipingPropertyFileSnitch dc/rack, but checks dc/rack change rejection, not REST/nodetool reporting."},
-        {"path": "nodetool_additional_test.py (dtest) nodetool_info helper", "coverage": "partial", "note": "parses nodetool info but does not check dc/rack."}
+        {
+          "path": "test/nodetool/test_info.py",
+          "coverage": "partial",
+          "note": "mock REST: verifies 'Data Center'/'Rack' output formatting from /snitch/datacenter,/snitch/rack, not real server values."
+        },
+        {
+          "path": "test/cluster/test_no_dc_rack_change.py",
+          "coverage": "partial",
+          "note": "real cluster with GossipingPropertyFileSnitch dc/rack, but checks dc/rack change rejection, not REST/nodetool reporting."
+        },
+        {
+          "path": "nodetool_additional_test.py (dtest) nodetool_info helper",
+          "coverage": "partial",
+          "note": "parses nodetool info but does not check dc/rack."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Only end-to-end check of real dc/rack via nodetool info (mock test/nodetool/test_info.py covers formatting only); cheap, 100% pass. Bug: nodetool_test.py:77-83 assertions only run if a line starts with 'Data Center'/'Rack' — if output format changes (labels renamed) the test passes vacuously; should assert both lines were found."
+      "reason": "Only end-to-end check of real dc/rack via nodetool info (mock test/nodetool/test_info.py covers formatting only); cheap, 100% pass. Bug: nodetool_test.py:77-83 assertions only run if a line starts with 'Data Center'/'Rack' — if output format changes (labels renamed) the test passes vacuously; should assert both lines were found.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "nodetool_test.py:77-83",
+          "text": "dc/rack asserts only run if a line starts with 'Data Center'/'Rack'; passes vacuously if lines are missing or renamed."
+        }
+      ]
     },
     "TestNodetool::test_seed": {
       "description": "Params decommission/kill. 4-node cluster (DC1: RAC1 x2, RAC2, RAC3); 60s cassandra-stress write (RF=3, exponential retry) with node1 (first node/seed) as contact point; once data appears, node1 is decommissioned or killed; asserts c-s finishes successfully. Reproducer for scylladb#2090 (c-s stopped writing when seed node removed; closed 2019 as not reproducible).",
-      "origin": {"sha": "b765c300c7bc6ea084db46d11c95d820629c983c", "date": "2019-04-04", "pr": 932, "summary": "introduce test_decommission_seed & test_kill_seed (Amos Kong), reproducer for scylladb#2090."},
+      "origin": {
+        "sha": "b765c300c7bc6ea084db46d11c95d820629c983c",
+        "date": "2019-04-04",
+        "pr": 932,
+        "summary": "introduce test_decommission_seed & test_kill_seed (Amos Kong), reproducer for scylladb#2090."
+      },
       "commits": {
         "6f303700c6de5bfe23421fe14191938f78fd9eb5": "Added use_cassandra_stress mark.",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
@@ -62,11 +102,27 @@
       },
       "relevance": "Scylla side (writes continue with RF=3 when one node killed/decommissioned) is live; the 'seed' aspect is largely client-side (c-s/java driver failover from its contact point). Seeds have no special data-path role; scylladb#2090 closed 2019 as not reproducible.",
       "duplicates": [
-        {"path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_decommission_node_while_adding_info", "coverage": "partial", "note": "writes during decommission, but client not connected to the leaving node."},
-        {"path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_node_while_decommissioning", "coverage": "partial", "note": "node kill during topology op; no client workload targeting the killed node."}
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_decommission_node_while_adding_info",
+          "coverage": "partial",
+          "note": "writes during decommission, but client not connected to the leaving node."
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_simple_kill_node_while_decommissioning",
+          "coverage": "partial",
+          "note": "node kill during topology op; no client workload targeting the killed node."
+        }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly a client (c-s/driver) failover test for long-closed scylladb#2090; history of flakiness (unmarked from gating for scylla-dtest#3372, fixes 3548a05/76e3a2f/38443da; 92.1% pass in dtest-release, failures builds 1387/1390 from Docker slowness), 86s/param. Candidate for RED if driver failover is deemed out of scope; scylla-side write availability partially covered by update_cluster_layout_tests. Note: unmark.next_gating references scylla-dtest#3372 which is CLOSED — gating exclusion may be stale."
+      "reason": "Mostly a client (c-s/driver) failover test for long-closed scylladb#2090; history of flakiness (unmarked from gating for scylla-dtest#3372, fixes 3548a05/76e3a2f/38443da; 92.1% pass in dtest-release, failures builds 1387/1390 from Docker slowness), 86s/param. Candidate for RED if driver failover is deemed out of scope; scylla-side write availability partially covered by update_cluster_layout_tests. Note: unmark.next_gating references scylla-dtest#3372 which is CLOSED — gating exclusion may be stale.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "nodetool_test.py:152",
+          "text": "@unmark.next_gating references scylla-dtest#3372, which is closed; gating exclusion may be stale."
+        }
+      ]
     }
   }
 }

@@ -5,7 +5,12 @@
   "tests": {
     "TestSchemaReplicationEverywhereStrategy::test_replication_strategy_name_in_description": {
       "description": "Single node: CREATE KEYSPACE distributed_everywhere WITH EverywhereStrategy AND TABLETS={'enabled': false}, then asserts the driver metadata `ks.replication_strategy.name == 'EverywhereStrategy'`. Originally checked `DESC KEYSPACE system_distributed_everywhere` output (cqlsh regex) and driver metadata of the system keyspace; since 7fbfbefdbe the DESC check is gone and it only checks a user-created keyspace's stored strategy class.",
-      "origin": {"sha": "cf4052c7dd", "date": "2021-12-28", "pr": 2502, "summary": "Schema everywhere tests: new tests for system_distributed_everywhere keyspace with EverywhereStrategy"},
+      "origin": {
+        "sha": "cf4052c7dd",
+        "date": "2021-12-28",
+        "pr": 2502,
+        "summary": "Schema everywhere tests: new tests for system_distributed_everywhere keyspace with EverywhereStrategy"
+      },
       "commits": {
         "7fbfbefdbe": "system_distributed_everywhere no longer created by scylla: switch to user ks distributed_everywhere; drop DESC KEYSPACE regex check, keep only driver metadata check",
         "a2c2cce43f": "DESC regex accepts full class name (org.apache.cassandra.locator.EverywhereStrategy) from server-side describe (regex later removed)",
@@ -15,16 +20,41 @@
       },
       "relevance": "EverywhereStrategy still live (locator/everywhere_replication_strategy.cc, registered in locator/abstract_replication_strategy.cc:89), vnodes only (throws with tablets). system_distributed_everywhere keyspace, the original subject, is no longer used (PR 6900). 'description' in the name is stale: no DESC is executed anymore.",
       "duplicates": [
-        {"path": "scylla-dtest/schema_everywhere_test.py::TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_in_mutlidc", "coverage": "full", "note": "same CREATE KEYSPACE via create_and_fill_user_table, plus functional check that data is on every node (stronger than a name check); same for test_creating_new_table / test_replicating_user_table_to_new_node"},
-        {"path": "test/cluster/test_tablets.py::test_keyspace_creation_cql_vs_config_sanity", "coverage": "partial", "note": "parametrized with EverywhereStrategy x tablets enabled/disabled: creation succeeds/fails as expected"},
-        {"path": "test/cqlpy/test_guardrail_replication_strategy.py", "coverage": "partial", "note": "creates/alters keyspaces with EverywhereStrategy"}
+        {
+          "path": "scylla-dtest/schema_everywhere_test.py::TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_in_mutlidc",
+          "coverage": "full",
+          "note": "same CREATE KEYSPACE via create_and_fill_user_table, plus functional check that data is on every node (stronger than a name check); same for test_creating_new_table / test_replicating_user_table_to_new_node"
+        },
+        {
+          "path": "test/cluster/test_tablets.py::test_keyspace_creation_cql_vs_config_sanity",
+          "coverage": "partial",
+          "note": "parametrized with EverywhereStrategy x tablets enabled/disabled: creation succeeds/fails as expected"
+        },
+        {
+          "path": "test/cqlpy/test_guardrail_replication_strategy.py",
+          "coverage": "partial",
+          "note": "creates/alters keyspaces with EverywhereStrategy"
+        }
       ],
       "decision": "RED",
-      "reason": "After 7fbfbefdbe it only creates an ERS keyspace and checks the driver-reported class name; the same CREATE is done by the 3 sibling tests, which also verify actual everywhere replication, and scylla test_tablets.py::test_keyspace_creation_cql_vs_config_sanity covers ERS creation. Note: test name is stale (no DESC anymore) and its original subject (system_distributed_everywhere) is gone."
+      "reason": "After 7fbfbefdbe it only creates an ERS keyspace and checks the driver-reported class name; the same CREATE is done by the 3 sibling tests, which also verify actual everywhere replication, and scylla test_tablets.py::test_keyspace_creation_cql_vs_config_sanity covers ERS creation. Note: test name is stale (no DESC anymore) and its original subject (system_distributed_everywhere) is gone.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "7fbfbefdbe",
+          "text": "Name stale: no DESC executed anymore; original subject system_distributed_everywhere is gone."
+        }
+      ]
     },
     "TestSchemaReplicationEverywhereStrategy::test_creating_new_table": {
       "description": "2-node cluster; create_and_fill_user_table (schema_everywhere_test.py:82) creates ERS keyspace + table and writes 1 row at CL=ALL; stop node1, verify_data_in_user_table(node2) (:90, exclusive connection, CL=ONE, asserts exactly 1 row with correct values); restart node1, stop node2, verify on node1. Checks ERS places a replica on every node.",
-      "origin": {"sha": "cf4052c7dd", "date": "2021-12-28", "pr": 2502, "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"},
+      "origin": {
+        "sha": "cf4052c7dd",
+        "date": "2021-12-28",
+        "pr": 2502,
+        "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"
+      },
       "commits": {
         "7fbfbefdbe": "docstring + helpers now use user-created distributed_everywhere ks (EverywhereStrategy, tablets disabled) instead of system_distributed_everywhere",
         "cb7cefb536": "class marked next_gating",
@@ -32,17 +62,39 @@
       },
       "relevance": "EverywhereStrategy live (vnodes only). Behavior tested (replica on all nodes) is current.",
       "duplicates": [
-        {"path": "scylla-dtest/schema_everywhere_test.py::TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_in_mutlidc", "coverage": "full", "note": "same helpers, same assertion, 4 nodes in 2 DCs each checked alone: strict superset of this 2-node scenario"},
-        {"path": "test/cluster/test_maintenance_mode.py::test_maintenance_mode", "coverage": "partial", "note": "ERS vnode keyspace, CL=ALL write, CL=ONE local read on one node in maintenance mode"},
-        {"path": "test/cluster/test_zero_token_nodes_no_replication.py::test_zero_token_nodes_no_replication", "coverage": "partial", "note": "ERS keyspace replica set (excludes zero-token nodes), CL=ALL reads"},
-        {"path": "test/boost/token_metadata_test.cc::test_pending_and_read_endpoints_for_everywhere_strategy", "coverage": "partial", "note": "unit test of ERS replica/pending endpoints"}
+        {
+          "path": "scylla-dtest/schema_everywhere_test.py::TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_in_mutlidc",
+          "coverage": "full",
+          "note": "same helpers, same assertion, 4 nodes in 2 DCs each checked alone: strict superset of this 2-node scenario"
+        },
+        {
+          "path": "test/cluster/test_maintenance_mode.py::test_maintenance_mode",
+          "coverage": "partial",
+          "note": "ERS vnode keyspace, CL=ALL write, CL=ONE local read on one node in maintenance mode"
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_no_replication.py::test_zero_token_nodes_no_replication",
+          "coverage": "partial",
+          "note": "ERS keyspace replica set (excludes zero-token nodes), CL=ALL reads"
+        },
+        {
+          "path": "test/boost/token_metadata_test.cc::test_pending_and_read_endpoints_for_everywhere_strategy",
+          "coverage": "partial",
+          "note": "unit test of ERS replica/pending endpoints"
+        }
       ],
       "decision": "RED",
-      "reason": "Fully subsumed by sibling test_replicating_user_table_in_mutlidc (same create_and_fill_user_table/verify_data_in_user_table helpers, every node verified alone, larger 2-DC topology); scylla test_maintenance_mode.py and test_zero_token_nodes_no_replication.py add ERS replica coverage."
+      "reason": "Fully subsumed by sibling test_replicating_user_table_in_mutlidc (same create_and_fill_user_table/verify_data_in_user_table helpers, every node verified alone, larger 2-DC topology); scylla test_maintenance_mode.py and test_zero_token_nodes_no_replication.py add ERS replica coverage.",
+      "issues": []
     },
     "TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_to_new_node": {
       "description": "2 nodes; write ERS row at CL=ALL; bootstrap node3; stop node1+node2 and verify node3 alone has the row (bootstrap streaming of ERS data). Restart node2, replace dead node1 with node4 (replace_node_host_id); stop node2+node3 and verify node4 alone has the row (replace streaming/RBNO of ERS data). Guards that ERS data reaches joining and replacing nodes.",
-      "origin": {"sha": "cf4052c7dd", "date": "2021-12-28", "pr": 2502, "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"},
+      "origin": {
+        "sha": "cf4052c7dd",
+        "date": "2021-12-28",
+        "pr": 2502,
+        "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"
+      },
       "commits": {
         "7fbfbefdbe": "docstring + helpers now use user-created distributed_everywhere ks instead of system_distributed_everywhere",
         "45e0149c79": "replace_address -> replace_node_host_id for node4 replace",
@@ -53,16 +105,34 @@
       },
       "relevance": "EverywhereStrategy live (vnodes only); bootstrap and replace (replace_node_host_id) are current node ops.",
       "duplicates": [
-        {"path": "scylla-dtest/everywhere_strategy_test.py::TestEverywhereConsistency::test_bootstrap_second_dc", "coverage": "partial", "note": "bootstrap of ERS data into a new DC; no replace"},
-        {"path": "scylla-dtest/rebuild_test.py::TestRebuild::test_rebuild_everywhere", "coverage": "partial", "note": "ERS data to dc2 via nodetool rebuild"},
-        {"path": "test/boost/token_metadata_test.cc::test_pending_and_read_endpoints_for_everywhere_strategy", "coverage": "partial", "note": "unit check of pending replica for bootstrapping node under ERS; no real streaming"}
+        {
+          "path": "scylla-dtest/everywhere_strategy_test.py::TestEverywhereConsistency::test_bootstrap_second_dc",
+          "coverage": "partial",
+          "note": "bootstrap of ERS data into a new DC; no replace"
+        },
+        {
+          "path": "scylla-dtest/rebuild_test.py::TestRebuild::test_rebuild_everywhere",
+          "coverage": "partial",
+          "note": "ERS data to dc2 via nodetool rebuild"
+        },
+        {
+          "path": "test/boost/token_metadata_test.cc::test_pending_and_read_endpoints_for_everywhere_strategy",
+          "coverage": "partial",
+          "note": "unit check of pending replica for bootstrapping node under ERS; no real streaming"
+        }
       ],
       "decision": "GREEN",
-      "reason": "Only test found checking ERS data on a replacing node (and same-DC bootstrap) end to end; scylla test/cluster has no ERS bootstrap/replace test (EverywhereStrategy appears only in test_maintenance_mode, test_zero_token_nodes_no_replication, test_tablets). Stable (32/32), ~62s."
+      "reason": "Only test found checking ERS data on a replacing node (and same-DC bootstrap) end to end; scylla test/cluster has no ERS bootstrap/replace test (EverywhereStrategy appears only in test_maintenance_mode, test_zero_token_nodes_no_replication, test_tablets). Stable (32/32), ~62s.",
+      "issues": []
     },
     "TestSchemaReplicationEverywhereStrategy::test_replicating_user_table_in_mutlidc": {
       "description": "2 DCs x 2 nodes; write ERS row at CL=ALL from node1; stop all nodes, then start each node alone and verify_data_in_user_table (exclusive conn, CL=ONE, exactly 1 row with correct values). Checks ERS replicates to every node across DCs.",
-      "origin": {"sha": "cf4052c7dd", "date": "2021-12-28", "pr": 2502, "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"},
+      "origin": {
+        "sha": "cf4052c7dd",
+        "date": "2021-12-28",
+        "pr": 2502,
+        "summary": "Schema everywhere tests (originally on system_distributed_everywhere)"
+      },
       "commits": {
         "7fbfbefdbe": "docstring + helpers now use user-created distributed_everywhere ks instead of system_distributed_everywhere",
         "cb7cefb536": "class marked next_gating",
@@ -70,12 +140,32 @@
       },
       "relevance": "EverywhereStrategy live (vnodes only); multi-DC ERS replica placement is current behavior.",
       "duplicates": [
-        {"path": "scylla-dtest/everywhere_strategy_test.py::TestEverywhereConsistency::test_bootstrap_second_dc", "coverage": "partial", "note": "ERS data present in dc2 after bootstrap there (1+1 nodes), not written with both DCs present"},
-        {"path": "scylla-dtest/rebuild_test.py::TestRebuild::test_rebuild_everywhere", "coverage": "partial", "note": "ERS across 2 DCs via ALTER + rebuild"},
-        {"path": "test/cluster/test_zero_token_nodes_no_replication.py::test_zero_token_nodes_no_replication", "coverage": "partial", "note": "single DC ERS replica set"}
+        {
+          "path": "scylla-dtest/everywhere_strategy_test.py::TestEverywhereConsistency::test_bootstrap_second_dc",
+          "coverage": "partial",
+          "note": "ERS data present in dc2 after bootstrap there (1+1 nodes), not written with both DCs present"
+        },
+        {
+          "path": "scylla-dtest/rebuild_test.py::TestRebuild::test_rebuild_everywhere",
+          "coverage": "partial",
+          "note": "ERS across 2 DCs via ALTER + rebuild"
+        },
+        {
+          "path": "test/cluster/test_zero_token_nodes_no_replication.py::test_zero_token_nodes_no_replication",
+          "coverage": "partial",
+          "note": "single DC ERS replica set"
+        }
       ],
       "decision": "GREEN",
-      "reason": "Unique per-node check of ERS replication across multiple DCs at write time; other dtests reach dc2 via bootstrap/rebuild, scylla tests are single-DC. Cheap-ish (~37s), 32/32 pass. Cosmetic: 'mutlidc' typo in name."
+      "reason": "Unique per-node check of ERS replication across multiple DCs at write time; other dtests reach dc2 via bootstrap/rebuild, scylla tests are single-DC. Cheap-ish (~37s), 32/32 pass. Cosmetic: 'mutlidc' typo in name.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "schema_everywhere_test.py",
+          "text": "'mutlidc' typo in test name."
+        }
+      ]
     }
   }
 }

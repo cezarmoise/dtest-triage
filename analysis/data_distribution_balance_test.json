@@ -5,7 +5,12 @@
   "tests": {
     "TestDataDistribution::test_data_distribution_balance": {
       "description": "Starts a 3/4/6-node single-rack cluster, creates keyspace1 with RF=1 (128 initial tablets when tablets are enabled), writes 210k keys (21k in debug/coverage) with cassandra-stress using the parametrized compaction strategy (LCS/STCS/TWCS/ICS), then flushes and runs a major compaction. It asserts that each node's on-disk table size (du -h) and its nodetool status Load are within +-40% of the average, and that all nodes report the same size unit. This is a regression test for scylladb/scylladb#6193 (badly skewed random vnode tokens, so the seed node got much less data). With tablets it also checks end-to-end that the tablet allocator/balancer spreads data evenly.",
-      "origin": {"sha": "62bb56eed02cab8f1252320068e97e428f96eddd", "date": "2020-04-15", "pr": 1428, "summary": "Test data distribution between nodes; reproducer for scylladb/scylladb#6193 (fixed by scylla f3fd466156, dht get_random_token uint64)."},
+      "origin": {
+        "sha": "62bb56eed02cab8f1252320068e97e428f96eddd",
+        "date": "2020-04-15",
+        "pr": 1428,
+        "summary": "Test data distribution between nodes; reproducer for scylladb/scylladb#6193 (fixed by scylla f3fd466156, dht get_random_token uint64)."
+      },
       "commits": {
         "bbdbf48ca704d929fe2668da518376753752eb75": "add @high_memory marker",
         "bb517eab18aa8568ce9af4e77d276816b7d95e6c": "fix du size regex to accept decimals (e.g. 1.1G) + debug logging + assert non-empty sizes (DTEST-164)",
@@ -36,12 +41,44 @@
       },
       "relevance": "Live. Random vnode token generation (dht::token::get_random_token) is still used in vnode mode (dtest-release job). Tablet allocation/load balancing is live. nodetool status Load output in tools/scylla-nodetool.cc file_size_printer always prints '{:.2f} KiB|MiB|GiB|TiB', which the parser regex matches.",
       "duplicates": [
-        {"path": "test/boost/tablets_test.cc::test_load_balancing_*", "coverage": "partial", "note": "unit tests of the tablet balancer on simulated topology/tablet counts; no real writes or disk-size check"},
-        {"path": "test/boost/network_topology_strategy_test.cc::NetworkTopologyStrategy_tablet_allocation_balancing_test", "coverage": "partial", "note": "checks tablet allocation balance, not data size; nothing for vnode random-token data skew (#6193)"},
-        {"path": "test/cluster/test_size_based_load_balancing.py::test_balance_empty_tablets", "coverage": "partial", "note": "size-based tablet balancing after scale-out using empty tablets"}
+        {
+          "path": "test/boost/tablets_test.cc::test_load_balancing_*",
+          "coverage": "partial",
+          "note": "unit tests of the tablet balancer on simulated topology/tablet counts; no real writes or disk-size check"
+        },
+        {
+          "path": "test/boost/network_topology_strategy_test.cc::NetworkTopologyStrategy_tablet_allocation_balancing_test",
+          "coverage": "partial",
+          "note": "checks tablet allocation balance, not data size; nothing for vnode random-token data skew (#6193)"
+        },
+        {
+          "path": "test/cluster/test_size_based_load_balancing.py::test_balance_empty_tablets",
+          "coverage": "partial",
+          "note": "size-based tablet balancing after scale-out using empty tablets"
+        }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique end-to-end check that real data ends up balanced on disk and in nodetool status Load (vnodes regression for #6193, plus tablets). Scylla tests only cover balancer logic/tablet counts (partial), and the pass rate is 99.8% over 972 runs. But it is slow (~126s x 12 params, ~25 min per build) and the compaction-strategy dimension adds little, since data placement doesn't depend on compaction strategy: trimming to one strategy x 3 node counts is worth considering. Note: @pytest.mark.single_node on a 3-6 node test is a mislabel (harmless, conftest.py:439 only changes the gossip-settle default). Note: the 'same unit' asserts (verify_datasize_*) fail spuriously if node sizes straddle a unit boundary (e.g. 1000M vs 1.1G) instead of normalizing."
+      "decision": "GREEN",
+      "reason": "Unique end-to-end check that real data ends up balanced on disk and in nodetool status Load (vnodes regression for #6193, plus tablets). Scylla tests only cover balancer logic/tablet counts (partial), and the pass rate is 99.8% over 972 runs. Note: slow (~126s x 12 params, ~25 min per build) and the compaction-strategy dimension adds little, since data placement doesn't depend on compaction strategy: trimming to one strategy x 3 node counts is worth considering. Note: @pytest.mark.single_node on a 3-6 node test is a mislabel (harmless, conftest.py:439 only changes the gossip-settle default). Note: the 'same unit' asserts (verify_datasize_*) fail spuriously if node sizes straddle a unit boundary (e.g. 1000M vs 1.1G) instead of normalizing.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "",
+          "text": "Compaction-strategy param (LCS/STCS/TWCS/ICS) adds little: data placement doesn't depend on it; ~126s x 12 params."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "conftest.py:439",
+          "text": "@pytest.mark.single_node on a 3-6 node test is a mislabel (only changes gossip-settle default)."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "",
+          "text": "'Same unit' asserts (verify_datasize_*) fail spuriously if node sizes straddle a unit boundary (e.g. 1000M vs 1.1G)."
+        }
+      ]
     }
   }
 }

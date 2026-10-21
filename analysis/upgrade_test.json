@@ -45,7 +45,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Would be GREEN: only dtest doing a multi-hop real-binary upgrade (2025.1 -> ... -> current) with data validation; scylla test/ has only simulated upgrades. Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail."
+      "reason": "Would be GREEN: only dtest doing a multi-hop real-binary upgrade (2025.1 -> ... -> current) with data validation; scylla test/ has only simulated upgrades. Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "upgrade_test.py:60",
+          "text": "UpgradeTester fixture sets allow_log_errors=True: teardown ERROR/backtrace scan disabled, ignore_log_patterns at :61-67 dead."
+        }
+      ]
     },
     "TestUpgradeOneNode::test_one_node_upgrade": {
       "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates ks.cf (RF3) with 99 rows, upgrades only node2 to the version under test (node.upgrade), then in the mixed-version cluster validates existing rows at QUORUM, inserts 100 more and validates all after flush. Guards reads/writes in a mixed old/new cluster after a single-node upgrade.",
@@ -77,7 +85,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly redundant with rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade (same single-hop matrix, mixed-cluster data validation), but cheap (~33s) and also runs in debug mode; RED candidate. Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail."
+      "reason": "Mostly redundant with rolling_upgrade_test.py::TestRollingUpgrade::test_rolling_upgrade (same single-hop matrix, mixed-cluster data validation), but cheap (~33s) and also runs in debug mode; RED candidate. Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "upgrade_test.py:60",
+          "text": "UpgradeTester fixture sets allow_log_errors=True: teardown ERROR/backtrace scan disabled, ignore_log_patterns at :61-67 dead."
+        }
+      ]
     },
     "TestUpgradeClusterWithEnableDisableTWCSQueries::test_upgrade_cluster_nodes_with_twcs": {
       "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates a TWCS table (5-minute windows) filled via simulate_write_process_in_minutes, records the results of 5 time-range queries, then upgrades nodes one by one to the version under test; after each node upgrade it ALTERs the table toggling 'enable_optimized_twcs_queries' false/true and asserts the query results equal the pre-upgrade snapshot (validate_twcs_data, exact ==, upgrade_test.py:161-163). Before upgrading it enables raft topology + waits for SL v2 when not already enabled. Guards the TWCS optimized-query option (scylla commit 168c6f47) and schema ALTERs in a mixed-version cluster.",
@@ -119,7 +135,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Would be GREEN: only test of TWCS optimized-query option toggling across a real mixed-version upgrade; option toggling itself is covered by test/cqlpy/test_cql_query.py and compaction_additional_test.py (partial). Note: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: log text 'Enable optimized queries' at upgrade_test.py:486 actually disables them; expected_data (:452) duplicates self.tw_data (:183, unused); the test never checks that the ALTERed option took effect."
+      "reason": "Would be GREEN: only test of TWCS optimized-query option toggling across a real mixed-version upgrade; option toggling itself is covered by test/cqlpy/test_cql_query.py and compaction_additional_test.py (partial). Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:60, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: log text 'Enable optimized queries' at upgrade_test.py:486 actually disables them; expected_data (:452) duplicates self.tw_data (:183, unused); the test never checks that the ALTERed option took effect.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "log-check-off",
+          "ref": "upgrade_test.py:60",
+          "text": "UpgradeTester fixture sets allow_log_errors=True: teardown ERROR/backtrace scan disabled, ignore_log_patterns at :61-67 dead."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "upgrade_test.py:486",
+          "text": "Log text 'Enable optimized queries' actually disables them."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "upgrade_test.py:183,452",
+          "text": "self.tw_data unused; expected_data duplicates it."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "upgrade_test.py",
+          "text": "Never checks the ALTERed enable_optimized_twcs_queries option took effect; only result equality."
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-21",

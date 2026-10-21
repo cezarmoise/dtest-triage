@@ -42,7 +42,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single node, no topology change: cleanup has nothing to remove (and is a no-op with tablets, api/tasks.cc:69-73); scenario subsumed by test_cluster_cleanup in this file plus test/rest_api/test_storage_service.py::test_storage_service_keyspace_cleanup. Note: stop/start step is a 2018 leftover (3b9cb09111) with no assertion tied to it; count(*) runs at dtest default CL=ONE."
+      "reason": "Single node, no topology change: cleanup has nothing to remove (and is a no-op with tablets, api/tasks.cc:69-73); scenario subsumed by test_cluster_cleanup in this file plus test/rest_api/test_storage_service.py::test_storage_service_keyspace_cleanup. Note: stop/start step is a 2018 leftover (3b9cb09111) with no assertion tied to it; count(*) runs at dtest default CL=ONE.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "3b9cb09111",
+          "text": "Stop/start step is a 2018 leftover with no assertion tied to it."
+        }
+      ]
     },
     "TestCleanup::test_cluster_cleanup": {
       "description": "3-node cluster (3 racks, RF=3), 100k keys at CL=ALL, bootstrap a 4th node in rack r1, run cleanup on all nodes, assert count(*) == num_keys. Guards that cleanup after bootstrap only removes non-owned data.",
@@ -84,7 +92,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap only; useful smoke for vnode cleanup after bootstrap. Note: count(*) runs at dtest default CL=ONE (dtest_class.py:94) with RF=3, so over-deletion on node1 is only detected if node1 happens to serve the ranges. Note: cleanup is a no-op in the tablets job (api/tasks.cc:69-73). Note: c3bc4b7fda left `from tools.cluster_topology import generate_cluster_topology` unused (cleanup_test.py:16)."
+      "reason": "Partial overlap only; useful smoke for vnode cleanup after bootstrap. Note: count(*) runs at dtest default CL=ONE (dtest_class.py:94) with RF=3, so over-deletion on node1 is only detected if node1 happens to serve the ranges. Note: cleanup is a no-op in the tablets job (api/tasks.cc:69-73). Note: c3bc4b7fda left `from tools.cluster_topology import generate_cluster_topology` unused (cleanup_test.py:16).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "dtest_class.py:94",
+          "text": "count(*) at default CL=ONE with RF=3; per-node over-deletion only seen if that node serves the range."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "api/tasks.cc:69",
+          "text": "Cleanup is a no-op in the tablets job; exercised only with vnodes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cleanup_test.py:16",
+          "text": "Unused import generate_cluster_topology left by c3bc4b7fda."
+        }
+      ]
     },
     "TestCleanup::test_cleanup_space_amplification": {
       "description": "1 node with 100k keys, bootstrap node2, flush, restart cluster, then run cleanup on node1 while polling Data.db block usage; asserts usage stays <= 2x the pre-cleanup size during cleanup and decreases after. Guards cleanup temporary disk space amplification (incremental release of input sstables).",
@@ -111,7 +139,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with boost cleanup_incremental_compaction_test; vnodes-only. Note: since f41e7fbe0c the input is ~1 sstable per shard, so cleanup output cannot exceed input and the <=2x bound (cleanup_test.py:134) is nearly tautological; only the final 'size decreases' check has teeth. Note: PR 4430 'adjust for tablets' landed as a plain skip (787f081ff9)."
+      "reason": "Partial overlap with boost cleanup_incremental_compaction_test; vnodes-only. Bug: since f41e7fbe0c the input is ~1 sstable per shard, so cleanup output cannot exceed input and the <=2x bound (cleanup_test.py:134) is nearly tautological; only the final 'size decreases' check has teeth. Note: PR 4430 'adjust for tablets' landed as a plain skip (787f081ff9).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "cleanup_test.py:134",
+          "text": "Since f41e7fbe0c input is ~1 sstable/shard, so the <=2x amplification bound is nearly tautological; only 'size decreases' check has teeth."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "787f081ff9",
+          "text": "'Adjust for tablets' PR landed as a plain skip; runs only in vnode jobs."
+        }
+      ]
     },
     "TestCleanup::test_cluster_cleanup_no_resurrection": {
       "description": "Reproducer for scylladb/scylladb#1239: 2 nodes (2 racks, RF=2), 1000 keys, gc_grace_seconds=0; add node3 in r1, cleanup, delete all keys, sleep, major compact, removenode node3, assert count(*)==0. Intended to catch stale data left by cleanup being resurrected when node1 regains the ranges.",
@@ -138,7 +180,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: test is vacuous - RF=2 table defaults to tombstone_gc mode 'repair' (scylla tombstone_gc.cc:339), gc_grace_seconds=0 has no effect and no repair runs, so tombstones are never purged and stale data could not resurrect; needs `tombstone_gc = {'mode': 'immediate'}` like 068022d716 did for test_cluster_restore_no_resurrection. Note: `node1.nodetool('snapshot ks -t after_removenode')` (cleanup_test.py:187) is unused debug leftover; cleanup step is a no-op in the tablets job."
+      "reason": "Bug: test is vacuous - RF=2 table defaults to tombstone_gc mode 'repair' (scylla tombstone_gc.cc:339), gc_grace_seconds=0 has no effect and no repair runs, so tombstones are never purged and stale data could not resurrect; needs `tombstone_gc = {'mode': 'immediate'}` like 068022d716 did for test_cluster_restore_no_resurrection. Note: `node1.nodetool('snapshot ks -t after_removenode')` (cleanup_test.py:187) is unused debug leftover; cleanup step is a no-op in the tablets job.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cleanup_test.py",
+          "text": "RF=2 defaults to tombstone_gc 'repair'; no repair runs, tombstones never purged, so stale data can't resurrect: vacuous. Needs mode 'immediate'."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cleanup_test.py:187",
+          "text": "Unused debug snapshot 'after_removenode'."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "api/tasks.cc:69",
+          "text": "Cleanup is a no-op in the tablets job; exercised only with vnodes."
+        }
+      ]
     },
     "TestCleanup::test_cluster_restore_no_resurrection": {
       "description": "Reproducer for scylladb/scylladb#11933: 2 nodes RF=1, 1000 keys, snapshot on both, bootstrap node3, cleanup, record readable keys with node3 down, delete all, flush, purge via compaction (tombstone_gc immediate), restore snapshots via nodetool refresh, removenode node3, assert readable keys == recorded set. Guards that refresh/upload cleans up sstables to owned ranges so un-owned stale data is not resurrected.",
@@ -165,7 +227,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end coverage of scylladb#11933 (vnode refresh must drop non-owned data); no scylla test found for this. Slow (128s) but vnodes-only path still supported; recently maintained (068022d716)."
+      "reason": "Unique end-to-end coverage of scylladb#11933 (vnode refresh must drop non-owned data); no scylla test found for this. Slow (128s) but vnodes-only path still supported; recently maintained (068022d716).",
+      "issues": []
     },
     "TestCleanup::test_drop_table_during_cleanup": {
       "description": "Reproducer for scylladb/scylladb#12007: single node, 3 tables with 30k/40k/50k keys flushed into many sstables (autocompaction disabled), start nodetool cleanup ks, wait until all per-shard 'Starting force_keyspace_cleanup' task_manager logs appear, then DROP KEYSPACE concurrently. Expects cleanup to succeed or fail only with compaction_stopped_exception for cf2 due to truncate.",
@@ -195,8 +258,22 @@
           "note": "schema change during tablet cleanup, not vnode keyspace cleanup + drop"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No scylla test covers dropping a keyspace during vnode keyspace cleanup; valuable coverage. Downgraded only for issues: Note: drop_keyspace() busy-polls node1.grep_log() with no sleep for up to 600s (cleanup_test.py:430-438) and ignores its `node` argument (uses node1); Note: STCS min/max_threshold options are dead since autocompaction is disabled right after create (cleanup_test.py:415-417)."
+      "decision": "GREEN",
+      "reason": "No scylla test covers dropping a keyspace during vnode keyspace cleanup; valuable coverage. Note: drop_keyspace() busy-polls node1.grep_log() with no sleep for up to 600s (cleanup_test.py:430-438) and ignores its `node` argument (uses node1). Note: STCS min/max_threshold options are dead since autocompaction is disabled right after create (cleanup_test.py:415-417).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cleanup_test.py:430",
+          "text": "drop_keyspace() busy-polls grep_log() with no sleep up to 600s and ignores its `node` argument."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "cleanup_test.py:415",
+          "text": "STCS min/max_threshold dead: autocompaction disabled right after create."
+        }
+      ]
     },
     "TestCleanup::test_no_resurrection_by_replaying_stale_commitlog": {
       "description": "Reproducer for scylladb/scylladb#4734: 1 node, two tables (cf1 keeps commitlog segments pinned), add node2, cleanup cf0 on node1 (with tablets: wait for tablet migration + 'Cleaned up tablet' logs), kill -9 node1, compute expected keys = total - partitions on node2, remove node2, restart node1 (commitlog replay), assert node1 partition count == expected. Guards that cleanup makes stale commitlog content unreplayable.",
@@ -218,8 +295,22 @@
           "note": "pinned commitlog segment replay resurrection, but for delete+compaction (#14870), not cleanup"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of #4734 (cleanup vs commitlog replay), cheap and stable - candidate for gating. Downgraded for issues: Note: `ALTER TABLE ks.cf0 WITH gc_grace_seconds=0` with comment about tombstones is dead config - the test does no deletes (cleanup_test.py:341-344). Note: helper `_num_keys_on_node` (cleanup_test.py:288-302), added in the same commit 4b7ddd4e68, is never called."
+      "decision": "GREEN",
+      "reason": "Unique coverage of #4734 (cleanup vs commitlog replay), cheap and stable - candidate for gating. Note: `ALTER TABLE ks.cf0 WITH gc_grace_seconds=0` with comment about tombstones is dead config - the test does no deletes (cleanup_test.py:341-344). Note: helper `_num_keys_on_node` (cleanup_test.py:288-302), added in the same commit 4b7ddd4e68, is never called.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "cleanup_test.py:341",
+          "text": "ALTER TABLE cf0 gc_grace_seconds=0 (tombstone comment) is dead: test does no deletes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "cleanup_test.py:288",
+          "text": "Helper _num_keys_on_node never called."
+        }
+      ]
     }
   }
 }

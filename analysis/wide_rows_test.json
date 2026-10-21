@@ -35,7 +35,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: test never flushes (wide_rows_test.py:694-724), so the column/promoted index it claims to stress is never written or read; it's a 31s memtable IN-query test x4 strategies. Cassandra-origin (CASSANDRA-5609); promoted-index reads are covered by boost sstable_conforms_to_mutation_source_test with promoted_index_block_size=1."
+      "reason": "Bug: test never flushes (wide_rows_test.py:694-724), so the column/promoted index it claims to stress is never written or read; it's a 31s memtable IN-query test x4 strategies. Cassandra-origin (CASSANDRA-5609); promoted-index reads are covered by boost sstable_conforms_to_mutation_source_test with promoted_index_block_size=1.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "wide_rows_test.py:695",
+          "text": "Never flushes, so the column/promoted index it claims to stress is never written or read; memtable-only reads"
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "wide_rows_test.py:695",
+          "text": "Compaction-strategy parametrization irrelevant (no flush/compaction)"
+        }
+      ]
     },
     "TestWideRows::test_large_cell_after_threshold_change": {
       "description": "Starts node with compaction_large_cell_warning_threshold_mb=2, writes 20 rows x 3 cols of 1MB cells, flush+major compaction, asserts system.large_cells empty; then writes 10 rows x 3 cols of 2MB cells plus 10 more rows of 1MB, compacts and asserts exactly the 30 2MB cells are in system.large_cells (size within +3%, keys, sstables on disk) and 'Writing large cell' warning logged. Guards that the configured cell threshold is honored.",
@@ -65,7 +79,33 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly unique e2e coverage of a non-default cell threshold, but: Note: misnamed - threshold is set at startup (wide_rows_test.py:1283), never changed at runtime. Note: dead assignment maximum_primary_key_value at :1287. Note: 2MB cells equal large_cell_fail_threshold_mb default 2 (db/config.cc:873), borderline with new write guardrail. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+      "reason": "Mostly unique e2e coverage of a non-default cell threshold, but: Note: misnamed - threshold is set at startup (wide_rows_test.py:1283), never changed at runtime. Note: dead assignment maximum_primary_key_value at :1287. Note: 2MB cells equal large_cell_fail_threshold_mb default 2 (db/config.cc:873), borderline with new write guardrail. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:1273",
+          "text": "Misnamed: threshold is set at startup, never changed at runtime"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "wide_rows_test.py:1287",
+          "text": "Dead assignment maximum_primary_key_value"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "db/config.cc:873",
+          "text": "2MB cells equal large_cell_fail_threshold_mb default 2; borderline with the write guardrail"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:361",
+          "text": "Helper validate_entities_recognized_as_large overwrites key_appearance per node instead of summing (inert on a single node)"
+        }
+      ]
     },
     "TestWideRows::test_large_cell_and_then_increase_threshold": {
       "description": "Writes 5 rows x 3 cols of 1MB cells (default 1MB threshold), compacts, asserts 15 large cells recorded + log warning. Then sets compaction_large_cell_warning_threshold_mb=2, restarts node, writes 10 more rows of 1MB, compacts and asserts system.large_cells is empty (old records dropped with old sstables, rewritten sstables don't record 1MB cells).",
@@ -91,8 +131,34 @@
           "note": "records disappear after delete + major compaction; no threshold change"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of threshold increase dropping large-cell records after compaction. Note: docstring copy-pasted from test_large_cell_after_threshold_change (wide_rows_test.py:1315-1318) and does not describe the test; final phase checks only the system table, no log check. Restart unneeded (LiveUpdate). Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+      "decision": "GREEN",
+      "reason": "Unique coverage of threshold increase dropping large-cell records after compaction. Note: docstring copy-pasted from test_large_cell_after_threshold_change (wide_rows_test.py:1315-1318) and does not describe the test; final phase checks only the system table, no log check. Restart unneeded (LiveUpdate). Note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:1315",
+          "text": "Docstring copy-pasted from test_large_cell_after_threshold_change; doesn't describe the test"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:1363",
+          "text": "Final phase checks only the system table, no log check"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:1345",
+          "text": "Node restart to apply threshold is unneeded (LiveUpdate option)"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:361",
+          "text": "Helper validate_entities_recognized_as_large overwrites key_appearance per node instead of summing (inert on a single node)"
+        }
+      ]
     },
     "TestWideRows::test_large_cell_detector_with_full_compaction": {
       "description": "Writes 3 rows x 3 cols of 1MB cells and 3 rows x 3 cols of 512KB cells, flush, nodetool compact; asserts exactly 9 large cells in system.large_cells (per-row summed sizes within +3%), 512KB rows not reported, sstable names match disk, and 'Writing large cell' logged.",
@@ -124,7 +190,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheapest (6.6s) e2e check of per-cell large-data recording through compaction across all compaction strategies, with a near-threshold (512KB) negative; boost tests cover only single cells without compaction strategies."
+      "reason": "Cheapest (6.6s) e2e check of per-cell large-data recording through compaction across all compaction strategies, with a near-threshold (512KB) negative; boost tests cover only single cells without compaction strategies.",
+      "issues": []
     },
     "TestWideRows::test_large_cell_detector_with_small_cells": {
       "description": "Writes 10 rows x 3 cols of 1MB cells and 10 rows x 3 cols of 10KB cells, flush, then trigger_compaction_by_data_write_and_flush (5 small flushes + major compaction); asserts 30 large cells recorded with sizes, small cells not reported, sstables match disk, warning logged.",
@@ -159,7 +226,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Redundant with test_large_cell_detector_with_full_compaction (same scenario, trigger_compaction_by_data_write_and_flush also ends in cluster.compact(), wide_rows_test.py:552) plus test_multiple_rows_with_large_cells_detector; 10KB 'small' cells (wide_rows_test.py:1130) are a weak negative. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node."
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (same scenario, trigger_compaction_by_data_write_and_flush also ends in cluster.compact(), wide_rows_test.py:552) plus test_multiple_rows_with_large_cells_detector; 10KB 'small' cells (wide_rows_test.py:1130) are a weak negative. Class-level note: validate_entities_recognized_as_large (wide_rows_test.py:361) assigns key_appearance per node instead of summing, so cell counts reflect only the last node.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:1130",
+          "text": "10KB 'small' cells are a weak negative vs 1MB threshold (sibling uses 512KB)"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:361",
+          "text": "Helper validate_entities_recognized_as_large overwrites key_appearance per node instead of summing (inert on a single node)"
+        }
+      ]
     },
     "TestWideRows::test_large_cell_detector_with_ttl_on_row": {
       "description": "Writes 10 rows x 6 cols of 1MB cells, compacts, asserts 60 large cells + warning. Then set_ttl_on_few_large_rows overwrites one row's cells with 10KB values USING TTL 10, flushes, sleeps 15s, compacts, and asserts 54 large cells remain and no new warning after a log mark.",
@@ -194,7 +275,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (61.6s, 15s sleep) and redundant: first phase duplicates other cell detector dtests, second phase only shows overwritten cells' records vanish after compaction (covered by boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the 1MB cells). Bug: log mark is taken after the final compaction (wide_rows_test.py:1265), so the no-warning check at :1270 can't fail; it just waits 10s."
+      "reason": "Slow (61.6s, 15s sleep) and redundant: first phase duplicates other cell detector dtests, second phase only shows overwritten cells' records vanish after compaction (covered by boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the 1MB cells). Bug: log mark is taken after the final compaction (wide_rows_test.py:1265), so the no-warning check at :1270 can't fail; it just waits 10s.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "wide_rows_test.py:504",
+          "text": "TTL expiry irrelevant: the 10KB overwrite shadows the 1MB cells, compaction drops them regardless"
+        },
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "wide_rows_test.py:1265",
+          "text": "Log mark taken after the final compaction, so the no-warning log check can't fail; it just waits for timeout"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:528",
+          "text": "Fixed time.sleep(ttl + 5) = 15s for TTL expiry"
+        }
+      ]
     },
     "TestWideRows::test_large_cell_in_materialized_view": {
       "description": "3 nodes RF=3: writes 3 rows x 2 cols of 1MB cells, creates an MV selecting all columns, waits for build, flush+compaction; asserts 6 large cells recorded with sizes and warnings for both base table and the view table.",
@@ -221,8 +322,16 @@
           "note": "large rows in views, but no large_data recording check"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test checking large-data records for MV tables; history of timeouts (PR 7358). Bug: per-node cell count uses only last node's key_appearance (wide_rows_test.py:361), so with RF=3 the expected 6 holds only because counts are not summed; per-node counts on other nodes are not checked (sizes are)."
+      "decision": "GREEN",
+      "reason": "Only test checking large-data records for MV tables; history of timeouts (PR 7358). Note: per-node cell count uses only last node's key_appearance (wide_rows_test.py:361), so with RF=3 the expected 6 holds only because counts are not summed; per-node counts on other nodes are not checked (sizes are).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:361",
+          "text": "Cell count uses only the last node's key_appearance (not summed); other nodes only checked for non-empty records + sizes"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_multipartition": {
       "description": "Single node, threshold 1MB: writes 5 partitions x 15000 rows x 1KB (~15MB each), flush, trigger compaction; asserts all 5 partitions are in system.large_partitions with sizes within +3%, sstables match disk, warning logged.",
@@ -253,7 +362,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only multi-partition variant, but adds little over other partition detector tests and boost test_large_data; 30.6s x 4 strategies. Note: docstring says 10 partitions, code 5 (wide_rows_test.py:789/793); pk_max_index=None dead."
+      "reason": "Only multi-partition variant, but adds little over other partition detector tests and boost test_large_data; 30.6s x 4 strategies. Note: docstring says 10 partitions, code 5 (wide_rows_test.py:789/793); pk_max_index=None dead.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:789",
+          "text": "Docstring says 10 partitions, code writes 5"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "wide_rows_test.py:798",
+          "text": "pk_max_index=None is dead"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_small_partition": {
       "description": "Writes one 600-row x 1KB (~600KB) partition with the default threshold (1000MB), flushes, asserts nothing in system.large_partitions and no 'Writing large partition' warning.",
@@ -289,7 +412,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value negative (600KB vs 1000MB default threshold, ~3 orders of magnitude) covered by test_large_partition_detector_with_small_partitions and boost test_large_data / test_large_data_records_none_when_below_threshold; 24s mostly the 10s no-warning wait. validate_log_warnings/search_warning with expect_warning=False waits the full 10s watch_log_for timeout (wide_rows_test.py:269)."
+      "reason": "Low-value negative (600KB vs 1000MB default threshold, ~3 orders of magnitude) covered by test_large_partition_detector_with_small_partitions and boost test_large_data / test_large_data_records_none_when_below_threshold; 24s mostly the 10s no-warning wait. validate_log_warnings/search_warning with expect_warning=False waits the full 10s watch_log_for timeout (wide_rows_test.py:269).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:1021",
+          "text": "Negative only: 600KB partition vs default 1000MB threshold, far from the boundary"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:269",
+          "text": "expect_warning=False waits the full 10s watch_log_for timeout"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_with_full_compaction": {
       "description": "Threshold 4MB: writes 1 partition x 10000 rows x 1KB (~10MB) + 10 partitions x 3000 rows (~3MB), flush, nodetool compact, writes 10 more small partitions, flush+compact again; asserts only the large partition is in system.large_partitions with size, small not reported, warning logged.",
@@ -323,7 +460,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of test_large_partition_detector_with_small_partitions (wide_rows_test.py:811-835); one of the two suffices. Note: second write batch (start index 3, :1444) overlaps first small batch (2..11) and comment 'give time to compaction to finish' is wrong (nodetool compact is synchronous)."
+      "reason": "Near-duplicate of test_large_partition_detector_with_small_partitions (wide_rows_test.py:811-835); one of the two suffices. Note: second write batch (start index 3, :1444) overlaps first small batch (2..11) and comment 'give time to compaction to finish' is wrong (nodetool compact is synchronous).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:1444",
+          "text": "Second write batch (start index 3) overlaps the first small batch (2..11)"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:1443",
+          "text": "Comment 'give time to compaction to finish' is wrong; nodetool compact is synchronous"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_with_node_stop": {
       "description": "3 nodes RF=3, partition threshold 1MB, hinted handoff off. Stops node2, writes one ~10MB partition (10000 x 1KB rows), flush + trigger_compaction_by_data_write_and_flush (5 tiny flushes + major compaction); asserts the partition is in system.large_partitions on running nodes with size within +3%, sstables exist on disk, and 'Writing large partition' logged. Then starts node2, repairs it, compacts again and asserts all 3 nodes (incl. node2 via repair-streamed data) record it.",
@@ -362,7 +513,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only multi-node partition-detector test: checks records on a node that got the data via repair (+ compaction); no scylla test covers large-data records after repair. Note: docstring copy-pasted from the row variant ('one large row ... system.large_rows', wide_rows_test.py:752-755). 61s x4 strategies; overlaps test_large_row_detector_with_node_stop, one of the two may suffice."
+      "reason": "Only multi-node partition-detector test: checks records on a node that got the data via repair (+ compaction); no scylla test covers large-data records after repair. Note: docstring copy-pasted from the row variant ('one large row ... system.large_rows', wide_rows_test.py:752-755). 61s x4 strategies; overlaps test_large_row_detector_with_node_stop, one of the two may suffice.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:752",
+          "text": "Docstring copy-pasted from the row variant ('one large row ... system.large_rows')"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_with_small_partitions": {
       "description": "Single node, partition threshold 4MB. Writes one ~10MB partition (user0) and 10 ~3MB partitions (user2..user11), flush + trigger_compaction_by_data_write_and_flush (major compaction); asserts exactly user0 is in system.large_partitions with size within +3%, no small partition reported, sstable names match disk, and 'Writing large partition' logged.",
@@ -403,7 +562,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Keeper of the large/small partition pair (test_large_partition_detector_with_full_compaction is the near-duplicate, marked YELLOW): e2e record + size + log check with a near-threshold negative (3MB vs 4MB) across compaction strategies; boost tests only cover single small rows."
+      "reason": "Keeper of the large/small partition pair (test_large_partition_detector_with_full_compaction is the near-duplicate, marked YELLOW): e2e record + size + log check with a near-threshold negative (3MB vs 4MB) across compaction strategies; boost tests only cover single small rows.",
+      "issues": []
     },
     "TestWideRows::test_large_partition_detector_with_ttl_on_few_row_in_partition": {
       "description": "Single node, threshold 4MB. Writes one ~10MB partition, compacts, asserts it is recorded + logged. Then overwrites 9000 of 10000 rows with 1KB values USING TTL 10, flush, sleeps 15s, major compaction, plus another trigger compaction; asserts system.large_partitions is empty for the table (expired cells shrink the partition below 4MB).",
@@ -441,7 +601,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test where expiry (TTL, not overwrite: the 1KB TTL'd value has the same size as the original) drops a large-partition record; but 74s x4 strategies (15s sleep). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:865) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270). Note: random.randint(0, partition_num-1) at :483 always picks user0."
+      "reason": "Only test where expiry (TTL, not overwrite: the 1KB TTL'd value has the same size as the original) drops a large-partition record; but 74s x4 strategies (15s sleep). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:865) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270). Note: random.randint(0, partition_num-1) at :483 always picks user0.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "wide_rows_test.py:865",
+          "text": "Log mark taken after the final compaction, so the no-warning log check can't fail; it just waits for timeout"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:498",
+          "text": "Fixed time.sleep(ttl + 5) = 15s for TTL expiry"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:483",
+          "text": "random.randint(0, partition_num-1) always picks user0"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_detector_with_ttl_on_partition": {
       "description": "Same as test_large_partition_detector_with_ttl_on_few_row_in_partition but TTLs all 10000 rows of the ~10MB partition; after 15s sleep + compaction asserts system.large_partitions is empty for the table.",
@@ -478,7 +658,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (73.8s x4 strategies, 15s sleep) and redundant with test_large_partition_detector_with_ttl_on_few_row_in_partition (wide_rows_test.py:838-868 vs 871-901 differ only in ttl_rows_amount). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:898) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270)."
+      "reason": "Slow (73.8s x4 strategies, 15s sleep) and redundant with test_large_partition_detector_with_ttl_on_few_row_in_partition (wide_rows_test.py:838-868 vs 871-901 differ only in ttl_rows_amount). Bug: validate_log_warnings with a log mark taken after the final compaction (wide_rows_test.py:898) can't fail: check_warning('Dropping entries', :446) + search_warning(expect_warning=False, :447) just wait 2x10s watch_log_for timeout (:283/:270).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "wide_rows_test.py:898",
+          "text": "Log mark taken after the final compaction, so the no-warning log check can't fail; it just waits for timeout"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:498",
+          "text": "Fixed time.sleep(ttl + 5) = 15s for TTL expiry"
+        }
+      ]
     },
     "TestWideRows::test_large_partition_in_materialized_view": {
       "description": "3 nodes RF=3, partition threshold 1MB. Writes one ~15MB partition (15000 x 1KB), creates an MV with the same primary key, waits for build, flushes, major-compacts the base table; asserts system.large_partitions on every node has the partition for both base and view with size within +3%, and 'Writing large partition' logged for both tables.",
@@ -511,8 +705,28 @@
           "note": "view build of large partition, no large-data record check"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test checking large-partition records on a view table (built from existing data, multi-node). Note: docstring copy-pasted ('just large row is reported in the system.large_rows', wide_rows_test.py:1084-1086); commented-out trigger call at :1103; view is only flushed, never compacted."
+      "decision": "GREEN",
+      "reason": "Only test checking large-partition records on a view table (built from existing data, multi-node). Note: docstring copy-pasted ('just large row is reported in the system.large_rows', wide_rows_test.py:1084-1086); commented-out trigger call at :1103; view is only flushed, never compacted.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:1084",
+          "text": "Docstring copy-pasted ('just large row is reported in the system.large_rows')"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "wide_rows_test.py:1103",
+          "text": "Commented-out trigger_compaction_by_data_write_and_flush call"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:1103",
+          "text": "View table is only flushed, never compacted"
+        }
+      ]
     },
     "TestWideRows::test_large_row_detector_small_row": {
       "description": "Single node with default thresholds (row 10MB). Writes one 100KB row (10 x 10KB), flushes, asserts system.large_rows is empty and no 'Writing large row' warning.",
@@ -548,7 +762,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value negative (100KB vs 10MB default, 100x) covered by boost test_large_data / test_large_data_records_none_when_below_threshold and the small-row dtests; mirrors test_large_partition_detector_small_partition (RED). 24s mostly the 2x10s no-warning waits (check_warning :283 + search_warning :270)."
+      "reason": "Low-value negative (100KB vs 10MB default, 100x) covered by boost test_large_data / test_large_data_records_none_when_below_threshold and the small-row dtests; mirrors test_large_partition_detector_small_partition (RED). 24s mostly the 2x10s no-warning waits (check_warning :283 + search_warning :270).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:1036",
+          "text": "Negative only: 100KB row vs default 10MB threshold, far from the boundary"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:283",
+          "text": "No-warning checks wait 2x10s watch_log_for timeouts"
+        }
+      ]
     },
     "TestWideRows::test_large_row_detector_with_full_compaction": {
       "description": "Single node, row threshold 1MB. Writes one 1.5MB row (15 x 100KB) and 10 tiny rows (15 x 10 bytes), flush + nodetool compact; asserts only the large row is in system.large_rows with size within +3%, sstables match disk, and 'Writing large row' logged.",
@@ -584,7 +812,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheapest (4.6s) e2e row-detector check through compaction across all strategies (record + size + log); keeper of the pair with test_large_row_detector_with_small_rows, consistent with test_large_cell_detector_with_full_compaction (GREEN)."
+      "reason": "Cheapest (4.6s) e2e row-detector check through compaction across all strategies (record + size + log); keeper of the pair with test_large_row_detector_with_small_rows, consistent with test_large_cell_detector_with_full_compaction (GREEN).",
+      "issues": []
     },
     "TestWideRows::test_large_row_detector_with_node_stop": {
       "description": "3 nodes RF=3, row threshold 1MB, hinted handoff off. Stops node2, writes 5 rows of 1.5MB (15 x 100KB), flush + trigger compaction; asserts the 5 rows are recorded (size +3%) and logged on running nodes. Starts node2, repairs it and (without compaction) asserts all 3 nodes, incl. node2's repair-written sstables, record the 5 large rows and log the warning.",
@@ -623,7 +852,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test checking large-row records on sstables written by repair (no compaction after repair); no scylla test covers large-data records after repair. Note: commented-out dead code at wide_rows_test.py:931-932; docstring says 'one large row' but writes 5. 48s x4 strategies; overlaps test_large_partition_detector_with_node_stop."
+      "reason": "Only test checking large-row records on sstables written by repair (no compaction after repair); no scylla test covers large-data records after repair. Note: commented-out dead code at wide_rows_test.py:931-932; docstring says 'one large row' but writes 5. 48s x4 strategies; overlaps test_large_partition_detector_with_node_stop.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "wide_rows_test.py:931",
+          "text": "Commented-out dead code"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:905",
+          "text": "Docstring says 'one large row' but writes 5"
+        }
+      ]
     },
     "TestWideRows::test_large_row_detector_with_small_rows": {
       "description": "Single node, row threshold 1MB. Writes one 1.2MB row (12 x 100KB) and 10 tiny rows (12 x 10 bytes), flush + trigger_compaction_by_data_write_and_flush (ends in major compaction); asserts only the large row is in system.large_rows with size +3% and 'Writing large row' logged.",
@@ -654,7 +897,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of test_large_row_detector_with_full_compaction (wide_rows_test.py:991-1018 vs 1395-1421; trigger helper also ends in cluster.compact(), :552); one of the two suffices. Negative is weak (120-byte rows vs 1MB threshold)."
+      "reason": "Near-duplicate of test_large_row_detector_with_full_compaction (wide_rows_test.py:991-1018 vs 1395-1421; trigger helper also ends in cluster.compact(), :552); one of the two suffices. Negative is weak (120-byte rows vs 1MB threshold).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:991",
+          "text": "Weak negative: 120-byte small rows vs 1MB threshold"
+        }
+      ]
     },
     "TestWideRows::test_large_row_detector_with_ttl_on_row": {
       "description": "Single node, row threshold 1MB. Writes 2 rows of 2MB (20 x 100KB), compacts, asserts both recorded + logged. Then overwrites all 20 columns of one row with 10KB values USING TTL 10, flush, sleep 15s, compact + trigger compaction; asserts only one large row remains and (from a mark taken after compaction) no new warning.",
@@ -691,7 +942,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (58.7s x4 strategies, 15s sleep) and redundant, same as test_large_cell_detector_with_ttl_on_row (RED): first phase duplicates other row-detector dtests, second only shows an overwritten row's record vanishes after compaction (boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the large cells, wide_rows_test.py:524). Bug: log mark is taken after the final compaction (:985), so the expect_warning=False check (:988 -> search_warning :270) can't fail; it just waits 10s."
+      "reason": "Slow (58.7s x4 strategies, 15s sleep) and redundant, same as test_large_cell_detector_with_ttl_on_row (RED): first phase duplicates other row-detector dtests, second only shows an overwritten row's record vanishes after compaction (boost test_large_data). Bug: TTL expiry is irrelevant (overwrite shadows the large cells, wide_rows_test.py:524). Bug: log mark is taken after the final compaction (:985), so the expect_warning=False check (:988 -> search_warning :270) can't fail; it just waits 10s.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "wide_rows_test.py:524",
+          "text": "TTL expiry irrelevant: the 10KB overwrite shadows the large cells, compaction shrinks the row regardless"
+        },
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "wide_rows_test.py:985",
+          "text": "Log mark taken after the final compaction, so the no-warning log check can't fail; it just waits for timeout"
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "wide_rows_test.py:528",
+          "text": "Fixed time.sleep(ttl + 5) = 15s for TTL expiry"
+        }
+      ]
     },
     "TestWideRows::test_multiple_rows_with_large_cells_detector": {
       "description": "Single node, default 1MB cell threshold: writes 10 rows x 3 cols of 1MB blobs, flush, writes+flushes small rows 5x and major-compacts (trigger_compaction_by_data_write_and_flush), then asserts 30 entries in system.large_cells (size within +3%, sstables on disk) and 'Writing large cell' log warning.",
@@ -721,7 +992,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:552",
+          "text": "trigger_compaction_by_data_write_and_flush ends in cluster.compact(); it is just another major compaction"
+        }
+      ]
     },
     "TestWideRows::test_multiple_columns_with_large_cells_detector": {
       "description": "Single node, default 1MB cell threshold: writes 5 rows x 10 cols of 1MB blobs, flush, trigger_compaction_by_data_write_and_flush (small writes+flushes then cluster.compact()), asserts 50 entries in system.large_cells with sizes, sstables and 'Writing large cell' log warning.",
@@ -750,7 +1029,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:552",
+          "text": "trigger_compaction_by_data_write_and_flush ends in cluster.compact(); it is just another major compaction"
+        }
+      ]
     },
     "TestWideRows::test_multiple_rows_and_columns_with_large_cells_detector": {
       "description": "Single node, default 1MB cell threshold: writes 10 rows x 5 cols of 1MB blobs, flush, trigger_compaction_by_data_write_and_flush, asserts 50 entries in system.large_cells with sizes, sstables and 'Writing large cell' log warning.",
@@ -779,7 +1066,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction."
+      "reason": "Redundant with test_large_cell_detector_with_full_compaction (GREEN, wide_rows_test.py:1366): same per-cell recording through flush+compaction with default 1MB threshold, which already uses multiple rows x multiple columns and adds a near-threshold negative; this variant only changes the rows x cols shape (one of three near-identical shape variants, ~11s x4 strategies). Note: trigger_compaction_by_data_write_and_flush ends in cluster.compact() (:552), so it is just another major compaction.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:552",
+          "text": "trigger_compaction_by_data_write_and_flush ends in cluster.compact(); it is just another major compaction"
+        }
+      ]
     },
     "TestWideRows::test_simple_large_row_detector": {
       "description": "Single node, compaction_large_row_warning_threshold_mb=1: writes 5 rows x 14 cols of 100KB (~1.4MB rows), flush, trigger_compaction_by_data_write_and_flush (small writes/flushes + cluster.compact()), asserts 5 rows in system.large_rows with sizes (+3%), sstables on disk, and 'Writing large row' log warning. No negative case.",
@@ -816,7 +1111,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_large_row_detector_with_full_compaction (GREEN, wide_rows_test.py:1395): same 1MB threshold, same ~1.4-1.5MB rows, same compaction path and checks, but without the small-row negative; also overlaps test_large_row_detector_with_small_rows (YELLOW). 9.2s x4 strategies for no unique coverage."
+      "reason": "Strict subset of test_large_row_detector_with_full_compaction (GREEN, wide_rows_test.py:1395): same 1MB threshold, same ~1.4-1.5MB rows, same compaction path and checks, but without the small-row negative; also overlaps test_large_row_detector_with_small_rows (YELLOW). 9.2s x4 strategies for no unique coverage.",
+      "issues": []
     },
     "TestWideRows::test_large_row_in_materialized_view": {
       "description": "3 nodes RF=3, row threshold 1MB: writes one 200 x 10KB (~2MB) row, then creates an MV (built from existing data by the view builder), waits for it, flush, trigger_compaction_by_data_write_and_flush, then asserts system.large_rows + 'Writing large row' log for both base table and view on every node.",
@@ -849,7 +1145,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test checking large-row records for a view table; consistent with MV cell/partition variants (YELLOW): low risk since views share the sstable writer, 21s x4 strategies. Note: docstring says 'just large row is reported' but there is no small-row negative except the tiny trigger rows; compaction strategy only applies to the base table (view uses default STCS)."
+      "reason": "Only test checking large-row records for a view table; consistent with MV cell/partition variants (YELLOW): low risk since views share the sstable writer, 21s x4 strategies. Note: docstring says 'just large row is reported' but there is no small-row negative except the tiny trigger rows; compaction strategy only applies to the base table (view uses default STCS).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "wide_rows_test.py:1053",
+          "text": "Docstring says 'just large row is reported' but there is no small-row negative"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "wide_rows_test.py:1051",
+          "text": "Compaction-strategy param applies only to the base table; view uses default STCS"
+        }
+      ]
     },
     "TestWideRows::test_large_row_with_static_cell": {
       "description": "3 nodes RF=3, partition threshold 1MB, hinted handoff off: stops node2, 10x inserts 10 partitions with a random 1-10MB static text cell, flushing each time; restarts and repairs node2, runs major compaction. No assertions: only guards against the crash in the large-data handler for static cells/rows (scylla#6780, segfault in large cell detector), relying on dtest log/crash checks.",
@@ -876,7 +1186,15 @@
         }
       ],
       "decision": "RED",
-      "reason": "cqlpy test_large_cells_rows.py::test_create_large_static_cells_and_rows is the explicit regression test for scylla#6780 (closed 2020). The dtest asserts nothing (wide_rows_test.py:726-749): never queries system.large_* or logs; node stop/repair adds 42.5s x4 strategies with no checks. Bug: no assertion at all; configured compaction_large_partition_warning_threshold_mb=1 is never verified."
+      "reason": "cqlpy test_large_cells_rows.py::test_create_large_static_cells_and_rows is the explicit regression test for scylla#6780 (closed 2020). The dtest asserts nothing (wide_rows_test.py:726-749): never queries system.large_* or logs; node stop/repair adds 42.5s x4 strategies with no checks. Note: no assertion at all; configured compaction_large_partition_warning_threshold_mb=1 is never verified.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "wide_rows_test.py:726",
+          "text": "No assertions; relies on crash/log checks for scylla#6780; configured threshold never verified"
+        }
+      ]
     },
     "TestWideRows::test_too_many_rows": {
       "description": "Single node, compaction_rows_count_warning_threshold=200: writes 200 rows (14 x 128B cols) into one partition, flush, asserts system.large_partitions empty; adds one more row, flush + major compaction, asserts one record with rows=201. Guards the row-count large-partition detector (system.large_partitions.rows).",
@@ -913,7 +1231,21 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by boost cql_query_large_test.cc::test_large_row_count_warning (CQL -> system.large_partitions.rows) plus sstable_3_x_test.cc::test_sstable_log_too_many_rows (exact boundary). Compaction-strategy parametrization adds nothing. Note: compaction_large_row_warning_threshold_mb=10 at :590 equals the default (dead config); no log check (dtest#2333)."
+      "reason": "Fully covered by boost cql_query_large_test.cc::test_large_row_count_warning (CQL -> system.large_partitions.rows) plus sstable_3_x_test.cc::test_sstable_log_too_many_rows (exact boundary). Compaction-strategy parametrization adds nothing. Note: compaction_large_row_warning_threshold_mb=10 at :590 equals the default (dead config); no log check (dtest#2333).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "wide_rows_test.py:590",
+          "text": "compaction_large_row_warning_threshold_mb=10 equals the default"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "scylladb/scylla-dtest#2333",
+          "text": "No log warning check"
+        }
+      ]
     },
     "TestWideRows::test_too_many_collection_elements": {
       "description": "Single node, compaction_collection_elements_count_warning_threshold=10, parametrized over map/set/list (x4 strategies): writes a 10-element collection, flush, asserts no system.large_cells record; adds an 11th element, flush + major compaction, asserts one record with collection_elements=11; deletes one element (tombstone_gc immediate), flush, compaction, asserts the record is gone. Guards large-collection detection (scylla#11449, 5.2+).",
@@ -951,7 +1283,27 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Threshold detection is covered (cql_tests.py::test_large_collection, boost test_sstable_too_many_collection_elements, test_large_cells_dual_threshold); unique parts are set/list e2e, the collection_elements value check and record removal after element deletion + tombstone purge. 12 params x 10.6s; strategy param irrelevant. Note: unexplained node1.nodetool('snapshot') at wide_rows_test.py:665; logger.debug at :668 lacks f-prefix."
+      "reason": "Threshold detection is covered (cql_tests.py::test_large_collection, boost test_sstable_too_many_collection_elements, test_large_cells_dual_threshold); unique parts are set/list e2e, the collection_elements value check and record removal after element deletion + tombstone purge. 12 params x 10.6s; strategy param irrelevant. Note: unexplained node1.nodetool('snapshot') at wide_rows_test.py:665; logger.debug at :668 lacks f-prefix.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "wide_rows_test.py:665",
+          "text": "Unexplained node1.nodetool('snapshot')"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "wide_rows_test.py:668",
+          "text": "logger.debug lacks f-prefix"
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "wide_rows_test.py:610",
+          "text": "Compaction-strategy parametrization irrelevant"
+        }
+      ]
     },
     "TestWideRows::test_wide_rows": {
       "description": "Single node with partition/row warning thresholds 1MB: writes 6 partitions x 5000 small rows (~400KB each, below threshold), no flush, then reads one row and asserts its value is non-empty. Cassandra-era 'wide rows' smoke test; thresholds and compaction strategy are never exercised.",
@@ -984,7 +1336,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value Cassandra-origin smoke test: only asserts a single read value is non-empty (wide_rows_test.py:578-581). Bug: thresholds set at :561 are dead (partitions ~400KB, never checked) and nothing is flushed, so the 4 compaction-strategy variants (11s each) test the same memtable path. Wide partitions are exercised much more heavily by the other detector tests."
+      "reason": "Low-value Cassandra-origin smoke test: only asserts a single read value is non-empty (wide_rows_test.py:578-581). Note: thresholds set at :561 are dead (partitions ~400KB, never checked) and nothing is flushed, so the 4 compaction-strategy variants (11s each) test the same memtable path. Wide partitions are exercised much more heavily by the other detector tests.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "wide_rows_test.py:578",
+          "text": "Only asserts one read value non-empty; the for-loop passes if the query returns no row"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "wide_rows_test.py:561",
+          "text": "Partition/row warning thresholds set but never checked (partitions ~400KB)"
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "wide_rows_test.py:561",
+          "text": "Nothing flushed, so the 4 compaction-strategy variants test the same memtable path"
+        }
+      ]
     }
   },
   "analyzed_at": "2026-10-21",

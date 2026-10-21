@@ -40,7 +40,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique scenario (DROP/CREATE INDEX under LWT+read load) with real bug catches (scylladb/scylladb#11169, SCYLLADB-4784), but the load is mostly ineffective. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs."
+      "reason": "Unique scenario (DROP/CREATE INDEX under LWT+read load) with real bug catches (scylladb/scylladb#11169, SCYLLADB-4784), but the load is mostly ineffective. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:532,555",
+          "text": "`stop` Event set after each loop but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only loop 1 has load."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:138-152",
+          "text": "LWTLoad on pk 1001-9999 over existing rows never applies (IF NOT EXISTS / IF v>50 AND v<1000 false); ReadRows reads disjoint pk<1000."
+        }
+      ]
     },
     "TestLWTSchemaModification::test_lwt_batch_insert": {
       "description": "8-node RF=3 cluster, 1000 rows. LWTLoad on pk 0-10 for 1s concurrently with BatchInserts on node 2, intended to test batched inserts under LWT load. Only asserts no exceptions and nodes alive. No schema modification involved.",
@@ -77,7 +91,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Test does essentially nothing: BatchInserts (lwt_schema_modification_test.py:350-366) never adds statements to the BatchStatement (executes plain inserts, then an empty batch), ignores its lwt param, and `if stop:` is always truthy (Event object) so it breaks after 1 iteration; LWTLoad(end=1) on pk 0-10 with existing rows v<=10 never applies (INSERT IF NOT EXISTS on existing rows, UPDATE IF v>50 false). No assertion beyond no-exception, 8-node cluster ~78s. LWT batches better covered by test/cqlpy/test_lwt.py and test/cluster/lwt/test_lwt_contention.py. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+      "reason": "Test does essentially nothing: BatchInserts (lwt_schema_modification_test.py:350-366) never adds statements to the BatchStatement (executes plain inserts, then an empty batch), ignores its lwt param, and `if stop:` is always truthy (Event object) so it breaks after 1 iteration; LWTLoad(end=1) on pk 0-10 with existing rows v<=10 never applies (INSERT IF NOT EXISTS on existing rows, UPDATE IF v>50 false). No assertion beyond no-exception, 8-node cluster ~78s. LWT batches better covered by test/cqlpy/test_lwt.py and test/cluster/lwt/test_lwt_contention.py. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:350-366",
+          "text": "BatchInserts never adds statements to BatchStatement (runs plain inserts then empty batch), ignores lwt, breaks after 1 iteration (`if stop:` truthy)."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:138-152",
+          "text": "LWTLoad(end=1) on pk 0-10 over existing rows v<=10 never applies anything."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "7799f9654a",
+          "text": "Debug branches (smp/nodes=4) dead since @scylla_mode('!debug')."
+        }
+      ]
     },
     "TestLWTSchemaModification::test_lwt_load": {
       "description": "8-node RF=3 cluster (smp 8), 10000 rows; ReadRows (CL=ALL read of pk 0..1000 asserting unchanged) concurrently with LWTLoad on pk 1001-9999, 30s per loop, 4 loops. Asserts no exceptions and nodes alive. No schema change despite class name; baseline LWT load + reads.",
@@ -121,7 +155,27 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slowest test of module (~203s, 8 nodes) yet asserts nothing meaningful. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). LWT load with real verification exists in test/cluster/lwt/*. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+      "reason": "Slowest test of module (~203s, 8 nodes) yet asserts nothing meaningful. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Bug: `stop` Event is created once before the loop (lwt_schema_modification_test.py:532) and set after each loop (:555) but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only the first loop runs concurrent load (since origin aa1f952f78). LWT load with real verification exists in test/cluster/lwt/*. Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:138-152",
+          "text": "LWTLoad on pk 1001-9999 over existing rows never applies (IF NOT EXISTS / IF v>50 AND v<1000 false); ReadRows reads disjoint pk<1000."
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:532,555",
+          "text": "`stop` Event set after each loop but never cleared, so for loops>1 LWTLoad/ReadRows exit immediately; only loop 1 has load."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "7799f9654a",
+          "text": "Debug branches (smp/nodes=4) dead since @scylla_mode('!debug')."
+        }
+      ]
     },
     "TestLWTSchemaModification::test_lwt_load_check": {
       "description": "8-node RF=3 empty table; LWTLoad (real inserts/updates on pk 1-99) concurrently with LWTLoadCheck which does INSERT IF NOT EXISTS (LOCAL_QUORUM/LOCAL_SERIAL) for pk 100.. sequentially for 30s, retrying non-applied, then asserts SELECT sum(v) (LOCAL_QUORUM) equals the arithmetic sum of inserted keys. Checks LWT inserts are durable/visible under concurrent LWT load (on tablets: during migrations). No schema change.",
@@ -157,7 +211,15 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Real result assertion (sum of applied LWT inserts) but no schema modification, LWTLoad and LWTLoadCheck use disjoint keys (no contention), and similar verified LWT load exists in test/cluster/lwt/*. Repeatedly needed test-side fixes (d1674ca54c, 770761460e SCYLLADB-5039). Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a)."
+      "reason": "Real result assertion (sum of applied LWT inserts) but no schema modification, LWTLoad and LWTLoadCheck use disjoint keys (no contention), and similar verified LWT load exists in test/cluster/lwt/*. Repeatedly needed test-side fixes (d1674ca54c, 770761460e SCYLLADB-5039). Note: debug branches (smp/nodes=4) are dead code since @scylla_mode('!debug') (7799f9654a).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "7799f9654a",
+          "text": "Debug branches (smp/nodes=4) dead since @scylla_mode('!debug')."
+        }
+      ]
     },
     "TestLWTSchemaModification::test_materialized_view": {
       "description": "4-node RF=3, 10000 rows; LWTLoad on pk 1001-9999 concurrently with MaterializedView action: creates synchronous_updates MV on table1, waits for nodetool viewbuildstatus finished and LIMIT 1000 rows, then repeatedly reads the view (CL=ALL) asserting rows unchanged for 10s. Guards MV creation/build under LWT load.",
@@ -194,7 +256,21 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario (MV build concurrent with LWT on base) not found in scylla tests, but the LWT load never changes data so no view updates are generated. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Note: comment 'Create view ascending so top rows are untouched' (:412) is wrong - LIMIT 1000 is token-ordered by pk, so rows come from the whole range; only stable because LWTLoad is a no-op. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs."
+      "reason": "Scenario (MV build concurrent with LWT on base) not found in scylla tests, but the LWT load never changes data so no view updates are generated. Bug: LWTLoad on rows 1001-9999 with prologue nrows=10000 (v=pk) never applies anything: INSERT IF NOT EXISTS hits existing rows, UPDATE IF v>50 AND v<1000 is false for v>=1001 (:138-152), so the 'LWT load' produces only non-applied Paxos rounds and no data/view changes; ReadRows reads a disjoint range (pk<1000) so its assert is trivially true. Note: comment 'Create view ascending so top rows are untouched' (:412) is wrong - LIMIT 1000 is token-ordered by pk, so rows come from the whole range; only stable because LWTLoad is a no-op. Runs only in gating jobs (next-dtest-tablets/consistent-topology, 32 runs, 100% pass); absent from dtest-release jobs.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "lwt_schema_modification_test.py:138-152",
+          "text": "LWTLoad on pk 1001-9999 over existing rows never applies (IF NOT EXISTS / IF v>50 AND v<1000 false); ReadRows reads disjoint pk<1000."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "lwt_schema_modification_test.py:412",
+          "text": "Comment 'Create view ascending so top rows are untouched' wrong: LIMIT 1000 is token-ordered; stable only because LWTLoad is a no-op."
+        }
+      ]
     }
   }
 }
