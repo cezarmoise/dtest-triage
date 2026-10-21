@@ -1,0 +1,32 @@
+{
+  "file": "throughput_limits_test.py",
+  "analyzed_at": "2026-10-21",
+  "scylla_rev": "814c05a00f",
+  "tests": {
+    "TestPerPartitionRateLimiter::test_per_partition_rate_limit": {
+      "description": "2-node cluster, RF=1 table WITH per_partition_rate_limit max_reads/writes_per_second=10. Hammers one partition with sequential inserts for 20s, then selects for 20s, catching RateLimitReached. Asserts replica metric total_{writes,reads}_rate_limited is non-zero on some node, the summed scylla_storage_proxy_coordinator_{write,read}_rate_limited equals the client-observed rejection count exactly, and accepted rate is within (0.9x, 2x) of the limit. Guards per-partition rate limiting (scylla dab56b82, 5.1) and the coordinator metric accounting (scylladb#11651).",
+      "origin": {"sha": "054c102ac70527a2b4c3bee8335a24113196091e", "date": "2022-09-30", "pr": 2880, "summary": "test(limits): per partition rate limit tests (qa-tasks#806); read-metric check commented out pending scylladb#11651"},
+      "commits": {
+        "fd809be482374af59480027d1fd2a6539e72f856": "Uncommented read coordinator-metric exact-count assertion (scylladb#11651 fixed 2022-10-04)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "eabe91a6a1f343d1c4cbb1f98b9e63c2f1e85f93": "Catch rate_limit_expected_errors (RateLimitReached, fallback ConfigurationException) via new tools/rate_limit.py",
+        "20908a47e25701f53a85c70da6bd77b890a1f20f": "formatting",
+        "1ab0ba17686db2b1f2523edf6f15098dee2e35c2": "SimpleStrategy -> NetworkTopologyStrategy",
+        "054c102ac70527a2b4c3bee8335a24113196091e": "Added test",
+        "f2c1fe573dc450ce604f4d6f3d3b5151dcbeebb7": "File-level autouse fixture sets compaction logger to debug (irrelevant to this test)",
+        "0d49cf26365b8cd4f74505566f7ae95d7fb2cc07": "Dropped all other (throughput) tests in file; this class now the only test"
+      },
+      "relevance": "Live: per_partition_rate_limit extension, replica counters total_{writes,reads}_rate_limited (replica/database.cc:695,701) and storage_proxy write/read_rate_limited with rejected_by_coordinator label (service/storage_proxy.cc:3024-3028, 3123-3127) all present.",
+      "duplicates": [
+        {"path": "scylla-dtest/per_partition_rate_limiting_test.py::TestPerPartitionRateLimiting::test_writes", "coverage": "partial", "note": "Write limiting + rate bounds, single node, more rigorous (warmup, concurrency, no-reject baselines); no metric checks"},
+        {"path": "scylla-dtest/per_partition_rate_limiting_test.py::TestPerPartitionRateLimiting::test_reads", "coverage": "partial", "note": "Same for reads"},
+        {"path": "scylla-dtest/per_partition_rate_limiting_test.py::TestPerPartitionRateLimiting::test_multinode_accuracy", "coverage": "partial", "note": "Multinode rate accuracy (dtest_heavy, not gating); no metric checks"},
+        {"path": "test/cluster/test_replica_exceptions.py::test_replica_do_apply_rate_limit_no_cpp_exceptions", "coverage": "partial", "note": "Checks scylla_database_total_writes_rate_limited increments (debug-only, error injection)"},
+        {"path": "test/cluster/test_replica_exceptions.py::test_replica_query_rate_limit_no_cpp_exceptions", "coverage": "partial", "note": "Same for total_reads_rate_limited"},
+        {"path": "test/boost/per_partition_rate_limit_test.cc::test_internal_operation_filtering", "coverage": "partial", "note": "Limit applies only to user ops; throws rate_limit_exception"}
+      ],
+      "decision": "YELLOW",
+      "reason": "Rate-limiting behavior is covered better by per_partition_rate_limiting_test.py test_writes/test_reads; only unique part is the exact coordinator write/read_rate_limited metric == client rejections check (regression for scylladb#11651), not found in scylla test/. Could be RED if that metric check is folded into per_partition_rate_limiting_test. Note: comments claim a non-shard-aware driver but default scylla-driver is token-aware (stale rationale, throughput_limits_test.py:43,94); after 0d49cf26 the file has unused imports (signal, ScyllaCluster, ScyllaNode, new_node, issue_open, with_feature) and a dead compaction-debug autouse fixture (:24-32)."
+    }
+  }
+}
