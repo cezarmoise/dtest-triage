@@ -4,7 +4,8 @@ Inputs:
 - dtest repo: /home/cezar/github/scylla-dtest. Read code at `upstream/next` (`git show upstream/next:<path>`, path = `file` in the data JSON), not the working tree.
 - Generated data: /home/cezar/github/dtest-triage/data/{MODULE}.json — tests in scope (class, name, line range,
   Jenkins stats, last 20 builds per job, per-job breakdown in `stats.by_job`, function-level commits with PRs) + file-level commits.
-- Scylla source: ~/github/scylladb (read-only). Unit/cluster tests in `test/` (cluster, cqlpy, alternator, boost, nodetool, rest_api, ...).
+- Scylla source: ~/github/scylladb (read-only). Read it at `upstream/master` (`git -C ~/github/scylladb grep ... upstream/master -- test/`,
+  `git show upstream/master:<path>`), not the working tree. Unit/cluster tests in `test/` (cluster, cqlpy, alternator, boost, nodetool, rest_api, ...).
 
 Tests to analyze: {TESTS} (`all` = every test in the JSON `tests` list; otherwise only these `Class::test` keys).
 
@@ -21,7 +22,8 @@ For EACH of those tests:
 4. Relevance: is the behavior still in scylla? grep scylla for the feature, config options, REST/nodetool
    commands, log messages the test relies on. Note feature removals/replacements (e.g. vnodes vs tablets).
 5. Duplicates: search scylla `test/` for tests covering the same scenario
-   (`grep -ril dtest ~/github/scylladb/test`, `git -C ~/github/scylladb log --grep=<keyword>`, keyword grep in test dirs).
+   (`git -C ~/github/scylladb grep -il dtest upstream/master -- test/`, `git -C ~/github/scylladb log --grep=<keyword> upstream/master`,
+   keyword grep in test dirs).
    Also check other dtest files for overlapping tests. Say full / partial / none, with paths::test names.
 6. Decision:
    - RED: scylla test fully covers same scenario; tested feature/option/cmd removed; flaky + low-value assertion;
@@ -52,7 +54,8 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if need
 {
   "file": "<path>",
   "analyzed_at": "YYYY-MM-DD",
-  "scylla_rev": "<git -C ~/github/scylladb rev-parse --short HEAD>",
+  "scylla_rev": "<git -C ~/github/scylladb rev-parse --short upstream/master>",
+  "dtest_rev": "<git -C ~/github/scylla-dtest rev-parse upstream/next>",
   "tests": {
     "<Class>::<test>": {
       "description": "...",
@@ -67,8 +70,23 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if need
   }
 }
 ```
-If the file already exists, load it and add/replace only your tests; keep the other entries.
+If the file already exists, load it and add/replace only your tests; keep the other entries and its
+`scylla_rev`/`dtest_rev` (`scripts/delta.py` bumps them once every test is checked against the new revs).
 Write it after every few tests (valid JSON each time), so progress survives interruption.
 Do not modify any repo other than writing that file; do not commit. Scratch files/scripts only in your own
 `mktemp -d`; never run or reuse existing files in /tmp (old runs left scripts there that overwrite analysis files).
 Reply with a short table: test, decision, reason.
+
+## Update mode
+
+When given trigger lines from `scripts/delta.py` (`<module> <Class::test> <KIND> <detail>`) instead of {TESTS},
+recheck only those tests, starting from their existing entries. The file's `dtest_rev`/`scylla_rev` are the revs the
+entries were checked at.
+- CHANGED / HELPER: read `git diff <dtest_rev> upstream/next -- <file>` (and the helper's file) and the listed
+  commits; add the commits that change the test's behavior to `commits`.
+- ISSUE: the issue is closed; check what the test does with it (skip/xfail marks, ignore patterns, workarounds).
+- PORTED: read the scylla commit (`git -C ~/github/scylladb show <sha>`); update `duplicates`. Key `*`: the commit
+  names the module but no test; check whether it covers any of the module's tests, update only those.
+Then redo steps 4-7 as needed: drop fixed issues, add new ones, re-decide (a fixed `bug` with nothing else holding
+it back → GREEN). Keep the other fields unless the change makes them wrong. Set `analyzed_at` to today.
+Reply: table of test, old → new decision, what changed (or "no change").

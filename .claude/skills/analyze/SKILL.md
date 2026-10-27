@@ -7,7 +7,7 @@ argument-hint: "<module> | next [N]"
 Run from `~/github/dtest-triage`.
 
 1. Sync: `git pull --rebase -q` (another session may have pushed analyses),
-   `git -C ~/github/scylla-dtest fetch -q upstream next`.
+   `git -C ~/github/scylla-dtest fetch -q upstream next`, `git -C ~/github/scylladb fetch -q upstream master`.
 2. Pick the module:
    - `<module>` given: dotted name as in `data/index.json` (`cqlsh_tests.cqlsh_copy_tests`); accept a file path
      (`cqlsh_tests/cqlsh_copy_tests.py`) or a bare name and map it.

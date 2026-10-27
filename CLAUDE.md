@@ -18,13 +18,17 @@ cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
 data/                     # generated, overwritten on refresh
 analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/analyze/prompt.md)
-.claude/skills/analyze/   # /analyze skill (SKILL.md) + subagent prompt (prompt.md, {MODULE} / {TESTS})
+.claude/skills/analyze/   # /analyze skill (SKILL.md) + subagent prompt (prompt.md, {MODULE} / {TESTS}, "Update mode")
+scripts/refresh.sh        # Jenkins CSVs + fetch dtest next / scylla master + gen_data.py (all of "Refresh")
+scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scylla_rev; --apply marks DELETED
+.claude/skills/weekly/    # /weekly skill: refresh → delta → recheck subagents → commit
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
 
 ## Refresh
 
+`scripts/refresh.sh` runs:
 ```bash
 for j in dtest-release dtest-release-with-raft; do
   python3 scripts/test_results.py --job scylla-master/$j -n 20 -o jenkins/$j; done
@@ -32,6 +36,7 @@ python3 scripts/test_results.py --job scylla-master/next -n 20 --stage 'dtest wi
 python3 scripts/test_results.py --job scylla-master/next -n 20 \
   --stage 'dtest with consistent topology changes' -o jenkins/next-dtest-consistent-topology
 git -C ~/github/scylla-dtest fetch upstream next
+git -C ~/github/scylladb fetch upstream master
 python3 scripts/gen_data.py [module ...]     # default: all modules in jenkins/*_long.csv
 ```
 
@@ -72,17 +77,20 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
 
 `analysis/<module>.json` (written by the analyze subagents, schema in `.claude/skills/analyze/prompt.md`):
 ```
-{"file": "...", "analyzed_at": "YYYY-MM-DD", "scylla_rev": "<short sha of ~/github/scylladb read>",
+{"file": "...", "analyzed_at": "YYYY-MM-DD",
+ "scylla_rev": "<short sha>", "dtest_rev": "<full sha>",  // scylla upstream/master, dtest upstream/next checked against
  "tests": {"<Class>::<test>": {                // = data class + "::" + name; may be missing → GRAY
    "description": "...",
    "origin": {"sha", "date", "pr": int | null, "summary"},   // verified origin; overrides data commits' pr
    "commits": {"<sha>": "1-line summary"},     // short or full sha, match by prefix; may include file commits
    "relevance": "...",
    "duplicates": [{"path", "coverage": "full|partial", "note"}],
-   "decision": "GREEN|YELLOW|RED",
+   "decision": "GREEN|YELLOW|RED|DELETED",
    "reason": "...",                             // mentions issues as "Bug: ..." / "Note: ..."
-   "issues": [{"kind": "bug|note", "tag", "ref", "text"}]}}}
+   "issues": [{"kind": "bug|note", "tag", "ref", "text"}],
+   "deleted": {"sha", "date", "pr": int | null, "prev": "GREEN|YELLOW|RED"}}}}  // only if DELETED (delta.py)
 ```
+Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the Jenkins window.
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
 (other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags (`check_analysis.py` TAGS):
 bug `cant-fail check-disabled weak-check wrong-scenario never-runs log-check-off other`;
@@ -114,6 +122,11 @@ Effective decision = human > analysis > GRAY.
 Use the `analyze` skill (`/analyze <module>` or `/analyze next`, or "analyze file X" / "analyze next file").
 `scripts/pending.py` lists unanalyzed tests in chunks; `scripts/check_analysis.py <module>` validates a result.
 
+Weekly: `/weekly` skill. `scripts/delta.py` finds what changed since each module's `dtest_rev`/`scylla_rev`:
+deleted/moved tests, test code (AST compare), helpers/fixtures/class marks reached by name within the test's
+imports (over-approximates), closed `open-issue` refs, scylla commits mentioning dtest that add a same-named test or
+name the module. Rechecks use prompt.md "Update mode"; `delta.py --bump` moves the revs after a module's recheck.
+
 ## Next
 
-`/analyze next` until `scripts/pending.py` prints nothing. Big modules (cql_additional_tests: 215 tests) take many chunks.
+`/weekly` once a week.
