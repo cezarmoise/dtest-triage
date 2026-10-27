@@ -9,7 +9,8 @@ usage: delta.py [--apply] [MODULE ...]              report (default: every analy
 
 Output: header `# dtest_rev <sha> scylla_rev <sha>`, then `<module> <Class::test> <KIND> <detail>`:
   DELETED  gone at upstream/next; detail = deleting commit
-  MOVED    gone, but same name in another file or renamed by the deleting commit; detail = file::Class::test
+  MOVED    gone, but its file was renamed, same name is in another file, or renamed by the deleting commit;
+           detail = file::Class::test
   CHANGED  test code changed (AST compare: formatting and reverted changes don't count); detail = commits
   HELPER   class, fixture, helper or constant it reaches (within its imports) changed; detail = file:name
   ISSUE    issue of an `open-issue` note is closed; detail = issues
@@ -23,6 +24,7 @@ import json
 import re
 import subprocess
 import sys
+import warnings
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from functools import cache
@@ -36,6 +38,7 @@ FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 SETUP = {"setUp", "tearDown", "setup_method", "teardown_method", "setup_class", "teardown_class"}
 IDENT = re.compile(r"[A-Za-z_]\w*\Z")
 ISSUE = re.compile(r"github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)|(?<![\w#])(?:([\w.-]+/[\w.-]+)|([\w.-]+))?#(\d+)")
+warnings.filterwarnings("ignore", category=SyntaxWarning)  # invalid escapes in old dtest code
 REPOS = {"": "scylladb/scylladb", "scylla": "scylladb/scylladb", "scylladb": "scylladb/scylladb",
          "dtest": "scylladb/scylla-dtest"}
 
@@ -196,10 +199,22 @@ def find(path, cls, func, rev, fallback=None):
     return None
 
 
+@cache
+def renames(base):
+    """{old path: new path} of files renamed in base..REV (per commit, chained)."""
+    out = {}
+    for line in reversed(git("log", "-M", "--diff-filter=R", "--name-status", "--format=", f"{base}..{REV}").splitlines()):
+        if (p := line.split("\t"))[0].startswith("R"):
+            out = {k: p[2] if v == p[1] else v for k, v in out.items()} | {p[1]: p[2]}
+    return out
+
+
 def gone(base, src, func):
-    """(deleting commit, new places `file::Class::test`: same name in another file, or renamed by that commit)."""
+    """(deleting commit, new places `file::Class::test`: file renamed, same name in another file, or test renamed)."""
     out = git("log", f"{base}..{REV}", LOG_FMT, "--name-only", f"-Sdef {func}(", "--", "*.py")
     sha, moved = None, set()
+    if new := renames(base).get(src):
+        moved |= {f"{new}::{cls}::{func}" for cls, (_, fs) in classes(new, REV).items() if func in fs}
     for c in out.split("COMMIT\x1f")[1:]:
         head, *paths = c.strip().splitlines()
         sha = sha or (head.split("\x1f")[0] if src in paths else None)
