@@ -85,6 +85,7 @@ entries were checked at.
 - CHANGED / HELPER: read `git diff <dtest_rev> upstream/next -- <file>` (and the helper's file) and the listed
   commits; add the commits that change the test's behavior to `commits`.
 - ISSUE: the issue is closed; check what the test does with it (skip/xfail marks, ignore patterns, workarounds).
+  The `open-issue` note must not stay: retag it (`stale-mark`, `stale-comment`, `dead-code`, ...) or drop it.
 - PORTED: read the scylla commit (`git -C ~/github/scylladb show <sha>`); update `duplicates`. Key `*`: the commit
   names the module but no test; check whether it covers any of the module's tests, update only those.
 Then redo steps 4-7 as needed: drop fixed issues, add new ones, re-decide (a fixed `bug` with nothing else holding

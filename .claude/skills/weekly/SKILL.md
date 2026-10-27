@@ -10,10 +10,13 @@ Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
    Commit: `git add jenkins data cache && git commit -m "data: refresh <date>"`.
 2. `python3 scripts/delta.py --apply > $T/delta.txt`. It writes DELETED entries and bumps the revs of modules with
    nothing else to recheck. Line 1: `# dtest_rev <D> scylla_rev <S>`; the rest: `<module> <key> <KIND> <detail>`
-   (kinds in the script docstring). Commit DELETED changes: `git commit -m "analysis: deleted tests <date>" analysis/`.
+   (kinds in the script docstring). Many DELETED in one module = suspect (rename/move): check before committing
+   `git commit -m "analysis: delta <date>" analysis/`.
 3. MOVED: the test was renamed or moved (detail = new `file::Class::test`). Move the entry to the new key (same
    module: rename the key; other module: copy it there if that module has data and set the old one DELETED with
    `deleted.sha` = the commit) and recheck it as CHANGED. `--bump` the old module if it has no other lines.
+   Whole file renamed (all its tests MOVED to one new file): `git mv analysis/<old>.json analysis/<new>.json`, fix
+   `file` and the keys, `--bump` it, rerun `delta.py <new module>` and recheck what it reports.
 4. Before spawning: one helper change hitting many modules (tree-wide refactor) → read its diff yourself. If it can't
    change what tests check (logging, renames, timeouts), drop those HELPER lines, `--bump` modules left with
    no lines, and say so in the reply.
