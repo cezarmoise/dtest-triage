@@ -41,10 +41,10 @@ LOG_FMT = f"--format=COMMIT{SEP}%H{SEP}%as{SEP}%an{SEP}%s"
 
 
 @cache
-def classes(path):
+def classes(path, rev=REV):
     """{class: (base names, {func: (start, end)})}, ranges incl. decorators."""
     out = {}
-    for cls in ast.parse(git("show", f"{REV}:{path}")).body:
+    for cls in ast.parse(git("show", f"{rev}:{path}")).body:
         if isinstance(cls, ast.ClassDef):
             funcs = {f.name: (min([f.lineno] + [d.lineno for d in f.decorator_list]), f.end_lineno)
                      for f in cls.body if isinstance(f, ast.FunctionDef)}
@@ -52,23 +52,25 @@ def classes(path):
     return out
 
 
-def locate(path, cls, func):
-    """(path, defining class, (start, end)): class, its bases in the file, else any class in the repo."""
+def locate(path, cls, func, rev=REV, anywhere=True):
+    """(path, defining class, (start, end)): class, its bases in the file, else (`anywhere`) any class in the repo."""
     todo, seen = [cls], set()
     while todo:
         c = todo.pop(0)
-        if c in seen or c not in classes(path):
+        if c in seen or c not in classes(path, rev):
             continue
         seen.add(c)
-        bases, funcs = classes(path)[c]
+        bases, funcs = classes(path, rev)[c]
         if func in funcs:
             return path, c, funcs[func]
         todo += bases
-    hits = subprocess.run(["git", "-C", DTEST, "grep", "-l", f"def {func}(", REV, "--", "*.py"],
+    if not anywhere:
+        raise KeyError((path, cls, func))
+    hits = subprocess.run(["git", "-C", DTEST, "grep", "-l", f"def {func}(", rev, "--", "*.py"],
                           capture_output=True, text=True).stdout
     for hit in hits.split():
         other = hit.split(":", 1)[1]
-        for c, (_, funcs) in classes(other).items():
+        for c, (_, funcs) in classes(other, rev).items():
             if func in funcs:
                 return other, c, funcs[func]
     raise KeyError((path, cls, func))
