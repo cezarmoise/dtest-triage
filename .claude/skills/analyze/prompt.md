@@ -3,7 +3,7 @@ Triage dtest tests in module `{MODULE}` (file path = `file` in the data JSON) â€
 Inputs:
 - dtest repo: /home/cezar/github/scylla-dtest. Read code at `upstream/next` (`git show upstream/next:<path>`, path = `file` in the data JSON), not the working tree.
 - Generated data: /home/cezar/github/dtest-triage/data/{MODULE}.json â€” tests in scope (class, name, line range,
-  Jenkins stats, last 20 builds per job, per-job breakdown in `stats.by_job`, function-level commits with PRs) + file-level commits.
+  Jenkins stats, last 50 builds per job, per-job breakdown in `stats.by_job`, function-level commits with PRs) + file-level commits.
 - Scylla source: ~/github/scylladb (read-only). Read it at `upstream/master` (`git -C ~/github/scylladb grep ... upstream/master -- test/`,
   `git show upstream/master:<path>`), not the working tree. Unit/cluster tests in `test/` (cluster, cqlpy, alternator, boost, nodetool, rest_api, ...).
 

@@ -11,7 +11,7 @@ Repo: https://github.com/cezarmoise/dtest-triage (this repo, `~/github/dtest-tri
 ## Layout
 
 ```
-scripts/test_results.py   # Jenkins → jenkins/<job>_{status,runtime,long}.csv
+scripts/test_results.py   # Jenkins → jenkins/<job>_long.csv (merges new builds, keeps newest 50)
 scripts/gen_data.py       # jenkins/*_long.csv + dtest git + gh → data/<module>.json, data/index.json
 cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
@@ -27,13 +27,14 @@ Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy
 
 ## Jenkins data
 
-- Jobs (last 20 builds each), name = `jenkins/<name>_*.csv` = key in `stats.by_job`:
+- Window: newest 50 builds with results per job. Jenkins keeps only ~30 builds, so each refresh merges finished
+  builds not yet stored into the CSV (running builds skipped: pipeline stages publish partial results).
+- Jobs, name = `jenkins/<name>_long.csv` = key in `stats.by_job`:
   - `dtest-release`, `dtest-release-with-raft` — full dtest runs.
   - `next-dtest-tablets`, `next-dtest-consistent-topology` — gating dtest, stages of `scylla-master/next`
     (filtered by `--stage`). Old `gating-dtest-release-with-{tablets,consistent-topology-changes}` jobs are stale
     since 2026-08-23. Builds that fail before the dtest stages have no results.
-- `*_status.csv` test × build: PASSED / FAILED / SKIPPED / N/A. `*_runtime.csv` duration s.
-  `*_long.csv` one row per run (build, split, test, status, duration) — lossless, used by scripts.
+- `*_long.csv`: one row per run (build, split, test, status, duration).
 - Builds run 4 parallel splits; some tests run twice per build. Skipped runs excluded from stats.
 - Plugin RPC (`getExportCSV`) returns 500 via curl, hence REST API.
 - Scope: test functions with ≥1 non-skipped run in any job; tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
