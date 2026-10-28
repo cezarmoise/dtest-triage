@@ -82,6 +82,40 @@ Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the
 (other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags: prompt.md step 7
 (enforced by `check_analysis.py` TAGS).
 
+## Dashboard (what it needs to work)
+
+claude.ai artifact, one HTML file, vanilla JS: https://claude.ai/artifact/KWjMv2KZuU8so4B33tfy9e (its source lives in the
+artifact, not in this repo). Read-only on this repo; never pushes to it.
+
+Needs:
+- The JSON above on `main`. It relies on: module names from `data/index.json`; test key `<Class>::<test>` = data
+  `class` + `::` + `name`; decision values `GREEN|YELLOW|RED|DELETED`; issue `kind` `bug|note`. Renaming or
+  re-typing any field in the contract, adding a decision value, or changing the key format breaks it; new optional
+  fields are ignored. A missing analysis file is fine (tests show as GRAY, counted only in the total).
+- A GitHub connector (`Github CoPilot` or `GitHub`) with `get_file_contents`, `list_commits`, `get_commit`, but only for
+  whoever clicks **Reload data**. Published artifacts can't fetch raw.githubusercontent.com.
+- The artifact's shared database (not reachable from scripts):
+  - `cache/meta`: `{sha, syncedAt, syncedBy, modules, mods: {<module>: {n, ver}}, failed: {<module>: reason}, schema}`.
+  - `modules/<module>~<ver>~<part>`: copy of data + analysis per module (analysis-only tests included), split under
+    256 KB per part; `ver` = first 12 chars of the synced commit.
+  - `cache/lock`: lease so one Reload runs at a time.
+  - `votes/<module>::<Class>::<test>~<user id>`: one per person per test,
+    `{tid, module, class, test, by, decision: GREEN|RED|null (retracted), note, at, llm_decision, history}`.
+
+Data flow:
+- Opening the page reads only the database copy. The copy changes only on **Reload data**: compare the latest `main`
+  commit with `cache/meta.sha`; if newer, list the commits since and the files each touched (`get_commit`), re-read just
+  those modules at that exact sha. No copy, copy `schema` < 2, or > 60 new commits → full rebuild (~230 connector calls,
+  a few minutes). So: push, then click Reload data.
+- Effective decision: analysis `DELETED` > vote majority (GREEN vs RED; tie → YELLOW) > analysis `decision` > GRAY.
+  Votes are only GREEN or RED; voting is disabled on DELETED tests.
+- "LLM changed since a vote": the vote's `llm_decision` ≠ current analysis `decision` (older votes without the field
+  are skipped).
+- Links: scylla-dtest lines at data `rev` (path from `defined_in` when set); `issues.ref` `file.py:N[-M]` → scylla-dtest
+  at data `rev`; `duplicates.path` linked only when it parses (`test/...` → scylladb at `scylla_rev`, dtest files →
+  scylla-dtest at `rev`), else plain text; origin PR from analysis `origin.pr` over data commits' `pr`.
+- Duration filter: `stats.avg_s` (all jobs) in buckets <10s, 10–30s, 30s–1m, 1–2m, 2–5m, >5m, plus "no runs".
+
 ## Rubric
 
 Single source: `.claude/skills/analyze/prompt.md` steps 3, 6, 7 (agreed 2026-10-20; issues 2026-10-21). Edit there.
