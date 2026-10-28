@@ -392,7 +392,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -438,7 +438,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -450,7 +450,7 @@
       ]
     },
     "TestCompaction::test_disable_autocompaction_doesnt_block_user_initiated_upgrade_compaction": {
-      "description": "Single node started with enable_sstables_mc_format=True/md=False, fills ks.to_disable, disables autocompaction, restarts with mc=False/md=True, calls REST keyspace_upgrade_sstables and waits for the 'Upgrade ks.to_disable' compaction log. Intended to guard that disabling autocompaction does not block upgrade compaction (scylla be6cfa4a83).",
+      "description": "Single node: fills ks.to_disable (1000 keys, 10 flushes), nodetool-disables autocompaction on it (helper verifies it is off and ks2 is unaffected), calls REST keyspace_upgrade_sstables without exclude_current_version, waits for the 'Upgrade ks.to_disable' compaction log and asserts autocompaction is still disabled. Guards that disable autocompaction only stops regular compactions, not user-requested ones (scylla be6cfa4a83, scylladb/scylladb#10378).",
       "origin": {
         "sha": "5072000494",
         "date": "2022-04-01",
@@ -458,16 +458,22 @@
         "summary": "MaciekCisowski: user-initiated compactions vs disable autocompaction tests (scylla be6cfa4a83, issue scylladb/scylladb#10378)."
       },
       "commits": {
+        "6b38d33134": "Dropped mc/md format options and the restart that re-enabled autocompaction; upgrade now runs with autocompaction disabled, asserted after.",
         "416c8fe170": "Wrap in disable_load_balancing.",
         "9ffd273f04": "formatting (ruff format)",
         "5072000494": "Added."
       },
-      "relevance": "upgrade_sstables REST and the 'only stop regular compaction on disable' behavior are live. But enable_sstables_mc_format/enable_sstables_md_format are value_status::Unused (db/config.cc:1518-1519) since 0b1447c702 (2022-01-31, before the test existed), so no format change happens; upgrade still rewrites because exclude_current_version defaults to false (api/tasks.cc:58).",
+      "relevance": "Live: upgrade_sstables REST (api/tasks.cc:58, exclude_current_version defaults false so all sstables are rewritten) and the user-disabled check gating only regular compactions (is_auto_compaction_disabled_by_user() checks in compaction/compaction_manager.cc). Before 6b38d33134 the restart re-enabled the non-persistent disable, so the scenario was never exercised.",
       "duplicates": [
         {
           "path": "test/cluster/test_sstable_compression_dictionaries_basic.py::test_retrain_dict",
-          "coverage": "full",
-          "note": "Disables autocompaction, then keyspace_upgrade_sstables must rewrite sstables (asserted via size < 0.1x after dict retrain)."
+          "coverage": "partial",
+          "note": "Incidental: disables autocompaction, then upgrade_sstables must rewrite (size < 0.1x); default strategy only, no autocompaction-state assert."
+        },
+        {
+          "path": "test/rest_api/test_storage_service.py::test_disable_autocompaction_doesnt_block_user_initiated_compactions",
+          "coverage": "partial",
+          "note": "Same scenario for CLEANUP/VALIDATE/SCRUB/ABORT, no UPGRADE param; natural home for a port."
         },
         {
           "path": "test/cluster/test_sstable_compression_dictionaries_upgrade.py::test_upgrade_and_rollback",
@@ -480,26 +486,20 @@
           "note": "REST API params."
         }
       ],
-      "decision": "RED",
-      "reason": "Format-switch setup is dead config (enable_sstables_m[cd]_format Unused, db/config.cc:1518-1519), and test_sstable_compression_dictionaries_basic.py::test_retrain_dict already proves upgrade_sstables rewrites with autocompaction disabled. Note: docstring says md->mc, code does mc->md; REST response status unchecked (compaction_test.py:750-777). Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
+      "decision": "YELLOW",
+      "reason": "6b38d33134 made the test actually run upgrade with autocompaction disabled (old restart re-enabled it). Only explicit check for upgrade; scylla covers it incidentally (test_retrain_dict, default strategy) and the rest_api sibling lacks UPGRADE, so partial. Note: REST status unchecked (compaction_test.py:779). Note: prepate_testbed configuration_options now unused (:875-879). Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
-          "tag": "dead-config",
-          "ref": "db/config.cc:1518-1519",
-          "text": "enable_sstables_mc/md_format are Unused, so no sstable format change happens; upgrade still rewrites."
-        },
-        {
-          "kind": "note",
-          "tag": "stale-comment",
-          "ref": "compaction_test.py:750-763",
-          "text": "Docstring says md->mc, code does mc->md."
-        },
-        {
-          "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:775",
+          "ref": "compaction_test.py:779",
           "text": "upgrade_sstables REST response status unchecked; 'Upgrade' log wait still catches failure."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "compaction_test.py:875-879",
+          "text": "prepate_testbed configuration_options param has no callers since 6b38d33134."
         },
         {
           "kind": "note",
@@ -539,12 +539,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (286s, 70s c-s load) with partial overlap (test_reshape_with_tablets covers reshape with autocompaction disabled on boot, not refresh); 1/76 failure. Note: 3 of 4 class params are skipped at runtime (compaction_test.py:798-799) - wasted setups. Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
+      "reason": "Slow (286s, 70s c-s load) with partial overlap (test_reshape_with_tablets covers reshape with autocompaction disabled on boot, not refresh); 1/76 failure. Note: 3 of 4 class params are skipped at runtime (compaction_test.py:803-804) - wasted setups. Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
           "tag": "redundant-param",
-          "ref": "compaction_test.py:798-799",
+          "ref": "compaction_test.py:803-804",
           "text": "3 of 4 class strategy params skipped at runtime; wasted setups."
         },
         {
@@ -599,12 +599,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_disable_autocompaction_alter_and_nodetool (same steps and asserts, which adds an ALTER phase); 21s x4 strategies. Toggle also unit-tested in sstable_compaction_test.cc::autocompaction_control_test. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:885-899). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Strict subset of test_disable_autocompaction_alter_and_nodetool (same steps and asserts, which adds an ALTER phase); 21s x4 strategies. Toggle also unit-tested in sstable_compaction_test.cc::autocompaction_control_test. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:890-904). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -648,12 +648,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low value + redundant: only new assertion is that re-disabling an idempotent flag (replica/table.cc:5462) doesn't fail; rest duplicates test_disable_autocompaction_nodetool/alter_and_nodetool; 23s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:885-899). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Low value + redundant: only new assertion is that re-disabling an idempotent flag (replica/table.cc:5462) doesn't fail; rest duplicates test_disable_autocompaction_nodetool/alter_and_nodetool; 23s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:890-904). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -698,18 +698,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only e2e check that keyspace-wide (no-arg) disable actually stops compactions; pieces covered by mocked nodetool + rest_api state + boost unit test. Note: `timestamp = self.assert_table_did_not_compact(...)` is always None (helper's return inside pytest.raises, compaction_test.py:721,898-899), so later since_timestamp filter is a no-op; disable_mark unused (:715). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:885-899). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Only e2e check that keyspace-wide (no-arg) disable actually stops compactions; pieces covered by mocked nodetool + rest_api state + boost unit test. Note: `timestamp = self.assert_table_did_not_compact(...)` is always None (helper's return inside pytest.raises, compaction_test.py:721,903-904), so later since_timestamp filter is a no-op; disable_mark unused (:715). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:890-904). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "compaction_test.py:715,721,898-899",
+          "ref": "compaction_test.py:715,721,903-904",
           "text": "timestamp from assert_table_did_not_compact is always None, so later since_timestamp filter is a no-op; disable_mark unused."
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -758,7 +758,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only behavioral test that schema 'enabled':'false' stops compaction and persists across restart. Note: pre-restart phase also nodetool-disables the table (compaction_test.py:635), so only the post-restart check (no new writes, 2s poll) exercises the schema flag. Note: stale 'TODO' comment (:647). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:885-899). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Only behavioral test that schema 'enabled':'false' stops compaction and persists across restart. Note: pre-restart phase also nodetool-disables the table (compaction_test.py:635), so only the post-restart check (no new writes, 2s poll) exercises the schema flag. Note: stale 'TODO' comment (:647). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:890-904). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -775,7 +775,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "compaction_test.py:885-899",
+          "ref": "compaction_test.py:890-904",
           "text": "assert_table_did_not_compact polls compaction_history only 2s and filters by table name, not keyspace."
         },
         {
@@ -980,12 +980,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheap (7s) e2e check that fully-purged compaction leaves no sstables; other tests overlap only partially (no fully-purged output / sstable deletion check). Note: skip_if_no_major_compaction is dead code (Cassandra <2.2 only, compaction_test.py:492,881-883); cfs[0] assumes single table dir (:513). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Cheap (7s) e2e check that fully-purged compaction leaves no sstables; other tests overlap only partially (no fully-purged output / sstable deletion check). Note: skip_if_no_major_compaction is dead code (Cassandra <2.2 only, compaction_test.py:492,886-888); cfs[0] assumes single table dir (:513). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "compaction_test.py:492,881-883",
+          "ref": "compaction_test.py:492,886-888",
           "text": "skip_if_no_major_compaction is Cassandra <2.2 only."
         },
         {
@@ -1003,7 +1003,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "814c05a00f",
-  "dtest_rev": "98bf7bb3a2db9d67244094e2485b6b1253f69784"
+  "analyzed_at": "2026-10-28",
+  "scylla_rev": "349d7ea6c2",
+  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
 }
