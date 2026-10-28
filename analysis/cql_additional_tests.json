@@ -1,6 +1,6 @@
 {
   "file": "cql_additional_tests.py",
-  "analyzed_at": "2026-10-20",
+  "analyzed_at": "2026-10-28",
   "scylla_rev": "349d7ea6c2",
   "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
   "tests": {
@@ -1226,6 +1226,11 @@
       "relevance": "Live: SI query on regular column returning non-frozen set column.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testIndexOnCompositeWithCollections",
+          "coverage": "full",
+          "note": "direct port (scylla f791f112eb): same schema (content set<text>), SI on author, data and query; rows checked ignoring order"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/select_single_column_relation_test.py::testCompositeIndexWithPrimaryKey",
           "coverage": "partial",
           "note": "same schema/index/query but content is text, not set<text>"
@@ -1236,8 +1241,8 @@
           "note": "SI on table with set/list/map columns, but doesn't select collection values"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No exact cqlpy port; only difference from cqlpy select_single_column_relation_test.py::testCompositeIndexWithPrimaryKey is reading a set<text> column through an SI query. Low-value single-node CQL check, likely fine as RED or move to cqlpy.",
+      "decision": "RED",
+      "reason": "Direct cqlpy port select_ordered_partitioner_test.py::testIndexOnCompositeWithCollections (scylla f791f112eb) has the same schema, data and SI query incl. set<text> values; only drops the cross-partition row order, which is just Murmur3 token order.",
       "issues": []
     },
     "TestCQL::test_composite_index_with_pk": {
@@ -1262,6 +1267,11 @@
       "relevance": "Live: SI + clustering-key restrictions and ALLOW FILTERING requirements.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testCompositeIndexWithPK",
+          "coverage": "full",
+          "note": "direct port (scylla 65d7e231c7): same schema/data, all positive queries, time2>=0 invalid and the five 'needs ALLOW FILTERING' invalid cases"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/select_single_column_relation_test.py::testCompositeIndexWithPrimaryKey",
           "coverage": "full",
           "note": "same schema, data, all positive queries and the time2>=0 invalid case"
@@ -1273,7 +1283,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Positive queries + time2 invalid case fully in cqlpy select_single_column_relation_test.py::testCompositeIndexWithPrimaryKey; the extra 'needs ALLOW FILTERING' asserts are covered by test_allow_filtering.py indexed tests. Note: dead branch for Version < 2.2 (cql_additional_tests.py:2773); assert_invalid without matching=.",
+      "reason": "Line-for-line cqlpy port select_ordered_partitioner_test.py::testCompositeIndexWithPK (scylla 65d7e231c7), incl. the five 'needs ALLOW FILTERING' assert_invalids; also select_single_column_relation_test.py::testCompositeIndexWithPrimaryKey. Note: dead branch for Version < 2.2 (cql_additional_tests.py:2773); assert_invalid without matching=.",
       "issues": [
         {
           "kind": "note",
@@ -3978,6 +3988,11 @@
       "relevance": "Live: null semantics in Scylla (WHERE x=null matches nothing, null in collection invalid, repeated EQ on pk allowed).",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/miscellaneous/overflow_test.py::testNullSupport",
+          "coverage": "partial",
+          "note": "port (scylla 1324c8cf0a): null insert/delete + both null-in-set assert_invalid; k=null check commented out; lacks k=0 AND k=0/k=1, k=0 AND c=1 and v1=null filtering (PR #1838 additions)"
+        },
+        {
           "path": "test/cqlpy/test_null.py::test_filtering_eq_null",
           "coverage": "full",
           "note": "WHERE p=.. AND v=NULL ALLOW FILTERING matches nothing"
@@ -4004,7 +4019,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Every assertion is covered by cqlpy test_null.py (eq null filtering, null in collection), boost restrictions_test.cc::null_rhs (p=null) and cqlpy test_restrictions.py::test_multiple_eq_restrictions_on_pk; null-as-delete covered broadly. Note: `assert_invalid(... v2 VALUES (0, 2, {1, null}))` (cql_additional_tests.py:1453) fails due to int literal in set<text>, not because of the null - asserts nothing about null.",
+      "reason": "Base Cassandra checks ported to cqlpy overflow_test.py::testNullSupport (scylla 1324c8cf0a); the scylla-specific parts it omits (k=null, repeated pk EQ, v1=null filtering) are covered by test_null.py::test_filtering_eq_null, boost restrictions_test.cc::null_rhs and test_restrictions.py::test_multiple_eq_restrictions_on_pk. Note: `assert_invalid(... v2 VALUES (0, 2, {1, null}))` (cql_additional_tests.py:1453) fails due to int literal in set<text>, not because of the null - asserts nothing about null.",
       "issues": [
         {
           "kind": "note",
@@ -4092,6 +4107,11 @@
       "relevance": "Live: PK-only tables (row marker only) are basic; compact-storage half no longer tested.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testPrimaryKeyOnly",
+          "coverage": "full",
+          "note": "direct port (scylla 65d7e231c7): same PK-only table and 4 rows, SELECT * ignoring order; dtest's second block is an identical copy"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testDeleteWithOnlyPK",
           "coverage": "partial",
           "note": "PK-only table insert + SELECT * (plus delete/compaction)"
@@ -4103,7 +4123,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Trivial insert/select on a PK-only table, exercised by cqlpy testDeleteWithOnlyPK and many others; the compact 'dense' half was neutered by ee6dd8958e. Note: test2 block (cql_additional_tests.py:2542-2559) is now an exact duplicate of test block ('Check for dense tables too' is stale). Note: expected order relies on Murmur3 token order.",
+      "reason": "Direct cqlpy port select_ordered_partitioner_test.py::testPrimaryKeyOnly (scylla 65d7e231c7) covers the insert/select on a PK-only table; the compact 'dense' half was neutered by ee6dd8958e. Note: test2 block (cql_additional_tests.py:2542-2559) is now an exact duplicate of test block ('Check for dense tables too' is stale). Note: expected order relies on Murmur3 token order.",
       "issues": [
         {
           "kind": "note",
@@ -4181,6 +4201,11 @@
       "relevance": "Live: ORDER BY with IN on partition key (multi-partition merge).",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testOrderByMultikey",
+          "coverage": "full",
+          "note": "direct port (scylla f791f112eb): same data, both IN + ORDER BY queries with order asserted (paging off), both assert_invalid"
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_order_by",
           "coverage": "full",
           "note": "p1 in (0,1) order by c1, c2 asc/desc (+limit)"
@@ -4202,7 +4227,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Multi-partition IN + ORDER BY c1,c2 covered by cqlpy test_cql_query.py::test_order_by and select_order_by_test.py::testOrderByForInClause/testInOrderByWithoutSelecting; invalid cases by test_order_by_validate. Note: `my_id > 'key1' ORDER BY` assert_invalid (cql_additional_tests.py:2907) is invalid for pk-slice reasons regardless of ORDER BY.",
+      "reason": "Direct cqlpy port select_ordered_partitioner_test.py::testOrderByMultikey (scylla f791f112eb) has the same data, queries and invalid cases; also covered by test_cql_query.py::test_order_by/test_order_by_validate and select_order_by_test.py::testOrderByForInClause. Note: `my_id > 'key1' ORDER BY` assert_invalid (cql_additional_tests.py:2907) is invalid for pk-slice reasons regardless of ORDER BY.",
       "issues": [
         {
           "kind": "note",
@@ -4605,6 +4630,11 @@
       "relevance": "Original purpose (ByteOrderedPartitioner ordering) removed from scylla/dtest (93b51deded, PR 1248). Remaining: hardcoded Murmur3 order + pk-slice rejection, both live.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testRangeKey",
+          "coverage": "full",
+          "note": "direct port (scylla f791f112eb): same inserts, full scan checked ignoring order (dtest hardcodes Murmur3 order) + same pk-slice assert_invalid"
+        },
+        {
           "path": "test/cqlpy/test_materialized_view_old.py::test_partition_key_slice_not_allowed_in_select",
           "coverage": "full",
           "note": "'where a > 0' on pk without ALLOW FILTERING -> InvalidRequest"
@@ -4621,7 +4651,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Tested feature removed: BOP ordering (93b51deded); leftover assertions duplicated by cqlpy test_materialized_view_old.py::test_partition_key_slice_not_allowed_in_select and test_allow_filtering.py (k>2). Hardcoded [1,0,-1] is just Murmur3 token order of the 3 ints (low-value; scan/token order consistency in test_cql_query.py::test_partitions_have_consistent_ordering_in_range_query).",
+      "reason": "Tested feature removed: BOP ordering (93b51deded). Direct cqlpy port select_ordered_partitioner_test.py::testRangeKey (scylla f791f112eb) has the same scan + pk-slice rejection, checking rows ignoring order; dtest only adds the hardcoded Murmur3 order [1,0,-1] (low-value). Also test_materialized_view_old.py::test_partition_key_slice_not_allowed_in_select, test_allow_filtering.py.",
       "issues": [
         {
           "kind": "note",
@@ -5949,6 +5979,11 @@
       "relevance": "TRUNCATE live; but row_cache_size_in_mb is UNUSED in scylla (db/config.cc:1114, value_status::Unused) and scylla row cache is always on, so the Cassandra cache knob being tested is a no-op. Data is never flushed, so reads come from memtable, not cache.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testTruncateWithCaching",
+          "coverage": "full",
+          "note": "direct port (scylla f791f112eb): same CACHING keys/rows ALL table, 3 inserts, IN read, TRUNCATE, empty read; no row_cache_size_in_mb (Unused in scylla)"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/truncate_test.py::testTruncate",
           "coverage": "full",
           "note": "insert, flush, insert, read (populates cache from sstables), TRUNCATE, assert empty"
@@ -5960,7 +5995,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Targets Cassandra-only row cache config (row_cache_size_in_mb Unused in scylla, db/config.cc:1114); truncate-then-read covered better by cqlpy truncate_test.py::testTruncate (which flushes, so the cache is actually involved).",
+      "reason": "Direct cqlpy port select_ordered_partitioner_test.py::testTruncateWithCaching (scylla f791f112eb) is the same scenario; truncate_test.py::testTruncate covers it better (flushes, so the cache is involved). Targets Cassandra-only row cache config (row_cache_size_in_mb Unused in scylla, db/config.cc:1114). Bug: data never flushed, so cache invalidation is not exercised. Note: dead row_cache_size_in_mb config.",
       "issues": [
         {
           "kind": "bug",
@@ -6063,6 +6098,11 @@
       "relevance": "Live, but trivial: missing regular column returns null.",
       "duplicates": [
         {
+          "path": "test/cqlpy/cassandra_tests/validation/operations/select_ordered_partitioner_test.py::testUndefinedColumns",
+          "coverage": "full",
+          "note": "direct port (scylla 65d7e231c7): same table/data, SELECT v2 scan ignoring order, SELECT v2 WHERE k=1 -> null"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/entities/timestamp_test.py::testTimestampTTL",
           "coverage": "partial",
           "note": "asserts SELECT of never-written column d returns null for single partition"
@@ -6073,8 +6113,8 @@
           "note": "null-value semantics for regular columns (many tests)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No direct port, but null-for-unwritten-column is implicitly asserted by many cqlpy tests (e.g. timestamp_test.py::testTimestampTTL); trivial, likely RED candidate / move to cqlpy. Note: full-scan expectation hard-codes Murmur3 token order (cql_additional_tests.py:1931-1932).",
+      "decision": "RED",
+      "reason": "Direct cqlpy port select_ordered_partitioner_test.py::testUndefinedColumns (scylla 65d7e231c7) has the same data and both checks; only drops the full-scan row order. Note: full-scan expectation hard-codes Murmur3 token order (cql_additional_tests.py:1931-1932).",
       "issues": [
         {
           "kind": "note",
