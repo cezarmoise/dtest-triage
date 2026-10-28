@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from pathlib import Path
 
-from gen_data import GITATTR, LOG_FMT, REV, ROOT, PRs, classes, git, locate, parse_log
+from gen_data import LOG_FMT, REV, ROOT, PRs, classes, git, locate, parse_log
 
 SCYLLA = Path("~/github/scylladb").expanduser()
 SCYLLA_REV = "upstream/master"
@@ -39,8 +39,7 @@ SETUP = {"setUp", "tearDown", "setup_method", "teardown_method", "setup_class", 
 IDENT = re.compile(r"[A-Za-z_]\w*\Z")
 ISSUE = re.compile(r"github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)|(?<![\w#])(?:([\w.-]+/[\w.-]+)|([\w.-]+))?#(\d+)")
 warnings.filterwarnings("ignore", category=SyntaxWarning)  # invalid escapes in old dtest code
-REPOS = {"": "scylladb/scylladb", "scylla": "scylladb/scylladb", "scylladb": "scylladb/scylladb",
-         "dtest": "scylladb/scylla-dtest"}
+REPOS = {"": "scylladb/scylladb", "scylla": "scylladb/scylladb", "dtest": "scylladb/scylla-dtest"}  # else scylladb/<name>
 
 
 def load(mod):
@@ -49,16 +48,6 @@ def load(mod):
 
 def save(mod, a):
     (ROOT / f"analysis/{mod}.json").write_text(json.dumps(a, indent=2, ensure_ascii=False) + "\n")
-
-
-def set_revs(a, dtest, scylla):
-    """Set revs in place, dtest_rev right after scylla_rev."""
-    items = [(k, v) for k, v in a.items() if k != "dtest_rev"]
-    a.clear()
-    for k, v in items:
-        a[k] = scylla if k == "scylla_rev" else v
-        if k == "scylla_rev":
-            a["dtest_rev"] = dtest
 
 
 def scylla(*args):
@@ -310,12 +299,11 @@ def main():
         dtest, scylla_rev, *mods = args[1:]
         for mod in mods:
             a = load(mod)
-            set_revs(a, dtest, scylla_rev)
+            a |= {"scylla_rev": scylla_rev, "dtest_rev": dtest}
             save(mod, a)
         return
     apply = "--apply" in args
     mods = [m for m in args if m != "--apply"] or sorted(p.stem for p in (ROOT / "analysis").glob("*.json"))
-    Path(GITATTR).write_text("*.py diff=python\n")
     dtest_rev, scylla_rev = git("rev-parse", REV).strip(), scylla("rev-parse", "--short", SCYLLA_REV).strip()
     print(f"# dtest_rev {dtest_rev} scylla_rev {scylla_rev}")
     analyses = {mod: load(mod) for mod in mods}
@@ -335,7 +323,7 @@ def main():
                             "pr": pr and pr["number"], "prev": t["decision"]}
             t["decision"] = "DELETED"
         if len(deleted) == len(found):
-            set_revs(a, dtest_rev, scylla_rev)
+            a |= {"scylla_rev": scylla_rev, "dtest_rev": dtest_rev}
         save(mod, a)
     prs.save()
 

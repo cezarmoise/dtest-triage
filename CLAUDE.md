@@ -12,46 +12,31 @@ Repo: https://github.com/cezarmoise/dtest-triage (this repo, `~/github/dtest-tri
 
 ```
 scripts/test_results.py   # Jenkins → jenkins/<job>_{status,runtime,long}.csv
-scripts/stats.py          # per-test stats from a *_long.csv (ad hoc)
 scripts/gen_data.py       # jenkins/*_long.csv + dtest git + gh → data/<module>.json, data/index.json
 cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
 data/                     # generated, overwritten on refresh
 analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/analyze/prompt.md)
 .claude/skills/analyze/   # /analyze skill (SKILL.md) + subagent prompt (prompt.md, {MODULE} / {TESTS}, "Update mode")
-scripts/refresh.sh        # Jenkins CSVs + fetch dtest next / scylla master + gen_data.py (all of "Refresh")
+scripts/refresh.sh        # Jenkins CSVs (jobs below) + fetch dtest next / scylla master + gen_data.py
 scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scylla_rev; --apply marks DELETED
 .claude/skills/weekly/    # /weekly skill: refresh → delta → recheck subagents → commit
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
 
-## Refresh
-
-`scripts/refresh.sh` runs:
-```bash
-for j in dtest-release dtest-release-with-raft; do
-  python3 scripts/test_results.py --job scylla-master/$j -n 20 -o jenkins/$j; done
-python3 scripts/test_results.py --job scylla-master/next -n 20 --stage 'dtest with tablets' -o jenkins/next-dtest-tablets
-python3 scripts/test_results.py --job scylla-master/next -n 20 \
-  --stage 'dtest with consistent topology changes' -o jenkins/next-dtest-consistent-topology
-git -C ~/github/scylla-dtest fetch upstream next
-git -C ~/github/scylladb fetch upstream master
-python3 scripts/gen_data.py [module ...]     # default: all modules in jenkins/*_long.csv
-```
-
 ## Jenkins data
 
-- Jobs (last 20 builds each, fetched 2026-10-20), name = `jenkins/<name>_*.csv` = key in `stats.by_job`:
+- Jobs (last 20 builds each), name = `jenkins/<name>_*.csv` = key in `stats.by_job`:
   - `dtest-release`, `dtest-release-with-raft` — full dtest runs.
   - `next-dtest-tablets`, `next-dtest-consistent-topology` — gating dtest, stages of `scylla-master/next`
     (filtered by `--stage`). Old `gating-dtest-release-with-{tablets,consistent-topology-changes}` jobs are stale
-    since 2026-08-23. Builds that fail before the dtest stages have no results (16/20 had them).
+    since 2026-08-23. Builds that fail before the dtest stages have no results.
 - `*_status.csv` test × build: PASSED / FAILED / SKIPPED / N/A. `*_runtime.csv` duration s.
   `*_long.csv` one row per run (build, split, test, status, duration) — lossless, used by scripts.
 - Builds run 4 parallel splits; some tests run twice per build. Skipped runs excluded from stats.
 - Plugin RPC (`getExportCSV`) returns 500 via curl, hence REST API.
-- Scope: test functions with ≥1 non-skipped run in any job: 1670 functions, 114 modules (~2000 test defs in repo); tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
+- Scope: test functions with ≥1 non-skipped run in any job; tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
   Tests only ever skipped are excluded (e.g. `migration_test.TestTTLWithMigrate.test_big_table_with_ttls`).
 
 ## JSON formats (dashboard contract — keep in sync when changing scripts/prompt)
@@ -64,6 +49,7 @@ python3 scripts/gen_data.py [module ...]     # default: all modules in jenkins/*
  "rev": "<full sha>",                          // scylla-dtest upstream/next the lines/commits refer to
  "tests": [{"class": "TestX", "name": "test_y",
             "lines": [start, end],              // 1-based, inclusive, at rev
+            "defined_in": "<path>::<Class>",    // only if inherited from another class/file; lines refer to it
             "stats": STATS,
             "params": {"[param_id]": STATS},    // {} if not parametrized
             "commits": [COMMIT]}],              // function history, newest first
@@ -72,7 +58,7 @@ STATS  = {"runs", "pass_rate" (0-100), "avg_s", "by_job": {"<job>": {"runs", "pa
 COMMIT = {"sha" (full), "date" (YYYY-MM-DD), "author", "subject", "pr": {"number", "title"} | null}
 ```
 Jobs (`by_job` keys): see "Jenkins data". `pr` is null for direct pushes, Cassandra upstream merges and
-pytest-port branch PRs. Function history = `git log -L <start>,<end>:file` (ranges from `ast`, `*.py diff=python`);
+pytest-port branch PRs. Function history = `git log -L <start>,<end>:file` (ranges from `ast`);
 stops at big refactors (e.g. "port to pytest") → analysis finds real origin from file history.
 
 `analysis/<module>.json` (written by the analyze subagents, schema in `.claude/skills/analyze/prompt.md`):
@@ -92,41 +78,17 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
 ```
 Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the Jenkins window.
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
-(other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags (`check_analysis.py` TAGS):
-bug `cant-fail check-disabled weak-check wrong-scenario never-runs log-check-off other`;
-note `dead-config stale-mark stale-comment dead-code redundant-param slow open-issue cosmetic limited-check other`.
-GREEN never has a `bug` issue.
+(other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags: prompt.md step 7
+(enforced by `check_analysis.py` TAGS).
 
-## Dashboard
+## Rubric
 
-claude.ai artifact, reads repo via viewer's GitHub connector
-(published artifacts can't fetch raw.githubusercontent.com). Human decisions live in the artifact's shared db
-(collection `decisions`, id `<module>::<Class>::<test>`, with history), not in this repo.
-Effective decision = human > analysis > GRAY.
-
-## Rubric (agreed 2026-10-20)
-
-- Granularity: per test function; params grouped.
-- RED: scylla test fully covers same scenario; tested feature/option/cmd removed; flaky + low-value assertion;
-  slow + redundant (covered elsewhere, incl. other dtests); tests Cassandra-only behavior.
-- YELLOW: partial overlap, unsure relevance, thin evidence.
-- GREEN: unique coverage of live behavior.
-- Every non-GREEN needs evidence (scylla test path, commit removing feature, issue link).
-- Found issues → `issues` (kind `bug`|`note` + tag, prompt.md step 7). `bug` (test checks less than it claims)
-  caps GREEN at YELLOW; `note` (dead config, stale marks/comments, ...) doesn't (agreed 2026-10-21).
-  Harness/driver-only tests stay YELLOW; cqlsh tests ported to scylla-cqlsh count as full coverage.
-- History: function commits + file-level commits that affect the test; formatting commits flagged.
+Single source: `.claude/skills/analyze/prompt.md` steps 3, 6, 7 (agreed 2026-10-20; issues 2026-10-21). Edit there.
 
 ## Analysis
 
 Use the `analyze` skill (`/analyze <module>` or `/analyze next`, or "analyze file X" / "analyze next file").
 `scripts/pending.py` lists unanalyzed tests in chunks; `scripts/check_analysis.py <module>` validates a result.
 
-Weekly: `/weekly` skill. `scripts/delta.py` finds what changed since each module's `dtest_rev`/`scylla_rev`:
-deleted/moved tests, test code (AST compare), helpers/fixtures/class marks reached by name within the test's
-imports (over-approximates), closed `open-issue` refs, scylla commits mentioning dtest that add a same-named test or
-name the module. Rechecks use prompt.md "Update mode"; `delta.py --bump` moves the revs after a module's recheck.
-
-## Next
-
-`/weekly` once a week.
+Once a week: `/weekly` skill. `scripts/delta.py` (docstring lists what it detects) finds tests to recheck since
+each module's `dtest_rev`/`scylla_rev`; rechecks use prompt.md "Update mode".

@@ -19,13 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 REV = "upstream/next"
 REPO = "scylladb/scylla-dtest"
 CACHE = ROOT / "cache" / "prs.json"
-GITATTR = "/tmp/gitattr"
 SEP = "\x1f"
 
 
 def git(*args):
-    return subprocess.run(["git", "-C", DTEST, "-c", f"core.attributesFile={GITATTR}", *args],
-                          capture_output=True, text=True, check=True).stdout
+    return subprocess.run(["git", "-C", DTEST, *args], capture_output=True, text=True, check=True).stdout
 
 
 def parse_log(out):
@@ -134,7 +132,6 @@ def with_prs(commits, prs):
 
 def main():
     mods = sys.argv[1:]
-    Path(GITATTR).write_text("*.py diff=python\n")
     out_dir = ROOT / "data"
     out_dir.mkdir(exist_ok=True)
     stats = load_stats()

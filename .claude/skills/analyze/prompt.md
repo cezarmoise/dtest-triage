@@ -25,11 +25,12 @@ For EACH of those tests:
    (`git -C ~/github/scylladb grep -il dtest upstream/master -- test/`, `git -C ~/github/scylladb log --grep=<keyword> upstream/master`,
    keyword grep in test dirs).
    Also check other dtest files for overlapping tests. Say full / partial / none, with paths::test names.
-6. Decision:
+6. Decision (one per test function, all params together):
    - RED: scylla test fully covers same scenario; tested feature/option/cmd removed; flaky + low-value assertion;
      slow + redundant (covered elsewhere, incl. other dtests); tests Cassandra-only behavior.
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
+   Harness/driver-only tests stay YELLOW; cqlsh tests ported to scylla-cqlsh count as full coverage.
    Every YELLOW/RED needs concrete evidence (paths, shas, issue links). Don't guess — if unsure, YELLOW.
 7. Issues found in the test or its helpers (class-level issues apply to every test of the class): list each in
    `issues` as `{"kind", "tag", "ref", "text"}` (ref = file:line, sha or issue link; text ≤ ~25 words), and mention
@@ -49,7 +50,7 @@ For EACH of those tests:
    Name the exact helper (name + file:line) when judging assertion strength; similar helpers may differ
    (e.g. `==` vs `<=`). "Can't fail" claims must hold for the code actually called by that test.
 
-Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json (create dir if needed), schema:
+Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json, schema:
 ```json
 {
   "file": "<path>",
