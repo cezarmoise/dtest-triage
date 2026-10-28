@@ -1,8 +1,8 @@
 {
   "file": "pushed_notifications_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "814c05a00f",
-  "dtest_rev": "98bf7bb3a2db9d67244094e2485b6b1253f69784",
+  "analyzed_at": "2026-10-28",
+  "scylla_rev": "349d7ea6c2",
+  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
   "tests": {
     "TestPushedNotifications::test_restart_node": {
       "description": "2-node cluster; NotificationWaiter (raw control connection to node1, STATUS_CHANGE+TOPOLOGY_CHANGE) drains initial NEW_NODE/UP, then restarts node2 5 times and expects DOWN then UP for node2 each time (no spurious NEW_NODE on restart). Guards CASSANDRA-7816 and scylla#3979 (NEW_NODE only for genuinely new nodes) / RPC_READY-gated UP event.",
@@ -39,24 +39,24 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique scylla coverage of DOWN/UP push events across repeated restarts (no scylla test/ equivalent). Bug: pushed_notifications_test.py:130 `assert expected_notifications, len(notifications) == notifications` is a no-op (always true) so notification count is never checked (from 3165029367). Note: dead Cassandra pre-2.2 branch (lines 119-123, 134-139) via cassandra_version().",
+      "reason": "Unique scylla coverage of DOWN/UP push events across repeated restarts (no scylla test/ equivalent). Bug: pushed_notifications_test.py:131 `assert expected_notifications, len(notifications) == notifications` is a no-op (always true) so notification count is never checked (from 3165029367). Note: dead Cassandra pre-2.2 branch (lines 119-123, 134-139) via cassandra_version().",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "pushed_notifications_test.py:130",
+          "ref": "pushed_notifications_test.py:131",
           "text": "`assert expected_notifications, len(notifications) == notifications` always true; notification count never checked (since 3165029367)."
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "pushed_notifications_test.py:119",
+          "ref": "pushed_notifications_test.py:120",
           "text": "Dead Cassandra pre-2.2 branches via cassandra_version() (lines 119-123, 134-139)."
         }
       ]
     },
     "TestPushedNotifications::test_sleep_and_restart_node": {
-      "description": "2-node cluster started, sleeps 120s to let any pending joined (NEW_NODE) notification flush, then registers waiter on node1, restarts node2 once and asserts exactly 2 notifications: DOWN then UP for node2. Added for scylla#7805 (unexpected NEW_NODE on restart, closed as expected pending event).",
+      "description": "2-node cluster started with storage_service=debug; waits (up to 300s) on node1's log for node2's 'has joined the cluster' and 'has been up' notifications (so the pending NEW_NODE is already flushed), then registers waiter on node1, restarts node2 once and asserts exactly 2 notifications: DOWN then UP for node2. Added for scylla#7805 (unexpected NEW_NODE on restart, closed as expected pending event).",
       "origin": {
         "sha": "2f36c9e404",
         "date": "2020-12-17",
@@ -64,17 +64,18 @@
         "summary": "Amos Kong: variant of restart_node_test with 120s sleep to wait for the pending joined notification (scylla#7805)."
       },
       "commits": {
+        "d7dc730173": "replace time.sleep(120) with node1.watch_log_for on storage_service debug 'Notify node <node2>/... has joined the cluster' / 'has been up' (PR #7506); ~130s -> ~12s",
         "aedaa57c4e": "formatting (pyupgrade/f-strings)",
         "d40954ee9f": "close NotificationWaiter connection via request finalizer",
         "70cefc5ec8": "port to pytest",
         "2f36c9e404": "origin: test added"
       },
-      "relevance": "Behavior live (event_notifier pending joined notifications), but scylla#7805 closed; 120s sleep is a timing workaround.",
+      "relevance": "Behavior live: event_notifier.cc:237 parks NEW_NODE until node is CQL-ready, on_up (event_notifier.cc:267) flushes it. Test now depends on debug log lines in service/storage_service.cc:7877 ('has been up') and :7911 ('has joined the cluster'); a renamed line fails loudly after 300s, not silently. scylla#7805 closed.",
       "duplicates": [
         {
           "path": "scylla-dtest pushed_notifications_test.py::TestPushedNotifications::test_restart_node",
           "coverage": "partial",
-          "note": "same restart DOWN/UP check, 5 iterations, drains initial events instead of sleeping"
+          "note": "same restart DOWN/UP check, 5 iterations, drains initial events via 30s wait instead of a log wait"
         },
         {
           "path": "scylla-dtest pushed_notifications_test.py::TestPushedNotifications::test_restart_node_localhost",
@@ -82,19 +83,13 @@
           "note": "since 5cc0cb5801 waits for NEW_NODE,UP then restart and asserts exact [NEW_NODE, UP, DOWN, UP], i.e. no extra NEW_NODE on restart, in ~12s"
         }
       ],
-      "decision": "RED",
-      "reason": "Slow + redundant: avg 132s, ~120s of it time.sleep(120) (line 154); same assertion (exactly DOWN, UP on restart, no extra NEW_NODE) is covered deterministically by test_restart_node_localhost in ~12s (exact list assert since 5cc0cb5801) and test_restart_node. Runs in next_gating. Note: comment at line 164 ('did not send UP or DOWN') contradicts asserts; scylla#7805 closed.",
+      "decision": "YELLOW",
+      "reason": "No longer slow: d7dc730173 (PR #7506) replaced time.sleep(120) with a log wait, runs ~11-14s since build 11733 (was ~132s). Overlap is dtest-only (test_restart_node_localhost asserts the same no-extra-NEW_NODE-on-restart sequence with a localhost rpc_address setup; test_restart_node checks DOWN/UP) and no scylla test/ equivalent, so not RED by rubric; not unique, so not GREEN. Note: comment at line 166 ('did not send UP or DOWN') contradicts asserts.",
       "issues": [
         {
           "kind": "note",
-          "tag": "slow",
-          "ref": "pushed_notifications_test.py:154",
-          "text": "time.sleep(120) is ~120s of the 132s runtime."
-        },
-        {
-          "kind": "note",
           "tag": "stale-comment",
-          "ref": "pushed_notifications_test.py:164",
+          "ref": "pushed_notifications_test.py:166",
           "text": "Comment 'did not send UP or DOWN' contradicts the asserts."
         }
       ]
@@ -141,7 +136,7 @@
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "pushed_notifications_test.py:176",
+          "ref": "pushed_notifications_test.py:178",
           "text": "Docstring still describes Cassandra pre/post-4.0 behavior."
         }
       ]
