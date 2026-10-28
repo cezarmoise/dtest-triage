@@ -48,18 +48,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test growing a cluster to 40 nodes under load with exact data verification; no scylla test.py equivalent (test/cluster tests use <=~6 nodes) and it found real bug scylla#22244. But costly (~650s, heavy) and large-scale coverage arguably belongs to SCT. Note: @pytest.mark.require('#22244') (update_cluster_layout_tests.py:3208) is stale - scylla#22244 closed 2025-07-09; docstring says '12 in debug mode' but code uses 10 (:3222).",
+      "reason": "Only test growing a cluster to 40 nodes under load with exact data verification; no scylla test.py equivalent (test/cluster tests use <=~6 nodes) and it found real bug scylla#22244. But costly (~650s, heavy) and large-scale coverage arguably belongs to SCT. Note: @pytest.mark.require('#22244') (update_cluster_layout_tests.py:3222) is stale - scylla#22244 closed 2025-07-09; docstring says '12 in debug mode' but code uses 10 (:3236).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:3208",
+          "ref": "update_cluster_layout_tests.py:3222",
           "text": "@pytest.mark.require('#22244') stale; scylla#22244 closed 2025-07-09"
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "update_cluster_layout_tests.py:3222",
+          "ref": "update_cluster_layout_tests.py:3236",
           "text": "Docstring says 12 nodes in debug mode, code uses 10"
         }
       ]
@@ -157,12 +157,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end coverage of DDL+writes concurrent with bootstrap at 3 timings; scylla tests only cover schema changes after join or specific injected races. Note: assert uses '>=' min_keys (update_cluster_layout_tests.py:1887) though exactly 1000 rows expected - can't hide loss but can't catch extra/resurrected rows.",
+      "reason": "Unique end-to-end coverage of DDL+writes concurrent with bootstrap at 3 timings; scylla tests only cover schema changes after join or specific injected races. Note: assert uses '>=' min_keys (update_cluster_layout_tests.py:1899) though exactly 1000 rows expected - can't hide loss but can't catch extra/resurrected rows.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:1887",
+          "ref": "update_cluster_layout_tests.py:1899",
           "text": "Asserts >= 1000 rows though exactly 1000 expected; catches loss but not extra/resurrected rows"
         }
       ]
@@ -233,7 +233,7 @@
       "issues": []
     },
     "TestUpdateClusterLayout::test_add_node_when_cluster_is_filled": {
-      "description": "3 nodes/3 racks, runs cassandra-stress write 1M keys (10k in debug) at QUORUM with 700 threads, then bootstraps node4 with wait_for_binary_proto. No data verification; only asserts implicitly that node4 starts and no log errors. Added for scylla#1144 ('add node failing on EC2').",
+      "description": "3 nodes/3 racks, runs cassandra-stress write 1M keys (10k in debug) at QUORUM with 100 threads (70 in debug), then bootstraps node4 with wait_for_binary_proto. No data verification; only asserts implicitly that node4 joins (no hang) and no log errors. Added for scylla#1144: per ddd783d356, a joining node hung in the throttling of the streaming memtables while receiving lots of data (~57MB to node4 here).",
       "origin": {
         "sha": "9705e498eb",
         "date": "2016-04-15",
@@ -241,6 +241,7 @@
         "summary": "add test for issue 1144."
       },
       "commits": {
+        "ddd783d356": "700 -> 100 c-s threads (c-s 4.0.0 timed out at 600s on 2 CPUs); keeps 1M rows on purpose (SCYLLADB-5686, PR 7651)",
         "bbdbf48ca7": "add high_memory marker",
         "aa710cf2bc": "rf-rack-valid: 3 racks, node4 in node1's rack",
         "6f303700c6": "mark use_cassandra_stress",
@@ -250,31 +251,41 @@
         "2b75f021c8": "reduce key count in debug mode",
         "9705e498eb": "origin"
       },
-      "relevance": "Bootstrap live, but scylla#1144 is closed (2016, EC2-specific). Runs next-dtest-tablets/-consistent-topology (32 runs, 100%, avg 229s).",
+      "relevance": "Bootstrap live, but scylla#1144's code path (streaming memtables) was dropped in 2020 (ddd783d356 message); the maintainer keeps the data volume on the theory that RBNO/tablet migration have their own memory limits and throttling. Runs next-dtest-tablets/-consistent-topology (64 runs, 100%); avg 248s predates ddd783d356: builds 11744 took 550-600s, 11745-11746 (100 threads) 33-40s.",
       "duplicates": [
         {
           "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_new_node_while_adding_data",
-          "coverage": "full",
-          "note": "bootstrap into populated cluster with exact data verification"
+          "coverage": "partial",
+          "note": "bootstrap into populated cluster with exact data verification, but only 4000 small rows"
+        },
+        {
+          "path": "update_cluster_layout_tests.py::TestUpdateClusterLayout::test_add_node_with_large_partition1",
+          "coverage": "partial",
+          "note": "~40MB to the joining node with per-node verification, vnodes-only (!tablets)"
         },
         {
           "path": "update_cluster_layout_tests.py::TestLargeScaleCluster::test_add_many_nodes_under_load",
           "coverage": "partial",
-          "note": "bootstrap under load with data checks"
+          "note": "bootstrap under load with data checks, small data"
+        },
+        {
+          "path": "bootstrap_test.py::TestBootstrap::test_local_quorum_bootstrap",
+          "coverage": "partial",
+          "note": "2M c-s rows preloaded before bootstrap, but node3 is killed without waiting for the join"
         },
         {
           "path": "bootstrap_test.py::TestBootstrap::test_simple_bootstrap",
           "coverage": "partial",
-          "note": "bootstrap with data, verified"
+          "note": "bootstrap with data, verified, 10k rows"
         }
       ],
-      "decision": "RED",
-      "reason": "Slow (229s, high_memory, c-s) and low value: no assertion beyond node4 starting (update_cluster_layout_tests.py:1983-1998), 1M small keys is not a 'filled' cluster; guarded issue scylla#1144 (EC2) closed since 2016. Bootstrap into a populated cluster is covered with real data verification by test_add_new_node_while_adding_data and bootstrap_test.",
+      "decision": "YELLOW",
+      "reason": "Was RED as slow + redundant; ddd783d356 removed both: runtime 550-600s -> 33-40s (builds 11744 vs 11745-11746), and the dtest duplicates bootstrap far less data (4000-10k rows) or are vnodes-only (large_partition1), so none covers ~57MB joining under tablets. Value still thin: guarded code path gone since 2020, no data check. Note: only node4 joining is checked; name overstates 'filled'.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:1983-1998",
+          "ref": "update_cluster_layout_tests.py:1983-2001",
           "text": "No data verification; only checks node4 boots into the loaded cluster"
         },
         {
@@ -489,12 +500,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Metadata side (peers/local/host-id mapping) is covered more thoroughly by test/cluster/test_change_ip.py::test_change_two; unique part is reading pre-existing data at RF=1 and RF=N after the change. Note: nodetool status check (update_cluster_layout_tests.py:2650-2655) is vacuous if new IP is missing, but check_peer_and_local_table asserts broadcast_address == new IP.",
+      "reason": "Metadata side (peers/local/host-id mapping) is covered more thoroughly by test/cluster/test_change_ip.py::test_change_two; unique part is reading pre-existing data at RF=1 and RF=N after the change. Note: nodetool status check (update_cluster_layout_tests.py:2664-2669) is vacuous if new IP is missing, but check_peer_and_local_table asserts broadcast_address == new IP.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:2650-2655",
+          "ref": "update_cluster_layout_tests.py:2664-2669",
           "text": "nodetool status host-id check vacuous if new IP missing; check_peer_and_local_table still asserts new broadcast_address"
         }
       ]
@@ -527,12 +538,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Full-cluster-down IP change not covered by scylla test_change_ip.py (one node always up), but assertions are weak. Bug: asserts at update_cluster_layout_tests.py:2882-2890 run only if a status row's address equals the new IP, so the test never checks that new IPs appear or old IPs are gone; a status still showing old IPs passes. Inserted data never read back.",
+      "reason": "Full-cluster-down IP change not covered by scylla test_change_ip.py (one node always up), but assertions are weak. Bug: asserts at update_cluster_layout_tests.py:2896-2904 run only if a status row's address equals the new IP, so the test never checks that new IPs appear or old IPs are gone; a status still showing old IPs passes. Inserted data never read back.",
       "issues": [
         {
           "kind": "bug",
           "tag": "weak-check",
-          "ref": "update_cluster_layout_tests.py:2882-2890",
+          "ref": "update_cluster_layout_tests.py:2896-2904",
           "text": "Host-id asserts run only for status rows with new IPs; never checks new IPs appear or old ones are gone"
         },
         {
@@ -581,12 +592,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Original bug (#11355) is in gossip-mode handle_state_normal; under raft topology the scenario only checks ops succeed. Note: is_shutdown (update_cluster_layout_tests.py:2688) returns True when old IP is absent from gossipinfo, which is the normal case with host-id-based gossip, so the wait is likely a no-op. No data assertions.",
+      "reason": "Original bug (#11355) is in gossip-mode handle_state_normal; under raft topology the scenario only checks ops succeed. Note: is_shutdown (update_cluster_layout_tests.py:2702) returns True when old IP is absent from gossipinfo, which is the normal case with host-id-based gossip, so the wait is likely a no-op. No data assertions.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:2688",
+          "ref": "update_cluster_layout_tests.py:2702",
           "text": "is_shutdown returns True when old IP absent from gossipinfo (normal with host-id gossip); wait likely a no-op"
         }
       ]
@@ -625,18 +636,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "End-to-end RF-decrease -> decommission -> RF-increase with per-node data check is not covered as a whole in scylla (only partial). Note: skip_if references scylladb/scylladb#23525 which is CLOSED (update_cluster_layout_tests.py:2706, dead marker); dtest_config fixture param unused (2707).",
+      "reason": "End-to-end RF-decrease -> decommission -> RF-increase with per-node data check is not covered as a whole in scylla (only partial). Note: skip_if references scylladb/scylladb#23525 which is CLOSED (update_cluster_layout_tests.py:2720, dead marker); dtest_config fixture param unused (2707).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:2706",
+          "ref": "update_cluster_layout_tests.py:2720",
           "text": "skip_if(tablets & issue_open(scylladb#23525)) inert; issue closed"
         },
         {
           "kind": "note",
           "tag": "redundant-param",
-          "ref": "update_cluster_layout_tests.py:2707",
+          "ref": "update_cluster_layout_tests.py:2721",
           "text": "dtest_config fixture param unused"
         }
       ]
@@ -719,18 +730,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Asymmetric gossip partition via iptables is not reproduced in scylla tests (only dead-node cancel, test_tablets_parallel_decommission.py:329), but test is slow (~345s) and needs iptables (SCYLLADB-608 leaks). Note: expected-error check (update_cluster_layout_tests.py:2961) accepts 'Rejected decommission operation', a gossip-mode message gone from scylla; any raft_operation_timeout_error passes.",
+      "reason": "Asymmetric gossip partition via iptables is not reproduced in scylla tests (only dead-node cancel, test_tablets_parallel_decommission.py:329), but test is slow (~345s) and needs iptables (SCYLLADB-608 leaks). Note: expected-error check (update_cluster_layout_tests.py:2975) accepts 'Rejected decommission operation', a gossip-mode message gone from scylla; any raft_operation_timeout_error passes.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:2961",
+          "ref": "update_cluster_layout_tests.py:2975",
           "text": "Accepted error 'Rejected decommission operation' is a gossip-mode message gone from scylla"
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:2961",
+          "ref": "update_cluster_layout_tests.py:2975",
           "text": "Any raft_operation_timeout_error accepted as the expected decommission failure"
         }
       ]
@@ -813,18 +824,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Divergent counter writes with replicas down then CL=ALL merge is not covered by scylla ported counter_test.py (no restarts). Note: skip_if refs closed scylladb#18180 (update_cluster_layout_tests.py:2190, dead marker); docstring says CL=QUORUM and stopping during ops (2195) but code uses CL=ONE and stops between phases (since 6c917bf216); leftover driver DEBUG logging TODO for dtest#3686.",
+      "reason": "Divergent counter writes with replicas down then CL=ALL merge is not covered by scylla ported counter_test.py (no restarts). Note: skip_if refs closed scylladb#18180 (update_cluster_layout_tests.py:2204, dead marker); docstring says CL=QUORUM and stopping during ops (2195) but code uses CL=ONE and stops between phases (since 6c917bf216); leftover driver DEBUG logging TODO for dtest#3686.",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:2190",
+          "ref": "update_cluster_layout_tests.py:2204",
           "text": "skip_if(tablets & issue_open(scylladb#18180)) inert; issue closed"
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "update_cluster_layout_tests.py:2195",
+          "ref": "update_cluster_layout_tests.py:2209",
           "text": "Docstring says CL=QUORUM and stops during ops; code uses CL=ONE and stops between phases (6c917bf216)"
         },
         {
@@ -925,24 +936,24 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Kill-during-bootstrap-streaming cleanup partly covered by test_topology_streaming_failure and test_crashed_node_substitution. Note: gossip-mode branch (update_cluster_layout_tests.py:1961, FatClient msg) is dead, message removed from scylla; heartbeat check (~1966-1979) only proves gossiper still ticks; _get_gossipinfo uses bare except (1917).",
+      "reason": "Kill-during-bootstrap-streaming cleanup partly covered by test_topology_streaming_failure and test_crashed_node_substitution. Note: gossip-mode branch (update_cluster_layout_tests.py:1973, FatClient msg) is dead, message removed from scylla; heartbeat check (~1966-1979) only proves gossiper still ticks; _get_gossipinfo uses bare except (1917).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1961",
+          "ref": "update_cluster_layout_tests.py:1973",
           "text": "Gossip-mode FatClient branch dead; message removed from scylla"
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:1966-1979",
+          "ref": "update_cluster_layout_tests.py:1978-1991",
           "text": "Heartbeat check only proves gossiper still ticks (no on_remove deadlock)"
         },
         {
           "kind": "note",
           "tag": "cosmetic",
-          "ref": "update_cluster_layout_tests.py:1917",
+          "ref": "update_cluster_layout_tests.py:1929",
           "text": "_get_gossipinfo uses bare except for parsing control flow"
         }
       ]
@@ -982,12 +993,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Removed-node ban largely covered by test/cluster/test_node_isolation.py::test_banned_node_notification; restart-after-removenode variant is the only difference. Note: gossip-mode branch (update_cluster_layout_tests.py:1798-1799) dead, message removed from scylla.",
+      "reason": "Removed-node ban largely covered by test/cluster/test_node_isolation.py::test_banned_node_notification; restart-after-removenode variant is the only difference. Note: gossip-mode branch (update_cluster_layout_tests.py:1810-1811) dead, message removed from scylla.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1798-1799",
+          "ref": "update_cluster_layout_tests.py:1810-1811",
           "text": "Gossip-mode branch dead; 'Can not restart the removed node' message removed from scylla"
         }
       ]
@@ -1029,7 +1040,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of replace-after-IP-change (no scylla test.py equivalent). Note: it asserts nothing beyond node4 starting; no data written/verified after replace. Note: is_shutdown (update_cluster_layout_tests.py:2810-2818) returns True when the old IP is absent from gossipinfo, which is the normal case with host-id gossip, so the wait is likely a no-op.",
+      "reason": "Only test of replace-after-IP-change (no scylla test.py equivalent). Note: it asserts nothing beyond node4 starting; no data written/verified after replace. Note: is_shutdown (update_cluster_layout_tests.py:2824-2832) returns True when the old IP is absent from gossipinfo, which is the normal case with host-id gossip, so the wait is likely a no-op.",
       "issues": [
         {
           "kind": "note",
@@ -1040,7 +1051,7 @@
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:2810-2818",
+          "ref": "update_cluster_layout_tests.py:2824-2832",
           "text": "is_shutdown returns True when old IP absent from gossipinfo (normal with host-id gossip); wait likely a no-op"
         }
       ]
@@ -1444,12 +1455,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Write-loss check during decommission is not covered by scylla (start_writes never reads back). Bug: overlap is not enforced - 2000 inserts at concurrency 20 (update_cluster_layout_tests.py:1421) likely finish before node2 starts streaming, so the test mostly checks writes before decommission; the in-thread count assert can also run mid-decommission. Make writes loop until decommission ends.",
+      "reason": "Write-loss check during decommission is not covered by scylla (start_writes never reads back). Bug: overlap is not enforced - 2000 inserts at concurrency 20 (update_cluster_layout_tests.py:1433) likely finish before node2 starts streaming, so the test mostly checks writes before decommission; the in-thread count assert can also run mid-decommission. Make writes loop until decommission ends.",
       "issues": [
         {
           "kind": "bug",
           "tag": "wrong-scenario",
-          "ref": "update_cluster_layout_tests.py:1421",
+          "ref": "update_cluster_layout_tests.py:1433",
           "text": "Overlap not enforced: 2000 inserts likely finish before node2 starts streaming, so mostly tests writes before decommission"
         }
       ]
@@ -1755,7 +1766,7 @@
         "pr": 42,
         "summary": "test that a killed decommissioning node can rejoin the cluster"
       },
-      "relevance": "Live: decommission rollback in topology_coordinator (rollback to normal) and tablet drain rollback. Actively maintained: 27f5e7bb8b (SCYLLADB-3955) and 6 more commits after the data rev (4a0bb0a1 throttling, 829be9e6 quiesce, required_features consistent-topology-changes).",
+      "relevance": "Live: decommission rollback in topology_coordinator (rollback to normal) and tablet drain rollback; stream_io_throughput_mb_per_sec is LiveUpdate (db/config.cc), applied to the streaming scheduling group (main.cc). Actively maintained: 27f5e7bb8b (SCYLLADB-3955), then da4e45ee..4a0bb0a1 (DTEST-317) reworked the kill timing.",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_failure_recovery.py::test_tablet_drain_failure_during_decommission",
@@ -1774,14 +1785,14 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test where the leaving node itself crashes mid-drain and is restarted, checking rollback plus no data loss (RF=1 exact count); scylla tests only inject failures or replace. Cheap (~24s), stable, recently fixed for tablets (27f5e7bb8b, 4a0bb0a1).",
+      "reason": "Only test where the leaving node itself crashes mid-streaming and is restarted, checking rollback plus no data loss (RF=1 exact count); scylla tests only inject failures or replace. Cheap (~31s), stable, runs in release again with throttled streaming (4a0bb0a1).",
       "commits": {
-        "da4e45ee": "(after data rev) kill node before streaming completes",
-        "39a531a9": "(after data rev) comment cleanup",
-        "4c539c9c": "(after data rev) pause after start_decommission",
-        "22d95fc4": "(after data rev) drop unused node3",
-        "829be9e6": "(after data rev) quiesce_topology before teardown",
-        "4a0bb0a1": "(after data rev) throttle streaming (stream_io_throughput_mb_per_sec=1, ~60MB data) instead of pausing, unthrottle before restart; required_features consistent-topology-changes",
+        "4a0bb0a1": "replace coordinator pause with streaming throttle (stream_io_throughput_mb_per_sec=1, ~60MB uncompressed data), kill on first stream log line again, unthrottle before restart; drops scylla_mode('!release')",
+        "829be9e6": "POST /storage_service/quiesce_topology after rejoin so teardown doesn't abort coordinator mid-barrier",
+        "22d95fc4": "unused node3 -> _ (lint; reverted by 4a0bb0a1)",
+        "4c539c9c": "use topology_coordinator_pause_after_start_decommission injection, release in finally (superseded by 4a0bb0a1)",
+        "39a531a9": "comment cleanup (superseded)",
+        "da4e45ee": "kill node2 while topology coordinator paused by injection, before streaming; adds required_features consistent-topology-changes and scylla_mode('!release') (DTEST-317)",
         "27f5e7bb8b": "kill node2 on tablet draining (stream_blob) not system-ks streaming; wait for leave request error in system.topology_requests (SCYLLADB-3955)",
         "c3d9db24d6": "ignore patterns accept both exception formats",
         "66bafd413f": "rf-rack-valid: single rack x 3 nodes",
@@ -1839,7 +1850,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test_kill_coordinator_during_decommission (node1 is usually the coordinator); unique bits are real peer kill in release mode plus RF=1 data check. Note: kill trigger 'Beginning stream session|sync data' (update_cluster_layout_tests.py:1374) fires only after tablet draining, the same flaw fixed in the sibling by 27f5e7bb8b (SCYLLADB-3955), so in the tablets job user-data streaming is never interrupted; which node is coordinator is not controlled.",
+      "reason": "Partial overlap with test_kill_coordinator_during_decommission (node1 is usually the coordinator); unique bits are real peer kill in release mode plus RF=1 data check. Note: kill trigger 'Beginning stream session|sync data' (update_cluster_layout_tests.py:1386) fires only after tablet draining, the same flaw fixed in the sibling by 27f5e7bb8b (SCYLLADB-3955), so in the tablets job user-data streaming is never interrupted; which node is coordinator is not controlled.",
       "commits": {
         "c3d9db24d6": "ignore patterns accept both exception formats",
         "385421a7b7": "ignore pattern: new abort_requested rendering",
@@ -1878,7 +1889,7 @@
         {
           "kind": "note",
           "tag": "other",
-          "ref": "update_cluster_layout_tests.py:1374",
+          "ref": "update_cluster_layout_tests.py:1386",
           "text": "Kill trigger fires only after tablet draining, so tablets job never interrupts user-data streaming; exercised in vnodes job"
         },
         {
@@ -1911,7 +1922,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Tablets path fully covered by test_tablets_removenode.py::test_removenode; vnode removenode data check only partially covered (test_topology_ops has no read-back). Cheap (~51s). Note: time.sleep(2) after removenode and trailing insert of 120 keys with no assertion (update_cluster_layout_tests.py:1539,1543).",
+      "reason": "Tablets path fully covered by test_tablets_removenode.py::test_removenode; vnode removenode data check only partially covered (test_topology_ops has no read-back). Cheap (~51s). Note: time.sleep(2) after removenode and trailing insert of 120 keys with no assertion (update_cluster_layout_tests.py:1551,1555).",
       "commits": {
         "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
         "b79a1434fb": "rf-rack-valid: _prepare_cluster takes topology; removenode_1 uses 2 racks x 2 nodes, stops whole rack2",
@@ -1924,13 +1935,13 @@
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "update_cluster_layout_tests.py:1539",
+          "ref": "update_cluster_layout_tests.py:1551",
           "text": "time.sleep(2) after removenode"
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1543",
+          "ref": "update_cluster_layout_tests.py:1555",
           "text": "Trailing insert of 120 keys with no assertion"
         }
       ]
@@ -1952,7 +1963,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Thin assertion (rows re-inserted at ALL then counted), partial overlap with test_tablets_removenode.py::test_removenode RF=1; cheap (~34s). Note: pre-removenode scan in try/except Unavailable (update_cluster_layout_tests.py:1556-1561) is dead code - result unused, nothing asserted.",
+      "reason": "Thin assertion (rows re-inserted at ALL then counted), partial overlap with test_tablets_removenode.py::test_removenode RF=1; cheap (~34s). Note: pre-removenode scan in try/except Unavailable (update_cluster_layout_tests.py:1568-1573) is dead code - result unused, nothing asserted.",
       "commits": {
         "b866c65bce": "REST/API calls use node.api_port instead of hardcoded 10000",
         "695aacdd62": "rf-rack-valid: single rack x 3 nodes",
@@ -1970,7 +1981,7 @@
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1556-1561",
+          "ref": "update_cluster_layout_tests.py:1568-1573",
           "text": "Pre-removenode scan in try/except Unavailable: result unused, nothing asserted"
         },
         {
@@ -2008,7 +2019,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario fully covered by test/cluster/test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes (stricter error matching; dev mode only per test/cluster/test_config.yaml run_in_dev, no release-only code path involved) and the nodetool flag by test/nodetool/test_nodeops.py; 4 params x ~65s. History of flakiness/hang (19b9d8d6b9, scylladb#23456). Note: no data check after removal; _run_removenode_nodetool (update_cluster_layout_tests.py:1585) doesn't itself assert the first call fails.",
+      "reason": "Scenario fully covered by test/cluster/test_raft_ignore_nodes.py::test_raft_remove_ignore_nodes (stricter error matching; dev mode only per test/cluster/test_config.yaml run_in_dev, no release-only code path involved) and the nodetool flag by test/nodetool/test_nodeops.py; 4 params x ~65s. History of flakiness/hang (19b9d8d6b9, scylladb#23456). Note: no data check after removal; _run_removenode_nodetool (update_cluster_layout_tests.py:1597) doesn't itself assert the first call fails.",
       "commits": {
         "ef6544879a": "unskip; expected error now \"Rejected removenode operation\" (scylla PR #28572); drop gossip branch",
         "19b9d8d6b9": "skip via require(scylladb#23456) (flaky/hang)",
@@ -2030,7 +2041,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:1585",
+          "ref": "update_cluster_layout_tests.py:1597",
           "text": "_run_removenode_nodetool doesn't assert first call fails (second call would error); no data check after removal"
         }
       ]
@@ -2057,7 +2068,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same scenario fully covered by test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode (only gap: release mode). Slow (~115s). Note: assumes node1 is the topology coordinator - if not, new_topology_coordinator stays None and .watch_log_for raises AttributeError (update_cluster_layout_tests.py:1730-1738); docstring steps 4/5 (pending checks) only in dead gossip branch (1660-1665, 1755-1756); 10000 rows never read back.",
+      "reason": "Same scenario fully covered by test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_removenode (only gap: release mode). Slow (~115s). Note: assumes node1 is the topology coordinator - if not, new_topology_coordinator stays None and .watch_log_for raises AttributeError (update_cluster_layout_tests.py:1742-1750); docstring steps 4/5 (pending checks) only in dead gossip branch (1660-1665, 1755-1756); 10000 rows never read back.",
       "commits": {
         "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
         "95e22e7566": "port to pytest (rename *_test -> test_*)",
@@ -2067,13 +2078,13 @@
         {
           "kind": "note",
           "tag": "other",
-          "ref": "update_cluster_layout_tests.py:1730-1738",
+          "ref": "update_cluster_layout_tests.py:1742-1750",
           "text": "Assumes node1 is topology coordinator; otherwise new_topology_coordinator is None and test errors"
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "update_cluster_layout_tests.py:1660-1665,1755-1756",
+          "ref": "update_cluster_layout_tests.py:1672-1677,1767-1768",
           "text": "Docstring steps 4/5 (pending checks) only in dead gossip branch"
         },
         {
@@ -2106,7 +2117,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Rollback on peer streaming failure covered via injection (test_topology_streaming_failure), retry of banned node by test_kill_coordinator_during_removenode; unique is a real peer crash in release mode. Slow (~106s). Note: no assertion that rollback happened or that data survived (10000 rows never read, repair result unchecked); docstring steps 4/5 only in dead gossip branch (update_cluster_layout_tests.py:1660-1665,1755-1756).",
+      "reason": "Rollback on peer streaming failure covered via injection (test_topology_streaming_failure), retry of banned node by test_kill_coordinator_during_removenode; unique is a real peer crash in release mode. Slow (~106s). Note: no assertion that rollback happened or that data survived (10000 rows never read, repair result unchecked); docstring steps 4/5 only in dead gossip branch (update_cluster_layout_tests.py:1672-1677,1767-1768).",
       "commits": {
         "873b32b28f": "add _prepare_cluster; removenode_4/5 rewritten for raft (abort on start streaming, rollback, ban, re-remove)",
         "95e22e7566": "port to pytest (rename *_test -> test_*)",
@@ -2122,7 +2133,7 @@
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "update_cluster_layout_tests.py:1660-1665,1755-1756",
+          "ref": "update_cluster_layout_tests.py:1672-1677,1767-1768",
           "text": "Docstring steps 4/5 only in dead gossip branch"
         }
       ]
@@ -2501,18 +2512,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Real coordinator kill at 6 removenode stages in release mode is broader than scylla's single injection point, but cost is high (12 instances x ~140s, 888 runs) and the test is outcome-agnostic (any of success/rollback/cancel passes). 5_racks param likely adds little - candidate to drop. Bug: class prepare_cluster sets allow_log_errors=True (update_cluster_layout_tests.py:3341), so unexpected errors/crashes in logs are never checked (conftest.py:483). Note: FIXME comment refs dtest#5310, closed 2026-02-04 (update_cluster_layout_tests.py:3438).",
+      "reason": "Real coordinator kill at 6 removenode stages in release mode is broader than scylla's single injection point, but cost is high (12 instances x ~140s, 888 runs) and the test is outcome-agnostic (any of success/rollback/cancel passes). 5_racks param likely adds little - candidate to drop. Bug: class prepare_cluster sets allow_log_errors=True (update_cluster_layout_tests.py:3355), so unexpected errors/crashes in logs are never checked (conftest.py:483). Note: FIXME comment refs dtest#5310, closed 2026-02-04 (update_cluster_layout_tests.py:3452).",
       "issues": [
         {
           "kind": "bug",
           "tag": "log-check-off",
-          "ref": "update_cluster_layout_tests.py:3341",
+          "ref": "update_cluster_layout_tests.py:3355",
           "text": "Class prepare_cluster sets allow_log_errors=True; unexpected log errors/crashes never checked"
         },
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:3438",
+          "ref": "update_cluster_layout_tests.py:3452",
           "text": "FIXME refs closed dtest#5310 on cluster_options workaround"
         },
         {
@@ -2560,18 +2571,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test killing a non-coordinator peer mid-removenode (real crash, release mode) and checking cleanup + rejoin; scylla covers rollback only via injection. But expensive (10 instances x ~134s, 890 runs) and outcome-agnostic; 5_racks param a candidate to drop. Bug: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3341) disables log error checking. Note: FIXME refs closed dtest#5310 (:3513).",
+      "reason": "Only test killing a non-coordinator peer mid-removenode (real crash, release mode) and checking cleanup + rejoin; scylla covers rollback only via injection. But expensive (10 instances x ~134s, 890 runs) and outcome-agnostic; 5_racks param a candidate to drop. Bug: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3355) disables log error checking. Note: FIXME refs closed dtest#5310 (:3527).",
       "issues": [
         {
           "kind": "bug",
           "tag": "log-check-off",
-          "ref": "update_cluster_layout_tests.py:3341",
+          "ref": "update_cluster_layout_tests.py:3355",
           "text": "Class prepare_cluster sets allow_log_errors=True; unexpected log errors/crashes never checked"
         },
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:3513",
+          "ref": "update_cluster_layout_tests.py:3527",
           "text": "FIXME refs closed dtest#5310 on cluster_options workaround"
         },
         {
@@ -2602,7 +2613,7 @@
         "bb71da5bdc": "Skip gossip 'Removed endpoint' wait when tablets enabled",
         "e44d1c8f85": "Test added"
       },
-      "relevance": "Live: stage logs service/storage_service.cc:2852 (DECOMMISSIONING: done), :5134/:5186, repair/repair.cc:705/845; 'decommissioning: streaming completed for node' (service/topology_coordinator.cc:4218); gossip 'Removed endpoint' (gms/gossiper.cc:924). Runs in dtest-release and dtest-release-with-raft.",
+      "relevance": "Live: stage logs service/storage_service.cc:2852 (DECOMMISSIONING: done), :5148/:5200, repair/repair.cc:705/845; 'decommissioning: streaming completed for node' (service/topology_coordinator.cc:4218); gossip 'Removed endpoint' (gms/gossiper.cc:924). Runs in dtest-release and dtest-release-with-raft.",
       "duplicates": [
         {
           "path": "test/cluster/test_decommission_kill_then_replace.py::test_decommission_kill_then_replace",
@@ -2621,18 +2632,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Stage-parametrized real kill of the leaving node with membership checks is not reproduced in scylla (injection-based only), but overlaps test_simple_kill_node_while_decommissioning and costs 8 x ~114s (592 runs); 5_racks param a candidate to drop. Bug: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3341) hides log errors. Note: FIXME refs closed dtest#5310 (:3584).",
+      "reason": "Stage-parametrized real kill of the leaving node with membership checks is not reproduced in scylla (injection-based only), but overlaps test_simple_kill_node_while_decommissioning and costs 8 x ~114s (592 runs); 5_racks param a candidate to drop. Bug: allow_log_errors=True for the whole class (update_cluster_layout_tests.py:3355) hides log errors. Note: FIXME refs closed dtest#5310 (:3598).",
       "issues": [
         {
           "kind": "bug",
           "tag": "log-check-off",
-          "ref": "update_cluster_layout_tests.py:3341",
+          "ref": "update_cluster_layout_tests.py:3355",
           "text": "Class prepare_cluster sets allow_log_errors=True; unexpected log errors/crashes never checked"
         },
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:3584",
+          "ref": "update_cluster_layout_tests.py:3598",
           "text": "FIXME refs closed dtest#5310 on cluster_options workaround"
         },
         {
@@ -2677,18 +2688,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Broader than scylla's single-injection coordinator kill (4 stages, release mode), but slowest of the class (8 x ~175s, 496 runs), much of it probe timeouts: is_streaming_completed_for_decommission greps the just-killed coordinator's log for 60s and is_decommission_failed waits 90s (update_cluster_layout_tests.py:3679-3680). Outcome-agnostic; 5_racks param a candidate to drop. Bug: allow_log_errors=True for the class (:3341). Note: FIXME refs closed dtest#5310 (:3647).",
+      "reason": "Broader than scylla's single-injection coordinator kill (4 stages, release mode), but slowest of the class (8 x ~175s, 496 runs), much of it probe timeouts: is_streaming_completed_for_decommission greps the just-killed coordinator's log for 60s and is_decommission_failed waits 90s (update_cluster_layout_tests.py:3693-3694). Outcome-agnostic; 5_racks param a candidate to drop. Bug: allow_log_errors=True for the class (:3355). Note: FIXME refs closed dtest#5310 (:3661).",
       "issues": [
         {
           "kind": "bug",
           "tag": "log-check-off",
-          "ref": "update_cluster_layout_tests.py:3341",
+          "ref": "update_cluster_layout_tests.py:3355",
           "text": "Class prepare_cluster sets allow_log_errors=True; unexpected log errors/crashes never checked"
         },
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "update_cluster_layout_tests.py:3647",
+          "ref": "update_cluster_layout_tests.py:3661",
           "text": "FIXME refs closed dtest#5310 on cluster_options workaround"
         },
         {
@@ -2700,13 +2711,13 @@
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "update_cluster_layout_tests.py:3679-3680",
+          "ref": "update_cluster_layout_tests.py:3693-3694",
           "text": "Probes grep killed coordinator log 60s and wait 90s for 'Decommission failed'"
         }
       ]
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "814c05a00f",
-  "dtest_rev": "98bf7bb3a2db9d67244094e2485b6b1253f69784"
+  "analyzed_at": "2026-10-28",
+  "scylla_rev": "349d7ea6c2",
+  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
 }
