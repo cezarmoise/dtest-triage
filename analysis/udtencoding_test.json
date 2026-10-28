@@ -1,8 +1,8 @@
 {
   "file": "udtencoding_test.py",
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "814c05a00f",
-  "dtest_rev": "98bf7bb3a2db9d67244094e2485b6b1253f69784",
+  "analyzed_at": "2026-10-28",
+  "scylla_rev": "349d7ea6c2",
+  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
   "tests": {
     "TestUDTEncoding::test_udt": {
       "description": "On a 3-node cluster (RF=3), creates UDT address(city,zip) and table with map<text, frozen<address>>, inserts a valid UDT literal inside the map, then asserts server-side UDT literal validation: unknown field 'street' and 'cityname' -> \"Unknown field '...' in value of user defined type address\"; wrong field type (zip as text) -> \"Invalid map literal for addresses\". Pure single-coordinator CQL validation; no reads, no multi-node behavior.",
@@ -75,6 +75,11 @@
       "relevance": "Live: cql3/statements/alter_type_statement.cc:58-65 rejects any ALTER TYPE (add or rename) when the type is referenced by a partition key column ('Cannot add new field to type ... used in the partition key column ...'). Check is in prepare_announcement_mutations, before make_updated_type, so RENAME hits the same path as ADD.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udt.py::test_alter_type_rename_used_in_partition_key",
+          "coverage": "full",
+          "note": "Added by 69214abed9 (moved from bb69ae5a02, SCYLLADB-1929) explicitly to replace this dtest: ALTER TYPE RENAME on frozen pk UDT raises InvalidRequest naming the table."
+        },
+        {
           "path": "test/cql/forbid_adding_to_udt_used_in_partkey_test.cql",
           "coverage": "full",
           "note": "Added in the fix commit 66e8214606; ADD on UDT in pk (direct and nested frozen<list<frozen<ut>>>) rejected with message, allowed after table drop. RENAME not explicit but same code path."
@@ -86,7 +91,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fix 66e8214606 (scylladb/scylla#6941) shipped with test/cql/forbid_adding_to_udt_used_in_partkey_test.cql covering the pk check with exact messages; dtest adds only RENAME, which goes through the same check (alter_type_statement.cc:58-65). Note: assert_invalid at udtencoding_test.py:59 has no message match, so any InvalidRequest passes; single-node CQL on 3-node cluster (~18s).",
+      "reason": "RENAME on pk UDT now explicit in cqlpy test_udt.py::test_alter_type_rename_used_in_partition_key (69214abed9, written to replace this dtest, SCYLLADB-1929); ADD on pk UDT in test/cql/forbid_adding_to_udt_used_in_partkey_test.cql (fix 66e8214606, scylladb/scylla#6941), ADD on regular UDT column in cqlpy testAlterUDT. Note:assert_invalid at udtencoding_test.py:59 has no message match, so any InvalidRequest passes; single-node CQL on 3-node cluster (~18s).",
       "issues": [
         {
           "kind": "note",
