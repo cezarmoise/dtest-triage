@@ -2,7 +2,7 @@
   "file": "lwt_test.py",
   "tests": {
     "TestLWTPaxos::test_paxos_grace_seconds_basic": {
-      "description": "3-node RF=3 cluster (auth on with tablets for $paxos access). Creates a table with short paxos_grace_seconds (cql_timeout(10)) and one with default, does 10 LWT inserts in each, asserts paxos state for every key exists on a quorum of nodes (system.paxos by cf_id or <tbl>$paxos), sleeps past grace, then asserts default-table paxos state still on quorum, short-table paxos state gone on all nodes, and user data intact.",
+      "description": "3-node RF=3 cluster in 3 racks (auth with tablets for $paxos access), one session with host-pinned reads (session.execute(host=)). Creates a table with paxos_grace_seconds=cql_timeout(3) and one with default; LWT-inserts one key into the default table and asserts its paxos state on a quorum, then LWT-inserts at CL=ALL into the short table with a quorum-presence check (retried with a new key if the check outlasted the grace window, SCYLLADB-5753). Polls until short-table paxos state is gone on all nodes by the grace deadline, then asserts default-table state still on quorum and user rows intact.",
       "origin": {
         "sha": "983db84329",
         "date": "2021-01-11",
@@ -10,6 +10,7 @@
         "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
       },
       "commits": {
+        "7d71c03688": "grace 10s->cql_timeout(3), 1 key per table instead of 10, single session with host-pinned reads instead of exclusive sessions, quorum check retried with new key if it outlasts grace (SCYLLADB-5753), poll expiry to deadline instead of fixed sleep",
         "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
         "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
         "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
@@ -24,7 +25,7 @@
         "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
         "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
       },
-      "relevance": "Live: paxos_grace_seconds schema extension (db/paxos_grace_seconds_extension.hh), TTL applied in service/paxos/paxos_state.cc:322 and prepare_summary.cc:41; per-table $paxos for tablets (docs/features/lwt.rst#paxos-state-tables). Runs in both gating jobs, 32/32 pass, 28s.",
+      "relevance": "Live: paxos_grace_seconds schema extension (db/paxos_grace_seconds_extension.hh), TTL set from it on every paxos state write (service/paxos/paxos_state.cc:324-328), MRC expiry in prepare_summary.cc:41; per-table $paxos for tablets (docs/features/lwt.rst#paxos-state-tables). Runs in both gating jobs, 92/92 pass, 26s.",
       "duplicates": [
         {
           "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
@@ -33,18 +34,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test verifying real paxos-state expiry by paxos_grace_seconds across replicas, on both vnodes (system.paxos) and tablets ($paxos); boost test only checks TTL value on one node. Note: per-node $paxos reads are CL=ONE scans, node-local only because RF=3 on 3 nodes.",
+      "reason": "Only test verifying real paxos-state expiry by paxos_grace_seconds across replicas, on both vnodes (system.paxos) and tablets ($paxos); boost test only checks TTL value on one node. Note: with tablets the per-host $paxos reads are CL=ONE coordinated scans that another replica may serve (SCYLLADB-5822), exact only on vnodes.",
       "issues": [
         {
           "kind": "note",
-          "tag": "other",
-          "ref": "",
-          "text": "Per-node $paxos reads are CL=ONE scans, node-local only because RF=3 on 3 nodes."
+          "tag": "limited-check",
+          "ref": "lwt_test.py:478-481",
+          "text": "Tablets: per-host $paxos reads are CL=ONE coordinated scans; HWLB/other replica may serve them (SCYLLADB-5822), so not strictly per-node. Exact on vnodes."
         }
       ]
     },
     "TestLWTPaxos::test_paxos_grace_seconds_alter": {
-      "description": "Despite the name, no ALTER is executed: creates a table with short paxos_grace_seconds (cql_timeout(3)), 2 LWT inserts at CL=ALL, asserts paxos state on quorum, sleeps past grace, asserts paxos state absent on all nodes and user rows intact. Originally (983db84329) created with default grace, inserted, ALTERed to 10s, updated 5 rows and checked only those expired.",
+      "description": "Creates a table with default paxos_grace_seconds, ALTERs it to cql_timeout(3) and waits for schema agreement, LWT-inserts a key at CL=ALL and asserts its paxos state on a quorum (retried with a new key if the check outlasted the grace window), then polls until the paxos state is gone on all nodes by the grace deadline and checks user rows remain. Guards that ALTER TABLE ... WITH paxos_grace_seconds takes effect for new paxos state.",
       "origin": {
         "sha": "983db84329",
         "date": "2021-01-11",
@@ -52,6 +53,7 @@
         "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
       },
       "commits": {
+        "7d71c03688": "ALTER step re-added: create with default grace, ALTER to cql_timeout(3) + schema agreement; single session with host-pinned reads, quorum-checked insert with retry, poll expiry to deadline",
         "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
         "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
         "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
@@ -64,32 +66,32 @@
         "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
         "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
       },
-      "relevance": "paxos_grace_seconds live, but ALTER path no longer exercised by this test.",
+      "relevance": "Live: ALTER applies paxos_grace_seconds via cf_prop_defs::apply_to_builder (cql3/statements/cf_prop_defs.cc:346); TTL taken from schema on each paxos state write (service/paxos/paxos_state.cc:324-328). Runs in both gating jobs, 92/92 pass, 21s.",
       "duplicates": [
         {
           "path": "lwt_test.py::TestLWTPaxos::test_paxos_grace_seconds_basic",
-          "coverage": "full",
-          "note": "basic does the same short-grace table create/insert/quorum-check/expire-everywhere plus a default-grace control table"
+          "coverage": "partial",
+          "note": "same short-grace insert/quorum-check/expire path, but grace set by CREATE, no ALTER"
         },
         {
           "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
           "coverage": "partial",
-          "note": "TTL value on system.paxos, single node"
+          "note": "TTL value on system.paxos via CREATE, single node; no ALTER"
         }
       ],
-      "decision": "RED",
-      "reason": "Since 506fb80098 (PR #5816) the ALTER step was removed; remaining scenario is a strict subset of test_paxos_grace_seconds_basic (same helpers, same asserts). Note: name/docstring 'Alter' is stale (lwt_test.py:632); ALTER TABLE ... WITH paxos_grace_seconds is now untested anywhere - if wanted, add an ALTER step to basic rather than keep this.",
+      "decision": "GREEN",
+      "reason": "Since 7d71c03688 (PR #7664) the test runs ALTER TABLE ... WITH paxos_grace_seconds again and verifies the new grace takes effect (state expires within 3s instead of default 10 days); no scylla test/ or other dtest ALTERs paxos_grace_seconds. Note: with tablets the per-host $paxos reads are CL=ONE coordinated scans that another replica may serve, exact only on vnodes.",
       "issues": [
         {
           "kind": "note",
-          "tag": "stale-comment",
-          "ref": "lwt_test.py:632",
-          "text": "Name/docstring 'Alter' stale: ALTER step removed in 506fb80098; ALTER paxos_grace_seconds untested."
+          "tag": "limited-check",
+          "ref": "lwt_test.py:478-481",
+          "text": "Tablets: per-host $paxos reads are CL=ONE coordinated scans; HWLB/other replica may serve them (SCYLLADB-5822), so not strictly per-node. Exact on vnodes."
         }
       ]
     },
     "TestLWTPaxos::test_paxos_grace_seconds_interrupt": {
-      "description": "Short-grace table (cql_timeout(3)), 2 LWT inserts at CL=ALL, assert paxos state on quorum; kill node2, sleep past grace, assert paxos state absent on node1/node3, restart node2, assert paxos state absent on all nodes. Guards that a node down during paxos grace expiry doesn't bring back paxos state.",
+      "description": "Short-grace table (cql_timeout(3)), one LWT insert at CL=ALL with quorum-presence check (retried with a new key if the check outlasted the grace window); kill node2 (wait_other_notice only with tablets, SCYLLADB-5822), poll until paxos state is gone on node1/node3, keep node2 down until the grace deadline, restart it, then assert paxos state absent on all 3 nodes with reads pinned per host (retrying only NoHostAvailable). Guards that a node down during paxos grace expiry doesn't bring back paxos state.",
       "origin": {
         "sha": "983db84329",
         "date": "2021-01-11",
@@ -97,6 +99,8 @@
         "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
       },
       "commits": {
+        "34eadf1cec": "node2.stop waits for peers to notice only with tablets: $paxos read is a coordinated scan that hung on a not-yet-down node2 (SCYLLADB-5822)",
+        "7d71c03688": "single session with host-pinned reads (post-restart check now really hits node2), 1 quorum-checked key with retry (SCYLLADB-5753), poll expiry to deadline, node2 stop/start without wait_other_notice, keep node2 down until deadline",
         "efc4648044": "LWT inserts into short-grace table at CL=ALL so grace countdown starts after all replicas learned (SCYLLADB-5216)",
         "c5c511e2fb": "presence helper tolerates InvalidRequest for not-yet-propagated <tbl>$paxos (replaces schema-agreement wait)",
         "56a8598f6f": "wait for schema agreement after lazy $paxos table creation",
@@ -118,7 +122,7 @@
         "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
         "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
       },
-      "relevance": "Live: paxos TTL expiry (service/paxos/paxos_state.cc:322 comment explicitly covers participants down longer than paxos_grace_seconds).",
+      "relevance": "Live: paxos TTL expiry (service/paxos/paxos_state.cc:325-326 comment explicitly covers participants down longer than paxos_grace_seconds). Runs in both gating jobs, 91/92 pass, 41s; the one failure (next-dtest-tablets #11749) is the SCYLLADB-5822 hang fixed by 34eadf1cec.",
       "duplicates": [
         {
           "path": "test/boost/extensions_test.cc::paxos_grace_seconds_extension",
@@ -126,25 +130,25 @@
           "note": "TTL value only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique node-down-during-expiry scenario, 44s, stable. Bug: after restart node2 session is re-created with patient_cql_connection (non-exclusive, lwt_test.py:753), so the final 'expired on all nodes' CL=ONE read is not pinned to node2 and may be served by node1/node3; also nothing triggers paxos repair after restart, so the post-restart check is near-trivially true (local TTL).",
+      "decision": "GREEN",
+      "reason": "Unique node-down-during-expiry scenario; since 7d71c03688 every check is pinned per host, including node2 after restart (fixes the old non-exclusive-session weak check). Note: nothing triggers paxos repair after restart, so the post-restart check mostly verifies local TTL. Note: with tablets the per-host $paxos reads are CL=ONE coordinated scans that another replica may serve, exact only on vnodes.",
       "issues": [
         {
-          "kind": "bug",
-          "tag": "weak-check",
-          "ref": "lwt_test.py:753",
-          "text": "Post-restart 'expired on all nodes' CL=ONE read uses non-exclusive session, not pinned to node2; may be served by node1/node3."
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "lwt_test.py:636",
+          "text": "Nothing triggers paxos repair after restart, so post-restart check mostly verifies local TTL."
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "",
-          "text": "Nothing triggers paxos repair after restart, so post-restart check mostly verifies local TTL."
+          "ref": "lwt_test.py:478-481",
+          "text": "Tablets: per-host $paxos reads are CL=ONE coordinated scans; HWLB/other replica may serve them (SCYLLADB-5822), so not strictly per-node. Exact on vnodes."
         }
       ]
     },
     "TestLWTPaxos::test_paxos_grace_seconds_negative": {
-      "description": "Creates a table WITH paxos_grace_seconds=-1 and asserts ConfigurationException 'paxos_grace_seconds cannot be smaller than 0, (default 864000)'. Pure CQL validation on a 3-node cluster.",
+      "description": "Creates a table WITH paxos_grace_seconds=-1 and asserts ConfigurationException 'paxos_grace_seconds cannot be smaller than 0, (default 864000)'. Pure CQL validation on a single node (rf=1).",
       "origin": {
         "sha": "983db84329",
         "date": "2021-01-11",
@@ -152,12 +156,13 @@
         "summary": "juliayakovlev: tests for new paxos_grace_seconds table option (basic/alter/interrupt/negative); landed via PR #2323 branch (GitHub association)"
       },
       "commits": {
-        "ee5c00c930": "moved from TestLwt to TestLWTPaxos (now uses setup_cluster fixture, auth when tablets)",
+        "7d71c03688": "single node rf=1 without setup_cluster fixture/auth instead of 3 nodes; same assertion",
+        "ee5c00c930": "moved from TestLwt to TestLWTPaxos (then used the setup_cluster fixture, auth with tablets)",
         "983db84329": "origin (paxos_grace_seconds_negative_test)",
         "1976928815": "helper cleanup: removed get_paxos_state_table_name/paxos_rowcount, inline paxos table name (affects helpers used by test)",
         "55c4c0f738": "class: removed tablets skip (scylladb#18068), LWT over tablets enabled"
       },
-      "relevance": "Live: cql3/statements/cf_prop_defs.cc:179 validate_minimum_int(KW_PAXOSGRACESECONDS, 0, ...), message at :456.",
+      "relevance": "Live: cql3/statements/cf_prop_defs.cc:179 validate_minimum_int(KW_PAXOSGRACESECONDS, 0, ...), message at :456. 92/92 pass, 12s.",
       "duplicates": [
         {
           "path": "test/cqlpy/test_secondary_index_properties.py",
@@ -166,7 +171,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test of negative paxos_grace_seconds validation (grep of scylla test/ finds none). Cheap (15s). Would fit better as a cqlpy test; port then remove.",
+      "reason": "Only test of negative paxos_grace_seconds validation (grep of scylla test/ finds none). Cheap (single node since 7d71c03688). Would fit better as a cqlpy test; port then remove.",
       "issues": []
     },
     "TestLwt::test_basic_distributed": {
@@ -205,12 +210,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique node-down Paxos repair coverage. Note: step 3.4 deletes rows from system.paxos (lwt_test.py:333), but with tablets (create_ks defaults to tablets; next-dtest-tablets job) paxos state is in lwt.\"t$paxos\", so the delete is a no-op and 3.4 doesn't test repair after paxos-state loss there (exercised in the vnodes job).",
+      "reason": "Unique node-down Paxos repair coverage. Note: step 3.4 deletes rows from system.paxos (lwt_test.py:319), but with tablets (create_ks defaults to tablets; next-dtest-tablets job) paxos state is in lwt.\"t$paxos\", so the delete is a no-op and 3.4 doesn't test repair after paxos-state loss there (exercised in the vnodes job).",
       "issues": [
         {
           "kind": "note",
           "tag": "other",
-          "ref": "lwt_test.py:333",
+          "ref": "lwt_test.py:319",
           "text": "Step 3.4 deletes from system.paxos; under tablets state is in t$paxos, so 3.4 is a no-op in next-dtest-tablets."
         }
       ]
@@ -275,18 +280,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with consistency_test availability tests. Bug: 4.2 'SELECT * FROM t WHERE a = 4' at SERIAL (lwt_test.py:388) result is never asserted, and the 'two writes in parallel at different DCs' from the comment are sequential, so 'latest write wins' is not verified.",
+      "reason": "Partial overlap with consistency_test availability tests. Bug: 4.2 'SELECT * FROM t WHERE a = 4' at SERIAL (lwt_test.py:374) result is never asserted, and the 'two writes in parallel at different DCs' from the comment are sequential, so 'latest write wins' is not verified.",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "lwt_test.py:388",
+          "ref": "lwt_test.py:374",
           "text": "4.2 SERIAL read 'SELECT * FROM t WHERE a = 4' result never asserted; 'latest write wins' not verified."
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "lwt_test.py:388",
+          "ref": "lwt_test.py:374",
           "text": "Comment says two writes in parallel at different DCs; code runs them sequentially."
         }
       ]
@@ -335,7 +340,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_test.py:99,110",
+          "ref": "lwt_test.py:85,96",
           "text": "Threshold <=16 for 16 queries allows one cross-shard op (bounce) per query."
         },
         {
@@ -423,7 +428,7 @@
       ]
     },
     "TestPaxosBug::test_synced_most_recent_commit_in_cas_should_not_cause_timeouts": {
-      "description": "Regression for CASSANDRA-12043 (expired most-recent-commit causing endless paxos repair / CAS timeouts). 3 nodes in 3 racks, RF=3, table with paxos_grace_seconds=120. Node C stopped, LWT INSERT IF NOT EXISTS at QUORUM on A+B; after 60s B stopped, C started and a SERIAL read via A (A+C quorum, C missing MRC -> paxos repair); after another 60s (MRC now older than the 120s TTL on A) a second SERIAL read must not time out. Only asserts no exception; returned row not checked.",
+      "description": "Regression for CASSANDRA-12043 (expired most-recent-commit causing endless paxos repair / CAS timeouts). 3 nodes in 3 racks, RF=3, table with paxos_grace_seconds=40 (80 in debug). Node C stopped, LWT INSERT IF NOT EXISTS at QUORUM on A+B (t0); B stopped and C started (asserted to take < grace-10s), SERIAL read via A at t0+grace/2 (A+C quorum, C missing MRC -> paxos repair replays it to C with a fresh TTL); second SERIAL read at t0+grace+5 (A's MRC expired, C's alive; asserts read 1 didn't overrun) must not time out. Only asserts no exception; returned row not checked.",
       "origin": {
         "sha": "192fc4a191d65a11eea8dfbf5e04fb4bf570926e",
         "date": "2021-10-13",
@@ -431,12 +436,13 @@
         "summary": "Lukasz Sojka: cover case from CASSANDRA-12043 (merged as part of PR #2323 'Convert to Pytest')."
       },
       "commits": {
+        "cff16b92d5": "grace 120s->40s (80 debug); fixed 2x60s sleeps replaced by waits relative to t0 (read 1 at grace/2, read 2 at grace+5) with timing asserts so read 2 lands after A's MRC expiry and before C's replayed copy expires; helpers split",
         "0258e2bee09c114ed8fcfc3bd34b7cc64c158b34": "populate 3 nodes in 3 racks via generate_cluster_topology (RF-rack-valid).",
         "213b6284393b683372eae4084db2d5e3ddcb3805": "pytest port: class renamed PaxosBugTest->TestPaxosBug, helper names snake_case, create_cf as function, drop useless f-strings (formatting).",
         "192fc4a191d65a11eea8dfbf5e04fb4bf570926e": "origin: test + helpers added.",
         "17b53eebc47e62a55885c7334ed6215f8f081e5f": "not this test (git log -L picked up lines of TestLwtReadLinearizability that predate it)."
       },
-      "relevance": "Live: scylla implements the CASSANDRA-12043 mitigation since initial LWT (b3e01a45d7, d1774693bf): service/paxos/prepare_summary.cc:30-45 replicas_missing_most_recent_commit ignores MRC older than paxos_grace_seconds; service/paxos/paxos_state.cc:134-140 uses ballot time as 'now' for expiry. Paxos state TTL = paxos_grace_seconds (paxos_state.cc:321). Applies to both vnodes (system.paxos) and tablets (<table>$paxos); runs in next-dtest-tablets and next-dtest-consistent-topology, 32/32 passed.",
+      "relevance": "Live: scylla implements the CASSANDRA-12043 mitigation since initial LWT (b3e01a45d7, d1774693bf): service/paxos/prepare_summary.cc:30-45 replicas_missing_most_recent_commit ignores MRC older than paxos_grace_seconds; service/paxos/paxos_state.cc:142 uses ballot time as 'now' when loading state. Paxos state TTL = paxos_grace_seconds relative to write time (paxos_state.cc:324-328, 'USING TIMESTAMP ? AND TTL ?'), so C's replayed MRC outlives A's. Applies to both vnodes (system.paxos) and tablets (<table>$paxos); runs in next-dtest-tablets and next-dtest-consistent-topology, 92/92 passed; 141s avg predates cff16b92d5 (committed 2026-11-01), now ~grace+5s of waits.",
       "duplicates": [
         {
           "path": "lwt_test.py::TestLWTPaxos::test_paxos_grace_seconds_interrupt",
@@ -445,30 +451,24 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage of the expired-MRC paxos repair path (no scylla test exercises replicas_missing_most_recent_commit / paxos_grace_seconds expiry; grep test/cluster, test/boost). Note: only asserts no exception (the CAS-timeout target), never checks the read returns (1,1) (lwt_test.py:800,834). Note: timing-based (2x fixed 60s sleeps, 144s avg) and whether the 2nd read lands past the 120s MRC TTL depends on node C start time; node_a/node_b.flush() (lwt_test.py:821-822) irrelevant to paxos state. Could be shortened via smaller paxos_grace_seconds.",
+      "reason": "Unique coverage of the expired-MRC paxos repair path (no scylla test exercises replicas_missing_most_recent_commit / paxos_grace_seconds expiry; grep test/cluster, test/boost). cff16b92d5 made the timing deterministic (grace 40s, reads placed relative to t0 with guards). Note: only asserts no exception, never checks the read returns (1,1) (lwt_test.py:720). Note: node_a/node_b.flush() (lwt_test.py:704-705) irrelevant to paxos state.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_test.py:800,834",
+          "ref": "lwt_test.py:677,683,720",
           "text": "Only asserts no exception (the CAS-timeout target); never checks the read returns (1,1)."
         },
         {
           "kind": "note",
-          "tag": "slow",
-          "ref": "",
-          "text": "2x fixed 60s sleeps; whether the 2nd read lands past the 120s MRC TTL depends on node C start time."
-        },
-        {
-          "kind": "note",
           "tag": "dead-code",
-          "ref": "lwt_test.py:821-822",
+          "ref": "lwt_test.py:704-705",
           "text": "node_a/node_b.flush() irrelevant to paxos state."
         }
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
