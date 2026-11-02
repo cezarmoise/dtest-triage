@@ -28,6 +28,8 @@ Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
    `python3 scripts/delta.py --bump <D> <S> <module>` and `git commit -m "analysis: weekly <module>" analysis/<module>.json` (only that file: others are in progress).
 6. New tests: `python3 scripts/pending.py` → run the analyze skill (batch, skip its step 1) for those modules.
 7. `python3 scripts/delta.py` should print only the header (anything left = not done).
+   `python3 scripts/groups.py` must pass: map new modules / fix stale overrides in `groups.json` (CLAUDE.md "Review
+   groups"), `git commit -m "groups: <what>" groups.json`.
    Then `git pull --rebase -q && git push -q`.
 8. Reply: decision changes (test, old → new, why), DELETED tests (with their previous decision), new tests
-   analyzed, items for a human (MOVED, `*` ports, dropped HELPER lines).
+   analyzed, items for a human (MOVED, `*` ports, dropped HELPER lines, new `groups.json` mappings).

@@ -21,6 +21,8 @@ analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/anal
 scripts/refresh.sh        # Jenkins CSVs (jobs below) + fetch dtest next / scylla master + gen_data.py
 scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scylla_rev; --apply marks DELETED
 .claude/skills/weekly/    # /weekly skill: refresh → delta → recheck subagents → commit
+groups.json               # test → review group (Jira component, team, reviewers); for opening Jira issues
+scripts/groups.py         # validates groups.json, prints tests per team/group
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
@@ -115,6 +117,14 @@ Data flow:
   at data `rev`; `duplicates.path` linked only when it parses (`test/...` → scylladb at `scylla_rev`, dtest files →
   scylla-dtest at `rev`), else plain text; origin PR from analysis `origin.pr` over data commits' `pr`.
 - Duration filter: `stats.avg_s` (all jobs) in buckets <10s, 10–30s, 30s–1m, 1–2m, 2–5m, >5m, plus "no runs".
+
+## Review groups
+
+`groups.json` (not read by the dashboard): `groups.<g>` = `{component, team, reviewers, note?}`; `component` is a
+Jira `Scylla components` value (setting it auto-assigns the SME) or null; `reviewers` = SME assignee + watchers from
+Confluence "Scylla components SMEs auto assignment"; `teams` = Atlassian team members (wider pool). Test → group:
+first `overrides` fnmatch on `<module>::<Class>::<test>`, else `modules[<module>]`. New module → add it there
+(`scripts/groups.py` fails otherwise).
 
 ## Rubric
 
