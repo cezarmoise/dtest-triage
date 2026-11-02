@@ -1,8 +1,8 @@
 {
   "file": "udtencoding_test.py",
-  "analyzed_at": "2026-10-28",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestUDTEncoding::test_udt": {
       "description": "On a 3-node cluster (RF=3), creates UDT address(city,zip) and table with map<text, frozen<address>>, inserts a valid UDT literal inside the map, then asserts server-side UDT literal validation: unknown field 'street' and 'cityname' -> \"Unknown field '...' in value of user defined type address\"; wrong field type (zip as text) -> \"Invalid map literal for addresses\". Pure single-coordinator CQL validation; no reads, no multi-node behavior.",
@@ -30,6 +30,11 @@
       "relevance": "Live: UDT literal validation ('Unknown field ... in value of user defined type') exists in scylla. Docstring's 'driver not recognizing UDT syntax' rationale is a Cassandra-era concern; validation is entirely server-side.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udt.py::test_udt_literal_invalid_field_in_map",
+          "coverage": "full",
+          "note": "Added by 04a0f07fb3 (SCYLLADB-1929) to replace this dtest: same map<text, frozen<udt>> table, unknown 'street'/'cityname' and wrong-type zip literals rejected with message match."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidField",
           "coverage": "full",
           "note": "Unknown field in frozen UDT literal rejected."
@@ -46,7 +51,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single-node CQL literal validation run on a 3-node cluster (~16s); same unknown-field errors asserted in cqlpy user_types_test.py::testInvalidField/testInvalidUDTStatements (ms, in scylla CI). Only nesting inside map<.., frozen<udt>> is not explicit, same parser path. Note: driver-encoding rationale in docstring is Cassandra-only.",
+      "reason": "Single-node CQL literal validation run on a 3-node cluster (~16s); all three checks ported 1:1 to cqlpy test_udt.py::test_udt_literal_invalid_field_in_map (04a0f07fb3, SCYLLADB-1929, written to replace this dtest), top-level case also in user_types_test.py::testInvalidField/testInvalidUDTStatements. Note: driver-encoding rationale in docstring is Cassandra-only.",
       "issues": [
         {
           "kind": "note",
@@ -77,7 +82,7 @@
         {
           "path": "test/cqlpy/test_udt.py::test_alter_type_rename_used_in_partition_key",
           "coverage": "full",
-          "note": "Added by 69214abed9 (moved from bb69ae5a02, SCYLLADB-1929) explicitly to replace this dtest: ALTER TYPE RENAME on frozen pk UDT raises InvalidRequest naming the table."
+          "note": "Added by 69214abed9 (moved from bb69ae5a02, SCYLLADB-1929) to replace this dtest; extended by 04a0f07fb3 to the dtest layout (pk UDT + clustering column + second UDT regular column): RENAME on pk UDT raises InvalidRequest naming the table, ALTER TYPE ADD on the regular-column UDT succeeds. Only the dtest's row insert is missing (guard is schema-only)."
         },
         {
           "path": "test/cql/forbid_adding_to_udt_used_in_partkey_test.cql",
@@ -91,7 +96,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "RENAME on pk UDT now explicit in cqlpy test_udt.py::test_alter_type_rename_used_in_partition_key (69214abed9, written to replace this dtest, SCYLLADB-1929); ADD on pk UDT in test/cql/forbid_adding_to_udt_used_in_partkey_test.cql (fix 66e8214606, scylladb/scylla#6941), ADD on regular UDT column in cqlpy testAlterUDT. Note:assert_invalid at udtencoding_test.py:59 has no message match, so any InvalidRequest passes; single-node CQL on 3-node cluster (~18s).",
+      "reason": "Fully ported: cqlpy test_udt.py::test_alter_type_rename_used_in_partition_key (69214abed9, extended by 04a0f07fb3 to the dtest layout incl. ADD on the non-pk UDT, SCYLLADB-1929) checks both statements with stronger match; ADD on pk UDT in test/cql/forbid_adding_to_udt_used_in_partkey_test.cql (fix 66e8214606, scylladb/scylla#6941). Note: assert_invalid at udtencoding_test.py:59 has no message match, so any InvalidRequest passes; single-node CQL on 3-node cluster (~18s).",
       "issues": [
         {
           "kind": "note",
