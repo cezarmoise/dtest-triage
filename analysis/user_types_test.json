@@ -113,6 +113,7 @@
         "summary": "Added after Nadav's scylla fix de1171181c for case-sensitive type names (backported to 3.3)."
       },
       "commits": {
+        "4bc71af9e5": "Dropped the two time.sleep(2) schema waits after CREATE TABLE (driver waits for schema agreement).",
         "056f5dc7a8": "formatting (unused node vars renamed _node2/_node3).",
         "c42253e9cf": "Session CL set to LOCAL_QUORUM (scylla-enterprise#5501 flakiness: write+read at CL=ONE).",
         "0a99ae46cc": "cluster_topology_3_nodes and RF 2->3.",
@@ -272,6 +273,7 @@
         "summary": "Cassandra-era initial user_types test; enabled for scylla in 0497c6eb53 (PR 304)."
       },
       "commits": {
+        "4bc71af9e5": "Dropped time.sleep(2) schema wait after CREATE TABLE.",
         "a9459cb2bf": "session2 also LOCAL_QUORUM (SCYLLADB-234 rare flake).",
         "056f5dc7a8": "formatting (unused node3).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
@@ -325,7 +327,7 @@
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "user_types_test.py:327",
+          "ref": "user_types_test.py:321",
           "text": "50-iteration loop with time.sleep(0.1) re-checks the identical scenario."
         }
       ]
@@ -375,6 +377,7 @@
         "summary": "Cassandra-era test 'User type test for nulls'."
       },
       "commits": {
+        "4bc71af9e5": "Dropped time.sleep(2) schema wait after CREATE TABLE.",
         "056f5dc7a8": "formatting (unused node vars).",
         "86dd266de4": "Session CL LOCAL_QUORUM (scylladb#22865 flake: write+read CL=ONE).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
@@ -465,6 +468,7 @@
         "summary": "Cassandra-era test: user types cannot be dropped while in use (function history stops at 5107544570 rename/move)."
       },
       "commits": {
+        "4bc71af9e5": "Dropped time.sleep(2) schema wait after CREATE TABLE.",
         "056f5dc7a8": "formatting (unused node vars).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
         "c8fd1f3c05": "Replaced assert_no_types (all keyspaces) with assert_udt_type for this ks/type; added positive check after CREATE.",
@@ -506,19 +510,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut5/cf3). 3-node cluster adds nothing (schema via group0); final check is driver metadata only. ~20s. Note: stale TODO for CASSANDRA-6472 (user_types_test.py:~104) and time.sleep(2) schema wait.",
+      "reason": "Same scenario and exact error message covered by boost user_types_test.cc::test_invalid_user_type_statements (ut5/cf3). 3-node cluster adds nothing (schema via group0); final check is driver metadata only. ~20s. Note: stale TODO for CASSANDRA-6472 (user_types_test.py:111).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "user_types_test.py:113",
+          "ref": "user_types_test.py:111",
           "text": "Stale TODO for CASSANDRA-6472; code it refers to already active."
-        },
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "user_types_test.py:96",
-          "text": "Fixed time.sleep for schema propagation."
         },
         {
           "kind": "note",
@@ -537,6 +535,7 @@
         "summary": "Cassandra-era test: UDT field types are enforced on insert."
       },
       "commits": {
+        "4bc71af9e5": "Dropped time.sleep(2) schema wait after CREATE TABLE.",
         "056f5dc7a8": "formatting (unused node vars).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
         "9ffd273f04": "formatting",
@@ -553,7 +552,7 @@
         "6e3b2e4428": "USE keyspace.",
         "3fa5905c8c": "Origin."
       },
-      "relevance": "Live: cql3/expr/prepare_expr.cc:237 'Invalid user type literal for {}: field {} is not of type {}'.",
+      "relevance": "Live: cql3/expr/prepare_expr.cc:238 'Invalid user type literal for {}: field {} is not of type {}'.",
       "duplicates": [
         {
           "path": "test/cqlpy/cassandra_tests/validation/entities/tuple_type_test.py (line ~92)",
@@ -569,22 +568,21 @@
           "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
           "coverage": "partial",
           "note": "Unknown field / too many tuple elements in UDT literal; no wrong-type field."
+        },
+        {
+          "path": "test/cqlpy/test_udt.py::test_udt_literal_invalid_field_in_map",
+          "coverage": "partial",
+          "note": "Added in 04a0f07fb3: wrong-type UDT field nested in a map is rejected; same field check (prepare_expr.cc:238) but swallowed by test_assignment, asserts map message (:347), not 'field X is not of type'."
         }
       ],
       "decision": "YELLOW",
-      "reason": "UDT field type mismatch error not found verbatim in scylla tests (closest: tuple_type_test tuple component mismatch, testInvalidField). But it's pure single-node CQL validation; 3-node RF=3 adds nothing and costs 16s. Cheap port to cqlpy, then remove. Note: 0-row check after a rejected-at-prepare statement is near-trivial; time.sleep(2) schema wait.",
+      "reason": "Top-level UDT field type mismatch error ('field user_number is not of type int', prepare_expr.cc:238) not asserted in scylla tests; closest: cqlpy test_udt.py::test_udt_literal_invalid_field_in_map (same check nested in a map, map error message), tuple_type_test tuple component mismatch, testInvalidField. Pure single-node CQL validation; 3-node RF=3 adds nothing and costs 16s. Cheap port to cqlpy, then remove. Note: 0-row check after a rejected-at-prepare statement is near-trivial.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "",
           "text": "0-row check after statement rejected at prepare is near-trivial; error check is the real assert."
-        },
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "user_types_test.py:207",
-          "text": "Fixed time.sleep for schema propagation."
         }
       ]
     },
@@ -597,6 +595,7 @@
         "summary": "Cassandra-era test: UDT as part of composite partition key."
       },
       "commits": {
+        "4bc71af9e5": "Dropped time.sleep(2) schema wait after CREATE TABLE.",
         "056f5dc7a8": "formatting (unused vars).",
         "c42253e9cf": "Session CL LOCAL_QUORUM (flake fix, PR 6012).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
@@ -638,15 +637,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "UDT inside a composite partition key with data roundtrip not found verbatim in scylla tests (only single-column UDT PK in test_udt.py, frozen collections as PK). Pure single-node CQL semantics; 3-node setup only added CL flakiness (c42253e9cf). Cheap cqlpy port; 17s. Note: time.sleep(2) schema wait.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "user_types_test.py:367",
-          "text": "Fixed time.sleep for schema propagation."
-        }
-      ]
+      "reason": "UDT inside a composite partition key with data roundtrip not found verbatim in scylla tests (only single-column UDT PK in test_udt.py, frozen collections as PK). Pure single-node CQL semantics; 3-node setup only added CL flakiness (c42253e9cf). Cheap cqlpy port; 17s.",
+      "issues": []
     },
     "TestUserTypes::test_type_keyspace_permission_isolation": {
       "description": "3-node, PasswordAuthenticator + CassandraAuthorizer, permissions_validity_in_ms=0. Two users each granted ALL on own keyspace (ks1/ks2). Asserts each gets Unauthorized ('no CREATE/DROP/ALTER permission on <keyspace ksN>') for CREATE/DROP/ALTER TYPE ... RENAME in the other keyspace, succeeds in its own, then drops types at CL=ALL and checks driver metadata no longer has them.",
@@ -657,6 +649,7 @@
         "summary": "Cassandra-era test: UDT permissions respected across keyspaces."
       },
       "commits": {
+        "4bc71af9e5": "Dropped sleep(5) after cluster start and sleep(5) before final check; superuser metadata now reloaded via refresh_schema_metadata() before assert_udt_type (~22s -> ~11s).",
         "056f5dc7a8": "formatting (unused node vars).",
         "0a99ae46cc": "cluster_topology_3_nodes, RF 2->3.",
         "c8fd1f3c05": "assert_no_types -> assert_udt_type per keyspace.",
@@ -696,24 +689,18 @@
         }
       ],
       "decision": "RED",
-      "reason": "scylla test/cluster/dtest/auth_test.py::test_type_auth checks the same check_access paths with identical messages; the second keyspace/user adds no new code path. Slow (31s, 3 nodes + sleeps). Note: ignore pattern 'Can't send migration request' is dead (string not in scylla source); time.sleep(5) x2; final check is driver metadata only.",
+      "reason": "scylla test/cluster/dtest/auth_test.py::test_type_auth checks the same check_access paths with identical messages; the second keyspace/user adds no new code path. 3 nodes; 30s in Jenkins window, ~11s after 4bc71af9e5 dropped the sleeps. Note: ignore pattern 'Can't send migration request' is dead (string not in scylla source); final check is driver metadata only.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "user_types_test.py:530",
+          "ref": "user_types_test.py:520",
           "text": "Ignore pattern 'Can't send migration request' is dead (string not in scylla source)."
         },
         {
           "kind": "note",
-          "tag": "slow",
-          "ref": "user_types_test.py:539",
-          "text": "time.sleep(5) x2."
-        },
-        {
-          "kind": "note",
           "tag": "limited-check",
-          "ref": "",
+          "ref": "user_types_test.py:571",
           "text": "Final drop check is driver metadata only (assert_udt_type)."
         }
       ]
@@ -751,7 +738,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
