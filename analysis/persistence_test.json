@@ -35,22 +35,22 @@
         {
           "path": "persistence_test.py::TestPersistence::test_persist_small_columns",
           "coverage": "partial",
-          "note": "same write->restart->read scenario via cassandra-stress"
+          "note": "same write->restart->read scenario with the Python driver (5 one-byte blob rows, assert_one per row)"
         }
       ],
       "decision": "YELLOW",
-      "reason": "Cheap (~10s, 100% pass) smoke test of write->graceful restart->read; this scenario is implicitly exercised by many restart tests but no scylla test is an exact match (closest test/cluster/test_commitlog.py::test_reboot, dev/debug only). Low unique value; keep only as a gating smoke test. Note: restart_cluster uses arbitrary time.sleep(0.5) (persistence_test.py:22,24).",
+      "reason": "Cheap (~10s, 100% pass) smoke test of write->graceful restart->read; this scenario is implicitly exercised by many restart tests but no scylla test is an exact match (closest test/cluster/test_commitlog.py::test_reboot, dev/debug only). Low unique value; keep only as a gating smoke test. Note: restart_cluster uses arbitrary time.sleep(0.5) (persistence_test.py:23,25).",
       "issues": [
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "persistence_test.py:22,24",
+          "ref": "persistence_test.py:23,25",
           "text": "restart_cluster uses arbitrary time.sleep(0.5)."
         }
       ]
     },
     "TestPersistence::test_persist_small_columns": {
-      "description": "1-node cluster; cassandra-stress writes 5 rows with one 1-byte column (cl=ALL, RF=1), graceful cluster restart, then cassandra-stress reads the same 5 rows; passes if the c-s read does not fail. Part of the original persistence suite for scylladb#1581; helper stress_with_col_size is parameterized but only size=1 is ever used.",
+      "description": "1-node cluster; the driver creates keyspace1.standard1 (blob key, blob c0, RF=1), inserts 5 rows with distinct 1-byte blob values, graceful cluster restart (restart_cluster), then reads each row back and checks the value with assert_one (tools/assertions.py:135, exact list equality). Part of the original persistence suite for scylladb#1581; helper write_and_verify_blobs is parameterized by size but only size=1 is used. Until f38986c045 it used cassandra-stress write/read without comparing values.",
       "origin": {
         "sha": "6a3eece18895b085da963e3eeac003af12be9ed3",
         "date": "2016-08-15",
@@ -63,14 +63,15 @@
         "491d907b0ce1695b6938bc2f98a8ac91b86f4fe6": "nose->pytest port (attrs->marks, assertEqual->assert); no behavior change",
         "13a90e73039e8e4e2e78ebc85f48a67b6f039487": "file-level: next_gating moved from test_persist_simple to class (all tests gated)",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
-        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting"
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting",
+        "f38986c045835d2a4c2cea6df5c3872d3fea8d05": "c-s write/read replaced by driver: creates keyspace1.standard1 blob table, inserts 5 distinct 1-byte rows, restart, assert_one compares each value; use_cassandra_stress mark dropped (PR #7562)"
       },
-      "relevance": "Live behavior (data survives restart), but nothing size-specific: 1-byte values are routine in every test. c-s keyspace1/standard1 schema, no explicit flush.",
+      "relevance": "Live behavior (data survives restart), but nothing size-specific: 1-byte values are routine in every test. Driver-created keyspace1.standard1, no explicit flush (data reaches sstables via flush on graceful stop).",
       "duplicates": [
         {
           "path": "persistence_test.py::TestPersistence::test_persist_simple",
           "coverage": "full",
-          "note": "same scenario (tiny rows -> graceful restart -> read and compare), with an explicit equality assert, ~3x faster, no c-s dependency"
+          "note": "same scenario (1 node, tiny rows -> graceful restart -> read and compare values); differs only in column types (text/int with a clustering column vs blob) and row count (2 vs 5)"
         },
         {
           "path": "test/cluster/test_commitlog.py::test_reboot",
@@ -79,19 +80,19 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant with test_persist_simple in the same file (same write->restart->read scenario, stronger assertion), while being ~3x slower (27s vs 10s) and depending on cassandra-stress. Note: stress_with_col_size helper only ever called with size=1 (persistence_test.py:36-41,75); the assertion is only implicit (c-s read not erroring).",
+      "reason": "Redundant with test_persist_simple in the same file: same 1-node write->graceful restart->read-and-compare scenario; blob vs text/int columns and 5 vs 2 rows add nothing (1-byte values not size-specific), and test_persist_simple also has a clustering column. f38986c045 (PR #7562) dropped cassandra-stress and added a value compare, so it is no longer slow or weakly asserted, but the redundancy remains. Note: write_and_verify_blobs only ever called with size=1 (persistence_test.py:37,79); restart_cluster uses fixed time.sleep(0.5) (persistence_test.py:23,25).",
       "issues": [
         {
           "kind": "note",
           "tag": "redundant-param",
-          "ref": "persistence_test.py:36-41,75",
-          "text": "stress_with_col_size helper parameterized but only ever called with size=1."
+          "ref": "persistence_test.py:37,79",
+          "text": "write_and_verify_blobs helper parameterized by size but only ever called with size=1."
         },
         {
           "kind": "note",
-          "tag": "limited-check",
-          "ref": "persistence_test.py:75",
-          "text": "Assertion only implicit: c-s read not erroring."
+          "tag": "slow",
+          "ref": "persistence_test.py:23,25",
+          "text": "restart_cluster uses arbitrary time.sleep(0.5) after stop and after start."
         }
       ]
     },
@@ -149,7 +150,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
