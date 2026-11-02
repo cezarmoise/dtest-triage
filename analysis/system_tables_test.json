@@ -108,7 +108,7 @@
       "issues": []
     },
     "TestClusterStatusTable::test_content_remove_node": {
-      "description": "Starts 3 nodes, kills node2, node1.removenode(host_id), sleep(10), reads cluster_status: with raft topology asserts node2's row is gone; gossip mode branch asserts up=False and status REMOVED.",
+      "description": "Starts 3 nodes, kills node2, node1.removenode(host_id), then polls system.cluster_status on node1 (exclusive connection, retry_till_success up to 60s): with raft topology asserts node2's row is gone; gossip mode branch asserts the row exists with up=False and status REMOVED. Guards removenode reflection in the cluster_status virtual table.",
       "origin": {
         "sha": "02d105cabe1e4aa41fcb52107aa3fbc71cb1150c",
         "date": "2022-01-26",
@@ -116,6 +116,7 @@
         "summary": "Ilya Rarov: tests for new system.cluster_status / system.token_ring virtual tables (scylla 4.6, scylladb@7c95bd33)."
       },
       "commits": {
+        "a2abcc9f12": "replaced sleep(10) + single read on a random node with retry_till_success(60s) polling node1 via exclusive connection; same assertions (gossip branch also asserts row present)",
         "056f5dc7a8": "formatting (node3 -> _node3)",
         "d06bed122f": "raft check switched to self.scylla_features",
         "3021ba810c": "adapted for raft topology: dropped !consistent-topology-changes mark, added branch asserting removed node absent",
@@ -125,22 +126,16 @@
         "02d105cabe": "origin: test added",
         "4fff8150aa": "file-level: module pytestmark next_gating added (test now in gating)"
       },
-      "relevance": "Live: removenode + cluster_status. Gossip topology is deprecated (force_gossip_topology_changes value_status::Deprecated, db/config.cc:1735); dtest always has 'consistent-topology-changes' in scylla_features unless --force-gossip-topology-changes (conftest.py:735-741).",
+      "relevance": "Live: removenode + cluster_status. Gossip topology is deprecated (force_gossip_topology_changes value_status::Deprecated, db/config.cc:1741); dtest always has 'consistent-topology-changes' in scylla_features unless --force-gossip-topology-changes (conftest.py:734-740).",
       "duplicates": [],
       "decision": "GREEN",
-      "reason": "Unique check that removed node vanishes from cluster_status, but slowest of class (58s). Note: gossip branch (system_tables_test.py:230-232) is dead in all CI jobs (scylla_features always contains consistent-topology-changes, conftest.py:735); Note: fixed sleep(10) (line 224) instead of waiting on condition.",
+      "reason": "Unique check that removed node vanishes from cluster_status, but slowest of class (~56s). Note: gossip branch (system_tables_test.py:231-234) is dead in all CI jobs (scylla_features always contains consistent-topology-changes, conftest.py:734).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "system_tables_test.py:230-232",
-          "text": "Gossip-mode branch dead in all CI jobs (consistent-topology-changes always in scylla_features, conftest.py:735)."
-        },
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "system_tables_test.py:224",
-          "text": "Fixed sleep(10) instead of waiting on a condition."
+          "ref": "system_tables_test.py:231-234",
+          "text": "Gossip-mode branch dead in all CI jobs (consistent-topology-changes always in scylla_features, conftest.py:734)."
         }
       ]
     },
@@ -795,7 +790,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
