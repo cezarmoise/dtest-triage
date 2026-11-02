@@ -85,6 +85,8 @@
         "summary": "introduce repair_abort_test: abort repair mid-way, verify streaming stops."
       },
       "commits": {
+        "b8ec6ee0e6": "dropped the no-op 'Before Repair' checking_keys_num call (6 stop/start cycles, asserted nothing)",
+        "8d5ef3c783": "dropped the CASSANDRA-4373 sleep(10) before repair; 10s sleep after force_terminate_repair kept",
         "36a75a3da5": "re-land of nodetool cluster repair change (PR 5925): node.repair(keyspace=...) (repair_thread signature); added skip_if(tablets)",
         "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
         "c3471a97e4": "formatting (autopep8)",
@@ -100,18 +102,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only dtest/scylla test hitting force_terminate_repair, but assertions are vacuous: 'len(result) <= keys_unit*3' (repair_additional_test.py:2058, called at :2093) can never fail since only 9000 keys exist; repair_thread swallows exceptions (:2063-2070), so it only checks abort doesn't hang. ~122s. Bug: no-op assert; 'Before Repair' check asserts nothing.",
+      "reason": "Only dtest/scylla test hitting force_terminate_repair, but assertions are vacuous: 'len(result) <= keys_unit*3' (repair_additional_test.py:2020, called at :2053) can never fail since only 9000 keys exist; repair_thread swallows exceptions (:2025-2032), so it only checks abort doesn't hang. ~114s. Bug: no-op after-abort assert; abort outcome never checked.",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "repair_additional_test.py:2058",
-          "text": "After-abort assert len(result) <= keys_unit*3 can't fail: only 9000 keys exist; 'Before Repair' call (:2072) asserts nothing."
+          "ref": "repair_additional_test.py:2020",
+          "text": "After-abort assert len(result) <= keys_unit*3 (called at :2053) can't fail: only 9000 keys exist."
         },
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "repair_additional_test.py:2063-2070",
+          "ref": "repair_additional_test.py:2025-2032",
           "text": "repair_thread swallows all exceptions; abort outcome never checked, only that it doesn't hang."
         }
       ]
@@ -1365,6 +1367,7 @@
         "summary": "Calle Wilund: change -par test to -seq (repair_option_par_test from 2016)."
       },
       "commits": {
+        "8d5ef3c783": "file-level: dropped the CASSANDRA-4373 sleep(10) before repair (start(wait_other_notice=True) already waits for UN)",
         "36a75a3da5": "dropped the ['-seq'] option (now _repair_disjoint_data_test() with no options); skip with tablets",
         "98832bb5fa": "migrate to pytest: rename to test_*, base-class wrapper",
         "c3471a97e4": "formatting (autopep8)",
@@ -1551,6 +1554,7 @@
         "summary": "Nadav Har'El: two tests for repairing missing CFs (Fixes #117, #118); pre-PR era."
       },
       "commits": {
+        "8d5ef3c783": "file-level: dropped the CASSANDRA-4373 sleep(10) before repair (start(wait_other_notice=True) already waits for UN)",
         "98832bb5fa": "migrate to pytest: rename to test_*",
         "6b5a3275e4": "add dtest-debug attr",
         "c758e26239": "add next-gating attr",
@@ -1573,12 +1577,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Missing-CF scenario (#117/#118) no longer reachable with raft schema; remaining check (missing rows repaired) overlaps test_repair_disjoint_row_3nodes. Note: ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:444) is dead, scylla removed migration_task/schema pull (02fc4ad0a9).",
+      "reason": "Missing-CF scenario (#117/#118) no longer reachable with raft schema; remaining check (missing rows repaired) overlaps test_repair_disjoint_row_3nodes. Note: ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:450) is dead, scylla removed migration_task/schema pull (02fc4ad0a9).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "repair_additional_test.py:444",
+          "ref": "repair_additional_test.py:450",
           "text": "Ignore pattern 'migration_task - Can't send migration request' is dead; scylla removed schema pull (02fc4ad0a9)."
         }
       ]
@@ -1592,6 +1596,7 @@
         "summary": "Nadav Har'El: two tests for repairing missing CFs (Fixes #117, #118); pre-PR era."
       },
       "commits": {
+        "8d5ef3c783": "file-level: dropped the CASSANDRA-4373 sleep(10) before repair (start(wait_other_notice=True) already waits for UN)",
         "98832bb5fa": "migrate to pytest: rename to test_*",
         "c758e26239": "add next-gating attr; fix debug msg to say node2",
         "98a2360a18": "move into RepairAdditionalBase",
@@ -1613,12 +1618,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Initiator-without-CF case is obsolete under raft schema, making it nearly a copy of test_repair_schema (which itself overlaps test_repair_disjoint_row_3nodes); candidate to keep only one of the pair. Note: dead ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:491).",
+      "reason": "Initiator-without-CF case is obsolete under raft schema, making it nearly a copy of test_repair_schema (which itself overlaps test_repair_disjoint_row_3nodes); candidate to keep only one of the pair. Note: dead ignore pattern 'migration_task - Can't send migration request' (repair_additional_test.py:496).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "repair_additional_test.py:491",
+          "ref": "repair_additional_test.py:496",
           "text": "Ignore pattern 'migration_task - Can't send migration request' is dead; scylla removed schema pull (02fc4ad0a9)."
         }
       ]
@@ -1878,6 +1883,8 @@
         "summary": "Nadav Har'El: repair with a down node still repairs what it can (#127); pre-PR era."
       },
       "commits": {
+        "d17149a022": "file-level: dropped debug-only SELECT * queries that just logged counts; 2000-row asserts kept",
+        "8d5ef3c783": "file-level: 2x sleep(10) after CL=ONE/TWO writes -> _wait_background_writes_done (polls coordinator background_writes gauge to 0, 60s timeout, asserts metric exported)",
         "98832bb5fa": "migrate to pytest",
         "c3471a97e4": "formatting",
         "98a2360a18": "move into RepairAdditionalBase",
@@ -1885,7 +1892,7 @@
         "36a75a3da5": "file-level: tablets branch skips the failing repair; node.repair(keyspace=)",
         "2ae0479db1": "file-level: RF-rack-valid topology (r1:2, r2:1) makes node3 a replica of every range, voiding the docstring premise"
       },
-      "relevance": "Live: 'partial' ranges repaired with live peers only (repair/repair.cc:915-929). On tablets the failing-repair step is skipped (:1782) and node3.repair runs a full cluster repair, so the tablets run is a plain repair. 32 runs, 100%, ~56s.",
+      "relevance": "Live: 'partial' ranges repaired with live peers only (repair/repair.cc:915-929). On tablets the failing-repair step is skipped (:1779) and node3.repair runs a full cluster repair, so the tablets run is a plain repair. 32 runs, 100%, ~56s.",
       "duplicates": [
         {
           "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_ignore_nodes",
@@ -1957,6 +1964,8 @@
         "summary": "Nadav Har'El: further test of partially-successful repair (4 nodes RF=3, one down); pre-PR era."
       },
       "commits": {
+        "d17149a022": "file-level: dropped debug-only SELECT * queries that just logged counts; 2000-row asserts kept",
+        "8d5ef3c783": "file-level: 2x sleep(10) after CL=ONE/TWO writes -> _wait_background_writes_done (polls coordinator background_writes gauge to 0, 60s timeout, asserts metric exported)",
         "98832bb5fa": "migrate to pytest",
         "c3471a97e4": "formatting",
         "98a2360a18": "move into RepairAdditionalBase",
@@ -1964,7 +1973,7 @@
         "36a75a3da5": "file-level: on tablets skip the failing repair; node.repair(keyspace=) -> cluster repair on tablets",
         "2ae0479d": "file-level (PR #5999, RF-rack-validity): populate(4) -> racks {r1:2, r2:1, r3:1}; makes every range include node4, see reason"
       },
-      "relevance": "Repair behavior is live (repair/repair.cc:915-929), but since 2ae0479d (racks r1:2,r2:1,r3:1 with RF=3 NTS, rack-aware placement locator/network_topology_strategy.cc:94) every range has one replica per rack, so node4 (only node in r3) replicates every range. The final full node4.repair therefore repairs all ranges by itself: the 2000-row assertion holds even if the failed repair did nothing. On tablets the failing repair is skipped (:1897) and node4.repair is a plain cluster repair. 32 runs, 100%, ~65s.",
+      "relevance": "Repair behavior is live (repair/repair.cc:915-929), but since 2ae0479d (racks r1:2,r2:1,r3:1 with RF=3 NTS, rack-aware placement locator/network_topology_strategy.cc:94) every range has one replica per rack, so node4 (only node in r3) replicates every range. The final full node4.repair therefore repairs all ranges by itself: the 2000-row assertion holds even if the failed repair did nothing. On tablets the failing repair is skipped (:1869) and node4.repair is a plain cluster repair. 32 runs, 100%, ~65s.",
       "duplicates": [
         {
           "path": "scylla-dtest repair_additional_test.py::TestRepairAdditional::test_repair_with_down_nodes_2b",
@@ -2003,6 +2012,8 @@
         "summary": "Nadav Har'El: further test of partially-successful repair; stricter 2b fails on Cassandra and old Scylla; pre-PR era."
       },
       "commits": {
+        "d17149a022": "file-level: dropped debug-only SELECT * queries that just logged counts; 2000-row asserts kept",
+        "8d5ef3c783": "file-level: 2x sleep(10) after CL=ONE/TWO writes -> _wait_background_writes_done (polls coordinator background_writes gauge to 0, 60s timeout, asserts metric exported)",
         "36a75a3da5": "skip with tablets; node.repair(keyspace=)",
         "98832bb5fa": "migrate to pytest",
         "c3471a97e4": "formatting",
@@ -2028,7 +2039,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
