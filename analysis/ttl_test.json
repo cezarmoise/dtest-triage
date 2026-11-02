@@ -1,8 +1,8 @@
 {
   "file": "ttl_test.py",
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestDistributedTTL::test_ttl_is_replicated": {
       "description": "2-node cluster, RF=2 (NTS), table default_time_to_live=5. Inserts a row at CL=ALL, reads ttl(col1) via exclusive connections to node1 and node2 and asserts the remaining TTLs differ by <=1s, then sleeps 7s and asserts the row is gone at CL=ALL. Guards that the default TTL is applied to the mutation and replicated with it, not recomputed per replica.",
@@ -419,7 +419,7 @@
       ]
     },
     "TestTTL::test_insert_ttl_has_priority_on_defaut_ttl": {
-      "description": "Single node, table default_time_to_live=1; inserts a row USING TTL 10 and calls eventually_expires (ttl_test.py:112-133): sleeps to ttl-2, asserts full row [1,1,1,1], then polls every 0.1s until ttl+1 asserting the row is either complete (no null non-key cells, scylladb#5290) or gone, and not gone before ttl-1; finally asserts empty. Guards that explicit TTL overrides default TTL and that row/cell expiry happen at the same instant.",
+      "description": "Single node, table default_time_to_live=1; inserts a row USING TTL 4 (10 in debug) and calls eventually_expires (ttl_test.py:109-133): sleeps to ttl-2, asserts full row [1,1,1,1], then polls every 0.1s until ttl+1 asserting the row is either complete (no null non-key cells, scylladb#5290) or gone, and not gone before ttl-1; finally asserts empty. Guards that explicit TTL overrides default TTL and that row/cell expiry happen at the same instant.",
       "origin": {
         "sha": "a6f2e52eea",
         "date": "2014-12-07",
@@ -427,6 +427,7 @@
         "summary": "Add tests for TTL feature (cassandra-dtest, Alan Boudreault)."
       },
       "commits": {
+        "bd50a6d938": "TTL 10 -> 4 outside debug mode (debug keeps 10); timing only, asserts unchanged",
         "9ffd273f04": "formatting (ruff format)",
         "ec0595dd47": "port to pytest",
         "60fdd2b6c5": "add single_node mark",
@@ -440,7 +441,7 @@
         "dbbab8c283": "GCE timing tweaks",
         "a6f2e52eea": "origin"
       },
-      "relevance": "Live: default_time_to_live and USING TTL are core CQL; runs in gating (tablets + consistent-topology), 100% pass, ~15s.",
+      "relevance": "Live: default_time_to_live and USING TTL are core CQL; runs in gating (tablets + consistent-topology), 100% pass, ~14s avg in window (bd50a6d938 cuts ~6s; only latest builds reflect it).",
       "duplicates": [
         {
           "path": "test/cqlpy/test_ttl.py::test_basic_default_ttl",
@@ -455,7 +456,7 @@
         {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_row_marker_for_ttl",
           "coverage": "partial",
-          "note": "also inserts USING TTL 15 into a table with default TTL 10 and checks it outlives the default and has no null window (1s polling, CK table)"
+          "note": "also inserts USING TTL 9 into a table with default TTL 4 (15/10 in debug) and checks it outlives the default and has no null window (1s polling, CK table)"
         }
       ],
       "decision": "YELLOW",
@@ -464,13 +465,13 @@
         {
           "kind": "note",
           "tag": "cosmetic",
-          "ref": "ttl_test.py:135",
+          "ref": "ttl_test.py:136",
           "text": "Method name typo 'defaut'."
         }
       ]
     },
     "TestTTL::test_insert_ttl_works_without_default_ttl": {
-      "description": "Single node, no default TTL; inserts a row USING TTL 10 and calls eventually_expires (same helper as test_insert_ttl_has_priority_on_defaut_ttl): row complete until expiry (no null cells, scylladb#5290), gone within +/-1s of TTL.",
+      "description": "Single node, no default TTL; inserts a row USING TTL 4 (10 in debug) and calls eventually_expires (same helper as test_insert_ttl_has_priority_on_defaut_ttl): row complete until expiry (no null cells, scylladb#5290), gone within +/-1s of TTL.",
       "origin": {
         "sha": "a6f2e52eea",
         "date": "2014-12-07",
@@ -478,6 +479,7 @@
         "summary": "Add tests for TTL feature (cassandra-dtest, Alan Boudreault)."
       },
       "commits": {
+        "bd50a6d938": "TTL 10 -> 4 outside debug mode (debug keeps 10); timing only, asserts unchanged",
         "9ffd273f04": "formatting (ruff format)",
         "ec0595dd47": "port to pytest",
         "60fdd2b6c5": "add single_node mark",
@@ -488,7 +490,7 @@
         "dbbab8c283": "rename (typo fix defaut -> default), sleep 1.5 -> 3",
         "a6f2e52eea": "origin"
       },
-      "relevance": "Live, basic USING TTL. 100% pass, ~14s.",
+      "relevance": "Live, basic USING TTL. 100% pass, ~14s avg in window (bd50a6d938 cuts ~6s; only latest builds reflect it).",
       "duplicates": [
         {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_insert_ttl_has_priority_on_defaut_ttl",
@@ -507,7 +509,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Near-identical copy of test_insert_ttl_has_priority_on_defaut_ttl (same eventually_expires helper, ttl_test.py:112-133); plain USING TTL expiry without a default is covered by boost cql_query_test.cc::test_ttl and #5290 by mutation_test.cc::test_row_marker_expiry.",
+      "reason": "Near-identical copy of test_insert_ttl_has_priority_on_defaut_ttl (same eventually_expires helper, ttl_test.py:109-133); plain USING TTL expiry without a default is covered by boost cql_query_test.cc::test_ttl and #5290 by mutation_test.cc::test_row_marker_expiry.",
       "issues": []
     },
     "TestTTL::test_removing_default_ttl_does_not_affect_existing_rows": {
@@ -556,7 +558,7 @@
       ]
     },
     "TestTTL::test_row_marker_for_ttl": {
-      "description": "4 nodes RF=1, table with PK+CK, ALTER default TTL to 10. Inserts row (1,1) with default TTL and row (1,2) USING TTL 15; polls each second until rows change and asserts the next state is exactly [[1,2,2,2]] then [] (never a row with null non-key cells) and that the change happened no earlier than ttl-1. Regression test for scylladb#5290 (row marker expiring with strict < vs cell <=, causing null values for ~1s) on a clustered table, combining default and explicit TTL.",
+      "description": "4 nodes RF=1, table with PK+CK, ALTER default TTL to 4 (10 in debug). Inserts row (1,1) with default TTL and row (1,2) USING TTL 9 (15 in debug); polls each second until rows change and asserts the next state is exactly [[1,2,2,2]] then [] (never a row with null non-key cells) and that the change happened no earlier than ttl-1. Regression test for scylladb#5290 (row marker expiring with strict < vs cell <=, causing null values for ~1s) on a clustered table, combining default and explicit TTL.",
       "origin": {
         "sha": "745142a6ed",
         "date": "2020-03-04",
@@ -564,6 +566,7 @@
         "summary": "Test for scylladb#5290: data expired via TTL returned with null values for a short period (juliayakovlev)."
       },
       "commits": {
+        "bd50a6d938": "default/explicit TTL 10/15 -> 4/9 outside debug (debug keeps 10/15), 5s gap kept; msg's 'age clocks moved before inserts' not in diff (still after, ttl_test.py:248,256)",
         "9ffd273f04": "formatting (ruff format)",
         "aedaa57c4e": "formatting (ruff pyupgrade/isort)",
         "ec0595dd47": "port to pytest",
@@ -573,7 +576,7 @@
         "6caf0ec86e": "deflake: parametrize ttls 10/15, poll loop wait_for_rows_to_change",
         "745142a6ed": "origin"
       },
-      "relevance": "Live: row marker expiry semantics (mutation_partition row_marker::is_live). Gating, 100% pass, ~37s.",
+      "relevance": "Live: row marker expiry semantics (mutation_partition row_marker::is_live). Gating, 100% pass, ~37s avg in window (bd50a6d938 cuts ~6s in release; only latest builds reflect it).",
       "duplicates": [
         {
           "path": "test/boost/mutation_test.cc::test_row_marker_expiry + test_querying_expired_rows",
@@ -587,7 +590,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "End-to-end #5290 regression on a clustered table with mixed default/explicit TTL; boost covers only the row_marker unit. Note: nodes=4 with RF=1 and a single partition (ttl_test.py:236) adds startup cost but no coverage; could be single_node. Note: prepare(default_time_to_live=1) then immediate ALTER to 10 is redundant.",
+      "reason": "End-to-end #5290 regression on a clustered table with mixed default/explicit TTL; boost covers only the row_marker unit. Note: nodes=4 with RF=1 and a single partition (ttl_test.py:236) adds startup cost but no coverage; could be single_node. Note: prepare(default_time_to_live=1) then immediate ALTER to default_ttl is redundant.",
       "issues": [
         {
           "kind": "note",
@@ -599,7 +602,7 @@
           "kind": "note",
           "tag": "redundant-param",
           "ref": "ttl_test.py:237-241",
-          "text": "prepare(default_time_to_live=1) immediately ALTERed to 10; redundant."
+          "text": "prepare(default_time_to_live=1) immediately ALTERed to default_ttl (4, 10 in debug); redundant."
         }
       ]
     },
@@ -792,7 +795,7 @@
       ]
     },
     "TestTTL::test_overlapped_rows_ttls": {
-      "description": "Single node, parametrized over LCS/STCS/TWCS/ICS. Creates clustered table, inserts 20 rows without TTL, then re-inserts overlapping key ranges with TTL 20 (5-10), 25 (9-13), 13 (10-11), 30 (11-15); after each TTL+2s asserts the expected surviving keys at CL=QUORUM. Guards that the latest write's TTL wins when rows are overwritten with different TTLs.",
+      "description": "Single node, parametrized over LCS/STCS/TWCS/ICS. Creates clustered table, inserts 20 rows without TTL, then re-inserts overlapping key ranges with TTL 12 (5-10), 17 (9-13), 5 (10-11), 22 (11-15); after each TTL+2s asserts the expected surviving keys at CL=QUORUM. Guards that the latest write's TTL wins when rows are overwritten with different TTLs.",
       "origin": {
         "sha": "449736c6f0",
         "date": "2018-12-13",
@@ -800,6 +803,7 @@
         "summary": "Test overlapped range TTLs on the same rows (Julia Yakovlev); PR body says 'row range tombstones: different TTLs applied to the same rows'."
       },
       "commits": {
+        "bd50a6d938": "TTLs [13,20,25,30] -> [5,12,17,22], same gaps; comments updated. Msg's 'added overrun assert' not in diff",
         "9ffd273f04": "formatting (ruff format)",
         "aedaa57c4e": "formatting (ruff pyupgrade/isort)",
         "ec0595dd47": "port to pytest",
@@ -817,7 +821,7 @@
         "7c3ba270a7": "debug prints for dtest#824 (smart_sleep_with_print, still present)",
         "449736c6f0": "origin"
       },
-      "relevance": "Live behavior (last-write-wins incl. TTL). 4 params x ~37s = ~148s per run, 100% pass.",
+      "relevance": "Live behavior (last-write-wins incl. TTL). 4 params x ~37s avg in window (~24s each after bd50a6d938), 100% pass.",
       "duplicates": [
         {
           "path": "test/boost/cql_query_test.cc::test_ttl",
@@ -826,7 +830,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:589-629, never did since 449736c6f0), so all 4 variants read the same memtable data; ~110s/run wasted. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:76). Unique-ish overwrite-with-shorter-TTL check; keep one param or add flush+compact.",
+      "reason": "Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:589-629, never did since 449736c6f0), so all 4 variants read the same memtable data; 3 redundant variants, ~75s/run after bd50a6d938. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:77-78). Unique-ish overwrite-with-shorter-TTL check; keep one param or add flush+compact.",
       "issues": [
         {
           "kind": "bug",
@@ -843,7 +847,7 @@
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "ttl_test.py:76",
+          "ref": "ttl_test.py:77-78",
           "text": "smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824."
         }
       ]
