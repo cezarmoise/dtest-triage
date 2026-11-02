@@ -1,11 +1,11 @@
 {
   "file": "topology_test.py",
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestTopology::test_crash_during_decommission": {
-      "description": "3-node cluster (RBNO forced for bootstrap/decommission to slow ops), decommission node1 in a background thread while repeatedly hard-killing/restarting node2 (up to 10 times, then waits for decommission to fail). Asserts `nodetool status` on node2 has no ' null ' entry after 30s sleep. Ported from Cassandra test for CASSANDRA-10231 (null status entries for decommissioned node after crash).",
+      "description": "3-node cluster (RBNO forced for bootstrap/decommission, small-table RBNO off), decommission node1 in a background thread while hard-killing/restarting node2 (up to 10 times; after the 10th waits for node3 to see node2 DN before restarting). Joins the thread (bounded, asserted dead), then polls node2's raw `nodetool status` (120s, 300s debug): node1 absent if the decommission succeeded else UN, node2/node3 present, every row UN (a '?' status row fails). Ported from Cassandra CASSANDRA-10231 (invalid entries for the decommissioned node after a crash); in practice the kill makes the raft decommission fail and roll back.",
       "origin": {
         "sha": "d52b4d33b5a7b0b283fcae5599cb4770235fde04",
         "date": "2015-09-08",
@@ -13,6 +13,7 @@
         "summary": "Cassandra dtest reproducing CASSANDRA-10231; enabled for scylla in fcc77da925 (PR #387). PR #52 in data is the upstream merge."
       },
       "commits": {
+        "3c3a95dc9ae53a88d093ea16d104f2773ec527de": "replace 30s sleep + dead ' null ' assert with polled raw nodetool-status convergence check (node1 absent/UN per DecommissionInParallel.succeeded, all rows UN); join thread on both loop exits",
         "c3d9db24d65f04dea899b24c3c5d94a50de2ecd5": "ignore patterns accept both exception formats",
         "f2a821f4d05c98b344459f0108db3e8febbd95ed": "force RBNO for bootstrap/decommission (timing-dependent test)",
         "5c47c9825617b58ed741ab13042b044082c39564": "populate via generate_cluster_topology(rack_num=3)",
@@ -37,38 +38,43 @@
         "351ef8d40d135c8139c1fcdf9ab04424ac783997": "rename null status regex",
         "d52b4d33b5a7b0b283fcae5599cb4770235fde04": "origin"
       },
-      "relevance": "Decommission + node crash still live, but the asserted symptom (' null ' in nodetool status) is Cassandra Java-nodetool output. ccm runs native `scylla nodetool` (scylla-ccm/ccmlib/scylla_node.py:961), whose status prints '?' for unknown host id/load (tools/scylla-nodetool.cc ~2878-2897), never 'null'.",
+      "relevance": "Live: failed decommission rolls back to normal (service/topology_coordinator.cc:5873-5874 rollback_to_normal); native `scylla nodetool` status prints '?' for a node in neither the live nor down set (tools/scylla-nodetool.cc:2878), which the new check catches along with a lingering/non-UN node1.",
       "duplicates": [
+        {
+          "path": "test/cluster/test_crash_coordinator_before_streaming.py::test_kill_coordinator_during_decommission",
+          "coverage": "partial",
+          "note": "kill node (coordinator, via injection) during decommission -> fails -> restart -> servers see each other + token ring/group0 consistency; release-skipped; kills coordinator, not a bystander, once"
+        },
         {
           "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
           "coverage": "partial",
-          "note": "decommission failure + rollback to normal, deterministic via injections"
+          "note": "decommission streaming failure (injection) -> rollback to normal; no crash; release-skipped"
         },
         {
           "path": "test/cluster/test_decommission_kill_then_replace.py::test_decommission_kill_then_replace",
           "coverage": "partial",
-          "note": "node killed during decommission"
+          "note": "kills the decommissioning node itself, then replaces it; release-skipped"
         },
         {
           "path": "test/cluster/random_failures/test_random_failures.py",
           "coverage": "partial",
-          "note": "random node failures during topology ops"
+          "note": "one cluster event per run (decommission or a node kill, not combined) with a paused bootstrapping node; release-skipped"
         }
       ],
-      "decision": "RED",
-      "reason": "Cassandra-specific assertion (CASSANDRA-10231 'null' status entry) that can't fail with native scylla nodetool (never prints 'null'); the ' null ' early-break in the loop is also dead, so the test just kills node2 up to 10x. Slow (~84s), timing-fragile (dtest#3962, #5310, f2a821f4d0); decommission failure/crash handling is covered deterministically by test/cluster tests listed.",
+      "decision": "YELLOW",
+      "reason": "Can't-fail ' null ' assert fixed by 3c3a95dc9a (PR #7512): now a polled convergence check on node2's raw nodetool status that catches '?' rows and a lingering/non-UN node1. Partial overlap only: test_kill_coordinator_during_decommission (kill during decommission -> rollback -> restart -> consistency, injection, release-skipped) and test_topology_streaming_failure (rollback); dtest uniquely kills a bystander repeatedly in release mode. Note: decommission practically always fails after the kill, so the succeeded/node1-absent branch (the CASSANDRA-10231 scenario) is ~never exercised. Note: ' null ' early-break in the kill loop is still dead (topology_test.py:115). 100% pass, ~77s.",
       "issues": [
-        {
-          "kind": "bug",
-          "tag": "cant-fail",
-          "ref": "tools/scylla-nodetool.cc",
-          "text": "' null ' status assert can't fail: native scylla nodetool never prints 'null' (Cassandra CASSANDRA-10231 symptom)."
-        },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "topology_test.py",
-          "text": "' null ' early-break in the kill loop is dead; loop always kills node2 up to 10x."
+          "ref": "topology_test.py:115",
+          "text": "' null ' early-break in the kill loop is dead (native nodetool never prints 'null'); loop always kills node2 up to 10x."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "topology_test.py:141",
+          "text": "Decommission practically always fails after node2 kill (3c3a95dc9a msg), so the succeeded/node1-absent branch is ~never exercised."
         }
       ]
     },
@@ -135,12 +141,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails and by first half of test_removenode_rejected_before_decommision_node. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:156) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts.",
+      "reason": "Fully covered by test/cluster/test_remove_alive_node.py::test_removing_alive_node_fails and by first half of test_removenode_rejected_before_decommision_node. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:165) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "topology_test.py:156",
+          "ref": "topology_test.py:165",
           "text": "re.match on nodetool error inside pytest.raises never runs (and would TypeError); rejection still asserted via log grep."
         }
       ]
@@ -166,12 +172,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Same check as test_removing_alive_node_fails; only difference is a race (removenode before FD marks killed node down), which makes it timing-dependent (100% pass so far, 32 runs). Likely RED. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:177) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts.",
+      "reason": "Same check as test_removing_alive_node_fails; only difference is a race (removenode before FD marks killed node down), which makes it timing-dependent (100% pass so far, 32 runs). Likely RED. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:186) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "topology_test.py:177",
+          "ref": "topology_test.py:186",
           "text": "re.match on nodetool error inside pytest.raises never runs (and would TypeError); rejection still asserted via log grep."
         }
       ]
@@ -204,18 +210,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "First half duplicates test_removing_alive_node_fails; second half (removenode of decommissioned node rejected) has no exact scylla test but only asserts that any NodetoolError is raised. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:200) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts. Bug: same dead check at :213 for REMOVENODE_HOSTID_NOT_IN_CLUSTER='Host ID not found in the cluster', which wouldn't match scylla's 'removenode: host id ... is not found in the cluster' anyway. Note: name typo 'decommision'.",
+      "reason": "First half duplicates test_removing_alive_node_fails; second half (removenode of decommissioned node rejected) has no exact scylla test but only asserts that any NodetoolError is raised. Note: `if not re.match(self.REMOVENODE_REJECT_MSG, nodetool_exc)` inside `with pytest.raises` (topology_test.py:209) is dead code: runs after node.removenode() raises; would TypeError anyway (ExceptionInfo not str). Nodetool error text never checked; only the log grep asserts. Bug: same dead check at :222 for REMOVENODE_HOSTID_NOT_IN_CLUSTER='Host ID not found in the cluster', which wouldn't match scylla's 'removenode: host id ... is not found in the cluster' anyway. Note: name typo 'decommision'.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "topology_test.py:200",
+          "ref": "topology_test.py:209",
           "text": "re.match on nodetool error inside pytest.raises never runs (and would TypeError); rejection still asserted via log grep."
         },
         {
           "kind": "bug",
           "tag": "check-disabled",
-          "ref": "topology_test.py:213",
+          "ref": "topology_test.py:222",
           "text": "Second-half error-text check unreachable inside pytest.raises (and its message doesn't match scylla's); only 'any NodetoolError' asserted."
         },
         {
