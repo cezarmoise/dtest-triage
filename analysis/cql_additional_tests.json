@@ -1,8 +1,8 @@
 {
   "file": "cql_additional_tests.py",
-  "analyzed_at": "2026-10-28",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestCQL::test_aggregate_and_simple_selection_together": {
       "description": "Single node, table (a pk, c ck, b). Inserts 4 rows; asserts `SELECT sum(c), avg(b), min(c), a ... WHERE b>2 ALLOW FILTERING` == [[25,6,6,2]] (aggregates mixed with a simple selector + filtering on a regular column) and `SELECT count(c), max(b) WHERE a=3` == [[2,8]]. Guards scylla#4447 (allow aggregate and simple selectors together) and #3803 (filtering when restricted column not in select).",
@@ -146,6 +146,7 @@
         "summary": "Merge upstream: restored Cassandra cql_tests.py TestCQL tests into cql_additional_tests.py"
       },
       "commits": {
+        "40f0d9a776": "dropped fixed time.sleep(0.5) after each ALTER TABLE ADD (schema agreement already awaited by driver)",
         "9ffd273f04": "formatting",
         "e8d459f39b": "pytest port: renamed *_test -> test_*, attr -> pytest marks (formatting-level)",
         "77c52abacc": "removed experimental option from prepare()",
@@ -164,15 +165,8 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by cqlpy cassandra_tests alter_test.py::testAlterStatementWithAdd (explicitly 'migrated from alter_bug_test'). Note: unnecessary time.sleep(0.5) after each ALTER.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "cql_additional_tests.py:4001",
-          "text": "fixed time.sleep(0.5) after each ALTER"
-        }
-      ]
+      "reason": "Fully covered by cqlpy cassandra_tests alter_test.py::testAlterStatementWithAdd (explicitly 'migrated from alter_bug_test').",
+      "issues": []
     },
     "TestCQL::test_alter_clustering_and_static": {
       "description": "Single node. Table with only a pk; asserts ALTER TABLE ADD ... static is rejected (no clustering columns).",
@@ -4621,7 +4615,7 @@
       ]
     },
     "TestCQL::test_quorum_with_null": {
-      "description": "3 nodes/3 racks RF=3. Writes (1,123,v3=456) to all, flushes, stops node1, overwrites v3=768 on node2/3, stops node2/3, restarts node1 and reads CL=ONE expecting stale 456; restarts others, runs repair from node1, stops node2/3 again and asserts node1 now returns 768. Despite its name/docstring (QUORUM digest read with nulls, read repair), no QUORUM read is done; it only checks repair propagates an overwritten cell.",
+      "description": "3 nodes/3 racks RF=3. Writes (1,123,v3=456) at CL=ALL, flushes, stops node1, overwrites v3=768 at CL=QUORUM (node2/3), stops node2/3, restarts node1 and reads CL=ONE expecting stale 456; restarts others, runs repair from node1, stops node2/3 again and asserts node1 now returns 768. Despite its name/docstring (QUORUM digest read with nulls, read repair), no QUORUM read is done (QUORUM only on the write); it only checks repair propagates an overwritten cell.",
       "origin": {
         "sha": "c0e6e3a11e",
         "date": "2021-03-29",
@@ -4629,6 +4623,7 @@
         "summary": "Shoshan Dagany: quorum_with_null (trello: quorum read requests data from one replica and digest from another); f859b11995 is the backport in PR 2304"
       },
       "commits": {
+        "40f0d9a776": "dropped sleeps after start/CREATE; first insert now CL=ALL, second (node1 down) CL=QUORUM instead of default CL + sleep(0.5) (deterministic, same scenario)",
         "f859b11995": "backport of origin c0e6e3a11e into master (PR 2304)",
         "e8d459f39b": "migrate to pytest: rename *_test -> test_*, attr->pytest mark (no behavior change)",
         "9ffd273f04": "formatting (ruff format, tree-wide)",
@@ -4652,7 +4647,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (77s) + redundant: actual behavior (repair syncs a stale cell to a replica) covered by repair_additional_test.py::TestRepairAdditional::test_repair_cell_update (same stop-replica/update/repair/verify flow); the quorum/digest/null scenario in the name and docstring (PR 2066) is never tested (all reads CL=ONE). Note: docstring says 789/read_repair but test writes 768 and uses nodetool repair.",
+      "reason": "Slow (~74s) + redundant: actual behavior (repair syncs a stale cell to a replica) covered by repair_additional_test.py::TestRepairAdditional::test_repair_cell_update (same stop-replica/update/repair/verify flow); the quorum/digest/null scenario in the name and docstring (PR 2066) is never tested (all reads CL=ONE). Note: docstring says 789/read_repair but test writes 768 and uses nodetool repair.",
       "issues": [
         {
           "kind": "bug",
@@ -4781,6 +4776,7 @@
         "summary": "Merge upstream: restored Cassandra cql_tests.py TestCQL tests (removed upstream by CASSANDRA-9160 migration to unit tests) into cql_additional_tests.py"
       },
       "commits": {
+        "40f0d9a776": "dropped fixed time.sleep(0.2) after start and time.sleep(1) after CREATE TABLE",
         "9ffd273f04": "formatting",
         "e8d459f39b": "pytest port: renamed *_test -> test_*, attr -> pytest marks (formatting-level)",
         "17e5d67cf6": "driver compat: list() around ResultSet for len / row checks",
@@ -4800,19 +4796,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Weak assertion (row count of 2 rows) of a Cassandra-1337 range-slice regression; multi-node RF=1 full scan covered by test/cluster/test_tablets2.py::test_scans (stronger) and exercised by many dtests. Costs a 2-node cluster (~9.4s). Note: hard sleeps time.sleep(0.2)/(1) (cql_additional_tests.py:2585,2598).",
+      "reason": "Weak assertion (row count of 2 rows) of a Cassandra-1337 range-slice regression; multi-node RF=1 full scan covered by test/cluster/test_tablets2.py::test_scans (stronger) and exercised by many dtests. Costs a 2-node cluster (~9.3s).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "",
           "text": "Only row count (2) asserted; still catches missing rows across nodes (CASSANDRA-1337)."
-        },
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "cql_additional_tests.py:2585,2598",
-          "text": "Hard sleeps time.sleep(0.2)/(1)."
         }
       ]
     },
@@ -4825,6 +4815,7 @@
         "summary": "Merge upstream: restored Cassandra cql_tests.py TestCQL tests (removed upstream by CASSANDRA-9160 migration to unit tests) into cql_additional_tests.py"
       },
       "commits": {
+        "40f0d9a776": "dropped fixed time.sleep(1) after CREATE TABLE; also deleted uncollected duplicate range_tombstones_test (no test_ prefix)",
         "9ffd273f04": "formatting",
         "19991c953b": "formatting",
         "87e1600277": "restored 3-node populate(3) + 'serialization' comment, dropped single_node mark (undoing backport damage)",
@@ -4850,13 +4841,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Logic fully covered by cqlpy delete_test.py::testDeleteByCompositePrefix (same Cassandra origin); the 3-node 'RowMutation serialization' aspect is covered by boost frozen_mutation_test.cc round-trip tests. Note: hard sleeps (time.sleep(1), 0.2); history shows test was accidentally single-node between f859b11995 and 87e1600277.",
+      "reason": "Logic fully covered by cqlpy delete_test.py::testDeleteByCompositePrefix (same Cassandra origin); the 3-node 'RowMutation serialization' aspect is covered by boost frozen_mutation_test.cc round-trip tests. Note: fixed time.sleep(0.2) after flush; history shows test was accidentally single-node between f859b11995 and 87e1600277.",
       "issues": [
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "",
-          "text": "Hard sleeps time.sleep(1), time.sleep(0.2)."
+          "ref": "cql_additional_tests.py:2030",
+          "text": "Fixed time.sleep(0.2) after cluster.flush() (flush is synchronous)."
         }
       ]
     },
