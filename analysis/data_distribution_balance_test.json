@@ -1,11 +1,11 @@
 {
   "file": "data_distribution_balance_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestDataDistribution::test_data_distribution_balance": {
-      "description": "Starts a 3/4/6-node single-rack cluster, creates keyspace1 with RF=1 (128 initial tablets when tablets are enabled), writes 210k keys (21k in debug/coverage) with cassandra-stress using the parametrized compaction strategy (LCS/STCS/TWCS/ICS), then flushes and runs a major compaction. It asserts that each node's on-disk table size (du -h) and its nodetool status Load are within +-40% of the average, and that all nodes report the same size unit. This is a regression test for scylladb/scylladb#6193 (badly skewed random vnode tokens, so the seed node got much less data). With tablets it also checks end-to-end that the tablet allocator/balancer spreads data evenly.",
+      "description": "Starts a 3/4/6-node single-rack cluster, creates keyspace1 with RF=1 (128 initial tablets when tablets are enabled), writes 210k keys (21k in debug/coverage) with cassandra-stress using the parametrized compaction strategy (LCS/STCS/TWCS/ICS), then flushes and runs a major compaction. It asserts that each node's on-disk table size (du -h) is within +-40% of the average, then polls until each node's gossiped nodetool status Load matches its /storage_service/load (within 2%) and asserts the Load values are within +-40% too, and that all nodes report the same size unit. This is a regression test for scylladb/scylladb#6193 (badly skewed random vnode tokens, so the seed node got much less data). With tablets it also checks end-to-end that the tablet allocator/balancer spreads data evenly.",
       "origin": {
         "sha": "62bb56eed02cab8f1252320068e97e428f96eddd",
         "date": "2020-04-15",
@@ -13,6 +13,7 @@
         "summary": "Test data distribution between nodes; reproducer for scylladb/scylladb#6193 (fixed by scylla f3fd466156, dht get_random_token uint64)."
       },
       "commits": {
+        "962fb5a7b6471a43ff85cea453f23350edc76034": "replace fixed 61s sleep before the nodetool status check with wait_for_status_load: poll until status Load is within 2% of /storage_service/load (timeout 150s, 600s debug); ~30s faster",
         "bbdbf48ca704d929fe2668da518376753752eb75": "add @high_memory marker",
         "bb517eab18aa8568ce9af4e77d276816b7d95e6c": "fix du size regex to accept decimals (e.g. 1.1G) + debug logging + assert non-empty sizes (DTEST-164)",
         "8473d2fd6584bbd652d929255dbaacc0131ea810": "nodetool status parser accepts KiB/MiB units and normalizes old KB/MB labels",
@@ -38,9 +39,9 @@
         "2002452da02b2b1c8469e8e8e7b97644d45d234b": "fix min/max balance checks",
         "fcdd3bbec5953950c3735b92224b8f5b36e25bb3": "fix get_avg_size",
         "9b37118747546ff15b7b66e6da82ecb467e9711c": "flush + wait for compactions before measuring",
-        "8699ddb63ac995013c67921d58f8203e07025476": "sleep until nodetool status load refresh (60s)"
+        "8699ddb63ac995013c67921d58f8203e07025476": "sleep until nodetool status load refresh (60s); superseded by 962fb5a7b6 polling"
       },
-      "relevance": "Live. Random vnode token generation (dht::token::get_random_token) is still used in vnode mode (dtest-release job). Tablet allocation/load balancing is live. nodetool status Load output in tools/scylla-nodetool.cc file_size_printer always prints '{:.2f} KiB|MiB|GiB|TiB', which the parser regex matches.",
+      "relevance": "Live. Random vnode token generation (dht::token::get_random_token) is still used in vnode mode (dtest-release job). Tablet allocation/load balancing is live. nodetool status Load output in tools/scylla-nodetool.cc file_size_printer always prints '{:.2f} KiB|MiB|GiB|TiB', which the parser regex matches. The wait_for_status_load gate relies on load_broadcaster gossiping db.disk_space_used() every BROADCAST_INTERVAL=60s (service/load_broadcaster.hh:22, service/misc_services.cc:73-92) and GET /storage_service/load returning the same disk_space_used() sum (api/column_family.cc:1140 node_disk_space_used); both live.",
       "duplicates": [
         {
           "path": "test/boost/tablets_test.cc::test_load_balancing_*",
@@ -59,7 +60,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end check that real data ends up balanced on disk and in nodetool status Load (vnodes regression for #6193, plus tablets). Scylla tests only cover balancer logic/tablet counts (partial), and the pass rate is 99.8% over 972 runs. Note: slow (~126s x 12 params, ~25 min per build) and the compaction-strategy dimension adds little, since data placement doesn't depend on compaction strategy: trimming to one strategy x 3 node counts is worth considering. Note: @pytest.mark.single_node on a 3-6 node test is a mislabel (harmless, conftest.py:439 only changes the gossip-settle default). Note: the 'same unit' asserts (verify_datasize_*) fail spuriously if node sizes straddle a unit boundary (e.g. 1000M vs 1.1G) instead of normalizing.",
+      "reason": "Unique end-to-end check that real data ends up balanced on disk and in nodetool status Load (vnodes regression for #6193, plus tablets). Scylla tests only cover balancer logic/tablet counts (partial), and the pass rate is 99.8% over 1944 runs. Note: slow (~123s avg x 12 params, ~25 min per build before 962fb5a7b6 replaced the fixed 61s sleep with polling, ~30s saved per param) and the compaction-strategy dimension adds little, since data placement doesn't depend on compaction strategy: trimming to one strategy x 3 node counts is worth considering. Note: @pytest.mark.single_node on a 3-6 node test is a mislabel (harmless, conftest.py:444 only changes the gossip-settle default). Note: the 'same unit' asserts (verify_datasize_*) fail spuriously if node sizes straddle a unit boundary (e.g. 1000M vs 1.1G) instead of normalizing.",
       "issues": [
         {
           "kind": "note",
@@ -70,7 +71,7 @@
         {
           "kind": "note",
           "tag": "other",
-          "ref": "conftest.py:439",
+          "ref": "conftest.py:444",
           "text": "@pytest.mark.single_node on a 3-6 node test is a mislabel (only changes gossip-settle default)."
         },
         {
