@@ -977,7 +977,7 @@
       ]
     },
     "TestCqlshCopy::test_reading_with_ttl": {
-      "description": "Single node. Writes 4-row CSV, COPY FROM WITH TTL = '5', asserts rows present, sleeps 10s, asserts table empty. Guards cqlsh COPY FROM TTL option (CASSANDRA-9494), i.e. cqlsh adds USING TTL to its inserts.",
+      "description": "Single node. Writes 4-row CSV, COPY FROM WITH TTL = '6', asserts SELECT TTL(b) returns a TTL on all 4 rows with >=1s left, asserts rows present, then polls (assert_all, 0.5s step, 33 attempts, ~16s cap) until the table is empty. Guards cqlsh COPY FROM TTL option (CASSANDRA-9494), i.e. cqlsh adds USING TTL to its inserts.",
       "origin": {
         "sha": "255e32d0b2",
         "date": "2015-11-19",
@@ -985,6 +985,7 @@
         "summary": "Upstream Cassandra dtest 'Test for CASSANDRA-9494' (Stefania Alborghetti). Data PR #52 is a later 'Merge upstream' PR."
       },
       "commits": {
+        "4e91df199e": "TTL 5->6; assert TTL(b) set on all rows with >=1s left; replace sleep(10) with assert_all polling for expiry; drop unused `result` (PR #7587)",
         "9ffd273f04": "formatting (ruff format)",
         "518ca98f00": "fix final assert to expect empty table ({}) after expiry (was [data])",
         "d9b34802f3": "pytest port; assert_all",
@@ -1007,19 +1008,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Client option covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_reading_with_ttl (checks TTL() value, scylladb/scylla-cqlsh#234); server expiry covered by scylla test/cqlpy/test_ttl.py; dtest spends ~10s in time.sleep. Note: unused `result` variable (cqlsh_copy_tests.py:738).",
+      "reason": "Client option covered by scylla-cqlsh test_copy_options.py::TestCopyOptions::test_reading_with_ttl (checks TTL() value, scylladb/scylla-cqlsh#234); server expiry covered by scylla test/cqlpy/test_ttl.py. 4e91df199e added the same TTL(b) check and replaced the 10s sleep with polling, but the dtest still waits ~6s for expiry. Note: docstring says 'COPY TO WITH TTL' for a COPY FROM test (cqlsh_copy_tests.py:712).",
       "issues": [
         {
           "kind": "note",
-          "tag": "slow",
-          "ref": "",
-          "text": "Fixed 10s time.sleep for TTL expiry."
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "cqlsh_copy_tests.py:738",
-          "text": "Unused `result` variable."
+          "tag": "stale-comment",
+          "ref": "cqlsh_copy_tests.py:712",
+          "text": "Docstring says 'COPY TO WITH TTL' for a COPY FROM test."
         }
       ]
     },
@@ -1266,7 +1261,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac"
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
