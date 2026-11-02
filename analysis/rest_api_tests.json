@@ -1,11 +1,11 @@
 {
   "file": "rest_api_tests.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestScyllaARestApi::test_basic_rest_uptime": {
-      "description": "Single node. Reads GET /system/uptime_ms, sleeps 10s, reads again; asserts the uptime delta lies between 9990ms and the wall-clock time measured around both requests + 10ms. Guards that the REST uptime counter advances in real time (used by nodetool info).",
+      "description": "Single node. Reads GET /system/uptime_ms, sleeps 2s, reads again; asserts the uptime delta lies between sleep_ms-10 (1990ms) and the wall-clock time measured around both requests + 10ms. Guards that the REST uptime counter advances in real time (used by nodetool info).",
       "origin": {
         "sha": "0badffd83d",
         "date": "2020-03-08",
@@ -13,6 +13,7 @@
         "summary": "Added 3 uptime REST tests (basic, after restart, compare nodes)."
       },
       "commits": {
+        "8bf071b977": "sleep 10s -> 2s; both bounds scale with sleep_ms, check unchanged",
         "9ffd273f04": "formatting (ruff format)",
         "afdad9630e": "bounds changed to [sleep-10ms, measured wall time+10ms] after undershoot failure",
         "c7410e39f8": "lower bound < changed to <= (exactly 10000ms seen on fast machine)",
@@ -35,11 +36,11 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test checking the uptime value actually advances in real time; scylla tests only check status (test/rest_api/test_system.py::test_system_uptime_ms) or mock it. Cheap (~15s), 100% pass after bound fixes afdad9630e/c7410e39f8.",
+      "reason": "Only test checking the uptime value actually advances in real time; scylla tests only check status (test/rest_api/test_system.py::test_system_uptime_ms) or mock it. Cheap (~2.5s per call after 8bf071b977), 100% pass after bound fixes afdad9630e/c7410e39f8.",
       "issues": []
     },
     "TestScyllaARestApi::test_rest_uptime_after_restart": {
-      "description": "Single node started, sleep 10s, node stopped and restarted; asserts uptime_ms after restart < (total elapsed since test start - 10s), i.e. uptime was reset by restart and not carried over. Guards that uptime is per-process.",
+      "description": "Single node started; records monotonic time, stops and restarts the node; asserts uptime_ms after restart < time elapsed since the restart began, i.e. uptime was reset by the restart (a carried-over uptime would exceed it by the initial boot time). Guards that uptime is per-process.",
       "origin": {
         "sha": "0badffd83d",
         "date": "2020-03-08",
@@ -47,6 +48,7 @@
         "summary": "Added 3 uptime REST tests."
       },
       "commits": {
+        "8bf071b977": "dropped the 10s sleep (commit msg says 2s); assert now uses time since restart instead of since test start - 10s: strictly stronger",
         "eccda80e42": "formatting (ruff 0.9.4, f-string join)",
         "9ffd273f04": "formatting (ruff format)",
         "51d3c29ee0": "formatting (assert message split into two f-strings); commit mainly adds test_drop_row_cache",
@@ -68,18 +70,11 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique check that uptime resets on restart; no scylla test checks the value. Cheap (~19s), 100% pass. Assertion is loose (uptime < elapsed-10s) but meaningful.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "limited-check",
-          "ref": "rest_api_tests.py:52",
-          "text": "Loose bound (uptime < elapsed - 10s); still catches uptime not being reset on restart."
-        }
-      ]
+      "reason": "Unique check that uptime resets on restart; no scylla test checks the value. Cheap (~6s per call after 8bf071b977), 100% pass. 8bf071b977 tightened the bound (old one passed a non-reset uptime if cluster creation took >10s).",
+      "issues": []
     },
     "TestScyllaARestApi::test_compare_node_uptime": {
-      "description": "Two nodes started, sleep 10s, node1 restarted; asserts node2 uptime - node1 uptime > 10000ms. Same restart-resets-uptime scenario as test_rest_uptime_after_restart, plus implicit check that restarting node1 does not affect node2's uptime.",
+      "description": "Two nodes started, sleep 3s, node1 restarted; asserts node2 uptime - node1 uptime > 3000ms (sleep_s*1000). Same restart-resets-uptime scenario as test_rest_uptime_after_restart, plus implicit check that restarting node1 does not affect node2's uptime.",
       "origin": {
         "sha": "0badffd83d",
         "date": "2020-03-08",
@@ -87,6 +82,7 @@
         "summary": "Added 3 uptime REST tests."
       },
       "commits": {
+        "8bf071b977": "sleep 10s -> 3s, threshold 10000 -> sleep_s*1000; margin is node1 stop+restart time",
         "eccda80e42": "formatting (ruff 0.9.4, f-string join)",
         "9ffd273f04": "formatting (ruff format)",
         "51d3c29ee0": "formatting (assert message split into two f-strings)",
@@ -107,7 +103,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly redundant with test_rest_uptime_after_restart in the same file (both assert uptime resets after restart); extra node only checks that uptime is per-node, which is trivially true (local process clock). Candidate to drop or merge; cheap (~22s).",
+      "reason": "Mostly redundant with test_rest_uptime_after_restart in the same file (both assert uptime resets after restart; that one's check is now tighter, 8bf071b977); extra node only checks that uptime is per-node, which is trivially true (local process clock). Candidate to drop or merge; cheap (~8s per call).",
       "issues": []
     },
     "TestScyllaARestApi::test_drop_row_cache": {
