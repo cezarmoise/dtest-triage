@@ -1,11 +1,11 @@
 {
   "file": "resharding_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestReshardingTombstonesSingleNode::test_disable_tombstone_removal_during_reshard": {
-      "description": "Single node smp=2, table with gc_grace=10s and tombstone_gc immediate; inserts 100 keys, flushes, deletes all, flushes, sleeps past grace and forces a compaction on one shard (repeated insert+flush). Stops node, asserts some partition tombstones remain (dump_sstables, 'tombstone' key per partition), restarts with smp=4 and waits for 'Resharded.*ks1/cf1', asserts tombstones still present (resharding must not purge, scylla 8e47f61df7 / #6600), no key resurrected (assert_none per key, tools/assertions.py:153), then major compaction leaves 0 tombstones. Parametrized over 4 compaction strategies.",
+      "description": "Single node smp=2, table with tombstone_gc immediate; inserts 100 keys, flushes, deletes all, flushes, sleeps 1s (immediate mode purges only when deletion_time < now) and forces a compaction on one shard (repeated insert+flush). Stops node, asserts some partition tombstones remain (dump_sstables, 'tombstone' key per partition), restarts with smp=4 and waits for 'Resharded.*ks1/cf1', asserts tombstones still present (resharding must not purge, scylla 8e47f61df7 / #6600), no key resurrected (assert_none per key, tools/assertions.py:153), then major compaction leaves 0 tombstones. Parametrized over 4 compaction strategies.",
       "origin": {
         "sha": "789da3801d",
         "date": "2020-12-31",
@@ -13,6 +13,7 @@
         "summary": "test(resharding): tombstone are not removed during resharding - test for scylla 8e47f61 (Fixes scylladb#6600). Landed in upstream/next via 51c415b0b8 (PR #2328 rebase-conflict resolution)."
       },
       "commits": {
+        "b1fa6fd9b8": "Drops gc_grace_seconds and the 11s gc_grace sleep (ignored with tombstone_gc immediate), keeps 1s sleep; fixes docstring steps (PR #7534).",
         "068022d716": "Pins tombstone_gc={'mode':'immediate'} on the table.",
         "b3ee27d789": "Adds fixture setting compaction logger to debug so 'Resharded' log is seen regardless of default log level.",
         "b4e0c01e3f": "dump_sstables disables autocompaction of system_schema.",
@@ -41,25 +42,13 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Keep: only e2e guard for scylladb#6600 (resharding must not purge tombstones / resurrect data), stable 76/76, ~22s; assertions are strong (numfound via dump_sstables partition 'tombstone' key, assert_none per key). Note: params node_count/murmur3 unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac so one param is a duplicate; gc_grace sleep is pointless with tombstone_gc immediate (068022d716; open PR scylladb/scylla-dtest#7534); docstring step 8 says 'check that data was resurected' but test asserts the opposite (resharding_test.py:257).",
+      "reason": "Keep: only e2e guard for scylladb#6600 (resharding must not purge tombstones / resurrect data), stable 124/124, ~22s before b1fa6fd9b8 (~10s less now); assertions are strong (numfound via dump_sstables partition 'tombstone' key, assert_none per key). Note: params node_count/murmur3 unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac so one param is a duplicate.",
       "issues": [
         {
           "kind": "note",
           "tag": "redundant-param",
           "ref": "resharding_test.py:196",
           "text": "node_count/murmur3 params unused (always 1 node); STCS==ICS since scylla 5bf0c6ddac, one param duplicate."
-        },
-        {
-          "kind": "note",
-          "tag": "slow",
-          "ref": "resharding_test.py:283",
-          "text": "gc_grace sleep pointless with tombstone_gc immediate (068022d716); open PR scylladb/scylla-dtest#7534."
-        },
-        {
-          "kind": "note",
-          "tag": "stale-comment",
-          "ref": "resharding_test.py:257",
-          "text": "Docstring step 8 says 'check that data was resurected' but test asserts the opposite."
         }
       ]
     },
