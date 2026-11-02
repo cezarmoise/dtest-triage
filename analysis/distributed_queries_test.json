@@ -1,8 +1,8 @@
 {
   "file": "distributed_queries_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "349d7ea6c2",
-  "dtest_rev": "40b29160c1abec094f96f2739ba6956b8e3840ac",
+  "analyzed_at": "2026-11-02",
+  "scylla_rev": "04a0f07fb3",
+  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
   "tests": {
     "TestDistributedAggregations::test_distributed_count_all": {
       "description": "3-node cluster (vnodes, num_tokens=3, murmur3_ignore_msb_bits=1, smp 4), rf=2, counter table filled with 100K c-s user-profile inserts (10K in debug/coverage). Runs SELECT count(*) with enable_parallelized_aggregation=false, restarts the whole cluster with it set to true, reruns. Asserts both counts equal OPS, the non-parallel trace has no 'Dispatching mapreduce_request to 3 endpoints' / 'Dispatching N ranges' event, and the parallel trace has one. Guards the parallelized aggregation (mapreduce_service) feature, scylladb commit fe65122c.",
@@ -13,6 +13,7 @@
         "summary": "Distributed aggregation tests (qa-tasks#779): count(*) with/without enable_parallelized_aggregation, compare results, trace forwarding, and (per PR body) timing."
       },
       "commits": {
+        "58416f72deb0504169b02ee2c5c3cc556d0fdeb2": "helper _is_regex_in_query_traces reads trace at CL=ALL (was LOCAL_ONE): fixes flaky missing 'Dispatching' event (SCYLLADB-5873), also makes the negative check see all events",
         "6f6d048b96acaf5488e828402a68d0bec739e6fd": "revert skip marker back to issue_open('#16709') for tablets",
         "dc874853c38f02eb0694710d6d605a53919324d0": "skip marker on tablets switched to #18180 (2025.x skip labels); reverted later",
         "2e529da8e73348498c8852e1ffc2edbd0f82a672": "file-level: OPS 1M -> 100K (runtime)",
@@ -55,30 +56,30 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Live feature; only unique part is flag=false => no mapreduce dispatch on a 3-node vnode cluster, while parallel count(*) correctness/dispatch is covered by cqlpy test_parallelized_select_* and test/cluster/test_aggregation.py::test_cancel_mapreduce. Bug: docstring check #3 (parallel faster) never asserted since origin d2cafef3; durations unused (056f5dc7 just renamed them to _). Bug: allow_log_errors=True (distributed_queries_test.py:64) disables the log error check. Note: full cluster restart unneeded (option LiveUpdate); skipped on tablets via issue_open('#16709') (OPEN, driver issue); only runs in next-dtest-consistent-topology (16/16 pass, ~60s), absent from dtest-release jobs.",
+      "reason": "Live feature; only unique part is flag=false => no mapreduce dispatch on a 3-node vnode cluster, while parallel count(*) correctness/dispatch is covered by cqlpy test_parallelized_select_* and test/cluster/test_aggregation.py::test_cancel_mapreduce. Bug: docstring check #3 (parallel faster) never asserted since origin d2cafef3; durations unused (056f5dc7 just renamed them to _). Bug: allow_log_errors=True (distributed_queries_test.py:65) disables the log error check. Note: full cluster restart unneeded (option LiveUpdate); skipped on tablets via issue_open('#16709') (OPEN, driver issue); only runs in next-dtest-consistent-topology (46/46 pass, ~60s), absent from dtest-release jobs. Traces read at CL=ALL since 58416f72 (PR #7688).",
       "issues": [
         {
           "kind": "bug",
           "tag": "check-disabled",
-          "ref": "distributed_queries_test.py:61-62,70,76",
+          "ref": "distributed_queries_test.py:62-63,71,77",
           "text": "Docstring check #3 (parallel query faster) never asserted since origin d2cafef3; durations discarded (renamed to _ in 056f5dc7)."
         },
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "distributed_queries_test.py:73",
+          "ref": "distributed_queries_test.py:74",
           "text": "Full cluster restart to toggle enable_parallelized_aggregation, which is LiveUpdate."
         },
         {
           "kind": "note",
           "tag": "open-issue",
-          "ref": "distributed_queries_test.py:48",
+          "ref": "distributed_queries_test.py:49",
           "text": "Skipped on tablets via issue_open('#16709') (open driver issue)."
         },
         {
           "kind": "bug",
           "tag": "log-check-off",
-          "ref": "distributed_queries_test.py:64",
+          "ref": "distributed_queries_test.py:65",
           "text": "Sets allow_log_errors=True, so ERROR lines in node logs never fail the test."
         }
       ]
