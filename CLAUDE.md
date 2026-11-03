@@ -126,6 +126,57 @@ Confluence "Scylla components SMEs auto assignment"; `teams` = Atlassian team me
 first `overrides` fnmatch on `<module>::<Class>::<test>`, else `modules[<module>]`. New module → add it there
 (`scripts/groups.py` fails otherwise).
 
+## Jira format (issues for tests)
+
+Mirror the dashboard's test view. Source: `data/<module>.json` + `analysis/<module>.json` at `main` (pull first) and
+`groups.json`. Votes live only in the dashboard's database: don't mention them unless the user gives the outcome.
+
+Fields:
+- Project `SCYLLADB`; issue type: ask unless given. Labels: `dtest-triage`, `dtest-<decision lowercase>`.
+- Group = `groups.json` group of the test (see "Review groups"). `component` set → `Scylla components`
+  (customfield_10321) = it, leave assignee empty (auto-assigns the SME). `component` null → assignee = first reviewer.
+  Other reviewers → watchers if the tool allows, else the "Review group" line below.
+- One issue per test by default. If the user asks to group: one issue per review group, tests as sections.
+- Summary: `dtest triage: <module>::<Class>::<test> (<DECISION>)`; grouped:
+  `dtest triage: <group>, <N> tests (<x> RED, <y> YELLOW, ...)`.
+
+Description, Markdown (convert if the tool wants wiki markup or ADF). Order as below; omit empty sections, except
+Issues ("None found"):
+```
+**<DECISION>** (LLM, analyzed <analyzed_at>) · <b> bugs · <n> notes · Dashboard: https://claude.ai/artifact/KWjMv2KZuU8so4B33tfy9e
+Test: [`<path>:<start>–<end>`](<dtest>/blob/<rev>/<path>#L<start>-L<end>) `<Class>::<test>` (inherited from `<defined_in>`)
+Analyzed against scylla [`<scylla_rev>`](<scylla>/commit/<scylla_rev>) and dtest [`<dtest_rev:10>`](<dtest>/commit/<dtest_rev>); test data at dtest `<rev:10>`
+Review group: <group> (<team>), reviewers: <names>
+
+#### Deleted                      (only if DELETED)
+<date> [`<sha:10>`](<dtest>/commit/<sha>) [#<pr>](<dtest>/pull/<pr>); decision before deletion: <prev>
+#### Description
+#### Reason
+#### Issues
+| Kind | Tag | Text | Ref |      bugs first; ref linked per the dashboard rules, else `code`
+#### Relevance
+#### Duplicates
+| Coverage | Path | Note |       path linked only if it parses (dashboard rules), else `code`
+#### Origin
+<date> [`<sha:10>`](<dtest>/commit/<sha>) [#<pr>](<dtest>/pull/<pr>) (or "no PR"): <summary>
+#### Jenkins
+<runs> runs, <pass> pass, <avg> average (all jobs combined)
+| Job | Runs | Pass | Avg |          from stats.by_job; then | Param | Runs | Pass | Avg | if params
+#### Commits
+| Date | Commit | PR | Summary |    test commits, newest first
+#### File commits
+| Date | Commit | PR | Summary |    file_commits the analysis summarized that aren't in the test's commits
+```
+- `<dtest>` = https://github.com/scylladb/scylla-dtest, `<scylla>` = https://github.com/scylladb/scylladb;
+  `<path>` = `defined_in` path if set, else data `file`; `<x:10>` = first 10 chars, links use the full sha.
+- Commit rows: Summary = analysis `commits` summary (prefix match) else `subject`, then ` (<author>)`. PR = commit `pr`;
+  for the origin commit use `origin.pr` and add "(origin)" after the sha. More than 20 commits → newest 20, then
+  "… <N> older, see the dashboard".
+- Numbers as on the dashboard: pass rate `100%` / `97.2%`; durations `<60s` → `19s`, else minutes `1.4m`;
+  dates `YYYY-MM-DD`; no runs → "No runs recorded".
+- Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
+  with the header lines and `####` sections above.
+
 ## Rubric
 
 Single source: `.claude/skills/analyze/prompt.md` steps 3, 6, 7 (agreed 2026-10-20; issues 2026-10-21). Edit there.
