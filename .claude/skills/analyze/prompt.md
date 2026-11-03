@@ -73,6 +73,7 @@ Write /home/cezar/github/dtest-triage/analysis/{MODULE}.json, schema:
 ```
 If the file already exists, load it and add/replace only your tests; keep the other entries and its
 `scylla_rev`/`dtest_rev` (`scripts/delta.py` bumps them once every test is checked against the new revs).
+When replacing an entry, keep its `jira` field exactly as it was (the test's Jira issue; never add, change or drop it).
 Write it after every few tests (valid JSON each time), so progress survives interruption.
 Do not modify any repo other than writing that file; do not commit. Scratch files/scripts only in your own
 `mktemp -d`; never run or reuse existing files in /tmp (old runs left scripts there that overwrite analysis files).
@@ -90,5 +91,6 @@ entries were checked at.
 - PORTED: read the scylla commit (`git -C ~/github/scylladb show <sha>`); update `duplicates`. Key `*`: the commit
   names the module but no test; check whether it covers any of the module's tests, update only those.
 Then redo steps 4-7 as needed: drop fixed issues, add new ones, re-decide (a fixed `bug` with nothing else holding
-it back → GREEN). Keep the other fields unless the change makes them wrong. Set `analyzed_at` to today.
+it back → GREEN). Keep the other fields unless the change makes them wrong; `jira` always stays as is.
+Set `analyzed_at` to today.
 Reply: table of test, old → new decision, what changed (or "no change").

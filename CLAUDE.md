@@ -77,12 +77,14 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
    "decision": "GREEN|YELLOW|RED|DELETED",
    "reason": "...",                             // mentions issues as "Bug: ..." / "Note: ..."
    "issues": [{"kind": "bug|note", "tag", "ref", "text"}],
-   "deleted": {"sha", "date", "pr": int | null, "prev": "GREEN|YELLOW|RED"}}}}  // only if DELETED (delta.py)
+   "deleted": {"sha", "date", "pr": int | null, "prev": "GREEN|YELLOW|RED"},  // only if DELETED (delta.py)
+   "jira": "DTEST-123"}}}                      // optional: the test's Jira issue (see "Jira format"); analyses keep it
 ```
 Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the Jenkins window.
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
 (other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags: prompt.md step 7
-(enforced by `check_analysis.py` TAGS).
+(enforced by `check_analysis.py` TAGS). `jira`: set only when filing issues; the analyze subagents never add, change or
+drop it, and `check_analysis.py` fails if a key committed at `HEAD` is dropped. A grouped issue = same key on each test.
 
 ## Dashboard (what it needs to work)
 
@@ -96,6 +98,8 @@ Needs:
   fields are ignored. A missing analysis file is fine (tests show as GRAY, counted only in the total).
 - A GitHub connector (`Github CoPilot` or `GitHub`) with `get_file_contents`, `list_commits`, `get_commit`, but only for
   whoever clicks **Reload data**. Published artifacts can't fetch raw.githubusercontent.com.
+- Optional, per viewer: an Atlassian connector (`Atlassian MCP` or `Atlassian`) with `searchJiraIssuesUsingJql`, for the
+  live status of `jira` issues on scylladb.atlassian.net. Without it, keys still link to the issues.
 - The artifact's shared database (not reachable from scripts):
   - `cache/meta`: `{sha, syncedAt, syncedBy, modules, mods: {<module>: {n, ver}}, failed: {<module>: reason}, schema}`.
   - `modules/<module>~<ver>~<part>`: copy of data + analysis per module (analysis-only tests included), split under
@@ -117,6 +121,8 @@ Data flow:
   at data `rev`; `duplicates.path` linked only when it parses (`test/...` → scylladb at `scylla_rev`, dtest files →
   scylla-dtest at `rev`), else plain text; origin PR from analysis `origin.pr` over data commits' `pr`.
 - Duration filter: `stats.avg_s` (all jobs) in buckets <10s, 10–30s, 30s–1m, 1–2m, 2–5m, >5m, plus "no runs".
+- `jira`: key links to `https://scylladb.atlassian.net/browse/<key>`; status read live when the page opens
+  (`key in (...)`, 100 keys per query, cached 10 min); filter: has an issue / no issue / issue not done / issue done.
 
 ## Review groups
 
@@ -132,7 +138,7 @@ Mirror the dashboard's test view. Source: `data/<module>.json` + `analysis/<modu
 `groups.json`. Votes live only in the dashboard's database: don't mention them unless the user gives the outcome.
 
 Fields:
-- Project `SCYLLADB`; issue type: ask unless given. Labels: `dtest-triage`, `dtest-<decision lowercase>`.
+- Project `DTEST`; issue type: ask unless given. Labels: `dtest-triage`, `dtest-<decision lowercase>`.
 - Group = `groups.json` group of the test (see "Review groups"). `component` set → `Scylla components`
   (customfield_10321) = it, leave assignee empty (auto-assigns the SME). `component` null → assignee = first reviewer.
   Other reviewers → watchers if the tool allows, else the "Review group" line below.
@@ -176,6 +182,10 @@ Review group: <group> (<team>), reviewers: <names>
   dates `YYYY-MM-DD`; no runs → "No runs recorded".
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
+- A test that already has `jira`: don't open another issue unless the user says so (then replace the key).
+- After creating: set `"jira": "<key>"` on every test the issue covers in `analysis/<module>.json`, run
+  `scripts/check_analysis.py <module>`, commit `git commit -m "jira: <keys>" analysis/`, push. The dashboard shows it
+  after **Reload data**.
 
 ## Rubric
 

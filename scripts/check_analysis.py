@@ -4,6 +4,8 @@
 usage: check_analysis.py MODULE ...
 """
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,6 +26,13 @@ for mod in sys.argv[1:]:
     full = json.loads((ROOT / f"analysis/{mod}.json").read_text())
     analysis = full["tests"]
     problems = [f"missing {k}" for k in ("dtest_rev", "scylla_rev") if k not in full]
+    try:  # jira keys committed at HEAD must survive rewrites by the analyze subagents
+        old = json.loads(subprocess.run(["git", "show", f"HEAD:analysis/{mod}.json"], cwd=ROOT, check=True,
+                                        capture_output=True, text=True).stdout)["tests"]
+    except (subprocess.CalledProcessError, KeyError, ValueError):
+        old = {}
+    problems += [f"{k}: jira {a['jira']} dropped" for k, a in old.items()
+                 if a.get("jira") and not analysis.get(k, {}).get("jira")]
     norun = []
     for k in analysis.keys() - tests:
         if analysis[k].get("decision") == "DELETED":
@@ -42,6 +51,8 @@ for mod in sys.argv[1:]:
         if (a.get("decision") == "DELETED") != bool(d) or d and (
                 d.keys() != {"sha", "date", "pr", "prev"} or d["prev"] not in ("GREEN", "YELLOW", "RED")):
             problems.append(f"{k}: bad deleted {d!r}")
+        if "jira" in a and not re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", str(a["jira"])):
+            problems.append(f"{k}: bad jira {a['jira']!r}")
         issues = a.get("issues", [])
         problems += [f"{k}: bad issue {i}" for i in issues
                      if i.get("tag") not in TAGS.get(i.get("kind"), ()) or not i.get("text")]
