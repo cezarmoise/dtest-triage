@@ -62,7 +62,8 @@
           "ref": "2b442c05d3",
           "text": "MICROSECONDS param disabled since 2019; parametrize has a single value."
         }
-      ]
+      ],
+      "jira": "DTEST-866"
     },
     "TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node": {
       "description": "Single node, RF=1 pk-only table: insert 100 rows, delete 10 (partition tombstones) while all in memtable, flush, then dump sstables (scylla sstable dump-data) and assert tombstoned partitions carry no clustering_elements (shadowed data dropped at flush) and at least one tombstone exists; also count(*) == 90. Guards scylla commit bcadd8229b (compacting reader on memtable flush).",
@@ -133,7 +134,8 @@
           "ref": "compaction_additional_test.py:130",
           "text": "Class-level @single_node mark while the test boots 3 nodes."
         }
-      ]
+      ],
+      "jira": "DTEST-867"
     },
     "TestCompactionAdditional::test_compaction_delete_with_smp_change": {
       "description": "Start node with smp=1, STCS table (gc_grace 5, tombstone_gc immediate), insert 100 keys, flush+compact; restart with smp=2 (resharding), delete all keys, wait gc_grace, insert/flush until a compaction happens; hard stop, dump sstables and check tombstone count <=100 (and >0 if <2 compactions); restart, verify no resurrection; major compact until 2 more compactions and assert no tombstones left. Originally guarded data resurrection with shared sstables after smp change (2016).",
@@ -214,7 +216,8 @@
           "ref": "",
           "text": "Under tablets smp 1->2 does not reshard, so that job checks only no-resurrection after restart."
         }
-      ]
+      ],
+      "jira": "DTEST-868"
     },
     "TestCompactionAdditional::test_compaction_removes_ttld_data_by_time_windows": {
       "description": "Single node, TWCS (1-min windows, expired_sstable_check_frequency_seconds=1) with default_ttl=20, gc_grace=1, tombstone_gc immediate. Writes 11 flushed sstables with explicit timestamps spanning 3 past windows, waits TTL+gc, asserts files still present, then inserts new data, flushes, waits for a 'Compacted N sstables to []' log line and asserts all original sstables were purged (fully expired sstables dropped).",
@@ -299,7 +302,8 @@
       ],
       "decision": "RED",
       "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (scylla 7c90088152, the OSS equivalent of enterprise#2055) and by sibling dtest TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows.",
-      "issues": []
+      "issues": [],
+      "jira": "DTEST-869"
     },
     "TestCompactionAdditional::test_double_compaction_by_cleanup_and_major_compactions": {
       "description": "Single node (compaction_static_shares=10 to slow compaction), STCS table with 200k rows (20k debug). 3x: insert/delete a chunk, flush, run 'nodetool compact ks' and 'nodetool cleanup ks' in parallel. Parses compaction debug log for Compacting/Cleaning lines and sstable generations and asserts no sstable was both regular-compacted and cleaned; asserts no log errors. Guards scylladb/scylla#8155 (fixed 2cf0c4bbf1, follow-up 80a1ebf0f3 / #8168).",
@@ -723,7 +727,8 @@
           "ref": "068022d716",
           "text": "Comment 'TTL 3 + gc_grace 1' stale since gc_grace_seconds was removed."
         }
-      ]
+      ],
+      "jira": "DTEST-870"
     },
     "TestLCSSSTablePromotion::test_lcs_sstable_promotion": {
       "description": "Single node, LCS table with sstable_size_in_mb=1, inserts 50K rows (10K debug), flush, waits until per-level sstable counts converge, then asserts per-level space amplification (size(L)+size(L+1))/size(L+1) < 1.2. Guards scylla 9de7abdc80 (LCS stops promoting once L is 10x L-1) and the ~1.1 space-amp promise.",
@@ -927,7 +932,8 @@
       ],
       "decision": "RED",
       "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (added by the guarded scylla merge e44a28dce4) and duplicated by sibling dtest test_data_from_different_windows_compacted_together; row vs partition tombstones is not a meaningful difference for cross-bucket compaction.",
-      "issues": []
+      "issues": [],
+      "jira": "DTEST-871"
     },
     "TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_rows_in_first_timewindow": {
       "description": "Same setup with 5 partitions over 5 minutes; deletes all rows of window 0 (tombstones in window 5) -> 6 sstables; major -> asserts 5 sstables (window 0 sstable vanished, windows 1-4 + tombstone sstable kept, each within one window) and expected row count. Checks cross-bucket compaction while keeping per-window segregation of the output.",
@@ -1199,7 +1205,8 @@
           "ref": "tools/data.py",
           "text": "flush_period_seconds huge still flushes at t=0, so 'pre' already contains a 1-second sstable."
         }
-      ]
+      ],
+      "jira": "DTEST-872"
     },
     "TestTimeWindowDataSegregation::test_rebuild_node_streaming": {
       "description": "vnodes only. 3 nodes RF=3, TWCS 1-minute windows, 10 simulated minutes (flush every 20s); stops node3, wipes its ks data dir, restarts, runs nodetool rebuild, waits for rebuild completion, triggers off-strategy via REST and asserts node3's sstables each span <=1.5 windows. Checks TWCS data segregation of rebuild-streamed data.",
@@ -1248,7 +1255,8 @@
           "ref": "compaction_additional_test.py:1830",
           "text": "No data validation after rebuild."
         }
-      ]
+      ],
+      "jira": "DTEST-873"
     },
     "TestTimeWindowDataSegregation::test_reshape_sstables_different_size_after_change_window_size": {
       "description": "Single node, TWCS 1-minute windows, 1 partition; writes 64 simulated minutes alternating 16-minute blocks of tiny (10B) and large (1MB) values, major -> one sstable per window (32 small, 32 large). ALTERs window to 64 minutes, restarts, and parses '[Reshape ...] Reshaping [...]' logs: every reshape job but the last must contain only small sstables; then major and assert 1 sstable within the new window. Guards scylla 299ffb1e1a (#9938: TWCS reshape reuses STCS logic to compact similar-sized files in an oversized bucket).",
@@ -1293,7 +1301,8 @@
           "ref": "compaction_additional_test.py:2363",
           "text": "With a single reshape job logged, the small-only check over found[:-1] checks nothing and last-bucket check is trivially true."
         }
-      ]
+      ],
+      "jira": "DTEST-875"
     },
     "TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_when_small_files_more_than_large": {
       "description": "Same flow as test_reshape_sstables_different_size_after_change_window_size (run_flow_generate_and_reshape_twcs_sstables) with 96 one-minute windows mostly small and one large block, window changed to 100 minutes; asserts reshape jobs before the last contain only small sstables and that a final major leaves 1 sstable.",
@@ -1344,7 +1353,8 @@
           "ref": "compaction_additional_test.py:2232-2248",
           "text": "Docstring says 80 small/16 large and window 96; actual 88 small/8 large windows, new window 100."
         }
-      ]
+      ],
+      "jira": "DTEST-874"
     },
     "TestTimeWindowDataSegregation::test_reshape_sstables_after_change_window_size_and_unit": {
       "description": "Same flow (run_flow_generate_and_reshape_twcs_sstables) with 96 one-minute windows (80 small incl. 1-byte values, 16 large), compaction window changed to 2 HOURS (unit change) and node restarted; asserts reshape ran on boot, jobs before the last contain only small sstables, and after major 1 sstable spanning <=1.5 x 2h.",
@@ -1912,7 +1922,8 @@
           "ref": "compaction_additional_test.py:2540",
           "text": "tablets_initial_scale_factor=1 passed again in _prepare (already in prepare() :90)."
         }
-      ]
+      ],
+      "jira": "DTEST-876"
     }
   }
 }

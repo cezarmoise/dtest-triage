@@ -95,7 +95,8 @@
           "ref": "materialized_views_test.py:1519",
           "text": "Ignore pattern 'migration_task - Cant send migration request' is dead; message removed (scylla 02fc4ad0a9)"
         }
-      ]
+      ],
+      "jira": "DTEST-769"
     },
     "TestMaterializedViews::test_add_dc_during_mv_insert": {
       "description": "4 nodes in dc1, keyspace RF=3 (NTS replication_factor:3 -> {'dc1':3}), TableManager table + filtered MV (WHERE last int col = 53). Prefills 1000 rows, checks base vs view at QUORUM, then in parallel bootstraps 2 nodes into new dc2 and inserts 300k (30k in debug) more rows matching the view filter; finally, from each dc2 node, compares base vs view (grouped, filtered) at CL=ALL. Originally guarded scylladb#5459 (broken_promise applying view updates during DC add).",
@@ -148,7 +149,8 @@
           "ref": "materialized_views_test.py:503-557",
           "text": "Add-DC is hollow: keyspace never ALTERed to dc2 nor rebuilt; dc2 'validation' only coordinates reads of dc1 replicas"
         }
-      ]
+      ],
+      "jira": "DTEST-770"
     },
     "TestMaterializedViews::test_add_dc_during_mv_update": {
       "description": "Same as test_add_dc_during_mv_insert but prefills 4000 rows and, in parallel with bootstrapping 2 dc2 nodes, performs 200 single-row updates (1/s, after 5s delay) of the view-filter column for random rows matching the filter (value moves out of the view). Then compares base vs filtered view from dc2 nodes at CL=ALL.",
@@ -209,7 +211,8 @@
           "ref": "",
           "text": "~200s of fixed time.sleep(1) per update in _multiple_int_updates"
         }
-      ]
+      ],
+      "jira": "DTEST-771"
     },
     "TestMaterializedViews::test_add_drop_column": {
       "description": "3 nodes RF=3, table cf(key, v0, v1) + view mv_v1_view (v1, key). While a thread inserts 20 keys x20 repeats, ALTER TABLE adds v2..v6; checks logs for 'Failed to apply mutation' and row counts (20) in base and view at QUORUM. Then inserts keys 20..40 while dropping v2..v6, rechecks logs and counts (40). Guards scylladb#7061 / scylla-enterprise#1467 (view updates using wrong schema after base ALTER).",
@@ -372,7 +375,8 @@
           "ref": "",
           "text": "'very wide MV' misnomer: view partitions are 5 rows"
         }
-      ]
+      ],
+      "jira": "DTEST-772"
     },
     "TestMaterializedViews::test_add_node_after_wide_mv_with_range_deletions": {
       "description": "3 nodes RF=1, table t(id, v, PK(id, v)) with compaction disabled + view t_by_v(v, id). Inserts 10x100 rows, verifies base/view, issues range deletions (v >= j and v < j+2 for every 10th j), verifies deleted rows absent in base and view, bootstraps a 4th node, re-verifies via the new node, inserts 10x10 new rows and verifies all via the new node. Ported from Cassandra CASSANDRA-11670.",
@@ -586,7 +590,8 @@
       ],
       "decision": "RED",
       "reason": "Trivial smoke check (one CREATE MV + count rows in system_schema.views) fully covered by cqlpy MV tests (e.g. test/cqlpy/test_materialized_view.py::test_mv_where_case_sensitive_function_name reads system_schema.views) and implicitly by every other test in this class using prepare(user_table=True).",
-      "issues": []
+      "issues": [],
+      "jira": "DTEST-774"
     },
     "TestMaterializedViews::test_complex_mv_select_statements": {
       "description": "3 nodes, keyspace mvtest RF=3. For each view PK layout ((a,b),c), ((b,a),c), (a,b,c), (c,b,a), ((c,a),b): base test(a,b,c,d) PK(a,b,c), insert 9 rows, CREATE MV with filter `a = 1 AND b IS NOT NULL AND c = 1` (built over existing data), then inserts/updates/deletes rows that do / do not match the filter and partition deletion, asserting view contents at QUORUM with retries. Guards CASSANDRA-9664 (MV WHERE restrictions on PK columns).",
@@ -640,7 +645,8 @@
           "ref": "",
           "text": "prepare(rf=3) creates unused keyspace ks"
         }
-      ]
+      ],
+      "jira": "DTEST-773"
     },
     "TestMaterializedViews::test_concurrent_updates_deletes": {
       "description": "4 nodes RF=3, TableManager table with one int column and one MV keyed by it, prefill 2 rows. Two client threads run in parallel: 1000 UPDATEs of the view-key column of id=0 to random values in [-100,-1], and 1001 DELETEs of id=0. Afterwards base and view contents are compared (grouped by view key) at QUORUM with eventually(). Guards view consistency under racing view-key updates and deletes of the same base row (read-before-write + row locking in view update generation).",
@@ -1150,7 +1156,8 @@
       ],
       "decision": "RED",
       "reason": "Trivial schema smoke check (create 2nd view, drop one, count system_schema.views rows) implicitly exercised by every cqlpy MV test (new_materialized_view drops on exit) and explicitly by test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id; same pattern as test_create (RED).",
-      "issues": []
+      "issues": [],
+      "jira": "DTEST-775"
     },
     "TestMaterializedViews::test_drop_mv_during_base_table_writes": {
       "description": "4 nodes RF=3 (auto_snapshot off, range timeout = cql_timeout(300)), TableManager table with 1 int column + MV keyed on it (waits for build), then in parallel inserts 1M rows (100k in debug) and after 40s DROPs the view with a 300s client timeout. Asserts system_schema.views is empty at CL=ALL, base has all rows at QUORUM, and node1 log has no errors except mutation_write_timeout_exception / no_such_column_family. Guards that dropping a view under concurrent base writes neither breaks base writes nor crashes (view updates to replicas that already dropped the view).",
@@ -1546,7 +1553,8 @@
           "ref": "materialized_views_test.py:970",
           "text": "Docstring claims ALTER happens during updates; it is sequential"
         }
-      ]
+      ],
+      "jira": "DTEST-776"
     },
     "TestMaterializedViews::test_mv_consistency_after_truncate_and_insert": {
       "description": "3 nodes RF=3 (auto_snapshot off, CL=QUORUM), c1c2 table (caching on) with 100 rows, 5 synchronous_updates views created and verified (100 rows each), TRUNCATE base, asserts all 5 views empty, re-inserts 100 rows and asserts base and all views have 100 rows. Guards that TRUNCATE of a base truncates all views and that views are correctly repopulated afterwards.",
@@ -1940,7 +1948,8 @@
           "ref": "materialized_views_test.py:62-65",
           "text": "Module next_gating commented out citing scylladb#15046, now closed"
         }
-      ]
+      ],
+      "jira": "DTEST-777"
     },
     "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_remove": {
       "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2 ungracefully and `nodetool removenode` it. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=ALL after removal (3 nodes, RF=3)).",
@@ -2007,7 +2016,8 @@
           "ref": "materialized_views_test.py:62-65",
           "text": "Module next_gating commented out citing scylladb#15046, now closed"
         }
-      ]
+      ],
+      "jira": "DTEST-779"
     },
     "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_decommission": {
       "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 2s later decommission node2 and then bootstrap node5. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
@@ -2073,7 +2083,8 @@
           "ref": "materialized_views_test.py:62-65",
           "text": "Module next_gating commented out citing scylladb#15046, now closed"
         }
-      ]
+      ],
+      "jira": "DTEST-778"
     },
     "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_stop": {
       "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2 (gently); node2 is started again after all MVs are created. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
@@ -2138,7 +2149,8 @@
           "ref": "materialized_views_test.py:62-65",
           "text": "Module next_gating commented out citing scylladb#15046, now closed"
         }
-      ]
+      ],
+      "jira": "DTEST-781"
     },
     "TestMaterializedViews::test_mv_populating_from_existing_data_during_node_restart": {
       "description": "Shared helper _mv_populating_from_existing_data_during_changes_test (:792): 4 nodes RF=3 (node ops use an exclusive QUORUM session), TableManager table with 10 int columns, prefill 40000 rows (debug: 10000 rows, 2 MVs), schema agreement wait disabled, then in parallel: create 10 MVs (each keyed by one int column, not waiting for build) and 1s later stop node2, sleep 1s, start it. Afterwards waits for every view to be built and checks base/view row counts and grouped contents (CL=QUORUM).",
@@ -2208,7 +2220,8 @@
           "ref": "materialized_views_test.py:62-65",
           "text": "Module next_gating commented out citing scylladb#15046, now closed"
         }
-      ]
+      ],
+      "jira": "DTEST-780"
     },
     "TestMaterializedViews::test_mv_sync_after_remove_add_node": {
       "description": "4 nodes RF=3 in racks RAC1:1, RAC2:1, RAC3:2, hints off. Creates t + view t_by_v (PK v,id), inserts 4444 rows, decommissions node4 and checks every view row at CL=ONE, bootstraps node5 into RAC3, waits for the view to be built at CL=ALL, stops node2/node3 and reads every view row at CL=ONE via the new node. Added to guard scylla a57724e711 (scylladb#11882: off-strategy compaction must wait for view building, otherwise staging data leaks into the view builder's mutation source).",
@@ -2476,7 +2489,8 @@
           "ref": "materialized_views_test.py:1424-1432",
           "text": "View reads right after RF=1 writes without eventually(); flake risk"
         }
-      ]
+      ],
+      "jira": "DTEST-782"
     },
     "TestMaterializedViews::test_query_new_column": {
       "description": "3 nodes RF=1, users table; creates users_by_state2 selecting only username (+ PK state), inserts 4 users, checks one view row, then ALTER TABLE users ADD first_name and asserts the view row does not gain the new column. Verifies that a view with an explicit column list does not pick up newly added base columns.",
@@ -2521,7 +2535,8 @@
           "ref": "materialized_views_test.py:1816",
           "text": "First view read right after RF=1 inserts without eventually(); flake risk"
         }
-      ]
+      ],
+      "jira": "DTEST-783"
     },
     "TestMaterializedViews::test_range_tombstone_and_repair_test": {
       "description": "Parametrized over 5 range-delete WHERE sets. 2 nodes RF=2, table (id,ck) + view keyed (v2,id,ck), 4x300 rows with 10KB text, flush; range-deletes rows, stops node2, deletes its base+view sstables, restarts and repairs ks on node2 (60s), greps node2 log for 'permit ks.<table>:view_update_generator: was not closed before destruction', then with node1 stopped compares base vs view on node2 and asserts deleted ranges are absent in the view. Reproducer for scylladb#14503 (fix c25201c1: view_updating_consumer split inside an open range tombstone).",
@@ -2633,7 +2648,8 @@
           "ref": "materialized_views_test.py:3069",
           "text": "self.allow_log_errors = True disables the generic error log check"
         }
-      ]
+      ],
+      "jira": "DTEST-784"
     },
     "TestMaterializedViews::test_really_complex_repair": {
       "description": "5 nodes RF=5, hints off, base PK (id,v,v2) gc_grace_seconds=1, view keyed (v2,v,id). With node2/3 down writes 'a' and 'b' rows at CL=THREE; then with only node2/3 up writes 'c','d' rows at CL=TWO and a clustering-prefix (range) delete of id/v, checks view on node2. Starts all nodes, checks 'a' rows are either all present or none at QUORUM, runs global repair on node1, asserts 'a' rows are gone from the view at QUORUM. Guards view consistency after repair propagates a newer range tombstone to replicas holding older rows (repair-generated view updates, scylladb#3275).",
@@ -2770,7 +2786,8 @@
           "ref": "materialized_views_test.py:475-484",
           "text": "Validation compares view vs base row counts only, not content"
         }
-      ]
+      ],
+      "jira": "DTEST-785"
     },
     "TestMaterializedViews::test_stop_node_during_mv_insert_4_nodes": {
       "description": "4 nodes RF=3. Prefills 10k rows with c-s, then in parallel for 1m runs a c-s user profile (cs_mv_profile.yaml: mview.users + views users_by_first_name/users_by_last_name) insert/read workload and a c-s mixed workload at CL=ONE, while after 30s node2 is stopped. node2 is restarted, both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and each view's row count compared with base count(*) at QUORUM. Guards MV write path and view convergence when a replica is down (with 4 nodes base and view replicas differ, so view updates go to remote/dead replicas).",
@@ -3117,7 +3134,8 @@
           "ref": "",
           "text": "Cache-clearing claim not verified separately; only base/view counts 0 after TRUNCATE"
         }
-      ]
+      ],
+      "jira": "DTEST-787"
     },
     "TestMaterializedViews::test_small_concurrent": {
       "description": "3 nodes RF=3 with PasswordAuthenticator/CassandraAuthorizer. TableManager table with 10 int columns and 10 views (one per column as view key). Prefills 2000 rows and checks base + each view have 2000 rows at QUORUM, then in parallel (each workload under its own role + service level) inserts 2000 more rows, runs two view-key update streams and 2000 view reads; eventually checks all 4000 rows in base and views and compares base vs each view grouped by view key column at QUORUM. Functional test of concurrent view-key updates/inserts across many views.",
@@ -3370,7 +3388,8 @@
           "ref": "",
           "text": "Keyspace-wide repair also repairs view tables; view equality need not come from base repair"
         }
-      ]
+      ],
+      "jira": "DTEST-786"
     },
     "TestMaterializedViews::test_write_to_hinted_handoff_for_views": {
       "description": "3 nodes RF=3, users table + users_by_state view (prepare user_table=True). Inserts 500 rows at CL=ALL and flushes, stops node2, issues 500 UPDATEs setting state at CL=ANY, restarts node2, then polls (up to 60s) SELECT * FROM users_by_state at CL=ALL until 500 rows, asserting each username/state pair matches. Guards view-update hints for unavailable paired view replicas (scylladb/scylla#3383).",
