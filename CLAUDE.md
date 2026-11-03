@@ -84,6 +84,20 @@ Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the
 (other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags: prompt.md step 7
 (enforced by `check_analysis.py` TAGS).
 
+`jira.json` (Jira issues opened for tests; written by whoever files them, see "Jira format"):
+```
+{"site": "https://scylladb.atlassian.net",
+ "issues": {"SCYLLADB-123": {                   // issue key; URL = <site>/browse/<key>
+   "summary": "...",
+   "created": "YYYY-MM-DD",
+   "group": "<groups.json group>" | null,
+   "tests": ["<module>::<Class>::<test>", ...],  // ≥1; a grouped issue lists all its tests
+   "decision": "GREEN|YELLOW|RED|DELETED",       // effective decision when filed
+   "status": "<Jira status>", "status_at": "YYYY-MM-DD"}}}  // optional: last known status and when it was read
+```
+Keyed by issue, not test: one issue can cover many tests and a test can be in several issues. Kept out of
+`analysis/` because weekly rechecks rewrite those files. Keys sorted, 2-space indent. Missing file = no issues.
+
 ## Dashboard (what it needs to work)
 
 claude.ai artifact, one HTML file, vanilla JS: https://claude.ai/artifact/KWjMv2KZuU8so4B33tfy9e (its source lives in the
@@ -117,6 +131,7 @@ Data flow:
   at data `rev`; `duplicates.path` linked only when it parses (`test/...` → scylladb at `scylla_rev`, dtest files →
   scylla-dtest at `rev`), else plain text; origin PR from analysis `origin.pr` over data commits' `pr`.
 - Duration filter: `stats.avg_s` (all jobs) in buckets <10s, 10–30s, 30s–1m, 1–2m, 2–5m, >5m, plus "no runs".
+- `jira.json`: not read yet (planned: issue links per test).
 
 ## Review groups
 
@@ -176,6 +191,8 @@ Review group: <group> (<team>), reviewers: <names>
   dates `YYYY-MM-DD`; no runs → "No runs recorded".
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
+- After creating issues (or changing their tests), record them in `jira.json` (see "JSON formats") and commit
+  (`jira: <keys>`). Never remove an entry; a closed issue keeps its record.
 
 ## Rubric
 
