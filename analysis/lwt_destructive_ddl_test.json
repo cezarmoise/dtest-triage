@@ -1,11 +1,11 @@
 {
   "file": "lwt_destructive_ddl_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
     "TestLwtDestructiveDDL::test_drop_table": {
-      "description": "3-node cluster (3 racks), 4 LWT threads (INSERT IF NOT EXISTS / UPDATE IF / DELETE IF EXISTS, also as single-statement batches; prepared lazily, retried) on nodes 1,2,3,1 while 4 threads loop DROP TABLE + CREATE TABLE ks.test with 0.1s pauses for 30s (90s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs (expected: no_such_column_family, mutation write failures, CAS prune failures). Guards against crashes when paxos/prune hits a dropped table.",
+      "description": "3-node cluster (3 racks), 4 LWT threads (INSERT IF NOT EXISTS / UPDATE IF / DELETE IF EXISTS, also as single-statement batches; prepared lazily, retried) on nodes 1,2,3,1 while 4 threads loop DROP TABLE + CREATE TABLE ks.test with 0.1s pauses for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs (expected: no_such_column_family, mutation write failures, CAS prune failures). Guards against crashes when paxos/prune hits a dropped table.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -24,9 +24,10 @@
         "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "Lazy LWT prepare + ks-qualified names so LWT really races DROP/CREATE TABLE (workers used to die at prepare); futures re-raised, success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1."
+        "c7979da02e": "Lazy LWT prepare + ks-qualified names so LWT really races DROP/CREATE TABLE (workers used to die at prepare); futures re-raised, success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1.",
+        "e606aa3704": "File-level: _case_template window 30s (90s debug) -> cql_timeout(60) = 60/120/180s release/dev/debug; DDL threads stopped+joined before LWT; try/finally stops workers on interrupt; worker counts as class constants (SCYLLADB-5928, PR 7711)."
       },
-      "relevance": "LWT (paxos) is live, also on tablets; 92/92 passes (~77s, mostly pre-c7979da0 60s runs) in next-dtest-tablets and next-dtest-consistent-topology. Recent fixes (Dec 2025-Jan 2026, scylladb#27351/#27849/#27943) show it still exercises paxos prune vs dropped table. Per c7979da0, LWT workers often died at startup prepare before it, so the full race runs only since 2026-10.",
+      "relevance": "LWT (paxos) is live, also on tablets; 100/100 passes (~74s; from build 11769 on, ~75-100s with the e606aa37 60s window) in next-dtest-tablets and next-dtest-consistent-topology. Recent fixes (Dec 2025-Jan 2026, scylladb#27351/#27849/#27943) show it still exercises paxos prune vs dropped table. Per c7979da0, LWT workers often died at startup prepare before it, so the full race runs only since 2026-10.",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation",
@@ -40,18 +41,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Live behavior; only partial scylla overlap (test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation: single LWT via injection, dev/debug only), no sustained-load equivalent; recently found real log-level issues. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:214-224: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "reason": "Live behavior; only partial scylla overlap (test_tablets_lwt.py::test_lwt_concurrent_base_table_recreation: single LWT via injection, dev/debug only), no sustained-load equivalent; recently found real log-level issues. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:249-259: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
     },
     "TestLwtDestructiveDDL::test_drop_keyspace": {
-      "description": "Same LWT load while DDL threads loop DROP KEYSPACE ks + CREATE KEYSPACE IF NOT EXISTS (NTS RF3, issued directly, no USE) + CREATE TABLE for 30s (90s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs (ignores missing cf/keyspace, 'Column family test exists' schema races, mutation write failures, prune failures). Guards crash-freedom of paxos when the whole keyspace vanishes.",
+      "description": "Same LWT load while DDL threads loop DROP KEYSPACE ks + CREATE KEYSPACE IF NOT EXISTS (NTS RF3, issued directly, no USE) + CREATE TABLE for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs (ignores missing cf/keyspace, 'Column family test exists' schema races, mutation write failures, prune failures). Guards crash-freedom of paxos when the whole keyspace vanishes.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -70,9 +71,10 @@
         "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "Direct CREATE KEYSPACE IF NOT EXISTS instead of create_ks (its USE ks killed DDL workers); no USE ks, lazy LWT prepare, futures re-raised, success asserts, 30s."
+        "c7979da02e": "Direct CREATE KEYSPACE IF NOT EXISTS instead of create_ks (its USE ks killed DDL workers); no USE ks, lazy LWT prepare, futures re-raised, success asserts, 30s.",
+        "e606aa3704": "File-level: _case_template window 30s (90s debug) -> cql_timeout(60) = 60/120/180s release/dev/debug; DDL threads stopped+joined before LWT; try/finally stops workers on interrupt; worker counts as class constants (SCYLLADB-5928, PR 7711)."
       },
-      "relevance": "LWT (paxos) is live, also on tablets; 92/92 passes (~77s, mostly pre-c7979da0 60s runs) in next-dtest-tablets and next-dtest-consistent-topology.",
+      "relevance": "LWT (paxos) is live, also on tablets; 100/100 passes (~74s; from build 11769 on, ~75-100s with the e606aa37 60s window) in next-dtest-tablets and next-dtest-consistent-topology.",
       "duplicates": [
         {
           "path": "test/cluster/strong_consistency/test_strong_consistency_table_load_during_random_schema_changes.py::test_sc_linearizability_with_schema_changes",
@@ -81,18 +83,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla test does LWT load + DROP/CREATE KEYSPACE (SC schema-change test is partial, not paxos); live behavior. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:214-224: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "reason": "No scylla test does LWT load + DROP/CREATE KEYSPACE (SC schema-change test is partial, not paxos); live behavior. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:249-259: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
     },
     "TestLwtDestructiveDDL::test_rename_column": {
-      "description": "LWT load while DDL threads loop ALTER TABLE ks.test RENAME pk TO pk1 / back for 30s (90s debug); prepared LWT statements become invalid mid-flight (lazy prepare retried while renamed). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs.",
+      "description": "LWT load while DDL threads loop ALTER TABLE ks.test RENAME pk TO pk1 / back for 60s (120s dev, 180s debug); prepared LWT statements become invalid mid-flight (lazy prepare retried while renamed). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -108,23 +110,24 @@
         "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "Lazy LWT prepare (retried while pk renamed) + ks-qualified names; futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1."
+        "c7979da02e": "Lazy LWT prepare (retried while pk renamed) + ks-qualified names; futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1.",
+        "e606aa3704": "File-level: _case_template window 30s (90s debug) -> cql_timeout(60) = 60/120/180s release/dev/debug; DDL threads stopped+joined before LWT; try/finally stops workers on interrupt; worker counts as class constants (SCYLLADB-5928, PR 7711)."
       },
-      "relevance": "LWT (paxos) is live, also on tablets; 92/92 passes (~77s, mostly pre-c7979da0 60s runs) in next-dtest-tablets and next-dtest-consistent-topology. RENAME of pk columns still supported.",
+      "relevance": "LWT (paxos) is live, also on tablets; 100/100 passes (~74s; from build 11769 on, ~75-100s with the e606aa37 60s window) in next-dtest-tablets and next-dtest-consistent-topology. RENAME of pk columns still supported.",
       "duplicates": [],
       "decision": "GREEN",
-      "reason": "Unique coverage (no scylla/dtest test renames columns under LWT load). c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:214-224: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "reason": "Unique coverage (no scylla/dtest test renames columns under LWT load). c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:249-259: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
     },
     "TestLwtDestructiveDDL::test_drop_column": {
-      "description": "LWT load while DDL threads loop ALTER TABLE ks.test DROP v / ADD v int for 30s (90s debug) (v used in LWT conditions). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs.",
+      "description": "LWT load while DDL threads loop ALTER TABLE ks.test DROP v / ADD v int for 60s (120s dev, 180s debug) (v used in LWT conditions). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -140,9 +143,10 @@
         "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "Lazy LWT prepare (retried while v dropped) + ks-qualified names; futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1."
+        "c7979da02e": "Lazy LWT prepare (retried while v dropped) + ks-qualified names; futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1.",
+        "e606aa3704": "File-level: _case_template window 30s (90s debug) -> cql_timeout(60) = 60/120/180s release/dev/debug; DDL threads stopped+joined before LWT; try/finally stops workers on interrupt; worker counts as class constants (SCYLLADB-5928, PR 7711)."
       },
-      "relevance": "LWT (paxos) is live, also on tablets; 92/92 passes (~77s, mostly pre-c7979da0 60s runs) in next-dtest-tablets and next-dtest-consistent-topology.",
+      "relevance": "LWT (paxos) is live, also on tablets; 100/100 passes (~74s; from build 11769 on, ~75-100s with the e606aa37 60s window) in next-dtest-tablets and next-dtest-consistent-topology.",
       "duplicates": [
         {
           "path": "lwt_schema_modification_test.py::TestLWTSchemaModification::test_table_alter_delete",
@@ -151,18 +155,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only overlapping dtests (lwt_schema_modification_test test_table_alter_delete/test_all) are still skipped (issues #6174/#6151); no scylla equivalent. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:214-224: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "reason": "Only overlapping dtests (lwt_schema_modification_test test_table_alter_delete/test_all) are still skipped (issues #6174/#6151); no scylla equivalent. c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:249-259: future.result() re-raise + LWT/DDL success asserts). Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
     },
     "TestLwtDestructiveDDL::test_ks_netw_topology_change_rf": {
-      "description": "Keyspace ks NTS {datacenter1: 3} (numeric or rack list, as stored); same LWT load (Unavailable tolerated) while 4 DDL threads loop ALTER KEYSPACE lowering datacenter1 RF 3->2 (last rack dropped for rack lists) and restoring it, 30s (90s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards LWT/paxos against replica-set changes: schema-only on vnodes, tablet rebuild (replica add/remove + streaming) on tablets.",
+      "description": "Keyspace ks NTS {datacenter1: 3} (numeric or rack list, as stored); same LWT load (Unavailable tolerated) while DDL threads (1 if ks uses tablets, per keyspace_has_tablets; else 4, one per coordinator) loop ALTER KEYSPACE lowering datacenter1 RF 3->2 (last rack dropped for rack lists) and restoring it, each ALTER with timeout cql_timeout(90), for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards LWT/paxos against replica-set changes: schema-only on vnodes, tablet rebuild (replica add/remove + streaming) on tablets.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -178,9 +182,10 @@
         "f4642d80bf": "File-level: class marked next_gating.",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "Renamed from test_ks_netw_topology_set_nonexistent_dc; DDL now lowers datacenter1 RF 3->2 and restores it (form via get_replication_options/decrease_rf), docstring fixed; file-wide lazy prepare, futures re-raised, success asserts, 30s."
+        "c7979da02e": "Renamed from test_ks_netw_topology_set_nonexistent_dc; DDL now lowers datacenter1 RF 3->2 and restores it (form via get_replication_options/decrease_rf), docstring fixed; file-wide lazy prepare, futures re-raised, success asserts, 30s.",
+        "e606aa3704": "1 DDL thread when ks has tablets (RF changes serialized server-side), ALTER timeout cql_timeout(90), window cql_timeout(60), DDL stopped before LWT, try/finally cleanup; fixes SCYLLADB-5928 (PR 7711)."
       },
-      "relevance": "LWT (paxos) and RF change are live: on tablets an RF change is a global topology request rebuilding tablet replicas (cql3/statements/alter_keyspace_statement.cc:226-262), concurrent ones rejected ('Another RF change for this keyspace ks ongoing', :238); on vnodes schema-only. New scenario: 3/4 runs passed since the rename; next build 11761 (tablets) failed 'DDL never succeeded' (SCYLLADB-5928: restore took 27s, hit 30s driver timeout, other 462 ALTERs rejected; fix PR scylla-dtest#7710 closed unmerged).",
+      "relevance": "LWT (paxos) and RF change are live: on tablets an RF change is a global topology request rebuilding tablet replicas (cql3/statements/alter_keyspace_statement.cc:226-262), concurrent ones rejected ('Another RF change for this keyspace ks ongoing', :238), so e606aa37 uses 1 DDL thread there (the rejection path is no longer exercised on tablets); on vnodes schema-only, 4 threads race. 44 runs since the rename, 97.7% pass: only failure tablets build 11761 (SCYLLADB-5928, Done, fixed by e606aa37 / PR 7711); 26/26 runs passed since the fix landed (builds 11769-11781, both jobs).",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets.py::test_tablet_rf_change",
@@ -198,25 +203,19 @@
           "note": "paxos state across tablet rebuild (node replace), single LWT, no RF change, dev/debug only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Scenario now real (RF 3->2 and back under LWT load) and unique: scylla RF-change tests (test_tablets.py::test_tablet_rf_change, ::test_rf_reduction_preserves_quorum_writes) have no LWT; test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild has no RF change. YELLOW on thin evidence: only 4 runs since the c7979da0 rewrite, tablets build 11761 failed with zero DDL successes. Note: SCYLLADB-5928 open for that failure. Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "decision": "GREEN",
+      "reason": "Unique coverage of RF 3->2 and back under LWT load: scylla RF-change tests (test_tablets.py::test_tablet_rf_change, ::test_rf_reduction_preserves_quorum_writes) have no LWT; test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild has no RF change. Was YELLOW on thin evidence + the 11761 tablets failure; SCYLLADB-5928 fixed by e606aa37 (1 DDL thread on tablets, longer ALTER timeout), 26/26 passes since. Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
-          "tag": "open-issue",
-          "ref": "https://scylladb.atlassian.net/browse/SCYLLADB-5928",
-          "text": "Tablets RF change takes ~27s and concurrent ALTERs are rejected (alter_keyspace_statement.cc:238), so the DDL success assert can fail (next build 11761)."
-        },
-        {
-          "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
     },
     "TestLwtDestructiveDDL::test_revoke_permissions": {
-      "description": "Auth-enabled cluster (permissions_validity_in_ms=1); non-superuser 'jon' runs LWT load while superuser threads loop REVOKE ALL / GRANT ALL ON TABLE ks.test FROM/TO jon for 30s (90s debug). Unauthorized errors swallowed; asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards crashes from permission-cache churn with prepared LWT (cf. scylladb#6164).",
+      "description": "Auth-enabled cluster (permissions_validity_in_ms=1); non-superuser 'jon' runs LWT load while superuser threads loop REVOKE ALL / GRANT ALL ON TABLE ks.test FROM/TO jon for 60s (120s dev, 180s debug). Unauthorized errors swallowed; asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards crashes from permission-cache churn with prepared LWT (cf. scylladb#6164).",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -233,9 +232,10 @@
         "9515969ef7": "File-level: cluster via generate_cluster_topology(rack_num=3) (rf==racks).",
         "78574afcfb": "File-level: tablets-default prep; only removed SimpleStrategy comment (create_ks now NTS).",
         "8751a41074": "File-level: _case_template ignores replica-side mutation_write_timeout_exception (SCYLLADB-4380).",
-        "c7979da02e": "ks-qualified GRANT/REVOKE; lazy LWT prepare as jon, futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1."
+        "c7979da02e": "ks-qualified GRANT/REVOKE; lazy LWT prepare as jon, futures re-raised, LWT/DDL success asserts, 0.1s DDL pause, 30s, nodes 1,2,3,1.",
+        "e606aa3704": "File-level: _case_template window 30s (90s debug) -> cql_timeout(60) = 60/120/180s release/dev/debug; DDL threads stopped+joined before LWT; try/finally stops workers on interrupt; worker counts as class constants (SCYLLADB-5928, PR 7711)."
       },
-      "relevance": "LWT (paxos) is live, also on tablets; 92/92 passes (~77s, mostly pre-c7979da0 60s runs) in next-dtest-tablets and next-dtest-consistent-topology. PasswordAuthenticator/CassandraAuthorizer and permissions cache live. scylladb#6164 (crash with permissions_validity_in_ms=0 + prepared stmts) closed COMPLETED 2026-10-17 (fixed by scylla 918130befd).",
+      "relevance": "LWT (paxos) is live, also on tablets; 100/100 passes (~74s; from build 11769 on, ~75-100s with the e606aa37 60s window) in next-dtest-tablets and next-dtest-consistent-topology. PasswordAuthenticator/CassandraAuthorizer and permissions cache live. scylladb#6164 (crash with permissions_validity_in_ms=0 + prepared stmts) closed COMPLETED 2026-10-17 (fixed by scylla 918130befd).",
       "duplicates": [
         {
           "path": "test/cqlpy/test_permissions.py",
@@ -244,18 +244,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique concurrency coverage (auth churn vs LWT; cqlpy test_permissions.py has no concurrency). c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:214-224: future.result() re-raise + LWT/DDL success asserts). Note: FIXME in prepare() (lwt_destructive_ddl_test.py:53-54) refs scylladb#6164, now fixed by 918130befd - can set permissions_validity_in_ms=0. Note: success asserts are run totals, don't prove the workloads overlapped.",
+      "reason": "Unique concurrency coverage (auth churn vs LWT; cqlpy test_permissions.py has no concurrency). c7979da0 fixed the swallowed-futures bug (lwt_destructive_ddl_test.py:249-259: future.result() re-raise + LWT/DDL success asserts). Note: FIXME in prepare() (lwt_destructive_ddl_test.py:67-68) refs scylladb#6164, now fixed by 918130befd - can set permissions_validity_in_ms=0. Note: success asserts are run totals, don't prove the workloads overlapped.",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "lwt_destructive_ddl_test.py:53-54",
+          "ref": "lwt_destructive_ddl_test.py:67-68",
           "text": "FIXME refs scylladb#6164, fixed by 918130befd; permissions_validity_in_ms could be 0."
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "lwt_destructive_ddl_test.py:223-224",
+          "ref": "lwt_destructive_ddl_test.py:258-259",
           "text": "Success asserts are run totals (sum>0), not proof LWT and DDL overlapped; LWT loop swallows NoHostAvailable. Crashes still caught by is_live + log scan."
         }
       ]
