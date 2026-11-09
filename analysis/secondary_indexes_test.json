@@ -1,6 +1,6 @@
 {
   "file": "secondary_indexes_test.py",
-  "analyzed_at": "2026-10-21",
+  "analyzed_at": "2026-11-09",
   "scylla_rev": "f35ad40c9d",
   "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
@@ -2166,6 +2166,99 @@
           "tag": "slow",
           "ref": "secondary_indexes_test.py:1269",
           "text": "Fixed time.sleep(5) after inserts"
+        }
+      ]
+    },
+    "TestStaticSecondaryIndexes::test_query_data_with_index": {
+      "description": "4-node RF=3 cluster (QUORUM): global index on static column cs1 of a (key, ck) table, created over 2 pre-existing partitions, then 3 more inserted. Asserts count(*) via the index (incl. pre-index data), pk+index, ck+index needing ALLOW FILTERING, contradictory cs1=X AND cs1=Y returning 0, partition delete, TTL on the static column (UPDATE and INSERT USING TTL 60, sleep 62s) dropping matches, TRUNCATE emptying index queries, count(*) of several rows per partition, and pk+ck+index (scylladb#12829, fixed by b03488a965). Guards secondary indexes on static columns (scylladb PR #11166).",
+      "origin": {
+        "sha": "a13df9ce4791b0b7d0ee5eda823a4b57627fc06d",
+        "date": "2023-02-15",
+        "pr": 3039,
+        "summary": "Added TestStaticSecondaryIndexes with this test after scylla added static-column indexes (scylladb PR #11166); pk+ck+index query left out due to scylladb#12829."
+      },
+      "commits": {
+        "14f5daef466afdc3d12587aedb401f31f748252c": "Dropped pytest.xfail(#12829) so the final pk+ck+static-index assert runs (scylla fix b03488a965); gave it num_attempts=10; fixed unmark comment.",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
+        "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting",
+        "f13dfa5efc122b85c7b1c0ac1f7f98ddd110c87d": "File pytestmark next_gating; this test excluded via @unmark.next_gating (then xfailing).",
+        "2ee62540786dd1beec51eddb899476446d3a8f65": "Review fixes: TTL 1->60 and sleep 5->62, retries on index reads, added ALLOW FILTERING and multi-row count(*) checks, pk+ck query as xfail(#12829).",
+        "a13df9ce4791b0b7d0ee5eda823a4b57627fc06d": "Origin: test added.",
+        "579f14b960": "create_and_build_index sets synchronous_updates=true on the global index view, so cs1_key updates are synchronous.",
+        "980879b6be": "prepare(): rack-valid topology from RF, use_vnodes=False by default (tablets when enabled).",
+        "78f1485991": "prepare(): adds ignore pattern for 'Error applying view update ... mutation_write_failure_exception'.",
+        "5bdf61350b": "SecondaryIndexesHelpers derives from Tester; class now inherits only the helpers (no behavior change)."
+      },
+      "relevance": "Live: static-column global indexes are supported (gms/feature_service.hh SECONDARY_INDEXES_ON_STATIC_COLUMNS, scylladb PR #11166, local static indexes rejected). #12829 is CLOSED (fixed by b03488a965, cqlpy test unskipped). Since 22be3b3925 (SCYLLADB-2817) every index read re-validates the indexed column, static included, on the base row (select_statement.cc:692 needs_post_filtering), so stale index rows are invisible to queries. The index view now has synchronous_updates=true (579f14b960), so 4 nodes add little eventual-consistency coverage. Not in next_gating; runs only in dtest-release/-with-raft (14/14 pass in the Jenkins window, ~80s).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_restrictions",
+          "coverage": "partial",
+          "note": "pk+s and pk+s+c (#12829 reproducer) queries (dtest lines 358, 398)"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index",
+          "coverage": "partial",
+          "note": "query by static index, update and partition delete reflected (lines 352-354, 368-369)"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_build",
+          "coverage": "partial",
+          "note": "index built over pre-existing rows (lines 354-356)"
+        },
+        {
+          "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_unaffected_by_clustering_row_ops",
+          "coverage": "partial",
+          "note": "all clustering rows of a partition returned via static index (rows, not count(*); lines 391-395)"
+        },
+        {
+          "path": "test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_s_and_c",
+          "coverage": "partial",
+          "note": "ck + static index requires ALLOW FILTERING and filters correctly (lines 361-362); contradicts PR 7629 claim it is dtest-only"
+        },
+        {
+          "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_on_static_column_test.py::testSimpleStaticColumn",
+          "coverage": "partial",
+          "note": "static index query, update, partition delete"
+        },
+        {
+          "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
+          "coverage": "partial",
+          "note": "generic base TRUNCATE truncating views; not a static index (lines 384-388)"
+        },
+        {
+          "path": "secondary_indexes_test.py::TestSecondaryIndexes::test_truncate_base",
+          "coverage": "partial",
+          "note": "TRUNCATE with a global regular-column index on multi-node, stronger system.truncated checks"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: index queries, pre-index data, pk+s, pk+s+c (#12829), partition delete and the ck+s ALLOW FILTERING rule (PR 7629 claimed dtest-only) are in cqlpy test_secondary_index.py/test_allow_filtering.py; left unique are TTL/TRUNCATE on a static index, count(*) per partition, 4 nodes. Bug: delete/TTL/truncate checks only query through the index; stale cs1_key_index rows are invisible (base rows gone, or re-validated since scylla 22be3b3925). Note: fixed sleep(62) (open #7511), duplicate stat4 assert, 'delete of a static column' is a partition delete.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "secondary_indexes_test.py:367-388",
+          "text": "Delete/truncate checks can't see stale index rows (base gone); TTL check lost that since 22be3b3925 re-validates base rows. View never read."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "secondary_indexes_test.py:377",
+          "text": "time.sleep(62) waiting for TTL 60 (~75% of the ~80s runtime); open scylla-dtest#7511 cuts TTL to 15 and polls"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "secondary_indexes_test.py:381",
+          "text": "'make sure index data is also deleted' repeats the cs1='stat4' query of line 378 verbatim"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:367",
+          "text": "Comment says 'delete of a static column' but it is a partition delete; deleting only cs1 is untested"
         }
       ]
     }
