@@ -1145,7 +1145,7 @@
       ]
     },
     "TestSnapshotOptions::test_snapshot_defaults_to_all_keyspaces": {
-      "description": "1 node, ks0..ks2 x 2 tables, 1 row each; 'nodetool snapshot' with no args; asserts set of keyspace dirs in the copied snapshot == all keyspaces in system_schema.keyspaces (incl. system ones, minus system_auth when 'consistent-topology-changes' feature is set).",
+      "description": "1 node, ks0..ks2 x 2 tables, 1 row each; 'nodetool snapshot' with no args; asserts set of keyspace dirs in the copied snapshot == all keyspaces in system_schema.keyspaces (incl. system ones, minus the empty legacy system_auth, always removed by _get_system_keyspace_names).",
       "origin": {
         "sha": "adad748551",
         "date": "2021-05-26",
@@ -1159,7 +1159,8 @@
         "9ffd273f04": "formatting (ruff format)",
         "3d6268cafb": "_get_system_keyspace_names drops system_auth under consistent-topology (reverted in 6b5a281b80, re-landed af04511e8e)",
         "eeb9e393de": "class temporarily skipped in consistent topology mode",
-        "99a1b38ca4": "skip removed"
+        "99a1b38ca4": "skip removed",
+        "d6abb9eeed": "_get_system_keyspace_names: system_auth removal now unconditional (gossip-topology code removed, PR #7665)"
       },
       "relevance": "Live: no-arg snapshot -> REST without kn -> snapshot of all keyspaces.",
       "duplicates": [
@@ -1175,13 +1176,13 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only extra over scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot is that system keyspaces are included; fast (6s). Note: system_auth exclusion keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1147), which is UNUSED in scylla (db/config.cc:2123), so the guard depends on job config, not scylla behavior. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
+      "reason": "Only extra over scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot is that system keyspaces are included; fast (6s). Note: helper comment says auth-v2 data lives in system_auth_v2 (snapshot_test.py:1143-1146), but scylla moved auth tables to the system keyspace (scylladb 2ab143fb40); system_auth stays as an empty cqlsh-compat keyspace (auth/service.cc:152-159), so removing it is still right. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
       "issues": [
         {
           "kind": "note",
-          "tag": "other",
-          "ref": "snapshot_test.py:1143-1147",
-          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
+          "tag": "stale-comment",
+          "ref": "snapshot_test.py:1143-1146",
+          "text": "Comment says auth-v2 uses system_auth_v2 keyspace; scylla moved auth tables to system (2ab143fb40). Removing empty system_auth still valid."
         },
         {
           "kind": "note",
@@ -1283,7 +1284,8 @@
         "summary": "Maciek Cisowski: 'add tests for multiple keyspace support and extend options coverage' - TestSnapshotOptions class (defaults/all ks, specified ks, -kc list, tagging, skip-flush). PR 2327 is a bulk 'Adding master commits' sync."
       },
       "commits": {
-        "adad748551": "added test"
+        "adad748551": "added test",
+        "d6abb9eeed": "_get_system_keyspace_names: system_auth removal now unconditional (gossip-topology code removed, PR #7665) (helper result unused here)"
       },
       "relevance": "Live: scylla-nodetool snapshot has typed_option 'tag,t' (tools/scylla-nodetool.cc:5111) and prints 'Snapshot directory: <tag>'.",
       "duplicates": [
@@ -1309,15 +1311,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Fast (5.8s) strict subset: output-only check covered by test/nodetool/test_snapshot.py::test_snapshot_options_matrix (check_snapshot_out asserts 'Snapshot directory: <tag>'); -t alias exercised by many dtests (backup_restore_tests.py). Keep only if nodetool_additional_test.py::TestNodetool::test_snapshot_tag (marked RED, citing this) goes; drop one of the two. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1147), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "other",
-          "ref": "snapshot_test.py:1143-1147",
-          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
-        }
-      ]
+      "reason": "Fast (5.8s) strict subset: output-only check covered by test/nodetool/test_snapshot.py::test_snapshot_options_matrix (check_snapshot_out asserts 'Snapshot directory: <tag>'); -t alias exercised by many dtests (backup_restore_tests.py). Keep only if nodetool_additional_test.py::TestNodetool::test_snapshot_tag (marked RED, citing this) goes; drop one of the two.",
+      "issues": []
     },
     "TestSnapshotOptions::test_snapshot_skip_flush": {
       "description": "Inserts 2 rows into ks0.table_cf0, reads 'Memtable data size' and 'Memtable switch count' from nodetool tablestats, runs 'nodetool snapshot --skip-flush -cf table_cf0 ks0' (make_snapshot, tools/snapshots.py:15), re-reads tablestats and asserts data size post >= pre and switch count unchanged (i.e. no memtable flush). Guards that sf=true reaches snapshot_options.skip_flush end-to-end on a real node.",
@@ -1333,7 +1328,8 @@
         "a843688310": "self.assert* -> assert",
         "9ffd273f04": "formatting (ruff format)",
         "eccda80e42": "formatting (ruff 0.9.4)",
-        "056f5dc7a8": "formatting (ruff: unused stderr vars renamed _stderr_*)"
+        "056f5dc7a8": "formatting (ruff: unused stderr vars renamed _stderr_*)",
+        "d6abb9eeed": "_get_system_keyspace_names: system_auth removal now unconditional (gossip-topology code removed, PR #7665) (helper result unused here)"
       },
       "relevance": "Live: scylla-nodetool --skip-flush (tools/scylla-nodetool.cc:5112) -> REST sf (api/storage_service.cc:2002 .skip_flush); tablestats prints Memtable data size/switch count (tools/scylla-nodetool.cc:3275-3277).",
       "duplicates": [
@@ -1349,24 +1345,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Combined scylla tests cover both halves: test/boost/database_test.cc::snapshot_skip_flush_works (no flush, stronger on-disk check) + test/nodetool/test_snapshot.py::test_snapshot_options_matrix (--skip-flush -> sf=true); only REST 'sf' parsing (api/storage_service.cc:2002) is uniquely end-to-end here. Fast (6.6s), real assertion (switch count ==). Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1163-1164), no-op filter. Note: prepare() runs _get_system_keyspace_names, whose system_auth removal is keyed on 'consistent-topology-changes' (snapshot_test.py:1143-1147), UNUSED in scylla (db/config.cc:2123); unused by this test but list.remove would raise if system_auth were absent.",
+      "reason": "Combined scylla tests cover both halves: test/boost/database_test.cc::snapshot_skip_flush_works (no flush, stronger on-disk check) + test/nodetool/test_snapshot.py::test_snapshot_options_matrix (--skip-flush -> sf=true); only REST 'sf' parsing (api/storage_service.cc:2002) is uniquely end-to-end here. Fast (6.6s), real assertion (switch count ==). Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1163-1164), no-op filter.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
           "ref": "snapshot_test.py:1163-1164",
           "text": "Snapshot dir listing result ignored; _get_snapshot_dir_paths 'path.is_dir' without call is a no-op filter."
-        },
-        {
-          "kind": "note",
-          "tag": "other",
-          "ref": "snapshot_test.py:1143-1147",
-          "text": "system_auth removal keyed on 'consistent-topology-changes' feature, UNUSED in scylla; depends on job config."
         }
       ]
     }
   },
-  "analyzed_at": "2026-10-21",
+  "analyzed_at": "2026-11-09",
   "scylla_rev": "f35ad40c9d",
   "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b"
 }
