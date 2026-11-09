@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Close the Jira issues of DELETED tests, then their parents once all of a parent's children are done.
+"""Close Jira issues whose tests are gone or no longer RED, then parents once all their sub-tasks are done.
 
 usage: jira_sync.py [--apply]   (dry run without --apply)
 
-An issue is closed only when every test carrying its `jira` key is DELETED. Output: `<key> CLOSE <why>`;
-`<key> SKIP <why>` for keys of DELETED tests also on live tests. REST via `curl -n` (Python's netrc needs 0600).
+Per `jira` key (all tests carrying it): all DELETED → Done; `dtest-red` issue and none RED → Won't Fix (the test
+stays); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
+with a changed test that stay open. REST via `curl -n` (Python's netrc needs 0600).
 """
 import json
 import subprocess
@@ -30,7 +31,7 @@ def jira(method, path, body=None):
 def search(jql):
     issues, token = [], None
     while True:
-        r = jira("POST", "search/jql", {"jql": jql, "fields": ["status", "parent", "issuetype"], "maxResults": 100,
+        r = jira("POST", "search/jql", {"jql": jql, "fields": ["status", "parent", "issuetype", "labels"], "maxResults": 100,
                                         **({"nextPageToken": token} if token else {})})
         issues += r["issues"]
         if not (token := r.get("nextPageToken")):
@@ -48,12 +49,12 @@ def done(f):
     return f["status"]["statusCategory"]["key"] == "done"
 
 
-def close(key, why):
-    print(f"{key} CLOSE {why}")
+def close(key, why, status="Done"):
+    print(f"{key} CLOSE {status}: {why}")
     if apply:
         transitions = jira("GET", f"issue/{key}/transitions")["transitions"]
-        if not (tid := next((t["id"] for t in transitions if t["to"]["name"] == "Done"), None)):
-            sys.exit(f"{key}: no transition to Done")
+        if not (tid := next((t["id"] for t in transitions if t["to"]["name"] == status), None)):
+            sys.exit(f"{key}: no transition to {status}")
         jira("POST", f"issue/{key}/comment", {"body": f"dtest triage: {why}"})
         jira("POST", f"issue/{key}/transitions", {"transition": {"id": tid}})
 
@@ -68,14 +69,22 @@ if not tests:
 issues = fetch(tests)
 closed = set()
 for key, ts in sorted(tests.items()):
-    deleted = [(t, a["deleted"]) for t, a in ts if a["decision"] == "DELETED"]
-    if not deleted or key not in issues or done(issues[key]):
+    if key not in issues or done(issues[key]):
         continue
-    if len(deleted) < len(ts):
-        print(f"{key} SKIP also on live {', '.join(t for t, a in ts if a['decision'] != 'DELETED')}")
+    red = [t for t, a in ts if a["decision"] == "RED"]
+    why = "; ".join(f"{t} deleted from scylla-dtest in {d['sha'][:10]} ({DTEST}/commit/{d['sha']}"
+                    f"{f', {DTEST}/pull/' + str(d['pr']) if d['pr'] else ''}) on {d['date']}"
+                    if (d := a.get("deleted")) else f"{t} is now {a['decision']}: {a['reason']}"
+                    for t, a in ts if a["decision"] != "RED")
+    if all(a["decision"] == "DELETED" for _, a in ts):
+        close(key, why)
+    elif "dtest-red" in issues[key]["labels"] and not red:
+        close(key, why, "Won't Fix")
+    elif any(a["decision"] == "DELETED" for _, a in ts) or "dtest-red" in issues[key]["labels"] and len(red) < len(ts):
+        print(f"{key} SKIP still on {', '.join(t for t, a in ts if a['decision'] != 'DELETED')}")
         continue
-    close(key, "; ".join(f"{t} deleted from scylla-dtest in {d['sha'][:10]} ({DTEST}/commit/{d['sha']}"
-                         f"{f', {DTEST}/pull/' + str(d['pr']) if d['pr'] else ''}) on {d['date']}" for t, d in deleted))
+    else:
+        continue
     closed.add(key)
 
 parents = {f["parent"]["key"] for f in issues.values() if f["issuetype"]["subtask"]}
