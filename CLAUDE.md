@@ -21,6 +21,7 @@ analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/anal
 scripts/refresh.sh        # Jenkins CSVs (jobs below) + fetch dtest next / scylla master + gen_data.py
 scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scylla_rev; --apply marks DELETED
 .claude/skills/weekly/    # /weekly skill: refresh → delta → recheck subagents → commit
+scripts/jira_sync.py      # closes Jira sub-tasks of DELETED tests, then parents with all sub-tasks done
 groups.json               # test → review group (Jira component, team, reviewers); for opening Jira issues
 scripts/groups.py         # validates groups.json, prints tests per team/group
 ```
@@ -183,6 +184,8 @@ Review group: <group> (<team>), reviewers: <names>
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
 - A test that already has `jira`: don't open another issue unless the user says so (then replace the key).
+- Deleted tests: `/weekly` runs `scripts/jira_sync.py` (sub-task of a DELETED test → Done, then its parent once all
+  its sub-tasks are done).
 - After creating: set `"jira": "<key>"` on every test the issue covers in `analysis/<module>.json`, run
   `scripts/check_analysis.py <module>`, commit `git commit -m "jira: <keys>" analysis/`, push. The dashboard shows it
   after **Reload data**.
