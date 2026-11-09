@@ -176,6 +176,7 @@
         "summary": "Shlomi Livne: add simple_add_new_node_while_adding_info tests (rf=1 CL=ONE, rf=2 CL=TWO)."
       },
       "commits": {
+        "d6abb9eeed": "drop dead gossip-mode skip_wait_for_gossip_to_settle config for streaming bootstrap",
         "79e88114c3": "prepare for no-RBNO bootstrap default (explicit config per method)",
         "21ea1c0474": "rf-rack-valid topology (2 racks), node4 in node1's rack",
         "732d922aa2": "wait_for_node_streaming tablets support",
@@ -654,7 +655,7 @@
       ]
     },
     "TestUpdateClusterLayout::test_decommission_last_node_in_rack": {
-      "description": "3 nodes in rack1; in gossip mode only, ALTERs system_auth to NetworkTopologyStrategy RF=3; adds node4 in rack2 and decommissions it. No assertions besides decommission succeeding. Reproducer for scylladb/scylladb#14184 (topology::unindex_node corrupted _dc_endpoints so NTS saw zero replicas -> abort), scylla-enterprise#3106, scylla-operator#1271.",
+      "description": "3 nodes in rack1; adds node4 in rack2 and decommissions it. No keyspace is changed to NetworkTopologyStrategy (docstring step 2) and no assertions besides decommission succeeding. Intended reproducer for scylladb/scylladb#14184 (topology::unindex_node corrupted _dc_endpoints so NTS saw zero replicas -> abort), scylla-enterprise#3106, scylla-operator#1271.",
       "origin": {
         "sha": "071db884cb",
         "date": "2023-07-11",
@@ -662,6 +663,7 @@
         "summary": "introduce test_decommission_last_node_in_rack (scylla fix 3737bf8fa2 'topology.cc: unindex_node: _dc_racks removal fix')"
       },
       "commits": {
+        "d6abb9eeed": "remove gossip-only system_auth NTS ALTER (the only NTS setup step)",
         "9102b5b610": "rf-rack-valid: generate_cluster_topology + rackdc per node",
         "56d3afbb71": "skip system_auth ALTER under consistent-topology-changes (auth-v2)",
         "9ffd273f04": "formatting",
@@ -669,7 +671,7 @@
         "26094d60d5": "use update_properties helper",
         "071db884cb": "origin"
       },
-      "relevance": "Bug fixed in 2023 (#14184 closed). The NTS keyspace precondition is gone: ALTER system_auth only runs if 'consistent-topology-changes' not in features (update_cluster_layout_tests.py:334), but conftest.py:734 always includes it unless --force-gossip-topology-changes; both gating jobs use raft topology.",
+      "relevance": "Bug fixed in 2023 (#14184 closed). The NTS keyspace precondition is gone: the system_auth ALTER (only run in gossip mode, since auth-v2 replicates via raft) was deleted with the gossip-topology code in d6abb9eeed, and no user keyspace is created.",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_ops.py::test_topology_ops",
@@ -683,13 +685,19 @@
         }
       ],
       "decision": "RED",
-      "reason": "Reproducer precondition (NTS keyspace spanning the rack) is dead: system_auth ALTER skipped under consistent topology (update_cluster_layout_tests.py:334) which is always on in the jobs running it, and no user keyspace is created. What remains is a no-data add+decommission with no assertions, covered by test/cluster/test_topology_ops.py::test_topology_ops.",
+      "reason": "Reproducer precondition (NTS keyspace spanning the rack) is never set up: the gossip-only system_auth ALTER was removed in d6abb9eeed and no user keyspace is created. What remains is a no-data add+decommission with no assertions, covered by test/cluster/test_topology_ops.py::test_topology_ops. Bug: wrong-scenario for scylla#14184. Note: docstring step 2 is stale.",
       "issues": [
         {
           "kind": "bug",
           "tag": "wrong-scenario",
-          "ref": "update_cluster_layout_tests.py:334",
-          "text": "NTS system_auth ALTER skipped under consistent topology and no user keyspace; reproducer precondition for scylla#14184 never set up"
+          "ref": "update_cluster_layout_tests.py:314-338",
+          "text": "No NTS keyspace spanning rack2 (system_auth ALTER removed in d6abb9eeed); scylla#14184 precondition never set up"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "update_cluster_layout_tests.py:322",
+          "text": "Docstring step '2) change a keyspace to NetworkTopologyStrategy' not done by the test"
         }
       ],
       "jira": "DTEST-844"
@@ -889,7 +897,7 @@
       "issues": []
     },
     "TestUpdateClusterLayout::test_remove_node_from_gossip": {
-      "description": "3 nodes (rack1:2, rack2:1), RF=2, 2000 rows. Starts node4 in rack2, waits for bootstrap streaming to begin, hard-kills it; waits on node1 for the node to be dropped (raft: 'Finished to force remove node <ip|hostid>'; gossip: 'FatClient ... removing from gossip'), then checks node1's own gossip heartbeat increases over 3s (no deadlock in on_remove callback, original purpose).",
+      "description": "3 nodes (rack1:2, rack2:1), RF=2, 2000 rows. Starts node4 in rack2, waits for bootstrap streaming to begin, hard-kills it; waits on node1 for 'Finished to force remove node <ip|hostid>', then checks node1's own gossip heartbeat increases over 3s (no deadlock in on_remove callback, original purpose).",
       "origin": {
         "sha": "caae93602c",
         "date": "2016-03-10",
@@ -897,6 +905,7 @@
         "summary": "Add remove_node_from_gossip_test: check gossip on_remove callback doesn't deadlock"
       },
       "commits": {
+        "d6abb9eeed": "remove dead gossip-mode FatClient wait; always wait for 'Finished to force remove node'",
         "056f5dc7a8": "formatting",
         "b79a1434fb": "rf-rack-valid: rack topology",
         "eb859a9fed": "force remove msg accepts ip or host id",
@@ -924,7 +933,7 @@
         "f066efa2e4": "parallel execution support",
         "caae93602c": "origin"
       },
-      "relevance": "Raft path live ('Finished to force remove node', gms/gossiper.cc:880). Gossip-mode 'FatClient ... has been silent' message no longer in scylla source. Runs in both gating jobs (32 runs, 100%, ~33s).",
+      "relevance": "Live: 'Finished to force remove node' (gms/gossiper.cc:881). Gossip-mode FatClient branch removed in d6abb9eeed. Runs in both gating jobs (100 runs, 100%, ~32s).",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
@@ -938,30 +947,24 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Kill-during-bootstrap-streaming cleanup partly covered by test_topology_streaming_failure and test_crashed_node_substitution. Note: gossip-mode branch (update_cluster_layout_tests.py:1973, FatClient msg) is dead, message removed from scylla; heartbeat check (~1966-1979) only proves gossiper still ticks; _get_gossipinfo uses bare except (1917).",
+      "reason": "Kill-during-bootstrap-streaming cleanup partly covered by test_topology_streaming_failure and test_crashed_node_substitution. Note: heartbeat check (update_cluster_layout_tests.py:1872-1885) only proves gossiper still ticks; _get_gossipinfo uses bare except (1826).",
       "issues": [
         {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1973",
-          "text": "Gossip-mode FatClient branch dead; message removed from scylla"
-        },
-        {
-          "kind": "note",
           "tag": "limited-check",
-          "ref": "update_cluster_layout_tests.py:1978-1991",
+          "ref": "update_cluster_layout_tests.py:1872-1885",
           "text": "Heartbeat check only proves gossiper still ticks (no on_remove deadlock)"
         },
         {
           "kind": "note",
           "tag": "cosmetic",
-          "ref": "update_cluster_layout_tests.py:1929",
+          "ref": "update_cluster_layout_tests.py:1826",
           "text": "_get_gossipinfo uses bare except for parsing control flow"
         }
       ]
     },
     "TestUpdateClusterLayout::test_removenode_rejoin": {
-      "description": "Nodes rack1:1, rack2:2. Stops node3, removenode it from node1, restarts node3 (no_wait); in raft mode waits for 'received notification of being banned from the cluster from' in node3's log, then asserts node3's address is absent from node1's nodetool status. Guards removed nodes cannot rejoin (scylladb/scylladb#11217, PR 11244).",
+      "description": "Nodes rack1:1, rack2:2. Stops node3, removenode it from node1, restarts node3 (no_wait); waits for 'received notification of being banned from the cluster from' in node3's log, then asserts node3's address is absent from node1's nodetool status. Guards removed nodes cannot rejoin (scylladb/scylladb#11217, PR 11244).",
       "origin": {
         "sha": "d452e69afc",
         "date": "2022-09-26",
@@ -969,6 +972,7 @@
         "summary": "Add test_removenode_rejoin (refs scylladb/scylladb#11217)"
       },
       "commits": {
+        "d6abb9eeed": "remove dead gossip-mode 'Can not restart the removed node' wait; always wait for banned notification",
         "b866c65bce": "formatting",
         "4db80f4c2d": "drop compat path for old scylla (pre-ban notification)",
         "056f5dc7a8": "formatting",
@@ -981,7 +985,7 @@
         "9ffd273f04": "formatting",
         "d452e69afc": "origin"
       },
-      "relevance": "Live: banned-node notification (service/storage_service.cc:7396). Gossip-mode message 'Can not restart the removed node' no longer in scylla. Runs in both gating jobs (32 runs, 100%, ~32s).",
+      "relevance": "Live: banned-node notification (service/storage_service.cc:7409). Gossip-mode branch removed in d6abb9eeed. Runs in both gating jobs (100 runs, 100%, ~29s).",
       "duplicates": [
         {
           "path": "test/cluster/test_node_isolation.py::test_banned_node_notification",
@@ -995,13 +999,13 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Removed-node ban largely covered by test/cluster/test_node_isolation.py::test_banned_node_notification; restart-after-removenode variant is the only difference. Note: gossip-mode branch (update_cluster_layout_tests.py:1810-1811) dead, message removed from scylla.",
+      "reason": "Removed-node ban largely covered by test/cluster/test_node_isolation.py::test_banned_node_notification; restart-after-removenode variant is the only difference. Note: ignore pattern 'gossip - is_safe_for_restart:' (update_cluster_layout_tests.py:1706) is dead, function dropped from scylla in 2d8722d204.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1810-1811",
-          "text": "Gossip-mode branch dead; 'Can not restart the removed node' message removed from scylla"
+          "ref": "update_cluster_layout_tests.py:1706",
+          "text": "Ignore pattern 'gossip - is_safe_for_restart:' can't match; scylla dropped is_safe_for_restart in 2d8722d204"
         }
       ]
     },
@@ -1126,6 +1130,7 @@
         "summary": "Add a test for schema change while node bootstrapping."
       },
       "commits": {
+        "35cfcc4fcd": "dropped-keyspace assert accepts quoted message \"Keyspace 'ks' does not exist\" (SCYLLADB-5624)",
         "537e1e46cf": "rf-rack-valid: 3 nodes in rack1, node4 in rack1, CL fixed to ONE",
         "6d16e5fd96": "accept 'keyspace ks does not exist, skipping' skip message",
         "b7d1c1a38a": "accept no_such_keyspace failure message, ignore raft_topology/Startup failed errors",
@@ -1180,12 +1185,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Mostly unique (keyspace drop during RBNO and streaming bootstrap), scylla only covers table drop via injection. Note: writer loop 'for i in range(min_keys) or not stop_run.is_set()' (update_cluster_layout_tests.py:1060, since 21a7cc081e) always iterates range(100); stop_run is dead, so exactly 100 rows are written and the '>= min_keys' check is effectively '== 100'.",
+      "reason": "Mostly unique (keyspace drop during RBNO and streaming bootstrap), scylla only covers table drop via injection. Note: writer loop 'for i in range(min_keys) or not stop_run.is_set()' (update_cluster_layout_tests.py:999, since 21a7cc081e) always iterates range(100); stop_run is dead, so exactly 100 rows are written and the '>= min_keys' check is effectively '== 100'.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:1060",
+          "ref": "update_cluster_layout_tests.py:999",
           "text": "Writer loop 'range(min_keys) or not stop_run.is_set()' always iterates range(100); stop_run dead, check effectively == 100"
         }
       ]
@@ -1241,7 +1246,7 @@
       ]
     },
     "TestUpdateClusterLayout::test_simple_add_two_nodes_in_parallel": {
-      "description": "1 node, RF=3 vnode ks with 500k rows (10k in debug). Starts node2, then starts node3 at one of 3 timings relative to node2's bootstrap (immediately / 5-30s later / after 'start streaming' + random delay). Under raft topology both joins must succeed: watches logs for 'initialization completed', CQL listening, mutual alive, inserts another 500k rows at CL=THREE and runs check_rows_on_node (exactly 1M rows, others stopped) on all 3 nodes. Originally (gossip) asserted node3 is rejected with 'Other bootstrapping/leaving/moving nodes detected'.",
+      "description": "1 node, RF=3 vnode ks with 500k rows (10k in debug). Starts node2, then starts node3 at one of 3 timings relative to node2's bootstrap (immediately / 5-30s later / after 'start streaming' + random delay). Both joins must succeed: watches logs for 'initialization completed', CQL listening, mutual alive, inserts another 500k rows at CL=THREE and runs check_rows_on_node (exactly 1M rows, others stopped) on all 3 nodes. Originally (gossip) asserted node3 is rejected with 'Other bootstrapping/leaving/moving nodes detected'.",
       "origin": {
         "sha": "14c1fdf8f9",
         "date": "2015-11-08",
@@ -1249,6 +1254,7 @@
         "summary": "Add simple_add_two_nodes_in_parallel_test: second concurrent bootstrap must be rejected (consistent_rangemovement)."
       },
       "commits": {
+        "d6abb9eeed": "remove gossip-mode rejection path; node3 always expected to join",
         "f89bc380cf": "rf-rack-valid: generate_cluster_topology, add nodes to node1's dc/rack",
         "66a909f40f": "expected UNKNOWN-status error matches host id as well as IP",
         "d06bed122f": "check consistent-topology via self.scylla_features",
@@ -1295,7 +1301,7 @@
         "771f6c76c6": "remove wrong comment",
         "14c1fdf8f9": "add test"
       },
-      "relevance": "Concurrent bootstrap is live and the norm under raft topology (requests serialized by topology coordinator). The three timing cases and the rejection/UNKNOWN-status expectations only matter in gossip mode, which the jobs never run. Runs only in next-dtest-consistent-topology (!tablets): 48 runs, 100% pass, avg 243s per case (~12 min per build for 3 cases).",
+      "relevance": "Concurrent bootstrap is live and the norm under raft topology (requests serialized by topology coordinator). The three timing cases only mattered in gossip mode, whose branches were removed in d6abb9eeed. Runs only in next-dtest-consistent-topology (!tablets): 150 runs, 100% pass, avg 226s per case (~11 min per build for 3 cases).",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_ops.py::test_topology_ops[False]",
@@ -1319,13 +1325,19 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~243s x 3 params, much of it from @no_boot_speedups and 500k keys) and redundant: the raft topology coordinator works on one transition node at a time and queues other join requests (service/topology_coordinator.cc:291 get_next_task), so node3's bootstrap streams after node2's - equivalent to sequential adds, and the 3 timing cases are indistinguishable. Concurrent join requests are exercised routinely via servers_add (e.g. test/cluster/test_topology_ops.py::test_topology_ops[False]); streamed-data correctness covered by test_simple_add_node. Note: gossip-only branches/expected errors (update_cluster_layout_tests.py:423-455) are dead. If kept: one case, drop @no_boot_speedups, fewer keys.",
+      "reason": "Slow (~226s x 3 params, much of it from @no_boot_speedups and 500k keys) and redundant: the raft topology coordinator works on one transition node at a time and queues other join requests (service/topology_coordinator.cc:291 get_next_task), so node3's bootstrap streams after node2's - equivalent to sequential adds, and the 3 timing cases are indistinguishable. Concurrent join requests are exercised routinely via servers_add (e.g. test/cluster/test_topology_ops.py::test_topology_ops[False]); streamed-data correctness covered by test_simple_add_node. Note: gossip-only expected_errors still ignored (update_cluster_layout_tests.py:411-415), docstring 4b stale. If kept: one case, drop @no_boot_speedups, fewer keys.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:423-455",
-          "text": "Gossip-only branches/expected errors dead"
+          "ref": "update_cluster_layout_tests.py:411-415",
+          "text": "Gossip-only expected_errors still added to ignore_log_patterns; both messages gone from scylla"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "update_cluster_layout_tests.py:357-358",
+          "text": "Docstring 4a/4b still describes gossip-mode failure path for node3"
         },
         {
           "kind": "note",
@@ -1478,6 +1490,7 @@
         "summary": "Add query tests while adding/decommissioning a node."
       },
       "commits": {
+        "d6abb9eeed": "drop required_features('consistent-topology-changes') mark (# scylladb/scylladb#17903), raft topology only mode now",
         "66bafd413f": "rf-rack-valid: rack1 x1 + rack2 x2 topology",
         "a8abff540a": "require consistent-topology-changes (gossip mode flaky, scylla#17903)",
         "7278a05fe9": "idempotent SELECT with speculative execution profile (workaround for scylla#3699 / fixed by #17124)",
@@ -1504,7 +1517,7 @@
         "e0d299dc03": "add test",
         "34f8c5e407": "(shared region) decommission-while-inserting sibling added"
       },
-      "relevance": "Live: decommission under raft topology (vnodes and tablets). Marker required_features('consistent-topology-changes') always satisfied in the jobs. 64 runs, 100% pass, ~25s.",
+      "relevance": "Live: decommission under raft topology (vnodes and tablets). 200 runs, 100% pass, ~24s.",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_ops.py::test_topology_ops",
@@ -1513,7 +1526,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Continuous exact-count reads for the whole decommission (overlap enforced by stop event) at RF 1/2; no scylla test verifies read results during decommission. Cheap (~25s), stable. The '# scylladb/scylladb#17903' comment on required_features('consistent-topology-changes') refs a closed issue but is not a dead skip: it documents why gossip mode was excluded, and the raft-only requirement still holds.",
+      "reason": "Continuous exact-count reads for the whole decommission (overlap enforced by stop event) at RF 1/2; no scylla test verifies read results during decommission. Cheap (~25s), stable.",
       "issues": []
     },
     "TestUpdateClusterLayout::test_simple_kill_new_node_while_bootstrapping": {
@@ -1525,6 +1538,7 @@
         "summary": "Add simple_kill_new_node_while_bootstrapping."
       },
       "commits": {
+        "d6abb9eeed": "remove dead gossip-mode sleep + FatClient waits; UJ status check unconditional",
         "79e88114c3": "explicitly enable RBNO for bootstrap (test relies on long bootstrap) ahead of no-RBNO default",
         "cd411764dc": "rf-rack-valid: 3 racks x 1 node, new node in a rack",
         "0a8cb670de": "enable_small_table_optimization_for_rbno=False via cluster_options mark",
@@ -1580,14 +1594,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique part vs the _with_parallel_writes sibling is asserting the killed joining node is removed (3 UN) under RBNO; streaming-failure rollback is also covered by test_topology_streaming_failure via injection. Note: gossip-mode branch with FatClient waits (update_cluster_layout_tests.py:745-760) is dead; docstring promises two kills but loop is range(4,5) (one) since c6bf708896; c-s keyspaces never verified. ~101s.",
+      "reason": "Unique part vs the _with_parallel_writes sibling is asserting the killed joining node is removed (3 UN) under RBNO; streaming-failure rollback is also covered by test_topology_streaming_failure via injection. Note: docstring promises two kills but loop is range(4,5) (one) since c6bf708896; c-s keyspaces never verified. ~101s.",
       "issues": [
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:745-760",
-          "text": "Gossip-mode branch with FatClient waits dead"
-        },
         {
           "kind": "note",
           "tag": "stale-comment",
@@ -1791,6 +1799,7 @@
       "decision": "GREEN",
       "reason": "Only test where the leaving node itself crashes mid-streaming and is restarted, checking rollback plus no data loss (RF=1 exact count); scylla tests only inject failures or replace. Cheap (~31s), stable, runs in release again with throttled streaming (4a0bb0a1).",
       "commits": {
+        "d6abb9eeed": "drop required_features('consistent-topology-changes') mark, raft topology only mode now",
         "4a0bb0a1": "replace coordinator pause with streaming throttle (stream_io_throughput_mb_per_sec=1, ~60MB uncompressed data), kill on first stream log line again, unthrottle before restart; drops scylla_mode('!release')",
         "829be9e6": "POST /storage_service/quiesce_topology after rejoin so teardown doesn't abort coordinator mid-barrier",
         "22d95fc4": "unused node3 -> _ (lint; reverted by 4a0bb0a1)",
@@ -2166,8 +2175,9 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique real-crash-of-source + wiped same-IP rejoin, but slowest of the chunk (~146s, 100k individual QUORUM reads) and rollback is covered by injection in test_topology_streaming_failure. Bug: final data check (update_cluster_layout_tests.py:686-689) reads at QUORUM via node1, which holds a full replica, so it cannot detect missing data on node4. Note: gossip-quarantine branch (676-679) is dead under raft topology.",
+      "reason": "Unique real-crash-of-source + wiped same-IP rejoin, but slowest of the chunk (~146s, 100k individual QUORUM reads) and rollback is covered by injection in test_topology_streaming_failure. Bug: final data check (update_cluster_layout_tests.py:645-649) reads at QUORUM via node1, which holds a full replica, so it cannot detect missing data on node4.",
       "commits": {
+        "d6abb9eeed": "remove dead gossip-quarantine wait (and unused node4_host_id/marks)",
         "c3d9db24d6": "ignore patterns accept both exception formats",
         "3d7b8ca2a4": "tablets + rf-rack-valid: 3 racks, RF=3, node4 in node2 rack",
         "80172d22b8": "ignore another expected startup error",
@@ -2222,14 +2232,8 @@
         {
           "kind": "bug",
           "tag": "weak-check",
-          "ref": "update_cluster_layout_tests.py:686-689",
+          "ref": "update_cluster_layout_tests.py:645-649",
           "text": "Final check reads at QUORUM via node1 (full replica); can't detect missing data on rejoined node4"
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "update_cluster_layout_tests.py:676-679",
-          "text": "Gossip-quarantine branch dead under raft topology"
         }
       ]
     },
@@ -2723,7 +2727,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-28",
+  "analyzed_at": "2026-11-09",
   "scylla_rev": "04a0f07fb3",
   "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
 }
