@@ -1009,6 +1009,7 @@
         "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on both index views (ck1_index_index, ks_t3_index): the 2 inserts after the build wait for the view updates on all paired replicas, so the QUORUM aggregate reads no longer race a lagging view (SCYLLADB-4782).",
         "9ffd273f04": "formatting (ruff format).",
         "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
         "7a009d095a": "fixup: self.create_index -> create_index.",
@@ -1052,6 +1053,7 @@
         "summary": "'Tests for fix of invalid aggregation result on table with index' (Julia Yakovlev), for scylladb#7355/#7438/#7432; re-added on master by 17281a1922 (PR 2326, rebase-conflict resolution) - data JSON pr 2326 is not the origin."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no effect here (all writes precede the index build, only GROUP BY reads follow).",
         "9ffd273f04": "formatting (ruff format).",
         "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
         "7a009d095a": "fixup: self.create_index -> create_index.",
@@ -1097,6 +1099,7 @@
         "summary": "'Perform node actions after index building' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no effect here (all writes precede the index build, only decommission and reads follow).",
         "6b8bd802d4": "skip_if tablets & issue_open('#22394').",
         "9ffd273f04": "formatting (ruff format).",
         "21bad483be": "origin.",
@@ -1152,6 +1155,7 @@
         "summary": "'Delete indexed rows test' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on b_index_index: the 100 inserts and 10 deletes after the build wait for the view updates on all paired replicas, so the CL=ALL index reads and view row count no longer race a lagging view (SCYLLADB-4782).",
         "29a3d64e84": "removed unneeded cluster.flush().",
         "dc58ee4d98": "removed unconditional sleep; base row-count check retries 60x1s.",
         "980879b6be": "session on rack2 node (rf-rack-valid topology).",
@@ -1182,7 +1186,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: cqlpy test_partition_deletion/test_static_column_index check base deletes are reflected in a global index (single node); dtest adds only multi-node CL=ALL reads (async view updates, cross-node view replicas). Cheap (~15s), 38/38 pass. Note: comment 'Delete 10 rows by index' (secondary_indexes_test.py:1122) is misleading - rows are deleted by primary key.",
+      "reason": "Partial overlap: cqlpy test_partition_deletion/test_static_column_index check base deletes are reflected in a global index (single node); dtest adds only multi-node CL=ALL reads over cross-node view replicas (view updates synchronous since 579f14b960, so the default async path is no longer exercised). Cheap (~16s), 77/77 pass. Note: comment 'Delete 10 rows by index' (secondary_indexes_test.py:1123) is misleading - rows are deleted by primary key.",
       "issues": [
         {
           "kind": "note",
@@ -1201,6 +1205,7 @@
         "summary": "'secondary_indexes_test: multi index filter with same pkey' (Evgeniy Naydanov), repro for scylladb#7772."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no practical effect on a single node (local view updates were already awaited, db/view/view.cc mutate_MV).",
         "cb7c9bbe65": "docstring issue ref scylla -> scylladb (formatting).",
         "9ffd273f04": "formatting (ruff format).",
         "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
@@ -1241,6 +1246,7 @@
         "summary": "Cassandra dtest 'Adds test for CASSANDRA-6924' (test_6924_dropping_cf); rewritten for Scylla in 2667c2136a (PR 668, Julia Yakovlev, 2018-07-02)."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index (via config_keyspace) now ALTERs the recreated index view WITH synchronous_updates = true every round (one more schema change per round); the 10 inserts wait for the view updates on all paired replicas, so the 60x1s count retries are rarely needed (SCYLLADB-4782).",
         "653bc07f7f": "DROP COLUMNFAMILY via retry_till_success(OperationTimedOut) + wait_for_schema_agreement (SCYLLADB-688 flaky timeouts).",
         "dc58ee4d98": "removed unconditional sleep per round; assert_all now retries 60x1s.",
         "9ffd273f04": "formatting (ruff format).",
@@ -1295,6 +1301,7 @@
         "summary": "Cassandra dtest 'Adds test for CASSANDRA-6924' (test_6924_dropping_ks); rewritten for Scylla in 2667c2136a (PR 668, Julia Yakovlev, 2018-07-02)."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index (via config_keyspace) now ALTERs the recreated index view WITH synchronous_updates = true every round (one more schema change per round); rounds run at RF=1, where base and view replica are often different nodes, so the 10 inserts now wait for the remote view update instead of relying on the 60x1s count retries (SCYLLADB-4782).",
         "dc58ee4d98": "removed unconditional sleep per round; assert_all now retries 60x1s.",
         "9ffd273f04": "formatting (ruff format).",
         "aedaa57c4e": "formatting (pyupgrade/isort).",
@@ -1397,6 +1404,7 @@
         "summary": "Cassandra dtest 'Add test for CASSANDRA-1337 behavior' (concurrent range requests, checked via trace events); rewritten for Scylla in 0cbab1d7d5 (PR 668, 2018-07-02) without the trace/concurrency assertion."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index (via config_keyspace) now sets synchronous_updates = true on the index view: the 100 inserts after the build wait for the view update on all paired replicas, so QUORUM index reads no longer race a lagging view (SCYLLADB-4782).",
         "29a3d64e84": "removed unneeded cluster.flush().",
         "9ffd273f04": "formatting (ruff format).",
         "aedaa57c4e": "formatting (pyupgrade/isort).",
@@ -1501,6 +1509,7 @@
         "summary": "cassandra-dtest 'added test checking for ALLOW FILTERING when using multiple predicates' (Andrew Hust); rewritten for Scylla in a8e07cf4d0 (PR 668, multi-node, compaction strategy, index build wait)."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on both index views: inserts after the index build wait for the view update on all paired replicas, so the QUORUM index reads no longer race a lagging view and the f08e1e8989 5x1s retries are rarely needed (SCYLLADB-4782).",
         "f08e1e8989": "wrap count asserts in @retrying(5x1s) try_assert_all (async view updates).",
         "9ffd273f04": "formatting (ruff format).",
         "aedaa57c4e": "formatting (pyupgrade/isort).",
@@ -1528,7 +1537,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (rejection + correct filtered result); multi-node adds only eventual-consistency retries (f08e1e8989). Same scenario as TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk (also RED). Note: c2 column unused.",
+      "reason": "Fully covered by test/cqlpy/test_allow_filtering.py::test_allow_filtering_indexed_two_indexes (rejection + correct filtered result); multi-node adds only eventual-consistency handling (f08e1e8989 retries, now 579f14b960 synchronous_updates on the index views, SCYLLADB-4782). Same scenario as TestMultipleSecondaryIndexes::test_multy_secondary_query_with_no_pk (also RED). Note: c2 column unused.",
       "issues": [
         {
           "kind": "note",
@@ -1548,6 +1557,7 @@
         "summary": "'Test query data by primary key and index' in 'Test of secondary index for Scylla' (Julia Yakovlev); marked require('#3539') until fix."
       },
       "commits": {
+        "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no effect here (all writes precede the index build, only count reads follow).",
         "9ffd273f04": "formatting (ruff format).",
         "aedaa57c4e": "formatting (pyupgrade/isort).",
         "e5c5dba5ac": "refactor: helpers no longer @staticmethod; no behavior change.",
