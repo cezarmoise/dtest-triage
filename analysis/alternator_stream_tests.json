@@ -1,8 +1,8 @@
 {
   "file": "alternator_stream_tests.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
     "TestAlternatorStreams::test_added_node_gets_closed_shards": {
       "description": "3-node Alternator cluster (cdc + alternator-streams), KEYS_ONLY stream table prefilled, background write stress; bootstraps node4 and, via DescribeStream on node4, asserts that some shards are closed (have EndingSequenceNumber). Guards that a topology change creates a new CDC generation and that the new node's Streams API exposes the previous generation as closed shards (scylladb/scylla#8012 KCL stuck after decommission/add, regression fixed in scylladb/scylla#8209 / #8210). Vnodes: bootstrap commits a new generation immediately; tablets: node4 raises tablet-count floor -> split -> new per-table generation, polled up to 180s.",
@@ -153,6 +153,7 @@
         "summary": "test(alternator_stream_tests.py): Verifying stream after the cluster topology changed - adds/removes/decommissions nodes and verifies stream data after each"
       },
       "commits": {
+        "a3e5f2d26d": "dropped cluster_options(uuid_sstable_identifiers_enabled=False); test now runs with UUID sstable identifiers (PR #7686)",
         "8572a15a38": "dropped class-level skip_if(tablets & issue_open #23838); issue closed 2026-09-21, skip was already inert",
         "d2153f889c": "new nodes placed in rack ((idx-1)%3)+1 instead of new rack per node -> fixes rf_rack_valid_keyspaces violation",
         "23c130820e": "new_node() given explicit dc1/rack so ccm writes cassandra-rackdc.properties (fixes bad_property_file_error); default rack_per_node=True",
@@ -169,7 +170,7 @@
         "c6f8340937": "class skipped unconditionally with tablets",
         "5e4b1ec9f8": "tablets skip narrowed to issue_open(#23838) -> runs with tablets again"
       },
-      "relevance": "Live. Streams over CDC generations (vnodes) and tablet-based streams; decommission/removenode/restart all current ops. uuid_sstable_identifiers_enabled=False option is unrelated leftover but harmless.",
+      "relevance": "Live. Streams over CDC generations (vnodes) and tablet-based streams; decommission/removenode/restart all current ops.",
       "duplicates": [
         {
           "path": "test/alternator/test_streams.py",
@@ -193,15 +194,8 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test verifying Alternator Streams record completeness across bootstrap, decommission, restart and node removal on a multi-node cluster; scylla tests are single-node or CQL-CDC only. 100% pass in 32 runs after 2025-2026 fixes (c07b7ed4, 23c13082, d2153f88); costly (80-200s) but unique.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "dead-config",
-          "ref": "alternator_stream_tests.py:39",
-          "text": "uuid_sstable_identifiers_enabled=False is an unrelated leftover, harmless."
-        }
-      ]
+      "reason": "Only test verifying Alternator Streams record completeness across bootstrap, decommission, restart and node removal on a multi-node cluster; scylla tests are single-node or CQL-CDC only. 100% pass in 100 runs after 2025-2026 fixes (c07b7ed4, 23c13082, d2153f88); costly (80-270s) but unique.",
+      "issues": []
     },
     "TestAlternatorStreams::test_list_streams_limit_parameter": {
       "description": "3-node Streams cluster; creates 20 KEYS_ONLY tables, then pages ListStreams with Limit 5,7,3,1,4 (sum 20) via a random coordinator per page using ExclusiveStartStreamArn=LastEvaluatedStreamArn. Asserts each page has exactly Limit streams, the union equals the 20 created ARNs, and a final call after the last ARN returns an empty list. Guards DynamoDB ListStreams Limit/paging semantics; no linked scylla issue.",
