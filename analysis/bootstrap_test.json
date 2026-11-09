@@ -1,8 +1,8 @@
 {
   "file": "bootstrap_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
     "TestBootstrap::test_add_node": {
       "description": "2-node cluster, add node3 via ccm cluster.new_node(3), start it with wait_other_notice, stop cluster. No data, no assertions beyond start/stop succeeding. Added as a self-test for the then-new ccm cluster.new_node() helper (scylla-ccm PR 199).",
@@ -249,6 +249,7 @@
         "summary": "Stefania Alborghetti (Cassandra dtest): Added more tests for CASSANDRA-9765; merged into scylla-dtest via 'Merge upstream' PR 52"
       },
       "commits": {
+        "d6abb9eeedaa87e1b27a824772cc4231f5963b09": "remove dead gossip-mode 'gossip quarantine over' wait before restart; raft path unchanged",
         "87126168575903a92539adef9aff76fe40b454f8": "gossip quarantine regex accepts host id",
         "66a909f40ff64b8929c091cb0ca450fa7a776b26": "'is now dead|DOWN' regex accepts host id",
         "91cca0c2d65dc9c60585c38e584dfca67076efc0": "formatting (typo fix in comment)",
@@ -272,7 +273,7 @@
         "8ff723d2f361cb9ea81418a98f0f490c2f5b3f02": "SIGKILL after decommission",
         "8b6737ae6cd97020364a676e11ccd244b45a5d8d": "origin"
       },
-      "relevance": "Live: re-joining a decommissioned node's address with wiped state (new host id, same IP) under raft topology. 'gossip quarantine over' no longer exists in scylla source; consistent-topology-changes is UNUSED/always-on (db/config.cc:2123).",
+      "relevance": "Live: re-joining a decommissioned node's address with wiped state (new host id, same IP) under raft topology (bootstrap_start_log_pat 'raft_topology - start streaming'). Raft topology is the only mode; dtest gossip-mode code removed in d6abb9eeed.",
       "duplicates": [
         {
           "path": "test/cluster/test_decommission.py::test_decommissioned_node_cant_rejoin",
@@ -286,18 +287,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "No scylla test re-adds a wiped decommissioned node with same IP; scenario is live. Note: dead gossip-mode branch waiting for 'gossip quarantine over' (bootstrap_test.py:403-405), message absent from scylla and consistent-topology always on in conftest.py:734. Note: no data check after rejoin; bootstrap check uses watch_log_for(timeout=0) only.",
+      "reason": "No scylla test re-adds a wiped decommissioned node with same IP; scenario is live. Note: no data check after rejoin; join confirmed by start(wait_for_binary_proto) + 'start streaming' log (watch_log_for timeout=0) only.",
       "issues": [
         {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "bootstrap_test.py:403-405",
-          "text": "Dead gossip-mode branch waiting for 'gossip quarantine over'; message gone, consistent topology always on"
-        },
-        {
-          "kind": "note",
           "tag": "limited-check",
-          "ref": "bootstrap_test.py:409",
+          "ref": "bootstrap_test.py:406",
           "text": "No data check after rejoin; join confirmed by start(wait_for_binary_proto) + 'start streaming' log only"
         }
       ]
@@ -311,6 +306,7 @@
         "summary": "Stefania Alborghetti (Cassandra dtest): Added more tests for CASSANDRA-9765; merged via PR 52"
       },
       "commits": {
+        "d6abb9eeedaa87e1b27a824772cc4231f5963b09": "remove dead gossip-mode branches ('removing from gossip' / quarantine waits); always waits for 'Finished to force remove node'",
         "45ba2066ec21952286db1e57930a1a3cb33ebf60": "fix race: throttle stream_io_throughput_mb_per_sec=1, n=10k, unthrottle on rejoin (scylladb/scylladb#26525)",
         "ab68dcc56f324c52eebe7bf71da30098a0f66c25": "rename failed_bootstap -> failed_bootstrap",
         "87126168575903a92539adef9aff76fe40b454f8": "gossip regexes accept host id",
@@ -337,7 +333,7 @@
         "611af16330aad3c5b629fc0099fa97c9a01bef85": "revert to default timeouts",
         "8b6737ae6cd97020364a676e11ccd244b45a5d8d": "origin"
       },
-      "relevance": "Live: raft-topology bootstrap failure rollback + rejoin of same IP. 'Finished to force remove node' exists (gms/gossiper.cc:880). Gossip-mode messages ('has been silent ... removing from gossip', 'gossip quarantine over') no longer exist in scylla.",
+      "relevance": "Live: raft-topology bootstrap failure rollback + rejoin of same IP. 'Finished to force remove node' exists (gms/gossiper.cc:881); 'send_raft_topology_cmd(stream_ranges) failed with exception (node state is ...)' exists (service/topology_coordinator.cc:4469). Gossip-mode branches removed from the test in d6abb9eeed.",
       "duplicates": [
         {
           "path": "test/cluster/test_topology_failure_recovery.py::test_topology_streaming_failure",
@@ -351,24 +347,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with injection-based rollback tests; rejoin after killed bootstrap is unique-ish. Note: dead gossip-mode branches (bootstrap_test.py:450, 459-461) and stale ignore patterns with old 'raft topology:' prefix (line 469). Note: rejoin only asserts 'start streaming' with timeout=0; no data check despite original_rows being read (line 433, unused).",
+      "reason": "Partial overlap with injection-based rollback tests; rejoin after killed bootstrap is unique-ish. Note: stale ignore pattern with old 'raft topology:' prefix (bootstrap_test.py:459). Note: rejoin only asserts 'start streaming' with timeout=0 (line 468); no data check despite original_rows being read (line 429, unused).",
       "issues": [
         {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "bootstrap_test.py:450,459-461",
-          "text": "Dead gossip-mode branches"
-        },
-        {
-          "kind": "note",
           "tag": "dead-config",
-          "ref": "bootstrap_test.py:469",
+          "ref": "bootstrap_test.py:459",
           "text": "Stale ignore patterns with old 'raft topology:' prefix"
         },
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "bootstrap_test.py:433",
+          "ref": "bootstrap_test.py:429,468",
           "text": "Rejoin only asserts 'start streaming' (timeout=0); original_rows read but unused, no data check"
         }
       ]
@@ -878,6 +868,7 @@
         "summary": "Mark Gurevich: add bootstrap reject test after cluster shutdown (scylla-dtest#2858, scylladb/scylladb PR 11425)"
       },
       "commits": {
+        "d6abb9eeedaa87e1b27a824772cc4231f5963b09": "always wipe node4 before retry (dropped always-true consistent-topology-changes check)",
         "b9df33c8333a8caaac26d81fc671f631e47cccb9": "origin: expect 'has gossip status=UNKNOWN' startup failure while n3 down",
         "29f66d4596cd9b1d9503e67ebd99ba4a4b7265fa": "refactor: start node4 without waiting, watch_log_for expected error instead of pytest.raises",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
@@ -896,24 +887,18 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test/cluster/test_coordinator_queue_management.py (join rejected while a node is dead); full-restart + retry + data read is unique. Note: dead regex alternative 'has gossip status=UNKNOWN' (bootstrap_test.py:728) - message removed from scylla; 'consistent-topology-changes' branch (line 760) is always true; log says 'Populating cluster with one node' but populates 3.",
+      "reason": "Partial overlap with test/cluster/test_coordinator_queue_management.py (join rejected while a node is dead); full-restart + retry + data read is unique. Note: dead regex alternative 'has gossip status=UNKNOWN' (bootstrap_test.py:719) - message removed from scylla; log says 'Populating cluster with one node' but populates 3 (line 723).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "bootstrap_test.py:728",
+          "ref": "bootstrap_test.py:719",
           "text": "Dead regex alternative 'has gossip status=UNKNOWN'; message removed from scylla"
         },
         {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "bootstrap_test.py:760",
-          "text": "'consistent-topology-changes' branch always true"
-        },
-        {
-          "kind": "note",
           "tag": "cosmetic",
-          "ref": "",
+          "ref": "bootstrap_test.py:723",
           "text": "Log says 'Populating cluster with one node' but populates 3"
         }
       ]
