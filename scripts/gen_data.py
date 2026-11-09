@@ -6,7 +6,9 @@ Reads jenkins/<job>_long.csv for each job, writes data/<module>.json + data/inde
 """
 import ast
 import csv
+import difflib
 import json
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -72,6 +74,58 @@ def locate(path, cls, func, rev=REV, anywhere=True):
             if func in funcs:
                 return other, c, funcs[func]
     raise KeyError((path, cls, func))
+
+
+REF = re.compile(r"(?<![\w/.-])((?:[\w-]+/)*[\w-]+\.py):(\d+(?:-\d+)?(?:, ?\d+(?:-\d+)?)*)")
+
+
+@cache
+def line_map(path, old, new=REV):
+    """{old line: (new line, unchanged)} for a dtest file, None if it's missing at either rev."""
+    try:
+        a, b = git("show", f"{old}:{path}").splitlines(), git("show", f"{new}:{path}").splitlines()
+    except subprocess.CalledProcessError:
+        return None
+    out = {}
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        for i in range(i1, i2):  # changed/deleted lines → start of their replacement
+            out[i + 1] = (j1 + 1 + (i - i1 if tag == "equal" else min(i - i1, max(j2 - j1 - 1, 0))), tag == "equal")
+    return out
+
+
+def reline(analysis, path, old, new=REV, keys=None):
+    """Move `<dtest file>.py:N` refs in analysis entries (`keys`, default all but DELETED) from rev `old` to `new`.
+    Returns (moved refs, refs that pointed at changed/deleted lines)."""
+    moved, unsure = 0, []
+
+    def sub(m):
+        nonlocal moved
+        lm = line_map(m[1], old, new) or (m[1] == Path(path).name and line_map(path, old, new))
+        if not lm:
+            return m[0]
+
+        def num(n):
+            nonlocal moved
+            line, same = lm.get(int(n), (int(n), True))
+            moved += line != int(n)
+            if not same:
+                unsure.append(f"{m[1]}:{n} → {line}")
+            return line
+
+        def rng(r):  # a range whose ends land on the same line collapses to it
+            a, b = num(r[1]), r[2] and num(r[2])
+            return f"{a}-{b}" if b and b != a else str(a)
+        return f"{m[1]}:{re.sub(r'(\d+)(?:-(\d+))?', rng, m[2])}"
+
+    for k, t in analysis["tests"].items():
+        if (k in keys) if keys is not None else t["decision"] != "DELETED":
+            for f in ("description", "relevance", "reason"):
+                t[f] = REF.sub(sub, t.get(f, ""))
+            for i in t.get("issues", []):
+                i["ref"], i["text"] = REF.sub(sub, i.get("ref", "")), REF.sub(sub, i.get("text", ""))
+            for d in t.get("duplicates", []):
+                d["path"], d["note"] = REF.sub(sub, d.get("path", "")), REF.sub(sub, d.get("note", ""))
+    return moved, sorted(set(unsure))
 
 
 def load_stats():
@@ -163,7 +217,15 @@ def main():
         file_commits = parse_log(git("log", REV, LOG_FMT, "--follow", "--", path))
         data = {"file": path, "rev": git("rev-parse", REV).strip(), "tests": tests,
                 "file_commits": with_prs(file_commits, prs)}
-        (out_dir / f"{mod}.json").write_text(json.dumps(data, indent=1))
+        dst, ana = out_dir / f"{mod}.json", ROOT / f"analysis/{mod}.json"
+        old = json.loads(dst.read_text())["rev"] if dst.exists() else data["rev"]
+        dst.write_text(json.dumps(data, indent=1))
+        if old != data["rev"] and ana.exists():  # after the data write: a crash skips a reline, never doubles it
+            a = json.loads(ana.read_text())
+            moved, unsure = reline(a, path, old, data["rev"])
+            if moved:
+                ana.write_text(json.dumps(a, indent=2, ensure_ascii=False) + "\n")
+            print(f"{mod}: {moved} line refs moved{''.join(f'\n  check {u}' for u in unsure)}", file=sys.stderr)
         prs.save()
         index = sorted(p.stem for p in out_dir.glob("*.json") if p.name != "index.json")
         (out_dir / "index.json").write_text(json.dumps(index, indent=1))
