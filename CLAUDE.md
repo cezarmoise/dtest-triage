@@ -144,8 +144,7 @@ Fields:
   (customfield_10321) = it, leave assignee empty (auto-assigns the SME). `component` null → assignee = first reviewer.
   Other reviewers → watchers if the tool allows, else the "Review group" line below.
 - One issue per test by default. If the user asks to group: one issue per review group, tests as sections.
-- Summary: `dtest triage: <module>::<Class>::<test> (<DECISION>)`; grouped:
-  `dtest triage: <group>, <N> tests (<x> RED, <y> YELLOW, ...)`.
+- Summary: `<module>::<Class>::<test>`; grouped: `Analyze unnecessary tests for <group>`.
 
 Description, Markdown (convert if the tool wants wiki markup or ADF). Order as below; omit empty sections, except
 Issues ("None found"):
