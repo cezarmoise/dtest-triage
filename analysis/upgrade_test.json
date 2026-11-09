@@ -45,13 +45,19 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Would be GREEN: only dtest doing a multi-hop real-binary upgrade (2025.1 -> ... -> current) with data validation; scylla test/ has only simulated upgrades. Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:61, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail.",
+      "reason": "Would be GREEN: only dtest doing a multi-hop real-binary upgrade (2025.1 -> ... -> current) with data validation; scylla test/ has only simulated upgrades. Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:61, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: require jira:SCYLLADB-1884 (:374) is inert, issue Done.",
       "issues": [
         {
           "kind": "bug",
           "tag": "log-check-off",
           "ref": "upgrade_test.py:61",
           "text": "UpgradeTester fixture sets allow_log_errors=True: teardown ERROR/backtrace scan disabled, ignore_log_patterns at :61-67 dead."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "upgrade_test.py:374",
+          "text": "@require(jira:SCYLLADB-1884) inert: issue Done, test runs; mark can be dropped."
         }
       ]
     },
@@ -96,7 +102,7 @@
       ]
     },
     "TestUpgradeClusterWithEnableDisableTWCSQueries::test_upgrade_cluster_nodes_with_twcs": {
-      "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates a TWCS table (5-minute windows) filled via simulate_write_process_in_minutes, records the results of 5 time-range queries, then upgrades nodes one by one to the version under test; after each node upgrade it ALTERs the table toggling 'enable_optimized_twcs_queries' false/true and asserts the query results equal the pre-upgrade snapshot (validate_twcs_data, exact ==, upgrade_test.py:176-178). Before upgrading it enables raft topology + waits for SL v2 when not already enabled. Guards the TWCS optimized-query option (scylla commit 168c6f47) and schema ALTERs in a mixed-version cluster.",
+      "description": "Starts a 3-rack/3-node cluster on release:2026.1, creates a TWCS table (5-minute windows) filled via simulate_write_process_in_minutes, records the results of 5 time-range queries, then upgrades nodes one by one to the version under test; after each node upgrade it ALTERs the table toggling 'enable_optimized_twcs_queries' false/true and asserts the query results equal the pre-upgrade snapshot (validate_twcs_data, exact ==, upgrade_test.py:175-177). Before upgrading it enables raft topology + waits for SL v2 when not already enabled. Guards the TWCS optimized-query option (scylla commit 168c6f47) and schema ALTERs in a mixed-version cluster.",
       "origin": {
         "sha": "d160a80c2eab107c51da4202b2e2ba063ce90e8b",
         "date": "2022-05-07",
@@ -104,6 +110,7 @@
         "summary": "test(twcs_optimized_queries): Check enable_optimized_query parameter during upgrade (scylla commit 168c6f47)"
       },
       "commits": {
+        "d6abb9eeedaa87e1b27a824772cc4231f5963b09": "dropped force_gossip_topology_changes guards (raft topology enablement, tablets config in init_cluster); option removed dtest-wide, no behavior change",
         "ea5d56aaad9005f3c939473050e8c674dba7b4d9": "require mark SCYLLADB-1198 -> SCYLLADB-1884 (issue now Done)",
         "d9478044249be4bd8a95f18007c2b2aa8ecf77c8": "raft topology enablement moved before upgrading node1 in each step",
         "1beef1a32c0e70d89f3d9ae27f0795d1a0b0cbf3": "added require jira:SCYLLADB-1198",
@@ -116,7 +123,7 @@
         "d160a80c2eab107c51da4202b2e2ba063ce90e8b": "test added",
         "f059cdfbaa3adbc98e41f5b69426bb9c93acae31": "file-level: from-last-release matrix = [release:2026.1]"
       },
-      "relevance": "Live: 'enable_optimized_twcs_queries' still parsed in scylla compaction/time_window_compaction_strategy.cc and used by sstables/sstable_set.cc. Jenkins 39 runs, 100% pass, ~87s.",
+      "relevance": "Live: 'enable_optimized_twcs_queries' still parsed in scylla compaction/time_window_compaction_strategy.cc and used by sstables/sstable_set.cc. Jenkins 79 runs, 100% pass, ~89s.",
       "duplicates": [
         {
           "path": "test/cqlpy/test_cql_query.py::test_twcs_reversed_restricted_query_optimized",
@@ -135,7 +142,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Would be GREEN: only test of TWCS optimized-query option toggling across a real mixed-version upgrade; option toggling itself is covered by test/cqlpy/test_cql_query.py and compaction_additional_test.py (partial). Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:61, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: log text 'Enable optimized queries' at upgrade_test.py:501 actually disables them; expected_data (:452) duplicates self.tw_data (:183, unused); the test never checks that the ALTERed option took effect.",
+      "reason": "Would be GREEN: only test of TWCS optimized-query option toggling across a real mixed-version upgrade; option toggling itself is covered by test/cqlpy/test_cql_query.py and compaction_additional_test.py (partial). Bug: UpgradeTester.fixture_add_additional_log_patterns sets allow_log_errors=True (upgrade_test.py:61, since pytest port 44ba4f79), so the teardown node-log ERROR scan is disabled and the ignore_log_patterns at :61-67 are dead; errors/backtraces during upgrade go unnoticed unless a node fails to start or data checks fail. Note: log text 'Enable optimized queries' at upgrade_test.py:500 actually disables them; expected_data (:466) duplicates self.tw_data (:197, unused); the test never checks that the ALTERed option took effect; require jira:SCYLLADB-1884 (:453) is inert, issue Done.",
       "issues": [
         {
           "kind": "bug",
@@ -146,13 +153,13 @@
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "upgrade_test.py:501",
+          "ref": "upgrade_test.py:500",
           "text": "Log text 'Enable optimized queries' actually disables them."
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "upgrade_test.py:198,467",
+          "ref": "upgrade_test.py:197,466",
           "text": "self.tw_data unused; expected_data duplicates it."
         },
         {
@@ -160,11 +167,17 @@
           "tag": "limited-check",
           "ref": "upgrade_test.py",
           "text": "Never checks the ALTERed enable_optimized_twcs_queries option took effect; only result equality."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "upgrade_test.py:453",
+          "text": "@require(jira:SCYLLADB-1884) inert: issue Done, test runs; mark can be dropped."
         }
       ]
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b"
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b"
 }
