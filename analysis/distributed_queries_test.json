@@ -1,8 +1,8 @@
 {
   "file": "distributed_queries_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
     "TestDistributedAggregations::test_distributed_count_all": {
       "description": "3-node cluster (vnodes, num_tokens=3, murmur3_ignore_msb_bits=1, smp 4), rf=2, counter table filled with 100K c-s user-profile inserts (10K in debug/coverage). Runs SELECT count(*) with enable_parallelized_aggregation=false, restarts the whole cluster with it set to true, reruns. Asserts both counts equal OPS, the non-parallel trace has no 'Dispatching mapreduce_request to 3 endpoints' / 'Dispatching N ranges' event, and the parallel trace has one. Guards the parallelized aggregation (mapreduce_service) feature, scylladb commit fe65122c.",
@@ -13,6 +13,7 @@
         "summary": "Distributed aggregation tests (qa-tasks#779): count(*) with/without enable_parallelized_aggregation, compare results, trace forwarding, and (per PR body) timing."
       },
       "commits": {
+        "d6abb9eeedaa87e1b27a824772cc4231f5963b09": "restart_cluster(start_in_parallel=True) unconditionally (gossip-topology mode removed); no behavior change, raft topology was already the default",
         "58416f72deb0504169b02ee2c5c3cc556d0fdeb2": "helper _is_regex_in_query_traces reads trace at CL=ALL (was LOCAL_ONE): fixes flaky missing 'Dispatching' event (SCYLLADB-5873), also makes the negative check see all events",
         "6f6d048b96acaf5488e828402a68d0bec739e6fd": "revert skip marker back to issue_open('#16709') for tablets",
         "dc874853c38f02eb0694710d6d605a53919324d0": "skip marker on tablets switched to #18180 (2025.x skip labels); reverted later",
@@ -32,7 +33,7 @@
         "635a592d7f31a8b05792d9e73df17e77ae2e81b5": "file-level: OPS 2M -> 1M, 10K in debug",
         "d2cafef387e2ac03d638059d61938cef1a2e5db1": "origin"
       },
-      "relevance": "Live. enable_parallelized_aggregation still in db/config.cc:1642 (Used, LiveUpdate, default true). Trace messages still emitted in service/mapreduce_service.cc:621 ('Dispatching mapreduce_request to {} endpoints', vnodes) and :660 ('Dispatching {} ranges', tablets). Option is LiveUpdate, so the full cluster restart is unnecessary (could toggle via system.config).",
+      "relevance": "Live. enable_parallelized_aggregation still in db/config.cc:1647 (Used, LiveUpdate, default true). Trace messages still emitted in service/mapreduce_service.cc:623 ('Dispatching mapreduce_request to {} endpoints', vnodes) and :662 ('Dispatching {} ranges', tablets). Option is LiveUpdate, so the full cluster restart is unnecessary (could toggle via system.config).",
       "duplicates": [
         {
           "path": "test/cqlpy/test_cql_query.py::test_parallelized_select_count",
@@ -56,7 +57,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Live feature; only unique part is flag=false => no mapreduce dispatch on a 3-node vnode cluster, while parallel count(*) correctness/dispatch is covered by cqlpy test_parallelized_select_* and test/cluster/test_aggregation.py::test_cancel_mapreduce. Bug: docstring check #3 (parallel faster) never asserted since origin d2cafef3; durations unused (056f5dc7 just renamed them to _). Bug: allow_log_errors=True (distributed_queries_test.py:65) disables the log error check. Note: full cluster restart unneeded (option LiveUpdate); skipped on tablets via issue_open('#16709') (OPEN, driver issue); only runs in next-dtest-consistent-topology (46/46 pass, ~60s), absent from dtest-release jobs. Traces read at CL=ALL since 58416f72 (PR #7688).",
+      "reason": "Live feature; only unique part is flag=false => no mapreduce dispatch on a 3-node vnode cluster, while parallel count(*) correctness/dispatch is covered by cqlpy test_parallelized_select_* and test/cluster/test_aggregation.py::test_cancel_mapreduce. Bug: docstring check #3 (parallel faster) never asserted since origin d2cafef3; durations unused (056f5dc7 just renamed them to _). Bug: allow_log_errors=True (distributed_queries_test.py:65) disables the log error check. Note: full cluster restart unneeded (option LiveUpdate); skipped on tablets via issue_open('#16709') (OPEN, driver issue); only runs in next-dtest-consistent-topology (50/50 pass, ~64s), absent from dtest-release jobs. Traces read at CL=ALL since 58416f72 (PR #7688).",
       "issues": [
         {
           "kind": "bug",
