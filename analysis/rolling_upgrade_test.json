@@ -1,11 +1,11 @@
 {
   "file": "rolling_upgrade_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "04a0f07fb3",
-  "dtest_rev": "cff16b92d536c27f1ecdd44c0051976f84344d1b",
+  "analyzed_at": "2026-11-09",
+  "scylla_rev": "f35ad40c9d",
+  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
     "TestRollingUpgrade::test_rolling_upgrade": {
-      "description": "3-node, 3-rack cluster started on the last release (upgrade_matrix_from_last_release_version = ['release:2026.1'], upgrade_test.py:32) with ks.cf RF=3 prefilled. For each hop to the version under test: upgrade node1 under c-s QUORUM write load, upgrade node2 under c-s read load, roll node2 back to the base version (node.upgrader.upgrade) under read load, then re-upgrade node2 and node3; after every step checks schema agreement on all nodes, inserts 100 rows and validates all rows at QUORUM (assert_all), and asserts c-s completed (assert_cs_success). Finally runs nodetool upgradesstables -a, waits for one sstable format = chosen_sstable_version, and checks `scylla sstable dump-data` works; if raft topology was not enabled, enables it (waiting for schema-on-raft and SL v2 on 2026.1+) and validates data again. Guards rolling upgrade + rollback compatibility (mixed-version reads/writes, schema, sstable format) with real released binaries.",
+      "description": "3-node, 3-rack cluster started on the last release (upgrade_matrix_from_last_release_version = ['release:2026.1'], upgrade_test.py:33) with ks.cf RF=3 prefilled. For each hop to the version under test: upgrade node1 under a throttled c-s QUORUM write of keys 1..10000 (80 ops/s, ~2 min), upgrade node2 under c-s read load, roll node2 back to the base version (node.upgrader.upgrade) under read load, then re-upgrade node2 and node3; after every step checks schema agreement on all nodes, inserts 100 rows and validates all rows at QUORUM (assert_all), and asserts c-s completed (assert_cs_success). Finally runs nodetool upgradesstables -a, waits for one sstable format = chosen_sstable_version, and checks `scylla sstable dump-data` works; if raft topology was not enabled at start, enables it (waiting for schema-on-raft and SL v2 on 2026.1+); then inserts and validates data once more. Guards rolling upgrade + rollback compatibility (mixed-version reads/writes, schema, sstable format) with real released binaries.",
       "origin": {
         "sha": "77dcceac50",
         "date": "2021-01-05",
@@ -13,6 +13,8 @@
         "summary": "juliayakovlev: split rolling upgrade test (upgrade/rollback under c-s load) out of upgrade_test.py into its own class so it doesn't run in parallel; pre-download all versions. (2012-2013 Cassandra rolling_upgrade_test.py was deleted in e63b7ad0e5, unrelated.)"
       },
       "commits": {
+        "170a45a0f0": "Write stress throttled: n=10000 keys seq=1...10000 (the keys read stress reads) at 80 ops/s, no warmup, instead of 2 min unthrottled (~9 GB/test, RELENG-1087); lighter load during node1 upgrade.",
+        "d6abb9eeed": "Drop the always-true `consistent-topology-changes in scylla_features` guard: raft-enable (if not enabled) + final insert/validate now unconditional (no behavior change in normal runs); upgrade_test init_cluster always sets tablets config.",
         "226166781f": "--memory 2048M jvm_arg -> init_cluster(memory_mb=2048): set_smp/set_mem_mb_per_cpu per node, same 2048M total, persists across upgrade restarts (no functional change).",
         "ae20a64293": "Record whether raft topology was already enabled; before enabling it on 2026.1+ wait for schema-on-raft upgrade, afterwards wait for SL v2.",
         "d7d8c6b62d": "Re-enable read stress + validation during node2 rollback (scylladb#16002 fixed).",
@@ -42,7 +44,7 @@
         "6a6ea2e617": "Highest supported sstable version via REST API instead of log grep.",
         "cddb2aff03": "Add whole module to gating (next_gating)."
       },
-      "relevance": "Live: rolling upgrade/rollback between released and current versions is a supported, documented procedure; 2026.1 -> master is the current gating path. Uses live APIs (nodetool upgradesstables, chosen/highest sstable version REST, scylla sstable dump-data). Recently caught SCYLLADB-2062 (P0 segfault in old node parsing new CDC option during rolling upgrade, now Done) and scylladb#16002. consistent-topology-changes is UNUSED in scylla (db/config.cc:2123), so the final raft-enable block is mostly a no-op for 2026.1 clusters; enable_tablets is deprecated but still Used (db/config.cc:1809).",
+      "relevance": "Live: rolling upgrade/rollback between released and current versions is a supported, documented procedure; 2026.1 -> master is the current gating path. Uses live APIs (nodetool upgradesstables, chosen/highest sstable version REST, scylla sstable dump-data). Recently caught SCYLLADB-2062 (P0 segfault in old node parsing new CDC option during rolling upgrade, now Done) and scylladb#16002. After d6abb9eeed the final raft-enable block depends only on raft_topology_enabled (SUPPORTS_CONSISTENT_TOPOLOGY_CHANGES in enabled_features), which a fresh 2026.1 cluster already has, so it is skipped on the current path; enable_tablets is deprecated but still Used (db/config.cc:1814).",
       "duplicates": [
         {
           "path": "test/cluster/test_sstable_compression_dictionaries_upgrade.py::test_upgrade_and_rollback",
@@ -66,12 +68,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Only test doing upgrade + rollback + re-upgrade under c-s load on the 2026.1->current path; scylla test/cluster upgrade tests are feature-specific (partial), and it caught SCYLLADB-2062/scylladb#16002. Note: RollingUpgradeBase.wait_for_sstables_upgrade (rolling_upgrade_test.py:222-240) sets all_tables_upgraded=True only once before the loop, so if the first check fails within timeout it is never reset and the loop spins forever (no sleep, busy loop) once checks start passing; the timeout raise only fires on another exception. Note: the format check uses ccmlib check_node_sstables_format (scylla-ccm ccmlib/node.py:349), which scans only data/system, not ks.cf; final dump check (rolling_upgrade_test.py:262) only asserts non-empty output from one node; assert_cs_success (tools/stress.py:143) only checks stdout ends with END/DONE. Note: class mark @require('jira:SCYLLADB-2062') (rolling_upgrade_test.py:286) is stale, issue is Done (that's why it runs again). Note: remove_/add_experimental_features_from_yaml (rolling_upgrade_test.py:264,274) dead since 2a60929088. Slow (~513s), runs only in next gating jobs (16 runs, 100% pass).",
+      "reason": "Only test doing upgrade + rollback + re-upgrade under c-s load on the 2026.1->current path; scylla test/cluster upgrade tests are feature-specific (partial), and it caught SCYLLADB-2062/scylladb#16002. 170a45a0f0 lightens the write load during node1 upgrade (80 ops/s) but keeps the scenario. Note: RollingUpgradeBase.wait_for_sstables_upgrade (rolling_upgrade_test.py:238-256) sets all_tables_upgraded=True only once before the loop, so if the first check fails within timeout it is never reset and the loop spins forever (no sleep, busy loop) once checks start passing; the timeout raise only fires on another exception. Note: the format check uses ccmlib check_node_sstables_format (scylla-ccm ccmlib/node.py:349), which scans only data/system, not ks.cf; final dump check (rolling_upgrade_test.py:278) only asserts non-empty output from one node; assert_cs_success (tools/stress.py:143) only checks stdout ends with END/DONE. Note: class mark @require('jira:SCYLLADB-2062') (rolling_upgrade_test.py:302) is stale, issue is Done (that's why it runs again). Note: remove_/add_experimental_features_from_yaml (rolling_upgrade_test.py:280,290) dead since 2a60929088. Note: raft-enable block (rolling_upgrade_test.py:102-108) skipped on the 2026.1 path (raft topology already enabled). Slow (~510s), runs only in next gating jobs (100 runs, 100% pass).",
       "issues": [
         {
           "kind": "note",
           "tag": "other",
-          "ref": "rolling_upgrade_test.py:222-240",
+          "ref": "rolling_upgrade_test.py:238-256",
           "text": "wait_for_sstables_upgrade sets all_tables_upgraded only once; if first check fails then passes, busy-loops forever (hang, not false pass)."
         },
         {
@@ -83,7 +85,7 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "rolling_upgrade_test.py:262",
+          "ref": "rolling_upgrade_test.py:278",
           "text": "Final dump-data check only asserts non-empty output from one node."
         },
         {
@@ -95,20 +97,20 @@
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "rolling_upgrade_test.py:286",
+          "ref": "rolling_upgrade_test.py:302",
           "text": "Class @require('jira:SCYLLADB-2062') stale; issue Done, test runs."
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "rolling_upgrade_test.py:264,274",
+          "ref": "rolling_upgrade_test.py:280,290",
           "text": "remove_/add_experimental_features_from_yaml dead since 2a60929088."
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "db/config.cc:2123",
-          "text": "consistent-topology-changes Unused, so final raft-enable block is mostly a no-op for 2026.1 clusters."
+          "ref": "rolling_upgrade_test.py:102-108",
+          "text": "Raft-enable block skipped on the 2026.1 path: fresh 2026.1 cluster already has SUPPORTS_CONSISTENT_TOPOLOGY_CHANGES enabled."
         }
       ]
     }
