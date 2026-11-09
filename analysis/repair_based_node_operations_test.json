@@ -541,7 +541,8 @@
         "d6035e762a": "file-level: don't restart ignored (banned) nodes in raft topology; re-enabled for raft",
         "b6a7e5dda3": "file-level: temporarily deselected for raft topology (scylladb#17349)",
         "69d73123cb": "file-level: overwrite older --ignore-dead-nodes-for-replace in shared jvm_args",
-        "8d74b87749": "file-level: limited voters adjustments (only after-restart helper)"
+        "8d74b87749": "file-level: limited voters adjustments (only after-restart helper)",
+        "d6abb9eeed": "file-level: helper replace_node_when_two_nodes_dead drops dead gossip-mode restart of ignored nodes (PR #7665); no behavior change in CI."
       },
       "relevance": "Live: ignore_dead_nodes_for_replace (db/config.cc:1463), used by test/pylib ReplaceConfig.",
       "duplicates": [
@@ -557,19 +558,13 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Scenario largely covered by test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes, but dtest has RF=3 user data so RBNO replace repair must skip dead replicas; no data verification though (only log grep). Note: gossip-mode branches (lines 173-177, 200-204, 255-258) are dead in CI (consistent-topology-changes always set in conftest.py:736; force_gossip_topology_changes deprecated). Note: add_node mutates self.tester.jvm_args in place (line 139-146).",
+      "reason": "Scenario largely covered by test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes, but dtest has RF=3 user data so RBNO replace repair must skip dead replicas; no data verification though (only log grep). Note: add_node mutates self.tester.jvm_args in place (line 139-146).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "repair/repair.cc:1252",
           "text": "Only assertion is 'repair_reason=<op>,' log grep; no data check."
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "repair_based_node_operations_test.py:173,196,245",
-          "text": "Gossip-mode branches dead in CI; conftest.py:736 forces consistent-topology-changes."
         },
         {
           "kind": "note",
@@ -595,9 +590,10 @@
         "8d74b87749": "file-level: choose nodes to stop respecting limited voters and topology coordinator",
         "9c6fee3d1c": "file-level: gossip-topology fallback to last 3 nodes",
         "3aeee1cedb": "file-level: deterministic (reversed) node selection instead of random",
-        "f0948609b4": "file-level: ignore dead nodes by host_id"
+        "f0948609b4": "file-level: ignore dead nodes by host_id",
+        "d6abb9eeed": "file-level: helper _get_nodes_to_stop drops dead gossip-mode fallback to last 3 nodes (PR #7665); no behavior change in CI."
       },
-      "relevance": "Live option; #15787 fix (scylla 655d624e01, 6aaa1b0f48) is in gossip join_token_ring path, while CI runs only raft topology (next-dtest-consistent-topology/tablets), so original bug path is not exercised.",
+      "relevance": "Live option (--ignore-dead-nodes-for-replace). #15787 fix (scylla 655d624e01, 6aaa1b0f48) was in the gossip join_token_ring path, now gone from scylla (storage_service.cc has no such block); dtest is raft-only since d6abb9eeed, so the original bug path is not exercised.",
       "duplicates": [
         {
           "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes",
@@ -616,7 +612,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Replace-in-place after full restart with ignored nodes is not covered in scylla tests, but the guarded bug (#15787) was gossip-only and CI is raft-only; only log grep, no data check (RF=1 per DC). Note: docstring wrong ('multi-rack, single-dc'). Note: line 308-309 extends shared self.tester.jvm_args in place. Note: gossip-mode branches (lines 173-177, 200-204, 255-258) are dead in CI (consistent-topology-changes always set in conftest.py:736; force_gossip_topology_changes deprecated).",
+      "reason": "Replace-in-place after full restart with ignored nodes is not covered in scylla tests, but the guarded bug (#15787) was gossip-only and dtest is raft-only; only log grep, no data check (RF=1 per DC). Note: docstring wrong ('multi-rack, single-dc'). Note: line 294-295 extends shared self.tester.jvm_args in place.",
       "issues": [
         {
           "kind": "note",
@@ -635,12 +631,6 @@
           "tag": "other",
           "ref": "repair_based_node_operations_test.py:294-295",
           "text": "Helper extends shared self.tester.jvm_args in place."
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "repair_based_node_operations_test.py:173,196,245",
-          "text": "Gossip-mode branches dead in CI; conftest.py:736 forces consistent-topology-changes."
         }
       ]
     },
@@ -660,9 +650,10 @@
         "9c6fee3d1c": "file-level: gossip-topology fallback to last 3 nodes",
         "3aeee1cedb": "file-level: deterministic (reversed) node selection instead of random",
         "f0948609b4": "file-level: ignore dead nodes by host_id",
-        "7ce002ceb3": "file-level: explicit rack topology in prepare_cluster"
+        "7ce002ceb3": "file-level: explicit rack topology in prepare_cluster",
+        "d6abb9eeed": "file-level: helper _get_nodes_to_stop drops dead gossip-mode fallback to last 3 nodes (PR #7665); no behavior change in CI."
       },
-      "relevance": "--ignore-dead-nodes-for-replace live; #15787 (closed) fix was in gossip join_token_ring path, CI runs raft topology only (next-dtest-consistent-topology/tablets).",
+      "relevance": "--ignore-dead-nodes-for-replace live; #15787 fix (scylla 655d624e01, 6aaa1b0f48) was in the gossip join_token_ring path, now gone from scylla (storage_service.cc has no such block); dtest is raft-only since d6abb9eeed, so the original bug path is not exercised.",
       "duplicates": [
         {
           "path": "test/cluster/test_raft_ignore_nodes.py::test_raft_replace_ignore_nodes",
@@ -681,7 +672,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Near-duplicate of the _multi_dc variant (same helper replace_node_when_two_nodes_dead_after_cluster_restart, only topology differs); guarded bug #15787 was gossip-only while CI is raft-only; only log grep, no data verification. Note: helper extends shared self.tester.jvm_args in place (repair_based_node_operations_test.py:294-295). Note: gossip-mode branches in helpers are dead in CI (conftest.py:736 forces consistent-topology-changes).",
+      "reason": "Near-duplicate of the _multi_dc variant (same helper replace_node_when_two_nodes_dead_after_cluster_restart, only topology differs); guarded bug #15787 was gossip-only while dtest is raft-only; only log grep, no data verification. Note: helper extends shared self.tester.jvm_args in place (repair_based_node_operations_test.py:294-295).",
       "issues": [
         {
           "kind": "note",
@@ -694,12 +685,6 @@
           "tag": "other",
           "ref": "repair_based_node_operations_test.py:294-295",
           "text": "Helper extends shared self.tester.jvm_args in place."
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "repair_based_node_operations_test.py:173,196,245",
-          "text": "Gossip-mode branches dead in CI; conftest.py:736 forces consistent-topology-changes."
         }
       ]
     },
@@ -871,7 +856,7 @@
         "0a349c5a41": "file-level: removed checks for closed issues",
         "45e0149c79": "file-level: drop deprecated replace_address"
       },
-      "relevance": "Live behavior; #15787 (closed) fix was gossip join path, CI runs raft only. Raft replace with same IP after full restart still meaningful.",
+      "relevance": "Live behavior; #15787 (closed) fix was in the gossip join path, now gone from scylla; dtest is raft-only since d6abb9eeed. Raft replace with same IP after full restart still meaningful.",
       "duplicates": [
         {
           "path": "test/cluster/test_replace.py::test_replace_reuse_ip",
@@ -890,19 +875,13 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap (test_replace_reuse_ip, and the _multi_dc/_multi_rack dtests which do full restart + in-place replace plus ignored nodes); guarded bug was gossip-only; assertion is a log grep only, no data verification. Note: gossip-mode branches in helpers are dead in CI (conftest.py:736 forces consistent-topology-changes).",
+      "reason": "Partial overlap (test_replace_reuse_ip, and the _multi_dc/_multi_rack dtests which do full restart + in-place replace plus ignored nodes); guarded bug was gossip-only; assertion is a log grep only, no data verification.",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "repair/repair.cc:1252",
           "text": "Only assertion is 'repair_reason=<op>,' log grep; no data check."
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "repair_based_node_operations_test.py:173,196,245",
-          "text": "Gossip-mode branches dead in CI; conftest.py:736 forces consistent-topology-changes."
         }
       ]
     },
