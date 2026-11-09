@@ -1,13 +1,17 @@
 ---
 name: weekly
-description: Weekly triage update - refresh Jenkins/dtest/scylla, mark deleted tests, recheck tests affected by new dtest commits, closed issues or scylla ports, analyze new tests, close Jira issues of deleted tests. Use when asked for the weekly update/refresh or "what changed in dtest".
+description: Weekly triage update - refresh Jenkins/dtest/scylla, mark deleted tests, recheck tests affected by new dtest commits, closed issues or scylla ports, analyze new tests, close Jira issues of deleted or no-longer-RED tests. Use when asked for the weekly update/refresh or "what changed in dtest".
 ---
 
 Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
 
 1. Sync: `git pull --rebase -q`, `scripts/refresh.sh` (Jenkins CSVs, fetch dtest `next` + scylla `master`,
-   `gen_data.py`; takes minutes). Auth/login errors → ask the user to fix.
-   Commit: `git add jenkins data cache && git commit -m "data: refresh <date>"`.
+   `gen_data.py`; takes minutes). Auth/login errors → ask the user to fix. `gen_data.py` also moves analysis
+   `<dtest file>.py:N` refs to the new dtest rev and prints `check <file>:<old> → <new>` for refs that pointed at
+   changed/deleted code: the entries citing them get rechecked in step 5 (notes about removed code), even if
+   `delta.py` doesn't list them.
+   Commit: `git add jenkins data cache && git commit -m "data: refresh <date>"`, then
+   `git commit -m "analysis: line refs <date>" analysis/` if it changed.
 2. `python3 scripts/delta.py --apply > $T/delta.txt`. It writes DELETED entries and bumps the revs of modules with
    nothing else to recheck. Line 1: `# dtest_rev <D> scylla_rev <S>`; the rest: `<module> <key> <KIND> <detail>`
    (kinds in the script docstring). Many DELETED in one module = suspect (rename/move): check before committing
@@ -31,9 +35,10 @@ Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
    `python3 scripts/groups.py` must pass: map new modules / fix stale overrides in `groups.json` (CLAUDE.md "Review
    groups"), `git commit -m "groups: <what>" groups.json`.
    Then `git pull --rebase -q && git push -q`.
-8. Jira: `python3 scripts/jira_sync.py` (dry run) lists sub-tasks of DELETED tests to close (comment = deleting
-   commit/PR) and parent tasks whose sub-tasks are then all done. Check the CLOSE lines, then `--apply`.
-   SKIP = key also on a live test (e.g. MOVED copy): leave it open, report it.
+8. Jira: `python3 scripts/jira_sync.py` (dry run; rules in its docstring) lists issues to close: DELETED tests →
+   Done, `dtest-red` issues whose tests are no longer RED → Won't Fix, parents with all sub-tasks done → Done. Check
+   the CLOSE lines, then `--apply` (auto mode blocks Jira writes: hand the user `! python3 scripts/jira_sync.py
+   --apply`). SKIP = key still on a RED/live test (e.g. MOVED copy): leave it open, report it.
 9. Reply: decision changes (test, old → new, why), DELETED tests (with their previous decision), new tests
    analyzed, Jira issues closed, items for a human (MOVED, `*` ports, dropped HELPER lines, new `groups.json`
-   mappings, Jira SKIP lines).
+   mappings, Jira SKIP lines, new RED tests without `jira`: offer to open sub-tasks per CLAUDE.md "Jira format").

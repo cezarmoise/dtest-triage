@@ -12,7 +12,8 @@ Repo: https://github.com/cezarmoise/dtest-triage (this repo, `~/github/dtest-tri
 
 ```
 scripts/test_results.py   # Jenkins → jenkins/<job>_long.csv (merges new builds, keeps newest 50)
-scripts/gen_data.py       # jenkins/*_long.csv + dtest git + gh → data/<module>.json, data/index.json
+scripts/gen_data.py       # jenkins/*_long.csv + dtest git + gh → data/<module>.json, data/index.json;
+                          #   moves analysis `file.py:N` refs when the dtest rev changes
 cache/prs.json            # sha → PR {number,title} | null
 jenkins/                  # raw Jenkins CSVs
 data/                     # generated, overwritten on refresh
@@ -21,7 +22,7 @@ analysis/<module>.json    # LLM analysis (per-file subagent, .claude/skills/anal
 scripts/refresh.sh        # Jenkins CSVs (jobs below) + fetch dtest next / scylla master + gen_data.py
 scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scylla_rev; --apply marks DELETED
 .claude/skills/weekly/    # /weekly skill: refresh → delta → recheck subagents → commit
-scripts/jira_sync.py      # closes Jira sub-tasks of DELETED tests, then parents with all sub-tasks done
+scripts/jira_sync.py      # closes Jira issues of DELETED / no-longer-RED tests, then parents with all sub-tasks done
 groups.json               # test → review group (Jira component, team, reviewers); for opening Jira issues
 scripts/groups.py         # validates groups.json, prints tests per team/group
 ```
@@ -83,7 +84,8 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
 ```
 Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the Jenkins window.
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
-(other repos, several paths). `issues.ref` = file:line, sha, issue link or "". Tags: prompt.md step 7
+(other repos, several paths). `issues.ref` = file:line, sha, issue link or "". dtest `file.py:N` refs (in any text
+field) are at data `rev`: `gen_data.py` moves them when it changes. Tags: prompt.md step 7
 (enforced by `check_analysis.py` TAGS). `jira`: set only when filing issues; the analyze subagents never add, change or
 drop it, and `check_analysis.py` fails if a key committed at `HEAD` is dropped. A grouped issue = same key on each test.
 
@@ -183,8 +185,8 @@ Review group: <group> (<team>), reviewers: <names>
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
 - A test that already has `jira`: don't open another issue unless the user says so (then replace the key).
-- Deleted tests: `/weekly` runs `scripts/jira_sync.py` (sub-task of a DELETED test → Done, then its parent once all
-  its sub-tasks are done).
+- `/weekly` runs `scripts/jira_sync.py`: DELETED test → Done; `dtest-red` issue whose tests are no longer RED →
+  Won't Fix; parent → Done once all its sub-tasks are done. A test that turns RED again keeps its closed key.
 - After creating: set `"jira": "<key>"` on every test the issue covers in `analysis/<module>.json`, run
   `scripts/check_analysis.py <module>`, commit `git commit -m "jira: <keys>" analysis/`, push. The dashboard shows it
   after **Reload data**.
