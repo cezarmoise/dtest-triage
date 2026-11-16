@@ -1,8 +1,8 @@
 {
   "file": "cql_additional_tests.py",
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "f35ad40c9d",
-  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "9d19bc68f8",
+  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
   "tests": {
     "TestCQL::test_aggregate_and_simple_selection_together": {
       "description": "Single node, table (a pk, c ck, b). Inserts 4 rows; asserts `SELECT sum(c), avg(b), min(c), a ... WHERE b>2 ALLOW FILTERING` == [[25,6,6,2]] (aggregates mixed with a simple selector + filtering on a regular column) and `SELECT count(c), max(b) WHERE a=3` == [[2,8]]. Guards scylla#4447 (allow aggregate and simple selectors together) and #3803 (filtering when restricted column not in select).",
@@ -1921,7 +1921,7 @@
       ]
     },
     "TestCQL::test_cql_timeout_non_zero_value": {
-      "description": "Single node; runs cassandra-stress write for 15s in background, waits for keyspace1.standard1, verifies a full BYPASS CACHE scan takes >2ms, then asserts the same scan with USING TIMEOUT 2ms raises ReadTimeout (retried up to 8 times). Guards that a positive non-zero USING TIMEOUT is honored.",
+      "description": "Single node with max_memory_for_unlimited_query_soft_limit raised to 64MB; inserts 50k rows (200-byte blobs, ~10MB) via the driver and flushes, verifies an unpaged BYPASS CACHE full scan takes >2ms (retried up to 8 times), then asserts the same unpaged scan with USING TIMEOUT 2ms raises ReadTimeout (retried up to 8 times if it doesn't raise). Guards that a positive non-zero USING TIMEOUT is honored.",
       "origin": {
         "sha": "4dd50c8fad",
         "date": "2021-04-05",
@@ -1929,6 +1929,7 @@
         "summary": "Yaron Gilor: Test a non-zero CQL TIMEOUT value (data JSON PR 2304 is a backport PR)"
       },
       "commits": {
+        "679a4c7a02": "dropped background c-s and the wait for keyspace1.standard1; now fills ks.t with 50k rows via driver, flushes, scans unpaged; raised unlimited-query soft limit; removed stale 10ms comments",
         "ef5538a11f": "wait for keyspace1.standard1 creation before querying (flakiness)",
         "6f303700c6": "added use_cassandra_stress mark",
         "d0329c5b99": "dropped capture_output from stress call",
@@ -1938,7 +1939,7 @@
         "8977a323ba": "node.stress() result via format_cs_output",
         "4dd50c8fad": "origin: added test"
       },
-      "relevance": "Live: USING TIMEOUT.",
+      "relevance": "Live: USING TIMEOUT; max_memory_for_unlimited_query_soft_limit (db/config.cc).",
       "duplicates": [
         {
           "path": "test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective",
@@ -1952,21 +1953,8 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Timing-dependent (needs scan >2ms), slow (~39s, c-s), history of flakiness fixes (5c25c09970, ef5538a11f); timeout enforcement covered by cqlpy test_using_timeout.py (0ms) and test/cluster/test_long_query_timeout_erm.py (non-zero). Candidate RED. Note: stale comments say 10ms (cql_additional_tests.py:6542) after 5c25c09970 changed to 2ms; lines after session.execute inside pytest.raises (duration log) are dead.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "stale-comment",
-          "ref": "cql_additional_tests.py:6542",
-          "text": "comments say 10ms after 5c25c09970 changed timeout to 2ms"
-        },
-        {
-          "kind": "note",
-          "tag": "dead-code",
-          "ref": "cql_additional_tests.py:6555",
-          "text": "duration-log lines after session.execute inside pytest.raises never run"
-        }
-      ]
+      "reason": "Partial overlap only: timeout enforcement covered by cqlpy test_using_timeout.py (0ms) and test/cluster/test_long_query_timeout_erm.py (non-zero, error injection, non-release modes only); a real non-zero timeout firing in release isn't covered elsewhere. Still timing-dependent (needs a scan >2ms); 679a4c7a02 replaced the background c-s load with a ~10MB unpaged scan (faster, no c-s), so the earlier slow/flaky \"Candidate RED\" no longer holds.",
+      "issues": []
     },
     "TestCQL::test_cql_versions_collections": {
       "description": "Single node, protocol v4 only (range(4,5)). Creates table with list/map/set columns, inserts 4 rows of collection literals, checks values read back. Originally exercised collections across CQL protocol versions 1-3.",
