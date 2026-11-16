@@ -1,0 +1,404 @@
+{
+  "file": "manager_task_tests.py",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "23b25198d1",
+  "dtest_rev": "dfc6a74a09bee7ab4baca83aa8215385f6eb7314",
+  "tests": {
+    "TestScyllaManagerTask::test_basic_task_naming": {
+      "description": "Adds a 2-node cluster to Scylla Manager, creates a repair with `--name totally_original_name`, waits for DONE (wait_and_get_final_status, dtest_scylla_manager.py:1271, 600s) and checks the start time from RepairTask.start_time (dtest_scylla_manager.py:1206) appears in `sctool progress repair/<name>` output. Guards Manager 3.0 task naming: a named task can be addressed as type/name (managerclient taskByName). sctool prints `repair/<name>` as the task id (managerclient TaskID, v3/pkg/managerclient/utils.go:54), so both lookups go by name.",
+      "origin": {
+        "sha": "b1bbff717de846286b4d23394a7f02ad736c980c",
+        "date": "2022-03-13",
+        "pr": 2656,
+        "summary": "Manager 3.0 naming tests: basic naming, same name in two clusters, status by task type"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "b1bbff717d": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live Manager feature (manager 9ef99661c): `--name` flag, server-side name uniqueness (pkg/service/scheduler/resolver.go), client lookup by name (v3/pkg/managerclient/client.go taskByName). Not scylla server behavior; nothing in scylladb test/ (only unrelated mentions of Manager). No other dtest creates named tasks (grep of repair/backup/restore calls with name=, upstream/next).",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Only test of addressing a named task with `sctool progress repair/<name>`; no manager 9ef99661c test covers the client name lookup (sctool command tests only use UUIDs). Note: RepairTask.id is already `repair/<name>`, so start_time also runs progress by name and the 'by ID vs by name' assert compares the same command; name lookup failures still raise via SCTool.run.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_task_tests.py:105-110",
+          "text": "start_time (dtest_scylla_manager.py:1206) also runs progress repair/<name>; 'by ID' vs by-name compare is name vs name; lookup still checked"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_same_task_name_two_different_clusters": {
+      "description": "Starts a 2-node cluster and a second 2-node ccm cluster (secondary_cluster fixture, dtest_scylla_manager.py:1907, no own manager server), adds both to the same Manager (add_cluster, _create_mgr_cluster dtest_scylla_manager.py:1889) and creates a repair named `totally_original_name` in each. Passes if both `sctool repair --name` calls succeed (repair_api.repair raises ScyllaManagerError on sctool failure). Guards that task-name uniqueness is per cluster (resolver key ClusterID+type+name).",
+      "origin": {
+        "sha": "b1bbff717de846286b4d23394a7f02ad736c980c",
+        "date": "2022-03-13",
+        "pr": 2656,
+        "summary": "Manager 3.0 naming tests: basic naming, same name in two clusters, status by task type"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2 for both clusters",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "9ffd273f04": "formatting",
+        "b1bbff717d": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): shouldPutTask rejects only a name already used for the same cluster and type (pkg/service/scheduler/service.go:395-411, resolver.go:11-30). Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No manager 9ef99661c test creates same-named tasks in two clusters: 'put task name conflict' (service_integration_test.go:343) checks only one cluster; resolver_test.go has no two-cluster case. Note: the explicit `.id` assert is inert; the real check is that repair() doesn't raise.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_task_tests.py:129",
+          "text": "assert on repair_task_cluster2.id can't fail once repair() returned (id = printed repair/<name>); real check is repair() not raising"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_two_repairs_by_the_same_name": {
+      "description": "Creates a repair named `absolutely_absurd_name-2`, then a second repair with the same name in the same cluster, and expects ScyllaManagerError whose args[0] contains 'already used' and 'task name' (Manager error 'task name %s is already used', pkg/service/scheduler/service.go:406). args[0] is built by SCTool.run (dtest_scylla_manager.py:838-839) from ccm's exception, which carries sctool stderr; no exception -> explicit raise.",
+      "origin": {
+        "sha": "9103daa13b272e587c467629c6e6f3962eedc1e6",
+        "date": "2022-03-17",
+        "pr": 2665,
+        "summary": "Manager 3.0 naming tests: duplicate name, name of another task type, name of a deleted task"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "9103daa13b": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): service.go:403-407 rejects a name already used by another task of the same type in the cluster. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/put task name conflict",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :343-365: second PutTask of a same-type task named 'foo' is rejected; accepts any error, service level, no REST/sctool"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The rule itself (same type+name in one cluster rejected) is covered by manager 9ef99661c 'put task name conflict'; the dtest adds only the error text and the REST/sctool path, on a 2-node cluster (~79s). Not full coverage, so second opinion.",
+      "issues": []
+    },
+    "TestScyllaManagerTask::test_repair_by_the_same_name_as_different_task_type": {
+      "description": "Reads `sctool tasks` (get_task_list, dtest_scylla_manager.py:1775), picks a random healthcheck task name (cql, rest or alternator) and creates a repair with that name, expecting success. Guards that task names are scoped per task type (resolver key includes TaskType). The only real check is that repair_api.repair doesn't raise.",
+      "origin": {
+        "sha": "9103daa13b272e587c467629c6e6f3962eedc1e6",
+        "date": "2022-03-17",
+        "pr": 2665,
+        "summary": "Manager 3.0 naming tests: duplicate name, name of another task type, name of a deleted task"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "9ffd273f04": "formatting",
+        "9103daa13b": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): resolver key ClusterID+TaskType+TaskName (pkg/service/scheduler/resolver.go:11-30, 72-81); healthcheck tasks named cql/rest/alternator. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "No manager 9ef99661c test creates a task reusing another type's name ('put task name conflict' uses the same type). Note: the `.id` assert is inert; the check is that repair() doesn't raise.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_task_tests.py:169",
+          "text": "assert repair_task.id can't fail once repair() returned; real check is repair() not raising"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_create_task_by_the_same_name_of_deleted_task": {
+      "description": "Creates a repair named `47_incredibly_unbelievable_name`, deletes it (delete_task, dtest_scylla_manager.py:993: `sctool stop --delete`, stderr checked) and creates a new repair with the same name, re-raising any ScyllaManagerError with context. Guards that deleting a task frees its name (resolver.Remove, resolver.go:58-65).",
+      "origin": {
+        "sha": "9103daa13b272e587c467629c6e6f3962eedc1e6",
+        "date": "2022-03-17",
+        "pr": 2665,
+        "summary": "Manager 3.0 naming tests: duplicate name, name of another task type, name of a deleted task"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "0763445690": "replaced old-vs-new task ID inequality assert (sctool now prints the name, not the ID) with a check that re-creation doesn't error",
+        "9103daa13b": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): delete removes the task from the resolver (resolver.go:58-65), so its name can be reused. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/command/stop/cmd_integration_api_test.go::TestDeletedTaskIntegrationAPITest",
+          "coverage": "partial",
+          "note": "manager 9ef99661c: deletes an unnamed repair and checks GetTask fails; no name, no re-creation"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of re-using a deleted task's name; manager 9ef99661c covers delete itself (TestDeletedTaskIntegrationAPITest) but not name reuse. A stale name entry would make the second `sctool repair` fail with 'already used', which the test catches.",
+      "issues": []
+    },
+    "TestScyllaManagerTask::test_check_status_by_task_type_single_task": {
+      "description": "Adds the cluster with the default weekly repair (without_repair=False -> repair/all-weekly, cron '0 23 * * SAT'), runs `sctool progress repair` with only the task type and asserts the second output line is 'Status: NEW'. Guards sctool resolving a type-only reference to the single task of that type (managerclient TaskSplit + uniqueTaskID, v3/pkg/managerclient/client.go:390).",
+      "origin": {
+        "sha": "b1bbff717de846286b4d23394a7f02ad736c980c",
+        "date": "2022-03-13",
+        "pr": 2656,
+        "summary": "Manager 3.0 naming tests: basic naming, same name in two clusters, status by task type"
+      },
+      "commits": {
+        "72cf8c8e6d": "opts back into the default repair/all-weekly task (without_repair=False) after add_cluster switched to --without-repair",
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "b1bbff717d": "origin: test added"
+      },
+      "relevance": "Live (manager 9ef99661c): TaskSplit accepts a bare type (v3/pkg/managerclient/utils.go:26-30), uniqueTaskID returns the single task or an ambiguity error. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/managerclient/utils_test.go::TestTaskSplit",
+          "coverage": "partial",
+          "note": "manager 9ef99661c: parses 'repair' as type with nil ID; uniqueTaskID lookup and progress output not tested"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end test of type-only task references; manager 9ef99661c only unit-tests the string split (TestTaskSplit), not the single-task lookup. Note: depends on repair/all-weekly still being NEW, so a run overlapping its Saturday 23:00 cron would fail.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "manager_task_tests.py:199-202",
+          "text": "Relies on repair/all-weekly (cron 0 23 * * SAT) being NEW; a run overlapping that fire time sees RUNNING"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_odd_number_of_time_window_indicators": {
+      "description": "Creates a repair with `--window` of three HH:MM points and expects ScyllaManagerError whose args[0] contains 'must be even' and 'malformed'. The server rejects it when decoding the task (Window.UnmarshalJSON -> NewWindow 'number of points must be even', pkg/scheduler/window.go:156-157) and the REST layer wraps it as 'malformed request' (pkg/restapi/error.go:28-31, task.go createTask/parseTask); sctool exits non-zero.",
+      "origin": {
+        "sha": "08431ca9b23141cdfd9695148669421ba8b16fc5",
+        "date": "2022-03-14",
+        "pr": 2661,
+        "summary": "Manager 3.0 window tests: run in window, suspend between windows, odd number of points (then any error accepted)"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "54aa78c397": "except branch now asserts the error text ('must be even' and 'malformed') instead of accepting any error",
+        "08431ca9b2": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): window validation in pkg/scheduler/window.go:152-158, JSON validation pkg/service/scheduler/model.go:124-135. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/window_test.go::TestWindowValidate",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, case 'Odd nr. of instances' (:234-241): NewWindow error is exactly 'number of points must be even'; REST wrapper and sctool not tested"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The validation and its message are unit-tested in manager 9ef99661c TestWindowValidate; the dtest adds only the REST 'malformed request' wrapping and sctool's failure, using a 2-node cluster (~78s) for an input check. Partial, so second opinion.",
+      "issues": []
+    },
+    "TestScyllaManagerTask::test_task_run_on_time_window_with_ascending_timestamps": {
+      "description": "Builds the window `HH:MM(now+4m),HH:MM(now+12m)` (local time) and runs the template: create a repair with `--window`, wait_and_get_final_status(timeout=800, step=5) (dtest_scylla_manager.py:1271; raises on timeout) and assert DONE. The docstring claims it checks the task waits for the window and runs in it (Manager 3.0 maintenance windows).",
+      "origin": {
+        "sha": "08431ca9b23141cdfd9695148669421ba8b16fc5",
+        "date": "2022-03-14",
+        "pr": 2661,
+        "summary": "added as test_task_run_on_time_window (+2..+12 min, timeout 740s); split into template + ascending/descending in 76db78e853 (PR 2666)"
+      },
+      "commits": {
+        "76db78e853": "body moved into _template_task_run_on_time_window_with_ascending_timestamps; window start +2 -> +4 min, timeout 740 -> 800s",
+        "4d258d5712": "template: pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "template: config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster",
+        "08431ca9b2": "origin: test_task_run_on_time_window added"
+      },
+      "relevance": "Live (manager 9ef99661c): windows in pkg/scheduler/window.go, applied at scheduling (scheduler.go:214-235, w.Next). Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/task out of maintenance window",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :1807-1860: task with an EachDay window runs, goes WAITING when it closes, runs in the next window, DONE; mock runner, no sctool"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/scheduler_test.go::TestWindow",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :630-661: function runs only inside two short windows (run count 2)"
+        },
+        {
+          "path": "manager_task_tests.py::TestScyllaManagerTask::test_use_different_timezone",
+          "coverage": "partial",
+          "note": "same create-with-window + wait-for-DONE check (+2..+12 min), plus --timezone"
+        },
+        {
+          "path": "manager_task_tests.py::TestScyllaManagerTask::test_task_run_on_time_window_with_descending_timestamps",
+          "coverage": "partial",
+          "note": "same template; only the window end differs, which the DONE check can't observe"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: only asserts eventual DONE within 800s, so it passes if --window is ignored and the repair runs at once; it can't catch its stated target. Window scheduling is covered in manager 9ef99661c (TestWindow, 'task out of maintenance window'), and test_use_different_timezone repeats the same check (218s run).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_task_tests.py:225-227",
+          "text": "Only waits for DONE (800s); passes if --window ignored and task runs immediately; no NEW-before-window or start-time check"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_task_run_on_time_window_with_descending_timestamps": {
+      "description": "Builds the window `HH:MM(now+4m),HH:MM(now-50m)` (end before begin) and runs the same template (repair with `--window`, wait DONE within 800s). Manager treats an each-day slot with End < Begin as overnight, ending the next day (pkg/scheduler/window.go:140-143, support added in Manager 9a68c7564), so the window opens at now+4m as in the ascending test.",
+      "origin": {
+        "sha": "76db78e85311035fa892d94e1a915961816695c6",
+        "date": "2022-03-17",
+        "pr": 2666,
+        "summary": "added test for a task with a reversed time window; extracted the shared template"
+      },
+      "commits": {
+        "76db78e853": "origin: test added; template extracted (window start +4 min, timeout 800s)",
+        "4d258d5712": "template: pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "template: config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster",
+        "08431ca9b2": "template origin: test_task_run_on_time_window body"
+      },
+      "relevance": "Live (manager 9ef99661c): End < Begin windows expanded in window.go:130-146 and joined in joinSlots. Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/window_test.go::TestWindowParse/overnight",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :195: '23:00,06:00' parses to golden overnight slots; Window.Next on End<Begin slots not tested (TestWindowNext uses Begin<End)"
+        },
+        {
+          "path": "manager_task_tests.py::TestScyllaManagerTask::test_task_run_on_time_window_with_ascending_timestamps",
+          "coverage": "partial",
+          "note": "same template and DONE check; both windows open at now+4m, only the end differs"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Bug: the DONE-only check passes if the window is ignored or the reversed window is misread as the currently open now-50..now+4 gap; what it observes is identical to the ascending test (218s each). Reversed-window parsing is covered by manager 9ef99661c TestWindowParse 'overnight'. Note: the template is named 'ascending'; started 00:00-00:50 the window isn't reversed.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_task_tests.py:225-227",
+          "text": "Only waits for DONE; passes if window ignored or reversed window misread as open now; no start-time check"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_task_tests.py:210",
+          "text": "Descending case runs _template_task_run_on_time_window_with_ascending_timestamps"
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "manager_task_tests.py:236",
+          "text": "Started 00:00-00:50 local, now-50m maps to a later HH:MM, so the window is ascending, not reversed"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_time_window_while_and_after_manager_is_suspended": {
+      "description": "Creates a one-shot repair with windows W1=[opens, +1m] and W2=[+2m, +4m] (opens = next minute boundary at least 15s ahead), suspends the cluster in Manager at once, sleeps to W1 end + 10s, resumes (`sctool resume --start-tasks`, dtest_scylla_manager.py:1871), asserts the resume came before W2 and the status is NEW (didn't run in W1), then waits for RUNNING/DONE (wait_for_status dtest_scylla_manager.py:1254, 600s, raises on timeout). Reproducer of scylla-manager#3083 (task with a future window never ran after resume), fixed by Manager e001ce7b8 (needsOneShotRun, service.go:809).",
+      "origin": {
+        "sha": "08431ca9b23141cdfd9695148669421ba8b16fc5",
+        "date": "2022-03-14",
+        "pr": 2661,
+        "summary": "Manager 3.0 window tests; this one found scylla-manager#3083 (filed by the author 2022-04, fixed e001ce7b8)"
+      },
+      "commits": {
+        "d9e0bc134d": "W1 opens at next minute boundary >=15s ahead (+0..+1), W2 +2..+4; ~1 min shorter",
+        "ab656b62e5": "W2 +5..+7 -> +4..+6; fixed 200s sleep replaced by sleep to W1 end + 10s; added resume-before-W2 assert",
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "08431ca9b2": "origin: test added",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): suspend/resume (pkg/service/scheduler/service_suspend.go:172, 339); on resume a never-run one-shot task with a window is rescheduled (shouldStartTaskOnResume :406 -> needsOneShotRun service.go:809-814), and the window defers it to W2 (scheduler.go:221). Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/suspend and resume",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :1152-1230: running/future tasks don't run while suspended, --start-tasks restarts stopped ones; no window or one-shot window task"
+        },
+        {
+          "path": "manager_suspension_test.py::TestScyllaManagerSuspension::test_schedule_task_to_run_while_suspended",
+          "coverage": "partial",
+          "note": "cron task doesn't run while suspended and stays NEW after resume; no window, opposite expectation after resume"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of a one-shot --window task resumed between windows (scylla-manager#3083; fix e001ce7b8 added no Manager test). The NEW assert and the raising wait_for_status catch both running while suspended and never running after resume. Note: no check that the run starts inside W2.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_task_tests.py:263-265",
+          "text": "No start-time >= W2 check; a run started at resume, outside the windows, passes unless seen before the NEW read"
+        }
+      ]
+    },
+    "TestScyllaManagerTask::test_use_different_timezone": {
+      "description": "Picks Australia/Sydney (Pacific/Fiji if the host's local tz equals Sydney), builds the window `HH:MM(now+2m),HH:MM(now+12m)` on that tz's wall clock, creates a repair with `--window ... --timezone <tz>` (repair_api.repair, dtest_scylla_manager.py:520-584, raises on sctool error), waits for a final status within 740s (wait_and_get_final_status, dtest_scylla_manager.py:1271-1282, raises on timeout) and asserts DONE. Guards Manager 3.0's `--timezone` (timezone of --cron/--window values) being applied to the window.",
+      "origin": {
+        "sha": "54aa78c3972d9f8ec8bd0f6c930b1c0557a2859c",
+        "date": "2022-03-14",
+        "pr": 2661,
+        "summary": "test added with the Manager 3.0 scheduling tests; same commit added the `timezone` param to the repair/backup API helpers (PR rebase-merged, merge commit = this sha)"
+      },
+      "commits": {
+        "4d258d5712": "pass generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of 2",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology= (still 2 nodes)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "54aa78c397": "origin: test added; `timezone` -> `--timezone` added to repair_api.repair",
+        "08431ca9b2": "predates the test: added _create_time_window_string_from_time (manager_task_tests.py:204-208) and test_task_run_on_time_window, whose +2..+12 min / 740s check this test copies",
+        "72cf8c8e6d": "file: add_cluster now passes --without-repair by default (dtest_scylla_manager.py:740, dtest_scylla_manager.py:803), so no repair/all-weekly task in the cluster"
+      },
+      "relevance": "Live (manager 9ef99661c): `--timezone` = 'Timezone of --cron and --window flag values' (pkg/command/flag/task.yaml:28-29), validated by time.LoadLocation (flag/type.go:161-168), default client local tz (flag/task.go:34); stored as schedule.timezone, passed as Details.Location (service/scheduler/details.go:15); Scheduler.Schedule moves now into it (scheduler.go:111-115) and WeekdayTime.Next is location-aware (window.go:90-104); without a Location the service clock is UTC (service/scheduler/now.go:7). Not scylla server behavior; nothing in scylladb test/.",
+      "duplicates": [
+        {
+          "path": "manager_task_tests.py::TestScyllaManagerTask::test_task_run_on_time_window_with_ascending_timestamps",
+          "coverage": "partial",
+          "note": "same create-with-window + wait-for-DONE check (+4..+12 min, 800s), local tz, no --timezone"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/window_test.go::TestWeekdayTimeNext/daylight savings time",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :76-84: WeekdayTime.Next computed in Australia/Sydney (DST); unit-level, no scheduler, sctool or cluster"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/scheduler_test.go::TestReschedule/preserve cron timezone on task reschedule",
+          "coverage": "partial",
+          "note": "manager 9ef99661c, :860-920: Details.Location (UTC+5) decides activation time; cron trigger, no window, fake runner"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end test of --timezone with a window: dropping the timezone (sctool default local tz, flag/task.go:34; scheduler uses d.Location only if set, scheduler.go:111-115 at manager 9ef99661c) moves the window ~10h and fails the 740s wait. Manager covers only the primitives (TestWeekdayTimeNext Sydney case, TestReschedule cron tz, mock runner). Note: DONE-only check would pass if --window itself were ignored; no start-time check.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_task_tests.py:304-306",
+          "text": "Only waits for DONE (740s): catches a dropped --timezone (window ~10h off) but not an ignored --window; no start-time check"
+        }
+      ]
+    }
+  }
+}
