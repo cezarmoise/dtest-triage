@@ -31,6 +31,8 @@ For EACH of those tests:
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
    Harness/driver-only tests stay YELLOW; cqlsh tests ported to scylla-cqlsh count as full coverage.
+   `manager_*` tests: scylla-manager integration tests against real Scylla count as scylla tests (full → RED);
+   service-level ones with a mock runner are partial. Path: `scylla-manager@<short sha> <path>::<test>`.
    Every YELLOW/RED needs concrete evidence (paths, shas, issue links). Don't guess — if unsure, YELLOW.
 7. Issues found in the test or its helpers (class-level issues apply to every test of the class): list each in
    `issues` as `{"kind", "tag", "ref", "text"}` (ref = file:line, sha or issue link; text ≤ ~25 words), and mention
