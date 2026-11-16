@@ -1,0 +1,302 @@
+{
+  "file": "manager_health_check_tests.py",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "23b25198d1",
+  "dtest_rev": "dfc6a74a09bee7ab4baca83aa8215385f6eb7314",
+  "tests": {
+    "TestManagerHealthCheck::test_auto_gen_cql_health_check_task": {
+      "description": "Starts a 2-node cluster (1 rack), adds it to Scylla Manager and reads the auto-created healthcheck/cql task from `sctool tasks` (_template_auto_gen_health_check_task, manager_health_check_tests.py:52). Asserts its Next run is less than the default interval away (15s for manager < 3.7.0-dev, else 60s) and its status is not ERROR. Guards Manager's auto-creation of the CQL healthcheck task on cluster add; no scylla bug.",
+      "origin": {
+        "sha": "cc96ff4d48892a2ad9987006067168344a56c525",
+        "date": "2019-05-29",
+        "pr": 1064,
+        "summary": "Added Manager basic health check test (nose auto_gen_health_check_task_test: '+15s' in next run, status not ERROR); landed via PR 1064 'A large amount of manager repair tests', merged 2019-10-24"
+      },
+      "commits": {
+        "cc96ff4d48892a2ad9987006067168344a56c525": "origin: 2-node cluster, '+15s' in healthcheck next_run, status not ERROR",
+        "3b79a6f9005aad39c55be87c45fa812d0d4cd5d8": "class gets ScyllaManagerMixin; test body unchanged",
+        "c10e29f988215920a677b91edb167c441d429e33": "uses mixin config_and_create_cluster(nodes=2) instead of local create_x_nodes_cluster",
+        "18b6d6e05a649560d36f901ff3e74ff954bc7f38": "pytest port: renamed to test_auto_gen_health_check_task",
+        "a81a8b44e718a1ea9004895c453dff60fa1a309d": "manager 3.0 CLI: renamed to test_auto_gen_cql_health_check_task, body moved to _template_auto_gen_health_check_task; next-run seconds parsed and checked < 15",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "a076c0741924043c1671df9dde62d1df4730c0b4": "file-level (template): next_run parsed as datetime; check becomes (next_run - now).seconds < interval",
+        "f5057ccd0bf5c2d37a09421ff4b22d6722552a01": "file-level (template): default interval 60s for manager >= 3.7.0-dev (manager PR #4466 per-minute cron), 15s before",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "file-level (template): config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "file-level (template): explicit 1-dc/1-rack/2-node topology"
+      },
+      "relevance": "Live: Manager master still auto-creates healthcheck/cql, /rest and /alternator tasks on cluster add (scylla-manager@9ef99661c pkg/cmd/scylla-manager/tasks.go:31, server.go onClusterChange) with default cron '* * * * *' (pkg/service/healthcheck/config.go DefaultConfig); no immediate run on creation, the task stays NEW until the next minute. Scylla is only the managed cluster; nothing scylla-specific is checked.",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_auto_gen_health_check_alternator_task",
+          "coverage": "partial",
+          "note": "same template, setup and asserts on the healthcheck/alternator row"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "get_healthcheck_task() raises if the healthcheck/cql row is missing; reads history, no interval/status check"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go (subtest 'update healthcheck tasks')",
+          "coverage": "partial",
+          "note": "puts tasks with healthcheck.DefaultConfig() crons and updates them; not the auto-creation on cluster add"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of the healthcheck/cql task auto-created on cluster add (scylla-manager tasks.go:31); no full duplicate. Bug: status is read right after add_cluster while the per-minute task is still NEW, so the not-ERROR assert can't see a failed healthcheck. Note: the next-run check (< 60s) is only an upper bound.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_health_check_tests.py:66",
+          "text": "Status read right after add_cluster; per-minute cron task is still NEW, so not-ERROR assert can't see a failed healthcheck"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_health_check_tests.py:64-65",
+          "text": "Next run < 60s is only an upper bound; Schedule column not read, a shorter default interval still passes"
+        }
+      ]
+    },
+    "TestManagerHealthCheck::test_auto_gen_health_check_alternator_task": {
+      "description": "Same template as the CQL variant (manager_health_check_tests.py:52): 2-node cluster added to Manager, reads the auto-created healthcheck/alternator task; asserts Next run < default interval (60s on manager >= 3.7.0-dev) and status not ERROR. Meant to cover Manager 2.2's Alternator healthcheck on an Alternator-enabled cluster (PR 1672), but since a81a8b44e7 the cluster is started without alternator_port.",
+      "origin": {
+        "sha": "c10e29f988215920a677b91edb167c441d429e33",
+        "date": "2020-09-06",
+        "pr": 1672,
+        "summary": "new tests for Manager 2.2 alternator healthcheck: cluster with alternator_port, '+15s' in healthcheck/alternator next run, status not ERROR"
+      },
+      "commits": {
+        "c10e29f988215920a677b91edb167c441d429e33": "origin: Alternator-enabled 2-node cluster, '+15s' in next run, status not ERROR",
+        "376d8226eacfeb88137be105967557dc738838ef": "adds alternator_write_isolation (mandatory since scylla 4.1.rc3)",
+        "18b6d6e05a649560d36f901ff3e74ff954bc7f38": "pytest port: renamed to test_auto_gen_health_check_alternator_task",
+        "a81a8b44e718a1ea9004895c453dff60fa1a309d": "manager 3.0 CLI: body replaced by _template_auto_gen_health_check_task(health_check_type='alternator') with no extra_config_options, so Alternator is no longer enabled",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "a076c0741924043c1671df9dde62d1df4730c0b4": "file-level (template): next_run parsed as datetime; check becomes (next_run - now).seconds < interval",
+        "f5057ccd0bf5c2d37a09421ff4b22d6722552a01": "file-level (template): default interval 60s for manager >= 3.7.0-dev (manager PR #4466 per-minute cron), 15s before",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "file-level (template): config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "file-level (template): explicit 1-dc/1-rack/2-node topology"
+      },
+      "relevance": "Manager master still auto-creates healthcheck/alternator (scylla-manager@9ef99661c pkg/cmd/scylla-manager/tasks.go:55-64). With Alternator disabled, pingAlternator returns 0, nil (pkg/service/healthcheck/service.go pingAlternator), so on this cluster the task pings nothing. Scylla alternator_port / alternator_write_isolation are live (db/config.cc:1676,1685) but not set here.",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_auto_gen_cql_health_check_task",
+          "coverage": "partial",
+          "note": "identical setup and asserts on another row of the same `sctool tasks` output; both rows come from one makeAutoHealthCheckTasks call"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Near copy of test_auto_gen_cql_health_check_task (same 2-node cluster and checks, only another task row); the only unique bit is that the healthcheck/alternator row exists. Bug: since a81a8b44e7 the cluster has no alternator_port, so the Alternator healthcheck is never exercised. Bug: status is read while the per-minute task is still NEW, so the not-ERROR assert can't see a failure. Note: next-run < 60s is only an upper bound.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_health_check_tests.py:88",
+          "text": "Template called without extra_config_options since a81a8b44e7: no alternator_port, so the Alternator healthcheck pings nothing"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_health_check_tests.py:66",
+          "text": "Status read right after add_cluster; per-minute cron task is still NEW, so not-ERROR assert can't see a failed healthcheck"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_health_check_tests.py:64-65",
+          "text": "Next run < 60s is only an upper bound; Schedule column not read, a shorter default interval still passes"
+        }
+      ]
+    },
+    "TestManagerHealthCheck::test_down_alternator_node_isnt_pinged": {
+      "description": "3-node cluster (3 racks x 1 node) with Alternator enabled (alternator_port 8080, always_use_lwt), added to Manager; node3 is stopped (wait_other_notice) and `sctool status` is parsed (get_hosts_health, dtest_scylla_manager.py:1814, skips '-' cells). Asserts node3's Alternator, CQL and REST are all empty (shown as '-', i.e. not pinged) and node1's Alternator, CQL and REST are UP. Guards Manager skipping pings of non-UN nodes, including the Manager 2.2 Alternator ping.",
+      "origin": {
+        "sha": "c10e29f988215920a677b91edb167c441d429e33",
+        "date": "2020-09-06",
+        "pr": 1672,
+        "summary": "new tests for Manager 2.2 alternator healthcheck, including the DN node not-pinged check with Alternator"
+      },
+      "commits": {
+        "c10e29f988215920a677b91edb167c441d429e33": "origin: DN node's status/rest/alternator '-' and UN node's 'UP'",
+        "376d8226eacfeb88137be105967557dc738838ef": "adds alternator_write_isolation (mandatory since scylla 4.1.rc3)",
+        "c3471a97e4bdb55892cad62d8fb3c728680c8d4a": "formatting (autopep8)",
+        "65816074b16355a00bbc992460c012b1e4c6031a": "switch to HostHealth parsing: DN fields compared to empty Status(), UN fields to AlternatorStatus/CqlStatus/HostRestStatus.UP",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "explicit 1-dc/1-rack/3-node topology",
+        "0bff02f275eb5086df0f768956387a850de716fe": "topology changed to 3 racks x 1 node (RF-rack-valid with one node down)",
+        "b3fd21e33036c2faefe1afe4f2369b4bfe43d648": "helper (dtest_scylla_manager.py): Status/HostHealth become classes whose __eq__ skips None fields, so `x == Status()` requires x fully empty"
+      },
+      "relevance": "Live: Manager master skips Alternator, CQL and REST pings for non-UN nodes (scylla-manager@9ef99661c pkg/service/healthcheck/service.go:152,198,252 `if !status[i].IsUN()`); node state comes from scylla's REST API. Manager's own healthcheck integration tests never stop a scylla node. alternator_port / alternator_write_isolation live in scylla db/config.cc:1676,1685.",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "same steps without Alternator; CQL/REST only"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_health_check_metrics",
+          "coverage": "partial",
+          "note": "stops node1, checks DN node's CQL/REST empty and UN nodes UP; no Alternator"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "stops node2, polls until DN, checks CQL/REST empty; no Alternator"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of the DN-skip path for Alternator pings (scylla-manager service.go:252); the CQL/REST part is also in test_health_check_metrics and test_manager_sanity, but nothing else stops a node with Alternator enabled, and Manager's TestStatusIntegration never stops a scylla node.",
+      "issues": []
+    },
+    "TestManagerHealthCheck::test_down_node_isnt_pinged": {
+      "description": "3-node cluster (3 racks x 1 node) added to Manager; node3 is stopped (wait_other_notice) and `sctool status` is parsed (get_hosts_health, dtest_scylla_manager.py:1814). Asserts node3's CQL and REST are empty (shown as '-', i.e. not pinged) and node1's CQL and REST are UP. Guards Manager not pinging DN nodes.",
+      "origin": {
+        "sha": "3b79a6f9005aad39c55be87c45fa812d0d4cd5d8",
+        "date": "2020-08-31",
+        "pr": 1639,
+        "summary": "Backup size validation test and DN node ping test: DN node's CQL/REST must be '-' in sctool status"
+      },
+      "commits": {
+        "3b79a6f9005aad39c55be87c45fa812d0d4cd5d8": "origin: DN node's status/rest_status '-', UN node's 'UP'",
+        "c10e29f988215920a677b91edb167c441d429e33": "asserts rewritten as chained comparisons (status == rest_status == '-')",
+        "65816074b16355a00bbc992460c012b1e4c6031a": "switch to HostHealth parsing: DN CQL/REST compared to empty Status(), UN to CqlStatus/HostRestStatus.UP",
+        "20908a47e25701f53a85c70da6bd77b890a1f20f": "formatting (autopep8)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "explicit 1-dc/1-rack/3-node topology",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: node2 -> _node2)",
+        "0bff02f275eb5086df0f768956387a850de716fe": "topology changed to 3 racks x 1 node (RF-rack-valid with one node down)",
+        "b3fd21e33036c2faefe1afe4f2369b4bfe43d648": "helper (dtest_scylla_manager.py): Status/HostHealth become classes whose __eq__ skips None fields, so `x == Status()` requires x fully empty"
+      },
+      "relevance": "Live: Manager master skips CQL and REST pings for non-UN nodes (scylla-manager@9ef99661c pkg/service/healthcheck/service.go:152,198); each ping runs in its own goroutine in Service.Status, independent of Alternator being enabled. Node state comes from scylla's REST API.",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged",
+          "coverage": "full",
+          "note": "same topology, node3 stop and CQL/REST asserts, plus Alternator columns"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_health_check_metrics",
+          "coverage": "full",
+          "note": "stops node1 instead; asserts DN node's CQL/REST empty and the other nodes' CQL/REST UP, same no-Alternator config"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "stops node2, polls until DN, asserts CQL/REST empty; UN statuses checked only before the stop"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~137s) and redundant: test_down_alternator_node_isnt_pinged runs the same steps (topology, node3 stop, CQL/REST asserts) plus Alternator, and test_health_check_metrics asserts the same CQL/REST skip for a DN node without Alternator; Manager's CQL/REST skips (service.go:152,198) don't depend on Alternator.",
+      "issues": []
+    },
+    "TestManagerHealthCheck::test_health_check_metrics": {
+      "description": "3-node cluster (3 racks x 1 node) added to Manager; node1 (the cluster-add host) is stopped and `sctool status` is parsed. For UN nodes asserts status UN, CQL/REST UP, Scylla version starting with cluster.version() minus -dev/-rc, and agent version equal to the manager version without pre-release/build. For the DN node asserts status DN, empty CQL/REST/Memory and no Scylla/agent version. Guards the Manager 2.2 status columns (CPUs, memory, uptime, versions).",
+      "origin": {
+        "sha": "65816074b16355a00bbc992460c012b1e4c6031a",
+        "date": "2020-09-17",
+        "pr": 1684,
+        "summary": "test for all health metrics; adds ScyllaManagerStatusApi and the get_hosts_health parser (HostHealth, Status, Uptime, Memory)"
+      },
+      "commits": {
+        "65816074b16355a00bbc992460c012b1e4c6031a": "origin",
+        "f7ed13d9e74e5f560a56230e287bbbc817e93da5": "agent version check changed from == to startswith",
+        "a504785e250784e8ee9febf6270aa6c41183fad6": "reversed the agent-version prefix check; take first line of the manager version string",
+        "18b6d6e05a649560d36f901ff3e74ff954bc7f38": "pytest port (info -> logger.info)",
+        "9170e429e0e52a801bfe80a7a7a0183a1364a942": "strip '-dev' from scylla version before the prefix check",
+        "ccb85c5c4043a82d46ba069377224b210b5fc54b": "strip '-dev-' from manager version in the agent check",
+        "2469473552b7b88638f6682c95711e9f73827d34": "strip -rc from scylla and agent versions",
+        "9ac512d137f5d4a6acf3b508124fc8ad3b7634b5": "agent comparison maps '-dev-' to '.'; raw regex string",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "d0430a33551bcd6a3e29fd9eeb335de2ba9bb975": "agent check becomes str(ComparableScyllaVersion without pre-release/build) == agent_version",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "explicit 1-dc/1-rack/3-node topology",
+        "0bff02f275eb5086df0f768956387a850de716fe": "topology changed to 3 racks x 1 node (RF-rack-valid with one node down)",
+        "b3fd21e33036c2faefe1afe4f2369b4bfe43d648": "helper (dtest_scylla_manager.py): Status/HostHealth become classes whose __eq__ skips None fields, so `x == Status()` requires x fully empty"
+      },
+      "relevance": "Live: Manager master fills CPUs/Memory/Uptime/Scylla/Agent only for UN nodes (scylla-manager@9ef99661c pkg/service/healthcheck/service.go:126 parallelNodeInfoFunc skips non-UN) from node info read through the agent; the Scylla version comes from scylla, so the prefix check tracks scylla's version string format. Manager's TestStatusIntegration assertEqual ignores TotalRAM, Uptime, CPUCount, ScyllaVersion and AgentVersion.",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "DN node's CQL/REST(/Alternator) empty and UN node UP; no versions/memory"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "DN node's CQL/REST empty and UN node UP; no versions/memory"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "UN/DN node status and CQL/REST checks; no versions/memory"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of the version/memory columns of sctool status (Manager's own TestStatusIntegration ignores them), so coverage is unique. Bug: the 'Uptime' assert at manager_health_check_tests.py:142 re-checks cql, so the DN node's uptime is never checked. Bug: CPUs, memory and uptime of UN nodes are never asserted, though the docstring lists them. Note: the UN-node assert message names node1.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_health_check_tests.py:142",
+          "text": "'Uptime' assert compares node_details.cql again (copy-paste since 65816074b1); DN node's uptime is never checked"
+        },
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_health_check_tests.py:127-135",
+          "text": "Docstring claims CPU/memory/uptime metrics; UN nodes checked only for status, CQL/REST and versions; cpus never asserted"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_health_check_tests.py:131",
+          "text": "UN-node assert message names node1 instead of the node being checked"
+        }
+      ]
+    },
+    "TestManagerHealthCheck::test_http_status_codes": {
+      "description": "3-node cluster (1 rack) with Alternator, added to Manager via node1. For each of CQL (9042), Alternator (8080) and REST (10000), and for node2 and node3 in turn, adds an iptables DROP rule for that node's port and asserts its sctool status equals the expected HostHealth: UN, the blocked service TIMEOUT (ms), the other two UP, no error messages; then removes the rule. Guards Manager reporting TIMEOUT per service.",
+      "origin": {
+        "sha": "b3fd21e33036c2faefe1afe4f2369b4bfe43d648",
+        "date": "2020-12-31",
+        "pr": 1840,
+        "summary": "test to check Manager status codes; adds IPTable/IPTableRule helpers, TIMEOUT statuses and HostHealth comparison"
+      },
+      "commits": {
+        "b3fd21e33036c2faefe1afe4f2369b4bfe43d648": "origin",
+        "18b6d6e05a649560d36f901ff3e74ff954bc7f38": "pytest port: iptables chain cleanup via request.addfinalizer",
+        "a81a8b44e718a1ea9004895c453dff60fa1a309d": "manager 3.0 CLI: get_ip_from_node taken from dtest_class",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "de60a3eb80e25e5e6abb5c25da56a744e34770f1": "skipif running_in_podman (no iptables in podman)",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "config_and_create_cluster nodes= -> topology= rename",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "explicit 1-dc/1-rack/3-node topology"
+      },
+      "relevance": "Live: Manager master maps ping deadline errors to TIMEOUT for REST (context.DeadlineExceeded), CQL and Alternator (ping.ErrTimeout) in scylla-manager@9ef99661c pkg/service/healthcheck/service.go parallel*PingFunc, MaxTimeout 1s (config.go). Scylla only serves the ports; the behavior under test is Manager-only. ALTERNATOR_PORT is 8080 (alternator_utils.py:50).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/healthcheck/service_integration_test.go::TestStatusIntegration (subtests 'node REST TIMEOUT', 'node CQL TIMEOUT', 'node Alternator TIMEOUT', :286-362)",
+          "coverage": "full",
+          "note": "same iptables block per service on one node, expects TIMEOUT there and UP elsewhere; runs on every PR/push in the IPv4 workflows (scylla 2025.1-2026.3, scylla-nightly:latest; skipped on IPv6); lacks only sctool table rendering"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "parses UN node's Alternator/CQL/REST UP from sctool status; no blocking"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The scenario is fully covered at service level by scylla-manager's TestStatusIntegration (iptables block of REST/CQL/Alternator -> TIMEOUT, run on every PR in the IPv4 workflows incl. scylla-nightly), but that is the Manager repo, not a scylla test; dtest adds only sctool status rendering/parsing, and it is the slowest test here (~185s). Note: the name says HTTP status codes but only TIMEOUT is checked.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_health_check_tests.py:148",
+          "text": "Name says http_status_codes but only TIMEOUT for CQL/Alternator/REST is checked; HTTP/UNAUTHORIZED REST statuses untested"
+        }
+      ]
+    }
+  }
+}
