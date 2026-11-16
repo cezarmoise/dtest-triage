@@ -27,7 +27,8 @@
         "96ef6fa2": "formatting",
         "fb3dfc9e": "formatting (noqa PLR0913)",
         "bae386a1": "skipped while scylladb#27539 (LSA alloc failure, unprepared) open",
-        "94ce1483": "unskipped; memory raised to 1G/shard (--smp=2 --memory=2048M); added logalloc::bad_alloc ignore; truncated logged statements (fixes scylladb#27539)"
+        "94ce1483": "unskipped; memory raised to 1G/shard (--smp=2 --memory=2048M); added logalloc::bad_alloc ignore; truncated logged statements (fixes scylladb#27539)",
+        "b8d6e304": "moved --smp=2 --memory=2048M into prepare_cluster (now class-wide, PR 7771); no behavior change for this test"
       },
       "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
       "duplicates": [
@@ -43,7 +44,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage (no scylla test exercises CDC pre/postimage with multi-MB cells; no other dtest overlap), live feature, 100% pass in 64 gating runs (~71s). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: flaky history (scylladb#27539) fixed only by doubling memory.",
+      "reason": "Unique coverage (no scylla test exercises CDC pre/postimage with multi-MB cells; no other dtest overlap), live feature, 100% pass in 64 gating runs (~71s). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Flaky LSA OOM (scylladb#27539) was fixed by giving the node 1G/shard, now class-wide (PR 7771).",
       "issues": [
         {
           "kind": "bug",
@@ -72,7 +73,7 @@
       ]
     },
     "TestLargeColumnsWithCDC::test_row_with_several_columns_of_blobs_with_cdc_preimage_full_postimage": {
-      "description": "Single node, table with 5 blob columns and CDC preimage full + postimage. Inserts 12 rows of 5x1MB, then for 60s concurrently updates all 5 columns, reads base rows and cdc log. Asserts no 'Reactor stall' and no 'oversized allocation' (both prepared only) and no unexpected log errors. Guards CDC handling of large rows split across columns (scylladb#7506).",
+      "description": "Single node (--smp=2 --memory=2048M), table with 5 blob columns and CDC preimage full + postimage. Inserts 12 rows of 5x1MB, then for 60s concurrently updates all 5 columns, reads base rows and cdc log. Asserts no 'Reactor stall' and no 'oversized allocation' (both prepared only) and no unexpected log errors. Guards CDC handling of large rows split across columns (scylladb#7506).",
       "origin": {
         "sha": "c0fdd22caa8c0dcbf414be8fc7da587925fb19ce",
         "date": "2022-02-09",
@@ -98,7 +99,8 @@
         "96ef6fa2": "formatting",
         "fb3dfc9e": "formatting (noqa PLR0913)",
         "bc8238aa": "unprepared: ignore 'seastar_memory - oversized allocation'; oversize check made prepared-only (dtest#3354)",
-        "4ddc214b": "file got next_gating; this test @unmark.next_gating (dtest#3354)"
+        "4ddc214b": "file got next_gating; this test @unmark.next_gating (dtest#3354)",
+        "b8d6e304": "file-level: prepare_cluster now starts the node with --smp=2 --memory=2048M (1G/shard) for all tests (PR 7771, SCYLLADB-6155)"
       },
       "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
       "duplicates": [
@@ -114,7 +116,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique coverage, live feature, 100% pass in 78 runs (~67s, dtest-release(-with-raft) only, not gating). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: @unmark.next_gating (:91) references dtest#3354 which is CLOSED; the unprepared oversized-allocation ignore (:102-103) relates to scylladb#10779, also closed.",
+      "reason": "Unique coverage, live feature, 98.9% pass in 189 runs (~67s, dtest-release(-with-raft) only, not gating; 2 failures in dtest-release-with-raft); PR 7771 (2026-11-12) gave the class 1G/shard after this test aborted with an LSA 'failed to refill emergency reserve' (SCYLLADB-6155). Downgraded: assertions weak. Bug: execute_query (test_cdc_large_values.py:234-243) and execute_query_during_timeout (:246-270) swallow all exceptions (raise_exception=False), so every write/read may fail and the test still passes; no data or CDC-log content is validated. Note: `assert not found` after self.check_errors (:231-232) is a no-op (check_errors asserts internally and returns None, dtest_setup.py:594). Note: compaction_large_{row,cell}_warning_threshold_mb set to 20*MB (:31) = 20971520 MB, unit mix-up (effectively disables warnings). Unused import issue_open (:14). Note: @unmark.next_gating (:91) references dtest#3354 which is CLOSED; the unprepared oversized-allocation ignore (:102-103) relates to scylladb#10779, also closed.",
       "issues": [
         {
           "kind": "bug",
@@ -155,7 +157,7 @@
       ]
     },
     "TestLargeColumnsWithCDC::test_large_blob_in_map_delta_preimage_full": {
-      "description": "Single node, table with map<text,blob> and CDC preimage full + postimage. Inserts 12 rows with one 1MB map entry, then for 60s appends 1MB entries (v = v + {keyK}, 5 keys) while reading base rows and cdc log. Asserts no 'Reactor stall' (prepared only) and no unexpected log errors. Guards CDC delta/preimage on large collections (scylladb#7506, oversized allocations scylladb#11642).",
+      "description": "Single node (--smp=2 --memory=2048M), table with map<text,blob> and CDC preimage full + postimage. Inserts 12 rows with one 1MB map entry, then for 60s appends 1MB entries (v = v + {keyK}, 5 keys) while reading base rows and cdc log. Asserts no 'Reactor stall' (prepared only) and no unexpected log errors. Guards CDC delta/preimage on large collections (scylladb#7506, oversized allocations scylladb#11642).",
       "origin": {
         "sha": "c0fdd22caa8c0dcbf414be8fc7da587925fb19ce",
         "date": "2022-02-09",
@@ -184,7 +186,8 @@
         "52c82fbe": "added no_boot_speedups mark",
         "a5d481ff": "removed no_boot_speedups mark",
         "9401afcc": "fixed prepared UPDATE that was still a SimpleStatement; added memory_limit_reached ignore",
-        "bc8238aa": "execute_case got check_oversize_allocation param (not used by this test)"
+        "bc8238aa": "execute_case got check_oversize_allocation param (not used by this test)",
+        "b8d6e304": "file-level: prepare_cluster now starts the node with --smp=2 --memory=2048M (1G/shard) for all tests (PR 7771, SCYLLADB-6155)"
       },
       "relevance": "Live: CDC preimage 'full' + postimage on large values; max_memory_for_unlimited_query(_soft_limit) and compaction_large_*_warning_threshold_mb still in db/config.cc. #7506 fixed (scylladb 8516ef3c87 docs drop the large-allocation caution). #10779 (unprepared large allocations) closed 2026-05-26, so the prepared-only stall/oversize checks could now cover unprepared too.",
       "duplicates": [
@@ -235,7 +238,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "f35ad40c9d",
-  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b"
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "9d19bc68f8",
+  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
 }
