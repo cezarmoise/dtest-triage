@@ -1,0 +1,988 @@
+{
+  "file": "manager_repair_tests.py",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "23b25198d1",
+  "dtest_rev": "dfc6a74a09bee7ab4baca83aa8215385f6eb7314",
+  "tests": {
+    "TestScyllaMgmtRepair::test_manager_sanity": {
+      "description": "Manager sanity on a 3-node/3-rack cluster with a 2-row ks.cf (RF=3, _initiate_cluster_with_data): adds the cluster to scylla-manager, renames it with `sctool cluster update --name` and asserts the new name, runs a full-cluster repair and asserts it ends DONE, asserts every host is UN with REST UP in `sctool status`, then stops node2 and polls until it shows DN with empty CQL/REST status. Guards basic manager-scylla integration (cluster CRUD, repair, status).",
+      "origin": {
+        "sha": "edc3d1901c",
+        "date": "2019-05-22",
+        "pr": 970,
+        "summary": "Added with the manager 1.4 dtest infra in scylla_mgmt_repair_test.py (rename, repair, healthcheck UP/DOWN); function history stops at the 0ed2a12d13 rework (#1064)"
+      },
+      "commits": {
+        "be4a2a426b": "repair poll step 20s -> 2s; dropped next_run debug log; DOWN poll tolerates a missing host row",
+        "da293c3738": "fixed 20s sleep after stopping node2 replaced by wait_for polling (3s step, 60s) until it shows DN",
+        "056f5dc7a8": "formatting (ruff)",
+        "9ffd273f04": "formatting",
+        "2980e37e1b": "formatting (ruff)",
+        "aedaa57c4e": "formatting (ruff)",
+        "a076c07419": "next_run debug log adapted to new task list output",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...)",
+        "65816074b1": "status checks reworked on HostHealth: node_status UN/DN, DN node's CQL/REST must equal empty Status()",
+        "c3471a97e4": "formatting",
+        "0ed2a12d13": "moved into the reworked repair test class (start of function history; real origin edc3d1901c)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "Everything used is live in scylla-manager master 9ef99661c: `cluster update --name`, `sctool repair` (default keyspace '*,!system_traces'), `sctool status` with CQL/REST columns and DN rows. Scylla side only needs a running cluster; `read_repair_chance = 0.0` in the CREATE TABLE (:95) is an obsolete scylla keyword. Runs only in dtest-manager-{no,with}-tablets: 97 runs, 99%, 182s avg (one with-tablets failure, build 295).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "partial",
+          "note": "real Scylla: full repair runs, done, 100% progress; covers the repair-DONE part (stronger), no rename/status"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "stops node3, asserts DN node's CQL/REST empty and UN nodes UP (plus Alternator); no rename/repair"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_health_check_metrics",
+          "coverage": "partial",
+          "note": "stops node1, asserts DN node's CQL/REST empty and the other nodes' UP"
+        },
+        {
+          "path": "scylla-cluster-tests: mgmt_cli_test.py::ManagerCRUDTests::test_cluster_crud",
+          "coverage": "partial",
+          "note": "same rename via cluster update + name assert, plus delete/re-add"
+        },
+        {
+          "path": "scylla-cluster-tests: mgmt_cli_test.py::ManagerHealthCheckTests::test_cluster_healthcheck",
+          "coverage": "partial",
+          "note": "hosts UP, then DOWN after stopping a node"
+        },
+        {
+          "path": "scylla-cluster-tests: mgmt_cli_test.py::ManagerSanityTests::test_manager_sanity",
+          "coverage": "partial",
+          "note": "SCT sanity bundling repair, cluster CRUD and healthcheck subtests"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Sanity bundle whose parts are covered elsewhere: full repair DONE against real Scylla by scylla-manager 'repair simple', DN/UP status by manager_health_check_tests.py::test_down_alternator_node_isnt_pinged / test_health_check_metrics; only the `cluster update --name` rename is unique (not in scylla-manager's integration tests; SCT test_cluster_crud does it). Note: read_repair_chance=0.0 is a dead scylla option.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:95",
+          "text": "read_repair_chance = 0.0 in _initiate_cluster_with_data is an obsolete scylla table keyword, ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_manager_repair_multi_cfs": {
+      "description": "2-node/2-rack cluster (hinted handoff off), ks RF=2 with 4 tables. With node2 stopped, writes 10 rows per table at CL ONE via node1 and flushes; with node1 stopped, asserts node2 returns no rows; adds the cluster, runs `sctool repair -K ks` until DONE (300s), then with node1 stopped asserts node2 returns exactly the inserted rows of every table. Guards that a manager repair of a keyspace repairs all its tables.",
+      "origin": {
+        "sha": "be471bba98",
+        "date": "2019-05-29",
+        "pr": 1064,
+        "summary": "Added in scylla_mgmt_repair_test.py: repair --host node2 -K ks, fixed 600s sleep, row-count asserts via exclusive connection"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 nodes in 2 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...) with keyspace_list=ks",
+        "c3471a97e4": "formatting",
+        "891baeca8a": "dropped node=node2 / token_ranges='all' (flags removed from manager): now a cluster-wide repair of ks",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "29646f1956": "python3: xrange -> range",
+        "0ed2a12d13": "insert/check logic moved to _insert_data_range_to_specific_node / _assert_multiple_row_ranges_from_specific_node (exact rows instead of row count)",
+        "86c5d55a2c": "600s sleep replaced by wait_for_status(DONE, timeout=300)",
+        "9df44c1649": "docstring typo (_K -> -K)",
+        "be471bba98": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "`sctool repair --keyspace` live (scylla-manager pkg/command/repair/cmd.go); data path is scylla row-level repair (vnodes) or the tablet repair API (tablets), both live. The final check (_assert_multiple_row_ranges_from_specific_node :118-128 -> assert_all, CL ONE, exact compare, tools/assertions.py:193-232) can't pass without the repair: hinted handoff off (dtest_scylla_manager.py:1885), CL ONE writes with node2 down, pre-repair empty check (:151), node1 stopped during reads, scylla tablet auto-repair off by default (db/cluster_config_registry.hh:142). 98 runs, 100%, 105s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "partial",
+          "note": "repair runs to done with 100% progress; no data check"
+        },
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/ksfilter/ksfilter_test.go",
+          "coverage": "partial",
+          "note": "unit tests of -K keyspace/table patterns"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_two_keyspaces",
+          "coverage": "partial",
+          "note": "same insert/empty-check/repair/verify flow, two keyspaces via 'ks*'"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repairing_host_with_several_hosts",
+          "coverage": "partial",
+          "note": "same flow, 4 nodes, 3 tables, rows from 3 sources"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end data check that `sctool repair -K <ks>` repairs every table of the keyspace; manager's own tests check progress, not data. The check is sound (empty pre-check, hints off, CL ONE with the source node down). Note: dead read_repair options; stale 'Run repair on node 2' log (repair is cluster-wide since 891baeca8a).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:142",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:158",
+          "text": "'Run repair on node 2' log: --host node2 was dropped in 891baeca8a, repair is cluster-wide"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_manager_repair_two_keyspaces": {
+      "description": "2-node/2-rack cluster (hinted handoff off), keyspaces ks1 and ks2 (RF=2) with one table each. With node2 stopped, writes 10 rows per table at CL ONE via node1; with node1 stopped asserts node2 has no rows; runs `sctool repair -K 'ks*'` until DONE, then with node1 stopped asserts node2 returns exactly the inserted rows in both keyspaces. Guards manager repair of several keyspaces selected by a glob pattern.",
+      "origin": {
+        "sha": "9df44c1649",
+        "date": "2019-05-29",
+        "pr": 1064,
+        "summary": "Added in scylla_mgmt_repair_test.py: two keyspaces, repair --host node2 over all keyspaces"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 nodes in 2 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...) with keyspace_list='ks*'",
+        "c3471a97e4": "formatting",
+        "891baeca8a": "dropped node=node2 / token_ranges='all' (flags removed from manager); repair now limited with -K 'ks*'",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "29646f1956": "python3: xrange -> range",
+        "0ed2a12d13": "tables created as ks1.cf / ks2.cf (were both 'cf'); insert/check moved to the shared helpers with keyspace_name=None",
+        "9df44c1649": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "`-K` glob patterns live (scylla-manager cmd.go, ksfilter). Same data-check strength as test_manager_repair_multi_cfs: empty pre-check (:189), hints off (dtest_scylla_manager.py:1885), CL ONE single live replica, exact compare. The 'ks*' glob also matches no system keyspace, so it really restricts the repair. 98 runs, 100%, 104s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/ksfilter/ksfilter_test.go",
+          "coverage": "partial",
+          "note": "unit tests of keyspace glob patterns"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceGetTargetIntegration/filter keyspaces",
+          "coverage": "partial",
+          "note": "golden repair target for a keyspace pattern; no repair run"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_multi_cfs",
+          "coverage": "partial",
+          "note": "same flow with one keyspace and 4 tables"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end data check of a manager repair over several keyspaces selected by a glob; manager tests cover the pattern matching but not the repaired data. Check is sound (empty pre-check, hints off, CL ONE). Note: dead read_repair options; stale 'Run repair on node 2' log.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:179",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:196",
+          "text": "'Run repair on node 2' log: --host node2 was dropped in 891baeca8a, repair is cluster-wide"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repair_dc_by_name": {
+      "description": "3 DCs x 2 nodes (ks RF=2 per DC, hints off). With all dc2/dc3 nodes stopped, writes 10 rows at CL ONE via dc1_node1, then restarts them; runs `sctool repair --dc dc1,dc2 -K ks` until DONE; with dc1+dc3 stopped asserts dc2 returns all rows, then with dc1+dc2 stopped asserts dc3 returns none. Guards that manager's --dc filter repairs only the listed DCs.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added with the other --dc tests (create_repair_task(dc_list=['dc1','dc2']))"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 3 DCs x 2 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "9fe0c55c4c": "kwarg keyspace= -> keyspace_list= so -K ks is passed",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...) with dc_names=['dc1','dc2']",
+        "c3471a97e4": "formatting",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "0ed2a12d13": "origin",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "`--dc` live (cmd.go Datacenter flag; dcfilter.Apply in pkg/service/repair/service.go:140); with tablets manager passes the DC filter to scylla's tablet repair API (dcs_filter). Final checks need repair: hints off (dtest_scylla_manager.py:1885), CL ONE, dc3-empty assert (:302) is the control that the write stayed in dc1. Reads go through an unpinned session (driver default policy) while the queried node's same-DC sibling stays up, so either dc2 (or dc3) replica may answer. Slowest test of the file: 333s avg, 98 runs, 100%.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_multiple_dc_by_name",
+          "coverage": "full",
+          "note": "same flow (insert in dc1 with others down, repair a DC subset, listed DCs have the rows, unlisted DC empty), 4 DCs x 1 node, checks two listed DCs"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repairing_from_local_dc_only",
+          "coverage": "partial",
+          "note": "--dc with a single DC; excluded DC's rows not pulled in"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair dc",
+          "coverage": "partial",
+          "note": "--dc dc2: progress lists only dc2 hosts; no data check"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceGetTargetIntegration/filter dc",
+          "coverage": "partial",
+          "note": "golden repair target for dc filter"
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_dcs_filter",
+          "coverage": "partial",
+          "note": "core tablet repair API dcs_filter, without manager"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (333s, slowest in the file) and redundant: test_repair_multiple_dc_by_name (:304-331, 263s) runs the same insert/repair-subset/verify flow and asserts more (two listed DCs repaired, unlisted DC empty); test_repairing_from_local_dc_only covers single-DC --dc. Its only extra, 2 nodes and RF=2 per DC under --dc, is also the topology of test_repairing_from_local_dc_only (:359-387). Note: same-DC sibling up during the CL ONE checks; stale '--dc-list' docstring; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:301",
+          "text": "CL ONE read via unpinned session while dc2_node2 (:301) / dc3_node2 (:302) stay up: either same-DC replica may answer"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:278",
+          "text": "docstring: '--dc-list' flag and 'the specified dc and it alone'; flag is --dc and two DCs are listed"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:289",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repair_multiple_dc_by_name": {
+      "description": "4 DCs x 1 node (ks RF=1 per DC, hints off). With dc2-dc4 stopped, writes 10 rows at CL ONE via dc1_node, then restarts them; runs `sctool repair --dc dc1,dc2,dc3 -K ks` until DONE; then, each time with all other nodes stopped, asserts dc2 and dc3 return all rows and dc4 returns none. Guards that manager's --dc filter with several DCs repairs exactly the listed DCs.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added with the other --dc tests (create_repair_task(dc_list=['dc1','dc2','dc3']))"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 4 DCs x 1 rack via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "9fe0c55c4c": "kwarg keyspace= -> keyspace_list= so -K ks is passed",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...) with dc_names=['dc1','dc2','dc3']",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "0ed2a12d13": "origin",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "`--dc` live (cmd.go; dcfilter.Apply service.go:140); tablets pass the DC filter to scylla's tablet repair API. Final checks can't pass without the repair: hints off (dtest_scylla_manager.py:1885), CL ONE with every other node stopped (single live replica, exact compare); no pre-repair absence check, but the dc4-empty assert (:331) is the control that the write stayed in dc1. 263s avg, 97 runs, 99% (one failure, build 294).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair dc",
+          "coverage": "partial",
+          "note": "--dc dc2: progress lists only dc2 hosts; no data check"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceGetTargetIntegration/filter dc",
+          "coverage": "partial",
+          "note": "golden repair target for dc filter"
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_dcs_filter",
+          "coverage": "partial",
+          "note": "core tablet repair API dcs_filter, without manager"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_dc_by_name",
+          "coverage": "partial",
+          "note": "same flow, 3 DCs x 2 nodes, one listed DC checked"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repairing_from_local_dc_only",
+          "coverage": "partial",
+          "note": "--dc with a single DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Canonical end-to-end data check of manager `--dc` filtering (listed DCs repaired, unlisted DC untouched); manager's own tests only inspect progress/targets and scylla tests the core dcs_filter without manager. Note: stale '--dc-list' docstring; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:306",
+          "text": "docstring says '--dc-list' flag; the flag is --dc (dtest_scylla_manager.py:499)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:317",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_cross_dc_repair": {
+      "description": "2 DCs x 1 node (ks RF=1 per DC, hints off). With dc2_node stopped, writes 10 rows at CL ONE via dc1_node and restarts it; runs `sctool repair -K ks` (no --dc) until DONE; with dc1_node stopped asserts dc2_node returns all rows. Originally repaired dc2_node using a host from dc1 (with_hosts); since that flag was removed it is a plain 2-DC repair.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added: repair node=dc2_node with with_hosts=[dc1_node] (repair via a host from another DC)"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 DCs x 1 rack via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., ...)",
+        "891baeca8a": "dropped node=dc2_node / with_hosts=[dc1_node] (flags removed from manager): now a plain repair of ks",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "0ed2a12d13": "origin",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "The cross-DC host-selection scenario (with_hosts) no longer exists in manager (removed in dtest 891baeca8a; no such flag in pkg/command/repair/cmd.go). What remains, a 2-DC repair without --dc, is live. The final check still needs the repair (hints off, CL ONE with dc1 stopped), but there is no pre-repair absence assert and no control DC. 98 runs, 99%, 111s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_multiple_dc_by_name",
+          "coverage": "partial",
+          "note": "same insert-in-dc1 -> repair -> rows in other DCs flow, with --dc listing the repaired DCs"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_dc_by_name",
+          "coverage": "partial",
+          "note": "same flow with --dc dc1,dc2"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_multi_cfs",
+          "coverage": "partial",
+          "note": "repair without --dc, single DC"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "partial",
+          "note": "repair on manager's 2-DC test cluster without dc filter; no data check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Its scenario (repair via a host from another DC, with_hosts) was removed in 891baeca8a; what is left is a 2-DC repair without --dc whose data flow is the same as test_repair_multiple_dc_by_name/test_repair_dc_by_name (with --dc) and test_manager_repair_multi_cfs (no --dc, 1 DC). No other dtest data-checks multi-DC repair without --dc, so coverage is partial; RED candidate. Note: stale docstring; no pre-repair absence check; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:335",
+          "text": "docstring 'repair on a node by using a node from a different dc' is the with_hosts scenario removed in 891baeca8a"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:357",
+          "text": "no pre-repair assert that dc2 lacks the rows and no control DC; post-check still needs repair (hints off, CL ONE)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:345",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_intensity_and_parallel": {
+      "description": "2-node cluster, keyspace1.cf1 RF=2 (no data). Creates `sctool repair -K keyspace1 --intensity 2 --parallel 1` and asserts that the `sctool info` properties report keyspace=keyspace1, intensity=2, parallel=1. Guards that manager stores and reports these task properties; doesn't wait for the repair or check the effective values.",
+      "origin": {
+        "sha": "a57558035f",
+        "date": "2020-09-16",
+        "pr": 1697,
+        "summary": "Added: checked task arguments, waited for DONE and looked for --intensity 2 / --parallel 1 in `sctool progress`"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 nodes in 2 racks via generate_cluster_topology",
+        "eccda80e42": "formatting (ruff)",
+        "9ffd273f04": "formatting",
+        "f10c44165b": "switched to `sctool info` properties; dropped the wait for DONE and the progress-output check of the effective values",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "a57558035f": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "--intensity/--parallel live (pkg/command/repair/cmd.go, res.yaml; no tablet caveat). The assertion is ManagerTask.properties (dtest_scylla_manager.py:1108-1130) parsing `sctool info`: pure manager-side echo, scylla only has to be up. 97 runs, 100%, 79s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_host_flag_appears_in_task_info",
+          "coverage": "partial",
+          "note": "same create-then-properties echo, for --host"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_task_update_arguments",
+          "coverage": "partial",
+          "note": "properties echo of keyspace after task update"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/restapi/repair_test.go::TestRepairSetIntensity",
+          "coverage": "partial",
+          "note": "intensity/parallel control endpoints (mocked service)"
+        },
+        {
+          "path": "scylla-cluster-tests: mgmt_cli_test.py::ManagerRepairTests::test_repair_intensity_feature_on_single_node",
+          "coverage": "partial",
+          "note": "_test_intensity_and_parallel runs repairs with intensity/parallel values incl. {intensity: 2, parallel: 1}; times them, no property check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin CLI echo: only checks that `sctool info` reports the values given at creation, manager-only, same pattern as test_repair_host_flag_appears_in_task_info; SCT runs repairs with these values. Note: the effective-value check in `sctool progress` was dropped in f10c44165b (limited-check).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:483",
+          "text": "only the properties echo; never waits for the repair or checks intensity/parallel in `sctool progress` (dropped in f10c44165b)"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repair_host_flag_appears_in_task_info": {
+      "description": "2-node cluster, no user keyspace. Creates `sctool repair --host <node1>` and asserts the `sctool info` properties contain host=<node1 ip>. Regression test for a manager 2.6 bug where --host was missing from the task's argument listing.",
+      "origin": {
+        "sha": "88e7d5a1ff",
+        "date": "2021-11-17",
+        "pr": 2318,
+        "summary": "Added as test_repair_host_flag_appears_in_arguments_column, checking the `sctool task list` arguments column"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff)",
+        "4d258d5712": "topology layout instead of node count (1 DC, 1 rack, 2 nodes)",
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "eccda80e42": "formatting (ruff)",
+        "9ffd273f04": "formatting",
+        "f10c44165b": "renamed; checks `sctool info` properties instead of the task-list arguments column (manager 3.0)",
+        "88e7d5a1ff": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "--host live (pkg/command/repair/cmd.go), but manager rejects it for tablet keyspaces (pkg/service/repair/service.go validateHost :258: 'repairing with --host flag is not supported for tablet keyspaces'). The test creates no keyspace, so with tablets it only targets vnode system keyspaces and passes; it never waits for the repair. 97 runs, 100%, 78s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_intensity_and_parallel",
+          "coverage": "partial",
+          "note": "same create-then-properties echo, for intensity/parallel"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing tablet table with --host should fail at generating target",
+          "coverage": "partial",
+          "note": "--host validation against tablet keyspaces; no info rendering"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin CLI echo of the --host property (same create-then-properties pattern as test_intensity_and_parallel), manager-only; guards a past manager display bug that no manager test renders. Note: no keyspace and no wait, so the --host repair itself is never exercised (limited-check).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:548",
+          "text": "no keyspace created and task not awaited: --host repair never checked; on tablets only vnode system keyspaces are targeted"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_ignore_down_hosts_with_one_down_host": {
+      "description": "3-node/3-rack cluster, keyspace1.cf1 RF=3 (no data). Stops node3; asserts `sctool repair -K keyspace1` is rejected at creation with 'repairing DCs with down nodes won't be successful'; then a repair with --ignore-down-hosts must end DONE. vnodes only: deselected when scylla has the tablets feature.",
+      "origin": {
+        "sha": "31d1aba338",
+        "date": "2021-10-20",
+        "pr": 2295,
+        "summary": "Added for manager 2.6 --ignore-down-hosts (PR #2295; this sha was re-committed 2021-12-05 by the pytest-branch merge): plain repair expected to end ERROR, ignoring one DONE"
+      },
+      "commits": {
+        "3e2b724cdb": "@required_features('!tablets'): deselected with tablets (scylla-manager#4529: tablet repair can't finish with a DN replica)",
+        "056f5dc7a8": "formatting (ruff)",
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 3 nodes in 3 racks via generate_cluster_topology",
+        "db1f89b68a": "expected error updated to manager 3.5 text 'repairing DCs with down nodes won't be successful'",
+        "9ffd273f04": "formatting",
+        "e2889ab21a": "plain repair now expected to be rejected at creation (ScyllaManagerError) instead of ending ERROR; added self.fail",
+        "84377e8d89": "module-level create_ks/create_cf",
+        "31d1aba338": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "--ignore-down-hosts and the down-node validation are live (pkg/service/repair/service.go:144-151, validateIgnoreDownNodes :223-233, message :230). With tablets core needs all replicas, so the ignoring repair hangs (scylla-manager#4529, OPEN): the 5 with-tablets runs in the window (builds 294-298, 2026-02-24..03-06) all FAILED at ~730s; 3e2b724cdb (2026-03-11) then deselected it (conftest.py:896-900, so no SKIPPED rows from build 299 on). No-tablets: 48/48 passed, 298s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair ignore hosts",
+          "coverage": "full",
+          "note": "real Scylla, node stopped, ignore_down_hosts repair; on the tablets-disabled CI workflow (integration-tests-2025.1.14-IPV4) test_repair is a vnode keyspace and it must reach done with the node still down, ignored host absent from progress"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing small vnode table with --dc and --ignore-down-nodes should succeed",
+          "coverage": "full",
+          "note": "real Scylla, explicit vnode keyspace, a dc1 node stopped, --dc dc1 + ignore_down_hosts repair asserted done with the node still down, host filter = live nodes"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repairing_a_downed_node",
+          "coverage": "full",
+          "note": "the first half: same rejection of a repair with a DN node and the same message assert (:274); runs on both jobs"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing table with node down and --ignore-down-nodes should succeed",
+          "coverage": "partial",
+          "note": "vnode + tablet keyspaces with a node stopped and ignore_down_hosts; assertDonePartialTabletRepair restarts the node if not done quickly"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing table with node down should fail at generating target",
+          "coverage": "partial",
+          "note": "real Scylla, node stopped: target generation fails for vnode and tablet keyspaces (err != nil, message not checked)"
+        },
+        {
+          "path": "scylla-cluster-tests: sdcm/nemesis/__init__.py::_remove_node_add_node",
+          "coverage": "partial",
+          "note": "manager repair with ignore_down_hosts=True after terminating a node (errors filtered)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Both halves are covered: the ignoring repair with a DN node is run to done against real Scylla by scylla-manager 'repair ignore hosts' and 'Repairing small vnode table with --dc and --ignore-down-nodes should succeed' (done with the node still down, stronger asserts), and the rejection without the flag, message included, by test_repairing_a_downed_node (:274, both jobs). Slow (339s avg), vnodes only. Note: required_features('!tablets') deselects it on tablets because scylla-manager#4529 is open (open-issue); self.fail is undefined (cosmetic).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "https://github.com/scylladb/scylla-manager/issues/4529",
+          "text": "required_features('!tablets') (:552) deselects it on tablets since 2026-03-11: repair with a DN node can't finish (#4529 open)"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_repair_tests.py:573",
+          "text": "self.fail doesn't exist on Tester/DTestSetup; an unexpected success fails with AttributeError instead of this message"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_ignore_down_hosts_with_fully_functioning_cluster": {
+      "description": "3-node/3-rack cluster, keyspace1.cf1 RF=3 (no data), all nodes UN. Runs `sctool repair -K keyspace1 --ignore-down-hosts` and asserts it ends DONE. Guards that the flag doesn't break a repair when no host is down.",
+      "origin": {
+        "sha": "31d1aba338",
+        "date": "2021-10-20",
+        "pr": 2295,
+        "summary": "Added for manager 2.6 --ignore-down-hosts together with the one-down-host test (PR #2295; re-committed 2021-12-05 by the pytest-branch merge)"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 3 nodes in 3 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "84377e8d89": "module-level create_ks/create_cf",
+        "31d1aba338": "origin",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "Flag live. With no DN host manager's IgnoreHosts is empty and the target equals a plain repair (pkg/service/repair/service.go:143-150, :226), so this is a plain repair of an empty table. It is the only dtest --ignore-down-hosts run on the with-tablets job (the one-down-host test is deselected there), but scylla-manager's own integration tests run the flag with a node down on tablet keyspaces. 98 runs, 100%, 141s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "full",
+          "note": "real Scylla: plain repair runs to done with 100% progress; with no DN host the flag leaves the target identical (service.go:143-150, :226)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing table with node down and --ignore-down-nodes should succeed",
+          "coverage": "partial",
+          "note": "the flag's real path (a node down) on vnode + tablet keyspaces, against real Scylla"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "full-cluster repair asserted DONE on both jobs"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Low-value assertion, covered against real Scylla: with every node up --ignore-down-hosts is a no-op (service.go:143-150 sets IgnoreHosts to the DN hosts, none here; validateIgnoreDownNodes :226 passes), so this is a plain repair-DONE check, which scylla-manager 'repair simple' asserts (done + 100% progress). The flag's real path, incl. tablets, is in manager's 'Repairing table with node down and --ignore-down-nodes should succeed'.",
+      "issues": []
+    },
+    "TestScyllaMgmtRepair::test_repair_task_update_arguments": {
+      "description": "2-node/2-rack cluster, keyspaces ks1/ks2 (RF=2) with an empty table each. Adds the cluster with the weekly repair task (without_repair=False) and disables that task; creates `sctool repair -K ks1` and asserts `sctool info` shows keyspace=ks1; stops the task, runs `sctool repair update --keyspace ks2`, starts it again and asserts `sctool info` shows keyspace=ks2. Guards that a repair task update is stored; the docstring's claim that the second run repairs ks2 is not checked (start() only waits for any non-STOPPED status, which an already DONE run satisfies).",
+      "origin": {
+        "sha": "d49233cae3",
+        "date": "2020-09-09",
+        "pr": 1682,
+        "summary": "Added in scylla_mgmt_repair_test.py: run -K ks1 and check progress lists ks1; stop, update to ks2, start, check the arguments and that progress lists ks2"
+      },
+      "commits": {
+        "72cf8c8e6d": "opts out of the new --without-repair default (without_repair=False) so repair_task_list[0], the all-weekly task disabled at :449, still exists",
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 nodes in 2 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "f10c44165b": "checks only the `sctool info` keyspace property; dropped the wait for RUNNING/DONE and the progress check that ks1/ks2 were repaired",
+        "a81a8b44e7": "manager 3.0 CLI: arguments + progress checks moved into a nested helper used before and after the update",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(keyspace_list='ks1', cluster_name=...)",
+        "f882c9817f": "repair_task.repair_update(keyspace=) -> repair_task.update(keyspace_list=) (new ScyllaManagerRepairApi)",
+        "d49233cae3": "origin"
+      },
+      "relevance": "`sctool repair update`, `start`, `stop` and the keyspace property are live (scylla-manager@9ef99661c pkg/command/repair/cmd.go:105-136). The assertions are ManagerTask.properties (dtest_scylla_manager.py:1107-1129) parsing `sctool info`: a manager-side echo of the stored property; scylla only hosts the cluster. 97 runs, 100%, 81s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair restart task properties changed",
+          "coverage": "partial",
+          "note": "a new run with changed keyspace/dc uses them (progress DC, one table); repair API responses mocked (repairMockAndBlockInterceptor)"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_intensity_and_parallel",
+          "coverage": "partial",
+          "note": "same `sctool info` properties echo, at task creation"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Thin manager-only check: after `sctool repair update` it only reads the stored keyspace back from `sctool info`; manager's integration test checks that a new run honours changed properties (mocked repair API, so partial). Bug: the docstring's 'second run acts upon its updated parameters' is unchecked since f10c44165b dropped the progress check (weak-check). Note: the nested helper ignores its task argument; without_repair=False exists only to disable the weekly task again.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_repair_tests.py:459",
+          "text": "claims the second run repairs ks2; only the stored `sctool info` keyspace is read, the progress check was dropped in f10c44165b"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_repair_tests.py:437",
+          "text": "is_keyspace_in_sctool_info ignores its task argument and reads the closure repair_task (same object here)"
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_repair_tests.py:448",
+          "text": "without_repair=False only creates repair/all-weekly so :449 can disable it; same end state as the default --without-repair"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repairing_a_downed_node": {
+      "description": "3-node/3-rack cluster, ks RF=3 with two empty tables (hints off). Adds the cluster to manager, stops node3 and asserts that creating `sctool repair -K ks` is rejected with a ScyllaManagerError containing 'repairing DCs with down nodes won't be successful'. Guards manager's down-node validation at repair target generation.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added as test_repairing_an_unavailable_host: repair node3 via with_hosts=[node1,node2] after stopping node3, expect the task to end ERROR; renamed in 583829aaf5"
+      },
+      "commits": {
+        "056f5dc7a8": "formatting (ruff: unused node2 -> _node2)",
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 3 nodes in 3 racks via generate_cluster_topology",
+        "db1f89b68a": "expected error updated to manager 3.5 text 'repairing DCs with down nodes won't be successful'",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "37dcd4930c": "repair now expected to be rejected at creation (ScyllaManagerError + message) instead of ending ERROR; added self.fail",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(keyspace_list=ks, cluster_name=...)",
+        "583829aaf5": "renamed from test_repairing_an_unavailable_host (neighbouring with_hosts tests removed)",
+        "891baeca8a": "dropped node=node3 / token_ranges / with_hosts (flags removed from manager): now a cluster-wide repair of ks with node3 down",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "dfa1a574a0": "wait for ERROR: timeout 100s -> 300s",
+        "29646f1956": "python3: xrange -> range",
+        "0ed2a12d13": "origin (as test_repairing_an_unavailable_host)",
+        "86c5d55a2c": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "Validation live: validateIgnoreDownNodes (scylla-manager@9ef99661c pkg/service/repair/service.go:222-232, message :229; still at master 4986c4658) runs in GetTarget before keyspaces are resolved (:150) and uses only node status and the DC filter, so the path is the same for vnode and tablet keyspaces. The error reaches the test as sctool stderr -> SCTool.run(is_verify_errorless_result) -> ScyllaManagerError (dtest_scylla_manager.py:583, :848-849). Runs on both jobs: 98 runs, 100%, 141s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_ignore_down_hosts_with_one_down_host",
+          "coverage": "partial",
+          "note": "same 3-node RF=3 setup, node3 down, same message assert (:571-575); deselected on tablets (required_features('!tablets'))"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair tablet API filtering/Repairing table with node down should fail at generating target",
+          "coverage": "partial",
+          "note": "real Scylla, node stopped, GetTarget fails for tablet and vnode keyspaces; asserts only err != nil, not the message"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The down-node rejection is checked against real Scylla by manager's integration test (any error, not the message) and with the same assert by test_ignore_down_hosts_with_one_down_host (vnodes only); manager's check doesn't depend on the keyspace type (service.go:150, :222-232), so the tablets run adds little. Kept: the only dtest check of the rejection message once test_ignore_down_hosts_with_one_down_host (RED) goes. Note: self.fail is undefined (cosmetic); stale docstring; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_repair_tests.py:272",
+          "text": "self.fail doesn't exist on Tester/DTestSetup; an unexpected success fails with AttributeError instead of this message"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:252",
+          "text": "docstring: repair 'executed on a stopped node', 'task will fail'; since 891baeca8a/37dcd4930c a cluster-wide repair is rejected at creation"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:267",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repairing_from_local_dc_only": {
+      "description": "2 DCs x 2 nodes (ks RF=2 per DC, hints off), tables cf_dc1 and cf_dc2. Writes 10 rows to cf_dc1 at CL ONE via dc1_node1 and 10 rows to cf_dc2 via dc2_node1, each time with the other three nodes stopped; runs `sctool repair --dc dc2 -K ks` until DONE; then, with all other nodes stopped, asserts dc2_node2 returns exactly the cf_dc2 rows and no cf_dc1 rows. Guards that a single-DC --dc repair syncs the replicas inside that DC and pulls nothing from the excluded DC.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added with the other --dc tests (create_repair_task(dc_list=['dc2']))"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 2 DCs x 2 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "96ef6fa20e": "formatting (noqa comment)",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task(dc_list=['dc2']) -> repair_api.repair(dc_names=['dc2'], keyspace_list=ks, cluster_name=...)",
+        "c3471a97e4": "formatting",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "0ed2a12d13": "origin",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "`--dc` live (scylla-manager@9ef99661c pkg/command/repair/cmd.go:84; dcfilter.Apply service.go:139); vnodes send the DC-filtered replica set as host filter (generator.go:307-321), tablets pass the DC filter to scylla's tablet repair API. Checks via _assert_multiple_row_ranges_from_specific_node (:118-128) with every other node stopped: single live replica, CL ONE, exact compare; with hints off (dtest_scylla_manager.py:1885) the cf_dc2 rows can reach dc2_node2 only through the repair, and cf_dc1=[] is the control that dc1 took no part. 97 runs, 100%, 246s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair dc",
+          "coverage": "partial",
+          "note": "real repair with --dc dc2; asserts progress DC and hosts are dc2 only; no data check"
+        },
+        {
+          "path": "test/cluster/test_tablet_repair_scheduler.py::test_tablet_repair_dcs_filter",
+          "coverage": "partial",
+          "note": "core tablet repair API dcs_filter, without manager"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_multiple_dc_by_name",
+          "coverage": "partial",
+          "note": "--dc with 3 of 4 DCs (1 node each): the unlisted DC must not receive rows written in a listed DC"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_repair_dc_by_name",
+          "coverage": "partial",
+          "note": "--dc dc1,dc2 with 2 nodes per DC"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only end-to-end data check of a single-DC --dc repair where the excluded DC holds diverging data that must not leak in and the repair is intra-DC; manager's 'repair dc' checks only progress hosts and scylla tests the core dcs_filter without manager. Note: stale '--dc-list' docstring; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:361",
+          "text": "docstring says '--dc-list' flag; the flag is --dc (dtest_scylla_manager.py:499)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:372",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_repairing_host_with_several_hosts": {
+      "description": "4-node/4-rack cluster, ks RF=4 (hints off) with 3 tables. Writes 10 rows per table at CL ONE, each table via a different node (node1, node2, node3) with the other three stopped; adds the cluster (60x1s retry), runs `sctool repair -K ks` until DONE (300s), then with nodes 1-3 stopped asserts node4 returns exactly all 30 rows. Originally tested --with-hosts (repair node4 only from node1/node2, node3's table left out); since that flag was removed it is a plain keyspace repair merging rows from three sources.",
+      "origin": {
+        "sha": "0ed2a12d13",
+        "date": "2019-07-24",
+        "pr": 1064,
+        "summary": "Added: repair node4 with with_hosts=[node1,node2]; the node3-only table cf_to_not_be_repaired must stay empty on node4"
+      },
+      "commits": {
+        "b297d4d00c": "add_cluster wrapped in a 60x1s retry on ScyllaManagerError (gocql 'no hosts available' after the node restarts; manager's backend is this cluster)",
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 4 nodes in 4 racks via generate_cluster_topology",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (ruff)",
+        "18b6d6e05a": "pytest port: logger, module-level create_ks/create_cf, dropped @attr",
+        "b9530ac97c": "create_repair_task() -> repair_api.repair(cluster_name=..., keyspace_list=ks)",
+        "c3471a97e4": "formatting",
+        "891baeca8a": "dropped node=node4 / token_ranges / with_hosts=[node1,node2]; control table cf_to_not_be_repaired became third_cf_to_repair, now expected repaired",
+        "3b79a6f900": "uses ScyllaManagerMixin.config_and_create_cluster (sets hinted_handoff_enabled=False) and its returned nodelist",
+        "13297aa987": "python3: dict(list(a.items()) + ...) for the expected rows",
+        "0ed2a12d13": "origin",
+        "9df44c1649": "line-range artifact of git log -L (predates the test, doesn't touch it)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "--with-hosts no longer exists in manager (dropped in dtest 891baeca8a; not in scylla-manager@9ef99661c pkg/command/repair/cmd.go:78-97). What remains, `sctool repair -K ks` on 4 nodes, is live. The final check needs the repair (hints off, node4 down for every CL ONE write, single live replica during the read) but there is no pre-repair absence check or control table. Merging rows from several replicas is scylla's row-level/tablet repair. 97 runs, 100%, 252s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_multi_cfs",
+          "coverage": "partial",
+          "note": "same insert / repair -K ks / verify flow and helpers, 2 nodes, one data source, with a pre-repair empty check"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_two_keyspaces",
+          "coverage": "partial",
+          "note": "same flow over two keyspaces"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "partial",
+          "note": "real repair to done with 100% progress; no data check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Its scenario (--with-hosts) was removed in 891baeca8a; what is left is a plain `-K ks` repair whose flow is test_manager_repair_multi_cfs (GREEN) with three data sources instead of one, and the multi-source merge is scylla's repair, not manager's. Slow (252s); RED candidate. Note: stale docstring; no pre-repair absence check or control table; flush of empty tables; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_repair_tests.py:205",
+          "text": "docstring tests '--with_hosts' (repair only via the listed nodes); the flag and the control table were dropped in 891baeca8a"
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:243",
+          "text": "no pre-repair assert that node4 lacks the rows and no control table; post-check still needs repair (hints off, CL ONE)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "manager_repair_tests.py:224",
+          "text": "self.cluster.flush() runs before any insert, flushing empty tables"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:215",
+          "text": "read_repair=0.0 / dclocal_read_repair_chance=0.0 are obsolete scylla table keywords (cql3/statements/cf_prop_defs.cc obsolete_keywords), ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_small_table_threshold_parameter": {
+      "description": "3 nodes (rack1: 2, rack2: 1), keyspace1 RF=2: creates cf1 with 20 rows at CL ALL (insert_data_from_ranges), stops nodes[0], writes 3000 rows to keyspace1.standard1 with cassandra-stress via nodes[1], restarts nodes[0], runs `sctool repair -K keyspace1 --small-table-threshold 100M` and waits for DONE (40s). Then greps every node's log from the marks for scylla's repair line (vnodes: 'starting user-requested repair ...', tablets: 'Repair N out of M tablets: table=') and asserts len(table_names) == len(set(logs)) and that cf1 is among the repaired tables. Meant to check that a table under the threshold is repaired with a single repair command (small table optimization).",
+      "origin": {
+        "sha": "6eda9dd048",
+        "date": "2020-09-10",
+        "pr": 1683,
+        "summary": "Added in the manager backup test file with the same 'only one repair command' log check; moved here in 0502a5048d (#2686)"
+      },
+      "commits": {
+        "f81bd87d1a": "formatting (config_and_create_cluster nodes= -> topology=)",
+        "f509c9cea6": "RF-rack validity: 3 nodes as rack1: 2 / rack2: 1, keyspace RF=2",
+        "5f79cc52f3": "tablets branch: grep per-tablet 'Repair N out of M tablets: table=' lines; one table-name regex per mode",
+        "eccda80e42": "formatting (ruff)",
+        "1236457bcd": "second regex for the Scylla > 5.4 '\"columnFamilies\": \"cf\"' log format",
+        "051e91d6d3": "2 -> 3 nodes (stress timeouts); table name parsed with a regex",
+        "9ffd273f04": "formatting",
+        "2980e37e1b": "formatting (ruff)",
+        "523522622e": "dropped the RUNNING wait; threshold '100Mi' -> '100M'; adapted the log slicing",
+        "0502a5048d": "moved here from the backup test file (with insert_data_from_ranges)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "--small-table-threshold is live (scylla-manager@9ef99661c pkg/command/repair/cmd.go:92, :162-164; plan.go:244-251 marks tables below it Small; generator.go:190-201 picks the small-table job, one repair call with small_table_optimization, worker.go:71-77). But the default is already 1GiB (cmd.go:57, model.go:95), so 100M changes nothing for these KB-sized tables, and tablet tables always get the tablet job (generator.go:192-193): on dtest-manager-with-tablets keyspace1 is a tablet keyspace (tablets_mode_for_new_keyspaces=enabled, dtest_setup.py:905). The grepped lines exist in scylla 23b25198d1 (repair/repair.cc:1361, :2736). 97 runs, 100%, 156s avg.",
+      "duplicates": [
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_repair_multi_cfs",
+          "coverage": "full",
+          "note": "-K repair of KB-sized tables on both jobs with a data check; under the 1GiB default it runs the same small-table job (vnodes) / tablet job (generator.go:190-201)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairSmallTableOptimizationRepairsAllNodesIntegration",
+          "coverage": "partial",
+          "note": "unmocked real repair of a small vnode table with small_table_threshold: done, every node did repair work; vnodes only, asserts participation, not one request"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/small table optimisation",
+          "coverage": "partial",
+          "note": "small vnode table, 1GiB threshold: exactly one repair request with small_table_optimization; repair API responses mocked (repairMockInterceptor)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/small table optimisation not on big table",
+          "coverage": "partial",
+          "note": "table above the threshold: optimization not used; mocked repair API"
+        }
+      ],
+      "decision": "RED",
+      "reason": "The flag is a no-op here: 100M is below the 1GiB default (cmd.go:57) and tablets ignore it (generator.go:192), so this is a plain -K repair of tiny tables, the same manager job that test_manager_repair_multi_cfs (GREEN, both jobs) runs with a data check. Its one-request check can't fail (:534 compares len(table_names) with len(set(logs)), lines are unique); manager's mocked 'small table optimisation' subtest does check one request. Bug: cant-fail; wrong-scenario (threshold, tablets). Note: misleading log messages; dead read_repair options.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "manager_repair_tests.py:534",
+          "text": "asserts len(table_names) == len(set(logs)); log lines are unique (timestamps, ids), so repeated repairs of a table can't fail it"
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_repair_tests.py:513",
+          "text": "100M is below manager's 1GiB default threshold (cmd.go:57): the KB-sized tables get small-table optimization with or without the flag"
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_repair_tests.py:520",
+          "text": "with tablets keyspace1 is a tablet keyspace; manager ignores the threshold for tablet tables (generator.go:192-193), so this branch can't exercise it"
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_repair_tests.py:506",
+          "text": "logs say the stress runs 'form' nodes[0] (it runs on nodes[1], :507) and 'Starting a stress command' before the repair (:512)"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges passes read_repair=0.0 / dclocal_read_repair_chance=0.0: obsolete scylla table keywords, ignored"
+        }
+      ]
+    },
+    "TestScyllaMgmtRepair::test_system_traces_excluded_from_repair": {
+      "description": "3-node/3-rack cluster with ks.cf (RF=3, 2 rows at CL ALL, _initiate_cluster_with_data). Adds the cluster, runs a plain `sctool repair` (no -K) and asserts it ends DONE, then parses `sctool progress` (_get_repaired_keyspace_list :600-638: rows with 4 cells -> first cell) and asserts system_traces is not among the repaired keyspaces. Guards manager's default keyspace filter '*,!system_traces' (manager 3.2+).",
+      "origin": {
+        "sha": "29faf4ff42",
+        "date": "2023-09-13",
+        "pr": 3581,
+        "summary": "Added for manager 3.2, which stopped repairing system_traces by default"
+      },
+      "commits": {
+        "eccda80e42": "formatting (ruff)",
+        "9ffd273f04": "formatting",
+        "29faf4ff42": "origin",
+        "f509c9cea6": "_initiate_cluster_with_data: 3 nodes in 3 racks (RF-rack validity)",
+        "72cf8c8e6d": "add_cluster now passes --without-repair by default: no weekly repair/all-weekly task that could fire mid-test"
+      },
+      "relevance": "Default live: the CLI sends no keyspace unless -K is given (scylla-manager@9ef99661c pkg/command/repair/cmd.go:133-136), so the service default {'*', '!system_traces'} applies (pkg/service/repair/model.go:87-88; still at master 4986c4658). Scylla creates system_traces with SimpleStrategy RF=2 (tracing/trace_keyspace_helper.cc:216), so without the filter it would be repaired. `sctool progress` still renders the 4-column Keyspace/Table/Progress/Duration table (vendor/.../v3/pkg/managerclient/model.go:768-791), so the parse is non-empty today. 97 runs, 100%, 157s avg.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceGetTargetIntegration/default",
+          "coverage": "full",
+          "note": "unmocked GetTarget against real Scylla with default properties; golden target (testdata/ServiceGetTargetIntegration/default.golden.json) has no system_traces"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/repair/service_repair_integration_test.go::TestServiceRepairIntegration/repair simple",
+          "coverage": "partial",
+          "note": "real repair ends done with 100% progress"
+        },
+        {
+          "path": "manager_repair_tests.py::TestScyllaMgmtRepair::test_manager_sanity",
+          "coverage": "partial",
+          "note": "same setup and plain repair asserted DONE (:51-54); no keyspace check"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Its target, the default exclusion of system_traces, is fully covered against real Scylla by manager's TestServiceGetTargetIntegration/default (the CLI sends no keyspace, so the same service default applies); a real repair ending done is in manager's 'repair simple'. Note: no positive control in the progress parse (limited-check); dead read_repair_chance.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_repair_tests.py:636",
+          "text": "no positive control (e.g. 'ks' listed): an unchecked sctool progress error (:635) or a column-count change empties the list and 'not in' passes"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_repair_tests.py:95",
+          "text": "read_repair_chance = 0.0 in _initiate_cluster_with_data is an obsolete scylla table keyword, ignored"
+        }
+      ]
+    }
+  }
+}
