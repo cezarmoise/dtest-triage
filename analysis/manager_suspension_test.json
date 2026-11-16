@@ -1,0 +1,182 @@
+{
+  "file": "manager_suspension_test.py",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "23b25198d1",
+  "dtest_rev": "dfc6a74a09bee7ab4baca83aa8215385f6eb7314",
+  "tests": {
+    "TestScyllaManagerSuspension::test_create_task_while_suspended": {
+      "description": "Creates a 2-node cluster, adds it to Scylla Manager, runs `sctool suspend`, then tries `sctool repair` (immediate task). Asserts the command fails with an error containing both \"suspended\" and \"scheduling tasks is not allowed\" (SM's shouldPutTask rejection of new tasks on a suspended cluster). Guards the Manager rule that no task can be created while the cluster is suspended (originally scylla-manager-enterprise#2496, where creation unexpectedly succeeded and the task stuck in NEW).",
+      "origin": {
+        "sha": "4ec031e85581b6d1867436886811a6bef43f8fc9",
+        "date": "2021-02-16",
+        "pr": 1960,
+        "summary": "Added the suspension test file (create task / create scheduled task / scheduled task runs while suspended) by Shlomi Balalis, reviewed as PR #1960 on the pre-pytest next (commit 1c1484c2d0, not in upstream/next history); upstream/next holds this pytest-branch copy (data PR null, GitHub maps it to port PR #2086)."
+      },
+      "commits": {
+        "4d258d5712": "Cluster built from generate_cluster_topology(dc_num=1, rack_num=1, nodes_per_rack=2) instead of a node count (RF-rack-validity).",
+        "f81bd87d1a": "config_and_create_cluster argument renamed to topology= (still a node count).",
+        "9ffd273f04": "formatting",
+        "bfb432b8b4": "Cluster 3 -> 2 nodes; expected error text changed from \"failed to create task\" to \"scheduling tasks is not allowed\" (new Manager message).",
+        "4ec031e855": "Origin: suspend, create repair, expect \"suspended\" + \"failed to create task\".",
+        "0e146f29eb": "File-level: class renamed ScyllaManagerSuspensionTest -> TestScyllaManagerSuspension; before this pytest did not collect the tests at all."
+      },
+      "relevance": "Live: scylla-manager 9ef99661c pkg/service/scheduler/service.go:395-401 shouldPutTask returns \"cluster is suspended, scheduling tasks is not allowed\" for any new task on a suspended cluster (message since SM 76780d432, 2021). sctool suspend/resume commands live (pkg/command/suspend, pkg/command/resume). Manager-only behavior; scylla itself is not exercised beyond cluster add.",
+      "duplicates": [
+        {
+          "path": "scylla-manager pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/put task when suspended",
+          "coverage": "partial",
+          "note": "Service-level (mock runner, no sctool/REST): new task on suspended cluster rejected with \"suspended\"; runs in SM CI (pkg-integration-test PKG=./pkg/service/scheduler)."
+        },
+        {
+          "path": "manager_suspension_test.py::TestScyllaManagerSuspension::test_create_scheduled_task_while_suspended",
+          "coverage": "full",
+          "note": "Same sctool repair + same rejection branch, only adds --cron (ignored by shouldPutTask); that sibling is the RED one, this test is the one to keep of the pair."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: SM's own scheduler integration test 'put task when suspended' (service_integration_test.go:1674) covers the rejection at service level; the dtest only adds the sctool -> REST -> error-message path and exact text. Pure Manager logic, ~78s mostly cluster setup. Keep this one of the pair (test_create_scheduled_task_while_suspended is the RED duplicate). Note: else-branch message says \"Test creation\" for task creation.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_suspension_test.py:33",
+          "text": "Failure message says \"Test creation\" instead of \"Task creation\"."
+        }
+      ]
+    },
+    "TestScyllaManagerSuspension::test_suspend_on_resume_start_tasks_without_duration": {
+      "description": "Creates a 2-node cluster, adds it to Manager and runs `sctool suspend --on-resume-start-tasks` without `--duration`. Asserts the command fails and the error mentions \"duration\". Guards the sctool flag validation added in Manager 3.0 (on-resume-start-tasks only makes sense with an auto-resume duration).",
+      "origin": {
+        "sha": "7d0da3d2a2520bdd0a4bd20e3cf14339a49a6bba",
+        "date": "2022-04-25",
+        "pr": 2699,
+        "summary": "New test (Manager 3.0): suspend with --on-resume-start-tasks but no --duration must fail with a duration-related error."
+      },
+      "commits": {
+        "4d258d5712": "Cluster built from generate_cluster_topology(dc_num=1, rack_num=1, nodes_per_rack=2) instead of a node count (RF-rack-validity).",
+        "f81bd87d1a": "config_and_create_cluster(nodes=2) -> topology=2.",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "7d0da3d2a2": "Origin: added the test."
+      },
+      "relevance": "Live: scylla-manager 9ef99661c pkg/command/suspend/cmd.go:82-84 returns \"can't use --on-resume-start-tasks without --duration\" (wording from SM 10ae40a5c, 2022). sctool silences cobra usage (pkg/cmd/sctool/sctool.go:132-133), so stderr is just that error and the \"duration\" substring comes only from it; the ccm sctool wrapper raises on non-zero exit and the message includes stderr. Client-side sctool check, never reaches the Manager server or scylla.",
+      "duplicates": [
+        {
+          "path": "scylla-cluster-tests mgmt_cli_test.py::ManagerSuspendTests::test_suspend_and_resume",
+          "coverage": "partial",
+          "note": "Uses --on-resume-start-tasks only together with --duration (positive path); no negative case. No sctool unit test for the check in scylla-manager pkg/command/suspend."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of the live sctool validation (suspend/cmd.go:82-84); SM has no unit test for it and SCT only uses the flag with --duration. Error check is meaningful since sctool prints no usage text. Cheap check but needs a full cluster (~78s). Note: else branch raises ScyllaManagerError instead of AssertionError.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_suspension_test.py:53",
+          "text": "Missing-failure path raises ScyllaManagerError instead of AssertionError; message has double space \"without  duration\" (line 51)."
+        }
+      ]
+    },
+    "TestScyllaManagerSuspension::test_create_scheduled_task_while_suspended": {
+      "description": "Creates a 2-node cluster, adds it to Manager, suspends it, then tries `sctool repair --cron` with a daily cron at now+8h02m. Asserts failure with \"suspended\" and \"scheduling tasks is not allowed\". Originally checked the old rule that a suspended Manager rejected tasks starting within 8h but accepted later ones (margin removed in SM 76780d432, 2021-04); now it expects rejection of any future schedule.",
+      "origin": {
+        "sha": "4ec031e85581b6d1867436886811a6bef43f8fc9",
+        "date": "2021-02-16",
+        "pr": 1960,
+        "summary": "Added the suspension test file (create task / create scheduled task / scheduled task runs while suspended) by Shlomi Balalis, reviewed as PR #1960 on the pre-pytest next (commit 1c1484c2d0, not in upstream/next history); upstream/next holds this pytest-branch copy (data PR null, GitHub maps it to port PR #2086)."
+      },
+      "commits": {
+        "4d258d5712": "Cluster built from generate_cluster_topology(dc_num=1, rack_num=1, nodes_per_rack=2) instead of a node count (RF-rack-validity).",
+        "f81bd87d1a": "config_and_create_cluster argument renamed to topology= (still a node count).",
+        "9ffd273f04": "formatting",
+        "eccda80e42": "formatting",
+        "20908a47e2": "formatting",
+        "2769c3ad27": "Dropped the 'now+2m rejected with 8h message' and 'now+8h2m accepted' checks; now expects rejection of a cron 8h02m ahead with \"scheduling tasks is not allowed\". Cluster 3 -> 2 nodes.",
+        "4ec031e855": "Origin: start_date now+2m must fail with 8h margin message, now+8h2m must succeed.",
+        "0e146f29eb": "File-level: class renamed ScyllaManagerSuspensionTest -> TestScyllaManagerSuspension; before this pytest did not collect the tests at all."
+      },
+      "relevance": "Live but no longer distinct: the 8h safety margin was removed in scylla-manager 76780d432 (2021-04, SM#2577); scylla-manager 9ef99661c service.go:395-401 shouldPutTask rejects every new task on a suspended cluster without reading its schedule, so --cron takes the same branch as an immediate task.",
+      "duplicates": [
+        {
+          "path": "manager_suspension_test.py::TestScyllaManagerSuspension::test_create_task_while_suspended",
+          "coverage": "full",
+          "note": "Same setup, same sctool repair and same assertion text; schedule is ignored by the rejection branch."
+        },
+        {
+          "path": "scylla-manager pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/put task when suspended",
+          "coverage": "partial",
+          "note": "Service-level: new task with future start date rejected with \"suspended\"."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant with test_create_task_while_suspended (manager_suspension_test.py:22-33): since SM 76780d432 removed the 8h margin, shouldPutTask (service.go:395-401) ignores the schedule, so both tests hit the same branch with the same assertion; SM's 'put task when suspended' subtest covers future-dated rejection too. Note: docstring and failure message still talk about 8 hours.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_suspension_test.py:56-74",
+          "text": "Docstring and failure message ('withing the next 8 hours') refer to the 8h margin removed in SM 76780d432; cron is 8h02m ahead."
+        }
+      ]
+    },
+    "TestScyllaManagerSuspension::test_schedule_task_to_run_while_suspended": {
+      "description": "Creates a 3-node cluster, adds it to Manager and creates a repair task with a cron firing at the next minute boundary (20-80s ahead, cron_for_next_minute, dtest_scylla_manager.py:2005), then suspends and asserts the fire time has not passed yet. Sleeps until fire time + 10s and asserts the task status is still NEW, then resumes (`sctool resume --start-tasks`) and asserts the task has no run history and is still NEW. Guards that scheduled activations are not executed while suspended and that a missed activation is not run on resume.",
+      "origin": {
+        "sha": "4ec031e85581b6d1867436886811a6bef43f8fc9",
+        "date": "2021-02-16",
+        "pr": 1960,
+        "summary": "Added the suspension test file (create task / create scheduled task / scheduled task runs while suspended) by Shlomi Balalis, reviewed as PR #1960 on the pre-pytest next (commit 1c1484c2d0, not in upstream/next history); upstream/next holds this pytest-branch copy (data PR null, GitHub maps it to port PR #2086)."
+      },
+      "commits": {
+        "9f95d8a488": "Cron at next minute boundary via cron_for_next_minute(); assert fire time not passed after suspend; sleep until fire+10s instead of fixed 200s.",
+        "4d258d5712": "Cluster built from generate_cluster_topology(dc_num=1, rack_num=1, nodes_per_rack=3) instead of a node count.",
+        "f81bd87d1a": "config_and_create_cluster(3) -> topology=3.",
+        "9ffd273f04": "formatting",
+        "eccda80e42": "formatting",
+        "72809f2380": "formatting",
+        "a076c07419": "During suspension check status NEW instead of Next Run \"[SUSPENDED]\" (sctool task list format change).",
+        "6219b2666c": "Post-resume expected status SKIPPED -> NEW (SKIPPED status removed from Manager).",
+        "f18d9cbe03": "start_date now+2m -> cron 2 minutes ahead; removed require scylla-manager#2496 mark (test re-enabled) and the post-resume next_run check.",
+        "f5cf08523b": "Expected post-resume status MISSED -> SKIPPED.",
+        "4ec031e855": "Origin: start_date now+2m, suspend, sleep 200s, expect Next Run [SUSPENDED], after resume no history, no next run, status MISSED; gated by require scylla-manager#2496.",
+        "14486477f7": "File-level: require mark reformatted to scylladb/scylla-manager#2496 (test still gated).",
+        "0e146f29eb": "File-level: class renamed ScyllaManagerSuspensionTest -> TestScyllaManagerSuspension; before this pytest did not collect the tests at all."
+      },
+      "relevance": "Live: scylla-manager 9ef99661c Suspend (pkg/service/scheduler/service_suspend.go:208-231) resets the cluster scheduler and reschedules only allowed/healthcheck tasks, so the pending repair activation is dropped; Resume (service_suspend.go:339-384) restarts only tasks running at suspend time with start_tasks, missed activations only with the newer --start-tasks-missed-activation flag (pkg/command/resume/cmd.go:48), so NEW + empty history is the current expected result. Manager-only behavior.",
+      "duplicates": [
+        {
+          "path": "scylla-manager pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/suspend issue 2496",
+          "coverage": "partial",
+          "note": "Service-level, mock runner: task due during suspension is not executed, nor after resume (without start-tasks); StartDate not cron."
+        },
+        {
+          "path": "scylla-manager pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration/suspend and resume",
+          "coverage": "partial",
+          "note": "Resume with start tasks restarts the stopped task and leaves a future task unexecuted; mock runner."
+        },
+        {
+          "path": "manager_task_tests.py::TestScyllaManagerTask::test_time_window_while_and_after_manager_is_suspended",
+          "coverage": "partial",
+          "note": "Suspends through a task's first window and checks it is still NEW after resume (then runs in the second window)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial overlap: SM's scheduler integration subtests 'suspend issue 2496' and 'suspend and resume' cover the same rule at service level with a mock runner; the dtest adds sctool/cron and a real repair runner. Runtime avg 336s predates #7514 (PR measured 266-296s). Note: post-resume checks run with no wait though a resume-triggered run is asynchronous; status assert message says \"Next Run value\".",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_suspension_test.py:91-95",
+          "text": "History/status read right after resume; a run triggered on resume starts asynchronously (SM service.go:432-437 Once trigger), could be missed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_suspension_test.py:89",
+          "text": "Failure message says 'has a Next Run value of' but the check is the task status."
+        }
+      ]
+    }
+  }
+}
