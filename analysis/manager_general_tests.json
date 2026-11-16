@@ -1,0 +1,247 @@
+{
+  "file": "manager_general_tests.py",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "23b25198d1",
+  "dtest_rev": "dfc6a74a09bee7ab4baca83aa8215385f6eb7314",
+  "tests": {
+    "TestScyllaManagerClusterMgmt::test_adding_cluster_while_its_down": {
+      "description": "Starts a 3-node cluster (ccm also starts the manager server and the agents), stops the whole cluster, then calls ScyllaManagerTool.add_cluster for node1 and expects a ScyllaManagerError containing 'connection refused'; any other outcome fails. Meant to check that Scylla Manager refuses to register an offline cluster.",
+      "origin": {
+        "sha": "2d08c58eabbd5533b1a2e8a0627ad8663aa6b3ae",
+        "date": "2019-06-06",
+        "pr": 1064,
+        "summary": "Added as adding_cluster_while_its_down_test in the nose file scylla_manager_cluster_mgmt_test.py (manager tests PR)."
+      },
+      "commits": {
+        "056f5dc7a8": "unused node2/node3 renamed _node2/_node3 (lint)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (f-string, isort)",
+        "18b6d6e05a": "pytest port: moved to manager_general_tests.py as test_adding_cluster_while_its_down, class-level scylla_manager mark, debug -> logger",
+        "c3471a97e4": "formatting",
+        "8c8d2b9c6d": "cluster start waits for binary proto / other notice",
+        "a7c22bff01": "added @attr('scylla-manager')",
+        "0ed2a12d13": "if/assert False replaced by a single assert on 'connection refused'",
+        "2d08c58eab": "origin: test added",
+        "23d56e5110": "helper: add_cluster waits for agent port 10001 on running nodes before sctool cluster add; stopped nodes are skipped, so this test still reaches sctool"
+      },
+      "relevance": "Manager still validates connectivity on cluster add (scylla-manager pkg/service/cluster PutCluster -> ValidateHostsConnectivity, ErrNoValidKnownHost), so the intended behavior is live. It is not reachable here: ccm ScyllaCluster.stop also stops the manager server when skip_manager_server is False, the default for the main cluster (https://github.com/scylladb/scylla-ccm/blob/c10ff2f260e717d7ec3e3ec745793d5f2664c7ac/ccmlib/scylla_cluster.py#L239-L244; same since ccm 1095408, 2018), and the manager's backend DB is node1 of the same cluster. The first sctool call in add_cluster (version, dtest_scylla_manager.py:800) fails with 'dial tcp <node1>:5080: connect: connection refused' from sctool to the manager server; ccm raises on the non-zero exit and SCTool.run wraps it into ScyllaManagerError (dtest_scylla_manager.py:838), which the assertion matches.",
+      "duplicates": [
+        {
+          "path": "scylla-manager @9ef99661c pkg/service/cluster/service_integration_test.go::TestServiceStorageIntegration/failed connectivity check",
+          "coverage": "full",
+          "note": "PutCluster must fail when a host's Scylla REST is blocked, and nothing may be persisted: the scenario this dtest intends"
+        },
+        {
+          "path": "scylla-manager @9ef99661c pkg/service/cluster/service_integration_test.go::TestValidateHostConnectivityIntegration/all hosts are DOWN",
+          "coverage": "partial",
+          "note": "scylla stopped + REST blocked on every host -> ValidateHostsConnectivity returns ErrNoValidKnownHost (already-added cluster)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "The assert passes for an unrelated reason: 'connection refused' comes from sctool failing to reach the manager server, which ccm's cluster.stop() stops together with the nodes (true since origin), so the test passes whatever manager does with an offline cluster. Removal loses no coverage; the intended scenario (cluster add rejected on failed connectivity) is covered by scylla-manager TestServiceStorageIntegration/'failed connectivity check'. Bug: wrong-scenario, the manager server is down when add_cluster runs.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_general_tests.py:32",
+          "text": "cluster.stop() also stops the manager server (ccm ScyllaCluster.stop); 'connection refused' is sctool -> server :5080, not manager rejecting an offline cluster"
+        }
+      ]
+    },
+    "TestScyllaManagerClusterMgmt::test_add_more_than_one_scylla_cluster": {
+      "description": "Starts one 3-node cluster and registers it twice in Scylla Manager, as 'cluster1' via node1 and 'cluster2' via node2, then asserts that the name column of sctool cluster list equals both names. It checks that manager can hold several cluster entries; no second Scylla cluster is created.",
+      "origin": {
+        "sha": "4be60c6d9f9e4ce7ac3fde828d59ce987c363c2d",
+        "date": "2019-05-29",
+        "pr": 1064,
+        "summary": "Added as add_more_than_one_scylla_cluster (with add_scylla_cluster_using_dns_name) in scylla_manager_cluster_mgmt.py; moved into scylla_manager_cluster_mgmt_test.py by 86c5d55a, same PR."
+      },
+      "commits": {
+        "056f5dc7a8": "unused node3 renamed _node3 (lint)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting (f-string, isort)",
+        "18b6d6e05a": "pytest port: moved to manager_general_tests.py as test_add_more_than_one_scylla_cluster, debug -> logger",
+        "8c8d2b9c6d": "cluster start waits for binary proto / other notice (was False)",
+        "a7c22bff01": "added @attr('scylla-manager')",
+        "86c5d55a2c": "moved from scylla_manager_cluster_mgmt.py into scylla_manager_cluster_mgmt_test.py as add_more_than_one_scylla_cluster_test",
+        "4be60c6d9f": "origin: test added"
+      },
+      "relevance": "sctool cluster add / cluster list and several clusters per manager are live (scylla-manager pkg/command/cluster, restapi /api/v1/clusters). Nothing on the Scylla side is checked.",
+      "duplicates": [
+        {
+          "path": "scylla-manager @9ef99661c pkg/service/cluster/service_integration_test.go::TestServiceStorageIntegration/list not empty",
+          "coverage": "full",
+          "note": "PutCluster of 3 entries with the same ManagedClusterHost under different names, ListClusters must equal them: same scenario at the service layer"
+        },
+        {
+          "path": "manager_general_tests.py::TestScyllaManagerClusterMgmt::test_sctool_status_of_two_clusters_when_one_is_faulty",
+          "coverage": "partial",
+          "note": "adds two distinct ccm clusters to one manager and lists both via sctool status"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_multiple_clusters",
+          "coverage": "partial",
+          "note": "adds two distinct clusters to one manager and backs up both"
+        }
+      ],
+      "decision": "RED",
+      "reason": "The scenario (one cluster registered under several names, then listed) is fully covered by scylla-manager TestServiceStorageIntegration/'list not empty'; adding two real clusters is exercised by test_sctool_status_of_two_clusters_when_one_is_faulty (GREEN) and manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_multiple_clusters. 134s for a cluster-list check. Bug: wrong-scenario, both entries point at the same ccm cluster, so a failure to add a second, distinct cluster would go unnoticed.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_general_tests.py:50-53",
+          "text": "'more than one scylla cluster' registers the same ccm cluster twice (node1, node2 hosts); no second cluster exists"
+        }
+      ]
+    },
+    "TestScyllaManagerClusterMgmt::test_removing_node_from_managed_cluster": {
+      "description": "Starts a 1-DC, 3-rack, 3-node cluster, adds it to manager, then ccm-removes node3 (Cluster.remove: kill -9 of scylla and its agent, delete the node dir; no decommission/removenode, so node3 stays in the ring). Polls sctool status (get_hosts_health) for up to 30s until node3 is DN, and asserts on that same snapshot that node3's CQL and REST columns are empty ('-'). Guards scylla-manager#2973 (a killed node showed UN with CQL ERROR / REST DOWN).",
+      "origin": {
+        "sha": "86c5d55a2c0313372b02b0c3df1f2fe64b2dfb43",
+        "date": "2019-06-02",
+        "pr": 1064,
+        "summary": "Added as removing_node_from_managed_cluster (no _test suffix, so nose didn't collect it until a7c22bff), asserting HostStatus.DOWN right after cluster.remove."
+      },
+      "commits": {
+        "0bff02f275": "cluster via config_and_create_cluster with 1 dc / 3 racks / 1 node per rack (RF-rack valid), hinted handoff off",
+        "45998f6299": "assertions reuse the get_hosts_health snapshot that saw DN instead of a new status call (flaky POV mismatch)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "750e34c282": "reworked after scylla-manager#2973: wait_for DN first, then assert CQL/REST status empty (None) instead of DOWN",
+        "18b6d6e05a": "pytest port: renamed test_removing_node_from_managed_cluster, info -> logger",
+        "65816074b1": "asserts CQL and REST DOWN right after remove, then wait_for node status DN (30s)",
+        "8c8d2b9c6d": "cluster start waits for binary proto / other notice",
+        "a7c22bff01": "renamed removing_node_from_managed_cluster_test (now collected) + @attr('scylla-manager')",
+        "86c5d55a2c": "origin: test added"
+      },
+      "relevance": "Manager healthcheck Status skips CQL/REST/Alternator pings for non-UN nodes (scylla-manager pkg/service/healthcheck/service.go Status + parallel*PingFunc), so the '-' columns are live behavior. ccm Cluster.remove is a hard kill plus directory removal: for Scylla and manager node3 is just a DN node, the same state as node.stop().",
+      "duplicates": [
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged",
+          "coverage": "partial",
+          "note": "same 1dc/3rack topology, node3 stopped, asserts its Alternator == CQL == REST == empty Status() and node1 UP; doesn't assert DN. Jointly with test_health_check_metrics covers all asserts here"
+        },
+        {
+          "path": "manager_health_check_tests.py::TestManagerHealthCheck::test_health_check_metrics",
+          "coverage": "partial",
+          "note": "stops node1, asserts its node_status DN and empty CQL/REST/memory/versions, others UN with CQL/REST UP"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Everything asserted (DN status, empty CQL/REST for a down node) is covered jointly by manager_health_check_tests.py::TestManagerHealthCheck::test_down_alternator_node_isnt_pinged (empty CQL/REST/Alternator, same topology; GREEN, test_down_node_isnt_pinged is RED as its subset) and test_health_check_metrics (DN + empty fields), which run in the same jobs; ccm remove is a hard kill, so it is the same down-node scenario. 158s redundant. Note: stale-comment, the name says 'removing' but node3 is only killed and stays in the ring. Note: dead-code, the DN assert repeats wait_for's condition.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_general_tests.py:96",
+          "text": "name says removing a node, but ccm Cluster.remove only kills node3 (gently=False) and deletes its dir; no decommission/removenode"
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "manager_general_tests.py:98",
+          "text": "DN assert repeats wait_for's condition; wait_for raises WaitTimeoutExpiredError on timeout, so it never fires"
+        }
+      ]
+    },
+    "TestScyllaManagerClusterMgmt::test_sctool_status_of_two_clusters_when_one_is_faulty": {
+      "description": "Creates two 3-node clusters (the main one and the secondary_cluster fixture, which has no manager server of its own) and registers both in one manager. Kills every agent of one cluster, runs a plain `sctool status` (all clusters) and asserts the output contains the healthy cluster's 'Cluster: <name> (<id>)' header; restarts the agents and repeats with the roles swapped. Guards scylla-manager #2373 (sctool status/tasks stopped at the first failing cluster).",
+      "origin": {
+        "sha": "87768db5fd4da774a64cb5a4aa27e32dd3171c0a",
+        "date": "2021-03-11",
+        "pr": 2021,
+        "summary": "Added to the nose file scylla_manager_cluster_mgmt_test.py (manager 2.3 two-cluster tests); re-applied to pytest manager_general_tests.py in c9e1276f (pytest-migration PR #2086)."
+      },
+      "commits": {
+        "4d258d5712": "both clusters built from generate_cluster_topology(1 dc, 1 rack, 3 nodes) instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology=",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "bf979e57db": "second cluster from the secondary_cluster fixture instead of the create_second_cluster context manager",
+        "c9e1276fe8": "pytest port of the test into manager_general_tests.py (same commit as test_change_agent_port)"
+      },
+      "relevance": "Live: scylla-manager pkg/command/status/cmd.go loops over ListClusters, prints the FormatClusterName header, then the status or PrintError, and continues (scylla-manager c12ada4c8, #2373). No Scylla-side behavior involved. No scylla-manager test covers pkg/command/status (only cmd.go/res.yaml there).",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Only coverage of sctool's per-cluster error handling (#2373): no scylla-manager test for pkg/command/status and no other dtest runs a cluster-less sctool status with a faulty cluster. 100% pass, ~149s. Note: limited-check, only the 'Cluster: name (id)' header is asserted, and FormatClusterName prints it before fetching status, so the healthy cluster's table isn't checked; faulting each cluster in turn still catches an abort on the first error.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_general_tests.py:117",
+          "text": "asserts only the 'Cluster: name (id)' header, printed before status is fetched; healthy cluster's table / no Error not checked"
+        }
+      ]
+    },
+    "TestScyllaManagerClusterMgmt::test_change_agent_port": {
+      "description": "Starts a 2-node cluster and adds it to manager. Rewrites each agent's https listen address to port 8989 and restarts the agents (ccm waits for the new port), runs `sctool cluster update --port 8989`, reruns the healthcheck task, and asserts every host in sctool status is UN. Covers the manager 2.4 feature for a non-default agent port.",
+      "origin": {
+        "sha": "5c108b2b74cb8a239e283f7dcfab4f2ff69c1ef0",
+        "date": "2021-05-25",
+        "pr": 2154,
+        "summary": "Added to nose scylla_manager_cluster_mgmt_test.py with ManagerCluster.update(port=) for manager 2.4 --port; re-applied to pytest manager_general_tests.py in c9e1276f (PR #2086)."
+      },
+      "commits": {
+        "4d258d5712": "cluster from generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology=",
+        "9ffd273f04": "formatting",
+        "c9e1276fe8": "pytest port of the test + ManagerCluster.update(port=) helper"
+      },
+      "relevance": "Live: sctool cluster update --port (scylla-manager pkg/command/cluster/clusterupdate/cmd.go, default 10001) and the agent https setting. No Scylla-side behavior. No scylla-manager test changes the agent port (clusterupdate cmd_integration_api_test covers labels/TLS flags only; service tests use Port 10001).",
+      "duplicates": [],
+      "decision": "GREEN",
+      "reason": "Only coverage of manager reaching agents on a non-default port after cluster update --port; no scylla-manager test or other dtest changes the agent port. 100% pass, ~79s. Note: limited-check, it asserts only node status UN (gossip, read through any one agent); per-host REST/CQL UP through the new port and the healthcheck rerun result aren't checked, though a manager ignoring --port still makes sctool status fail.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_general_tests.py:158-159",
+          "text": "checks only node_status UN (gossip via one agent); per-host REST/CQL UP not asserted; healthcheck rerun accepts ERROR (dtest_scylla_manager.py:983)"
+        }
+      ]
+    },
+    "TestScyllaManagerClusterMgmt::test_rest_api_status_nonexistent_task": {
+      "description": "Starts a 2-node cluster, adds it to manager, then sends GET http://<manager api address>/storage_service/repair_status?id=1 and asserts HTTP 404. The docstring says it covers scylla PR #9578 (repair_status for an unknown repair id), but ScyllaManager._get_api_address is node1 IP:5080, the manager server, so the request never reaches Scylla's REST API (:10000).",
+      "origin": {
+        "sha": "b8a17ec8b07caf4be504574fcd2187b1e5c08d07",
+        "date": "2022-03-27",
+        "pr": 2670,
+        "summary": "Added expecting status 500 from the manager API address; the follow-up 7d231c93 in the same PR switched the expectation to 404."
+      },
+      "commits": {
+        "4d258d5712": "cluster from generate_cluster_topology(1 dc, 1 rack, 2 nodes) instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes= -> topology=",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "20908a47e2": "formatting",
+        "7d231c93e7": "expected status 500 -> 404 (matches the manager's unknown-route 404), docstring typo",
+        "b8a17ec8b0": "origin: test added"
+      },
+      "relevance": "Scylla's /storage_service/repair_status still exists (api/storage_service.cc repair_await_completion) and has returned 400 (bad_param) for an unknown id since f5f5714aa6 (scylla#9576, closes #9578). The test never reaches it: the scylla-manager server routes only /ping, /version and /api/v1/..., and answers anything else with 404 'find endpoint for path ...' (scylla-manager pkg/restapi/restapi.go NotFound).",
+      "duplicates": [
+        {
+          "path": "test/rest_api/test_repair_task.py::test_repair_task_progress_finished_task",
+          "coverage": "partial",
+          "note": "calls storage_service/repair_status for a valid id only; no scylla test checks the unknown-id 400 path"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "The assert passes for an unrelated reason: the GET goes to the manager server (:5080), whose NotFound handler returns 404 for any unknown path. Pointed at Scylla it would fail anyway, since Scylla returns 400 for an unknown repair id (f5f5714aa6). Nothing else covers it, but the bugs alone don't make it RED; removal loses no real coverage. The unknown-id 400 path isn't tested in scylla test/rest_api, where it would be a cheap check. Bug: wrong-scenario, manager URL instead of Scylla REST, so it can't fail. Bug: other, expects 404 where Scylla returns 400.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_general_tests.py:170-171",
+          "text": "URL is the manager server :5080 (_get_api_address), not Scylla REST :10000; manager returns 404 for any unknown path, so the assert can't fail"
+        },
+        {
+          "kind": "bug",
+          "tag": "other",
+          "ref": "manager_general_tests.py:166",
+          "text": "expects 404, but Scylla returns 400 for an unknown repair id since f5f5714aa6 (#9578); value tuned to the manager's reply"
+        }
+      ]
+    }
+  }
+}
