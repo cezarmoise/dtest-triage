@@ -6,6 +6,7 @@ Inputs:
   Jenkins stats, last 50 builds per job, per-job breakdown in `stats.by_job`, function-level commits with PRs) + file-level commits.
 - Scylla source: ~/github/scylladb (read-only). Read it at `upstream/master` (`git -C ~/github/scylladb grep ... upstream/master -- test/`,
   `git show upstream/master:<path>`), not the working tree. Unit/cluster tests in `test/` (cluster, cqlpy, alternator, boost, nodetool, rest_api, ...).
+- `manager_*` modules: also scylla-manager, ~/github/scylla-manager (read-only) at `upstream/master`.
 
 Tests to analyze: {TESTS} (`all` = every test in the JSON `tests` list; otherwise only these `Class::test` keys).
 
@@ -38,6 +39,7 @@ For EACH of those tests:
    `issues` as `{"kind", "tag", "ref", "text"}` (ref = file:line, sha or issue link; text ≤ ~25 words), and mention
    it in `reason` as "Bug: ..." / "Note: ...". `issues: []` if none.
    - kind `bug` = the test checks less than it claims. A bug downgrades GREEN to YELLOW (YELLOW/RED keep theirs).
+     A bug never makes RED: if the claimed scenario isn't covered elsewhere, YELLOW, even if what it still checks is.
      Tags: `cant-fail` (assert can't fail, errors swallowed, result ignored), `check-disabled` (commented out,
      unreachable, gated off), `weak-check` (too loose to catch the target bug), `wrong-scenario` (setup/params
      don't exercise what it claims), `never-runs` (not collected, always skipped, empty loop), `log-check-off`
