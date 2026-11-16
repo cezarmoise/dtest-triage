@@ -1,6 +1,6 @@
 {
   "file": "manager_backup_tests.py",
-  "analyzed_at": "2026-10-20",
+  "analyzed_at": "2026-11-16",
   "scylla_rev": "f35ad40c9d",
   "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
@@ -53,6 +53,2431 @@
           "tag": "redundant-param",
           "ref": "",
           "text": "20-combo provider x backend x method matrix; encryption transparent to backup, trim params"
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_agent_check_location": {
+      "description": "Writes TEMP_CONFIG.yaml whose backend endpoint is 127.0.0.1:1, starts a 3-node cluster (each agent configured for minio/fake-gcs) and adds it to Manager, then runs the local `scylla-manager-agent check-location -L <backend>:backup-bucket -c node1/conf/scylla-manager-agent.yaml` (must succeed) and again with the bad file as a second -c (later file overrides the endpoint), expecting failure with 'connection refused' in stderr. Guards agent multi-config merging in check-location, a Manager feature. gcs params are skipped while scylla-manager#4626 (check-location hangs on fake GCS) is open.",
+      "origin": {
+        "sha": "3aca3a157070765d1e217418eef626daee57c5ec",
+        "date": "2021-03-17",
+        "pr": null,
+        "summary": "Added the test (s3 only, expected 'send request failed'); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "per-backend wrong config; gcs params skipped while scylla-manager#4626 is open",
+        "4d258d5712": "explicit topology layout instead of node count (same node count)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "aedaa57c4e": "formatting",
+        "8249572320": "formatting (noqa BLE001)",
+        "b9de20252e": "expected error changed from 'send request failed' to 'connection refused'",
+        "3aca3a1570": "origin: check-location with correct config passes, with extra faulty config fails",
+        "d78e11ed75": "file-level: added native|rclone method param; inert here (check-location takes no --method)"
+      },
+      "relevance": "Only Scylla Manager agent CLI validation: ccm agent_check_location (scylla-ccm ccmlib/scylla_cluster.py:565) runs the agent binary locally against minio; no scylla REST/CQL code path is reached beyond cluster start, which only provides node1's agent yaml. check-location is live in scylla-manager pkg/cmd/agent/check_location.go (rclone CheckPermissions). method param unused; the gcs half never runs (scylla-manager#4626 open).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/config/agent/agent_test.go::TestParseConfig",
+          "coverage": "partial",
+          "note": "'scylla overwrite multiple files' unit-tests later -c files overriding earlier ones; no Manager test runs check-location"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Tests only the Manager agent CLI (no scylla code); no scylla-manager test runs check-location, config merging is unit-tested there (partial), so whether it belongs in dtest is the Manager team's call. Note: gcs params always skipped on open scylla-manager#4626; method param inert; unused _create_mgr_cluster; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "manager_backup_tests.py:1168",
+          "text": "gcs params always skipped while scylla-manager#4626 (check-location never finishes on fake GCS) is open; only s3 runs."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param unused: check-location takes no --method, both ids run the same command."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "manager_backup_tests.py:1181",
+          "text": "_create_mgr_cluster unused: check-location runs the local agent binary and needs only node1's agent yaml."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_a_single_keyspace_and_glob_pattern": {
+      "description": "2-node RF=2 cluster with 5 keyspaces x 2 tables (20 rows each); Manager backup with --keyspace ks1,*_for_glob to minio/fake-gcs (s3|gcs x native|rclone), waits DONE, then truncates ks1 and keyspace_for_glob tables, downloads their backup files into upload/ and runs nodetool refresh, and verifies all rows with exact compare (verify_c1c2). Guards keyspace name + glob filtering in Manager backup and restorability of the selected tables. ks2/ks3/other_keyspace are never checked to be excluded.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: backup ks1 + '*_for_glob' out of 5 keyspaces, waited for DONE only."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added restore + verify of ks1 and keyspace_for_glob after the backup",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. The glob is resolved by Manager (ksfilter), scylla only sees the per-table snapshot/upload/refresh. All live; four distinct paths (Manager accepts native for gcs: pkg/service/backup/worker_scylla_upload.go:17).",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_basic_backup",
+          "coverage": "partial",
+          "note": "same backup + manual restore flow and params, one table, no filter (RED)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same run_backup_command + clean_restore_and_verify_backup on 2 nodes RF=2, one table, no filter (kept, GREEN)"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore",
+          "coverage": "partial",
+          "note": "scylla native backup API + restore of one table on s3/gs, no Manager"
+        },
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/ksfilter/ksfilter_test.go::TestFilterAdd",
+          "coverage": "partial",
+          "note": "keyspace glob filtering unit-tested in Manager"
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_only_specific_keyspace",
+          "coverage": "partial",
+          "note": "multi-keyspace backup, glob ks_* on restore side, checks excluded keyspace is absent"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side (multi-table snapshot, native upload, refresh) overlaps test_backup_files_command_with_many_sstable_files (kept; test_basic_backup is RED) and scylla test_simple_backup_and_restore; the unique part is Manager's keyspace glob, unit-tested in scylla-manager ksfilter_test. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; excluded keyspaces are never checked, so an over-matching filter passes; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:435-436",
+          "text": "Only ks1/keyspace_for_glob restored and verified; ks2/ks3/other_keyspace never checked excluded, an over-matching glob passes."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_cron_date": {
+      "description": "2-node RF=2 cluster, ks.cf1 20 rows; creates a Manager backup task with --cron '<minute+2> <hour> * * *', asserts the task's Next run is < 120s away, waits RUNNING/DONE, asserts the progress start time is < 121s after the sctool call, waits DONE and restores (truncate, download, nodetool refresh, verify_c1c2). Guards Manager cron scheduling of backups. Neither time check has a lower bound, so a run starting at once instead of at the cron minute passes.",
+      "origin": {
+        "sha": "387743cf63c66a24829093f78fc290f678ef28b9",
+        "date": "2019-12-12",
+        "pr": 1163,
+        "summary": "Added as test_backup_start_date (--start-date now+40s, start within 50s); renamed and converted to --cron in a81a8b44 (#2624)."
+      },
+      "commits": {
+        "5122d5ef85": "cron 2 min ahead (was 1), bounds 120s/121s, RUNNING wait 180s: fixes missed-minute race (CLOUD-2824)",
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "056f5dc7a8": "formatting",
+        "d78e11ed75": "formatting here; file-level: added native|rclone method param and object_storage_endpoints",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "d5e58f29b5": "cron built by create_cron_list_from_timedelta (avoids invalid minute 60)",
+        "a076c07419": "next_run read from task list as datetime (Manager 3.2 output format)",
+        "a81a8b44e7": "renamed from test_backup_start_date, unskipped, --start-date replaced by --cron 1 min ahead",
+        "3ed0e53dac": "start time taken from sctool progress instead of wall clock",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "8eb4042f73": "skipped ('will return when minio bandwidth limiting is on') until a81a8b44",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added keyspace list and clean_restore_and_verify_backup: truncate, download backup files, nodetool refresh, verify rows",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "df7b9efd4e": "tidying: shared CLUSTER_NAME, config_and_create_cluster returns nodes",
+        "387743cf63": "origin: test_backup_start_date"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. The tested feature (cron scheduling, Next/Start time) is Manager-only scheduler logic; the scylla part is the same backup/restore as test_basic_backup (RED) and test_backup_files_command_with_many_sstable_files (kept). Jenkins: gcs failures in builds 315 (2026-06-12) and 320 (2026-07-03) predate the race fix 5122d5ef (2026-07-06); green since.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_basic_backup",
+          "coverage": "partial",
+          "note": "same backup + restore without cron (RED)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same run_backup_command + clean_restore_and_verify_backup on 2 nodes RF=2, no cron (kept, GREEN)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/model_test.go, pkg/scheduler/scheduler_test.go",
+          "coverage": "partial",
+          "note": "cron parsing / activation scheduling unit-tested in Manager"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_disable_backup_task_before_run_before_executed",
+          "coverage": "partial",
+          "note": "also schedules a backup by cron for the next minute"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side duplicates test_backup_files_command_with_many_sstable_files (kept; test_basic_backup is RED); the unique part is Manager cron scheduling (Manager unit tests partial). Bug: start and next-run checks have only upper bounds (and use timedelta.seconds), so a backup that ignores the cron and starts at once passes. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; inverted assert message; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:402-407",
+          "text": "No lower bound on next run or start time (0..121s); a backup starting immediately instead of at the cron minute passes."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_backup_tests.py:402",
+          "text": "Failure message 'The next run time is as requested' says the opposite of the failure."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files": {
+      "description": "Sets compaction_enforce_min_threshold, 2-node RF=2 cluster, table ks.cf with STCS min_threshold 99999, then loops 1 INSERT + cluster-wide nodetool flush until node1's table dir holds >= 2500 sstable component files (hundreds of sstables; fails if not reached within 399 rounds). Runs a Manager backup (s3|gcs x native|rclone), asserts DONE, restores via sctool backup files + download + nodetool refresh, and verifies every inserted row. Guards backup/upload and refresh of a table with hundreds of sstables.",
+      "origin": {
+        "sha": "b7864319f8d9476616d9d0e9939226925fa3d4a6",
+        "date": "2020-07-06",
+        "pr": 1521,
+        "summary": "Added backup + restore of a table with >= 2500 sstable files created by insert/flush loops."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology (2 nodes, rf=2)",
+        "4d258d5712": "explicit topology layout instead of node count (same node count)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "7b38573ec8": "fixed get_sstables_files kwarg (path -> cf_dir)",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "b7864319f8": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. Here at scale: >= 2500 component files (hundreds of sstables) per node through snapshot, native upload (scylla uploads every component) and refresh. compaction_enforce_min_threshold is live (db/config.cc:1895). get_sstables_files (tools/files.py:69) counts component files, not sstables. No scylla-manager backup integration test builds many sstables (grep of pkg/service/backup/*_test.go).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore",
+          "coverage": "partial",
+          "note": "native backup + restore of one small table (few sstables), no Manager"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_basic_backup",
+          "coverage": "partial",
+          "note": "same flow with a single sstable-sized table"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test backing up and refreshing a table with hundreds of sstables (scylla native upload + refresh at scale); scylla test_backup.py and other Manager dtests use a handful of sstables. Stable outside infra builds 332/333. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; docstring mentions c-s, obsolete read_repair options, stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:635-639",
+          "text": "Docstring says flush during c-s; test does single-row INSERT + flush loops and never uses sctool backup files directly."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_backup_tests.py:650-653",
+          "text": "read_repair_chance/dclocal_read_repair_chance obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_files_multiple_clusters": {
+      "description": "Backs up a primary 3-node cluster and a secondary 3-node cluster (secondary_cluster fixture, same Manager, same bucket), each ks.cf1 20 rows, then runs `sctool backup files --snapshot-tag <primary tag> --all-clusters` and asserts `misplaced_files` is non-empty. Meant to check that --all-clusters lists only the requested snapshot's files, but get_backup_files_dict returns a dict keyed by node id, so the list holds every node id and the assert only checks the output is non-empty.",
+      "origin": {
+        "sha": "188ad504362bbae04baa0da811596904695a9488",
+        "date": "2021-03-11",
+        "pr": null,
+        "summary": "Added the test and get_backup_files_dict(all_clusters=); the inverted assert dates from here. Landed via pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "8df35098dd": "RF-rack-valid topology (3 nodes, rf=2) for both clusters",
+        "4d258d5712": "explicit topology layout instead of node count (same node count)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "d668ad8515": "secondary cluster moved from a context manager to the secondary_cluster fixture",
+        "188ad50436": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Scylla code paths are only two ordinary backups (snapshot, native/rclone upload); nothing about the second cluster is scylla-specific. The tested feature, `sctool backup files --all-clusters`, is Manager-only listing of bucket metadata. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/restapi/backup_test.go::TestBackupListAllClusters",
+          "coverage": "partial",
+          "note": "--all-clusters filter for backup list, mocked service"
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "partial",
+          "note": "second cluster on the same Manager and bucket"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Feature is Manager-only (backup files --all-clusters) and the check is broken. Bug: misplaced_files iterates the host-id keys of get_backup_files_dict (dtest_scylla_manager.py:1672), so it is every node and `assert misplaced_files` only checks the listing is non-empty. Note: obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:1164-1165",
+          "text": "Iterates host-id keys, so misplaced_files = all nodes; inverted assert only checks output non-empty, never cluster ownership."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_multiple_keyspaces_and_tables": {
+      "description": "2-node RF=2 cluster with 3 keyspaces x 2 tables (20 rows each); Manager backup of all three keyspaces (s3|gcs x native|rclone), waits DONE, truncates the 6 tables, downloads their backup files into upload/, nodetool refresh, and verifies all rows (verify_c1c2 exact compare). Guards multi-keyspace/multi-table backup and restorability.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: backup of 3 keyspaces x 2 tables, waited for DONE only."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added keyspace list and clean_restore_and_verify_backup: truncate, download backup files, nodetool refresh, verify rows",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. All live; nothing beyond what the glob test runs on 2 keyspaces x 2 tables.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_a_single_keyspace_and_glob_pattern",
+          "coverage": "full",
+          "note": "same _prepare_cluster_with_data + backup + clean_restore_and_verify_backup on 2 keyspaces x 2 tables, same 4 params"
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_only_specific_keyspace",
+          "coverage": "partial",
+          "note": "backs up 3 keyspaces / 4 tables and restores with Manager restore"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_basic_backup",
+          "coverage": "partial",
+          "note": "same flow, one table"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore",
+          "coverage": "partial",
+          "note": "scylla native backup + restore, one table"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow (~114s x 4 params per job) and redundant: test_backup_a_single_keyspace_and_glob_pattern (manager_backup_tests.py:421) runs the identical multi-keyspace/multi-table backup + restore + verify with the same params; only the keyspace count differs. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nodetool_snapshots_before_backup": {
+      "description": "2-node RF=2 cluster, ks.cf1 20 rows; takes a user snapshot `nodetool snapshot -t sm_manual_snapshot` (name mimics Manager's sm_ prefix), records per-node `nodetool listsnapshots` names (ignoring scylla_manager keyspace), runs a Manager backup to DONE and asserts the lists are equal: the user snapshot survives and Manager's own sm_<ts>UTC snapshot is cleaned up. Then restores and verifies the rows.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: snapshot lists before/after backup must match."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added keyspace list, longer DONE timeout and restore + verify after the snapshot check",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added the test",
+        "d9804b3a00": "file-level: extract_all_snapshot_names drops rows by keyspace scylla_manager instead of 'scheduler_task' in name",
+        "b56ef16885": "file-level: fixed extract_all_snapshot_names line slicing",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. Also nodetool snapshot/listsnapshots (native nodetool format matches extract_all_snapshot_names' [2:-4] slice, tools/scylla-nodetool.cc:1487) and delete-by-tag. Which tags to delete is Manager logic (its own ^sm_[0-9]{14}UTC$ tags, scylla-manager backupspec/tags.go:17); scylla only executes clear-snapshot for that tag.",
+      "duplicates": [
+        {
+          "path": "test/boost/database_test.cc::clear_multiple_snapshots",
+          "coverage": "partial",
+          "note": "scylla side: clearing one tag keeps the other snapshots"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupSmokeIntegration",
+          "coverage": "partial",
+          "note": "asserts no snapshots left after backup; no user snapshot present"
+        },
+        {
+          "path": "backup_restore_tests.py::TestBackupRestore::test_clearsnapshot_options",
+          "coverage": "partial",
+          "note": "nodetool clearsnapshot by tag/keyspace"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side (delete snapshot by tag keeps others) is covered by boost clear_multiple_snapshots; the unique part is Manager leaving user snapshots alone (no scylla-manager test has a user snapshot), so it is Manager-side coverage. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; the assert loop re-compares the whole dicts; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_backup_tests.py:551-554",
+          "text": "Loop over nodes compares the whole per-node dicts each time; one assert would do."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nonexistent_bucket": {
+      "description": "2-node cluster with ks.cf1 data, adds it to Manager and runs `sctool backup -L <backend>:nonexistent-bucket`, expecting ScyllaManagerError containing 'specified bucket does not exist' or 'location is not accessible'. Guards Manager's location pre-check (GetTarget) for a missing bucket.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: backup to a nonexistent bucket must fail ('invalid location' then)."
+      },
+      "commits": {
+        "6f075a3194": "added s3|gcs backend param: location now f'{backend}:bucket' (doubles the matrix)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "20908a47e2": "formatting",
+        "02fde9b551": "also accept 'location is not accessible' (backwards compatibility, TODO for 3.1)",
+        "ddbee17e6d": "expected error changed to 'specified bucket does not exist'",
+        "cb0533eae0": "expected error changed to 'location is not accessible' + '404 Not Found'",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level FALSE_BUCKET/CLUSTER_NAME)",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added the test",
+        "5e86f65040": "file-level: FALSE_BUCKET renamed to a DNS-compatible name",
+        "d78e11ed75": "file-level: added native|rclone method param; inert here (location check runs before method validation)"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties (scylla-manager pkg/service/backup/service.go:183-189) checks the location from every live node via the agent's rclone (NoSuchBucket -> 'specified bucket does not exist', else wrapped 'location is not accessible') before native-method validation, so scylla code is not reached (only the DC/host-id read) and the method param is inert. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "partial",
+          "note": "'inaccessible location' case: s3:foo -> 'specified bucket does not exist' against a real cluster; S3 only, no GCS"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_backup_with_non_existing_parameters",
+          "coverage": "partial",
+          "note": "[bucket]: scylla native backup API with a missing bucket; different layer (dtest fails in Manager first)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only pre-check; the s3 case is fully covered by scylla-manager TestGetTargetErrorIntegration, the gcs case is not covered there but only asserts the generic 'location is not accessible'. Note: method param inert; generic error accepted; stale 3.1 TODO; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param inert: Manager rejects the location before method validation, both ids run the same check."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:447",
+          "text": "Accepts generic 'location is not accessible' (any location error); for gcs that is the only match, missing bucket not confirmed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:448-449",
+          "text": "'Backwards compatibility / TODO: Remove when branching 3.1' long past; Manager is 3.x."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nonexistent_datacenter": {
+      "description": "Thin wrapper of _backup_nonexistent_datacenter_template('nonexistent'): 2-DC 4-node cluster with ks.cf1 data, `sctool backup --dc nonexistent` must raise ScyllaManagerError containing 'no matching DCs'. Guards Manager's DC filter validation.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: added the DC template helper and the literal/glob wrappers."
+      },
+      "commits": {
+        "6f075a3194": "helper: location uses the backend param (s3|gcs)",
+        "8df35098dd": "helper: RF-rack-valid topology, 2 DCs x 2 racks x 1 node",
+        "eccda80e42": "formatting",
+        "d942485e28": "helper: 2 nodes per DC (was 1) for tablets",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level CLUSTER_NAME/DESTINATION_BUCKET)",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added _backup_nonexistent_datacenter_template and both wrappers",
+        "d78e11ed75": "file-level: added native|rclone method param; inert here (DC filter fails first)"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties (scylla-manager pkg/service/backup/service.go:166-172) reads the DC map through the agent (scylla REST /storage_service/host_id + datacenter lookups), then dcfilter.Apply fails with 'no matching DCs found' before any location check or native validation, so both backend and method params are inert. Builds a 4-node 2-DC cluster with data for an argument error (~186s x 4 params per job). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "full",
+          "note": "'invalid dc filter' case {\"dc\": [\"foobar\"]} -> 'no matching DCs found' against a real cluster"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_nonexistent_datacenter_glob",
+          "coverage": "partial",
+          "note": "same helper and dcfilter.Apply path, glob pattern (also RED)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Manager-only argument error, fully covered by scylla-manager TestGetTargetErrorIntegration 'invalid dc filter' against a real cluster; no scylla code beyond reading the DC map, and ~186s x 4 inert params per job. Note: backend/method params inert; misleading log text; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend and method params inert: DC filter fails before location/method are used; 4 ids run the same check."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:478",
+          "text": "Log says 'nonexistent keyspace in the keyspace value' and error says 'database flag'; test is about the DC filter."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nonexistent_datacenter_glob": {
+      "description": "Thin wrapper of _backup_nonexistent_datacenter_template('nonexistent*'): 2-DC 4-node cluster with ks.cf1 data, `sctool backup --dc 'nonexistent*'` must raise ScyllaManagerError containing 'no matching DCs'. Guards Manager's DC glob filter matching nothing.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: added the DC template helper and the literal/glob wrappers."
+      },
+      "commits": {
+        "6f075a3194": "helper: location uses the backend param (s3|gcs)",
+        "8df35098dd": "helper: RF-rack-valid topology, 2 DCs x 2 racks x 1 node",
+        "eccda80e42": "formatting",
+        "d942485e28": "helper: 2 nodes per DC (was 1) for tablets",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level CLUSTER_NAME/DESTINATION_BUCKET)",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added _backup_nonexistent_datacenter_template and both wrappers",
+        "d78e11ed75": "file-level: added native|rclone method param; inert here (DC filter fails first)"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties (scylla-manager pkg/service/backup/service.go:166-172) reads the DC map through the agent (scylla REST /storage_service/host_id + datacenter lookups), then dcfilter.Apply fails with 'no matching DCs found' before any location check or native validation, so both backend and method params are inert. Builds a 4-node 2-DC cluster with data for an argument error (~186s x 4 params per job). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_nonexistent_datacenter",
+          "coverage": "partial",
+          "note": "same helper and dcfilter.Apply no-match error, literal pattern (also RED)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "partial",
+          "note": "'invalid dc filter' no-match error, literal pattern only"
+        },
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/inexlist_test.go::TestInExListFilter",
+          "coverage": "partial",
+          "note": "glob include/exclude matching used by dcfilter.Apply, unit-tested"
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylla-manager covers it jointly: TestGetTargetErrorIntegration asserts the 'no matching DCs found' error against a real cluster and inexlist_test::TestInExListFilter unit-tests the glob matching dcfilter.Apply uses; the dtest adds only the pattern string. Manager-only, ~186s x 4 inert params per job. Note: backend/method params inert; misleading log text; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend and method params inert: DC filter fails before location/method are used; 4 ids run the same check."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:478",
+          "text": "Log says 'nonexistent keyspace in the keyspace value' and error says 'database flag'; test is about the DC filter."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nonexistent_keyspace": {
+      "description": "Thin wrapper of _backup_nonexistent_keyspace_template('Nonexistent_keyspace') (manager_backup_tests.py:453-464): 2-node RF=2 cluster with ks.cf1 (20 rows), `sctool backup --keyspace Nonexistent_keyspace` (s3|gcs x native|rclone) must raise ScyllaManagerError containing 'no keyspace matched'; no error also fails. Guards Manager's keyspace filter validation at task creation.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: added the keyspace template helper and the literal/glob wrappers (expected 'no matching keyspaces' then)."
+      },
+      "commits": {
+        "6f075a3194": "helper: location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "bee13042a1": "helper: expected text 'no matching keyspaces' -> 'no keyspace matched' (Manager wording change)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level CLUSTER_NAME/DESTINATION_BUCKET)",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added _backup_nonexistent_keyspace_template and both wrappers",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone method param; exercised before the keyspace filter but the error is the same"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties (scylla-manager@9ef99661c pkg/service/backup/service.go:152-245) reads the DC map, pings nodes, checks the location via agent rclone (:183) and, for native, the nodes' object_storage_endpoints (:193) before the keyspace filter runs; toTarget then fails with 'no keyspace matched criteria' because only system_schema would be backed up (model.go:467-474). Scylla is reached only through REST reads (datacenters, keyspaces, tables, node config); no snapshot or upload happens, so backend/method are exercised but can't change the asserted error. Builds a 2-node cluster with data for an argument error (~80s x 4 params per job). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "full",
+          "note": "'invalid keyspace filter' case {\"keyspace\": [\"foobar\"]} -> 'no keyspace matched criteria' against a real cluster"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_nonexistent_keyspace_glob",
+          "coverage": "partial",
+          "note": "same helper and error, glob pattern (also RED)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Manager-only argument error, fully covered by scylla-manager TestGetTargetErrorIntegration 'invalid keyspace filter' against a real cluster; no snapshot/upload, ~80s x 4 params per job. Note: backend/method don't change the asserted error; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend/method reach the location and native checks before the keyspace filter, but all 4 ids assert the same error."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_nonexistent_keyspace_glob": {
+      "description": "Thin wrapper of _backup_nonexistent_keyspace_template('Nonexistent*') (manager_backup_tests.py:453-464): 2-node RF=2 cluster with ks.cf1 (20 rows), `sctool backup --keyspace Nonexistent*` (s3|gcs x native|rclone) must raise ScyllaManagerError containing 'no keyspace matched'; no error also fails. Guards Manager's keyspace glob filter matching nothing.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: added the keyspace template helper and the literal/glob wrappers (expected 'no matching keyspaces' then)."
+      },
+      "commits": {
+        "6f075a3194": "helper: location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "bee13042a1": "helper: expected text 'no matching keyspaces' -> 'no keyspace matched' (Manager wording change)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level CLUSTER_NAME/DESTINATION_BUCKET)",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added _backup_nonexistent_keyspace_template and both wrappers",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone method param; exercised before the keyspace filter but the error is the same"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties (scylla-manager@9ef99661c pkg/service/backup/service.go:152-245) reads the DC map, pings nodes, checks the location via agent rclone (:183) and, for native, the nodes' object_storage_endpoints (:193) before the keyspace filter runs; toTarget then fails with 'no keyspace matched criteria' because only system_schema would be backed up (model.go:467-474). Scylla is reached only through REST reads (datacenters, keyspaces, tables, node config); no snapshot or upload happens, so backend/method are exercised but can't change the asserted error. Builds a 2-node cluster with data for a glob that matches nothing (~80s x 4 params per job). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_nonexistent_keyspace",
+          "coverage": "partial",
+          "note": "same helper and error, literal pattern (also RED)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "partial",
+          "note": "'invalid keyspace filter' no-match error against a real cluster, literal pattern only"
+        },
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/inexlist_test.go::TestInExListFilter",
+          "coverage": "partial",
+          "note": "glob include/exclude matching used by ksfilter, incl. patterns matching nothing, unit-tested"
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylla-manager covers it jointly: TestGetTargetErrorIntegration asserts the 'no keyspace matched criteria' error against a real cluster and inexlist_test::TestInExListFilter unit-tests the glob matching ksfilter uses; the dtest adds only the pattern string. Manager-only, no snapshot/upload, ~80s x 4 params per job. Note: backend/method don't change the asserted error; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend/method reach the location and native checks before the keyspace filter, but all 4 ids assert the same error."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_rate_limit_invalid": {
+      "description": "2-node cluster (1 rack), no data; `sctool backup --rate-limit a` (s3|gcs x native|rclone) must raise ScyllaManagerError whose text contains 'invalid' and 'limit'; no error fails the test. Guards Manager's validation of the --rate-limit format ([dc:]<number>).",
+      "origin": {
+        "sha": "387743cf63c66a24829093f78fc290f678ef28b9",
+        "date": "2019-12-12",
+        "pr": 1163,
+        "summary": "First batch of Manager backup tests: expected 'invalid rate-limit'; relaxed to 'invalid' + 'limit' in 1fdfaa54 (#1210)."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "4d258d5712": "explicit 1-rack 2-node topology instead of node count (same layout)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4e3255d09b": "formatting (module-level CLUSTER_NAME/DESTINATION_BUCKET)",
+        "2508788ea5": "refactor: Manager cluster added via _create_mgr_cluster",
+        "df7b9efd4e": "tidying: shared CLUSTER_NAME, config_and_create_cluster returns nodes",
+        "1fdfaa5478": "expected text relaxed from 'invalid rate-limit' to 'invalid' + 'limit' (new Manager message)",
+        "387743cf63": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone method param; inert here (properties fail to decode first)"
+      },
+      "relevance": "Only Scylla Manager validation: targetFromProperties decodes the task properties first (scylla-manager@9ef99661c pkg/service/backup/service.go:156) and DCLimit.UnmarshalText (dclimit.go:39-45) rejects 'a' with 'invalid limit \"a\", the format is [dc:]<number>' before any scylla REST call, location check or method use, so no scylla code is reached beyond cluster setup and backend/method are inert. No scylla-manager test decodes a malformed limit (grep of *_test.go for DCLimit / 'invalid limit'); TestGetTargetErrorIntegration only checks an unknown-DC limit. 2-node cluster for an argument error (~94s x 4 params per job). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetErrorIntegration",
+          "coverage": "partial",
+          "note": "'invalid rate limit dc' case (foobar:100 -> 'invalid rate-limit: no such datacenter foobar') against a real cluster; malformed value not tested"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only argument check that never reaches scylla; scylla-manager tests only the unknown-DC rate-limit error, not the malformed value, so unsure value rather than redundant. Note: 'limit' always matches the echoed command; backend/method inert; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:385",
+          "text": "'limit' always matches the echoed '--rate-limit' in err.args[0] (dtest_scylla_manager.py:839); only 'invalid' comes from Manager."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend and method params inert: property decoding fails before location/method are used; 4 ids run the same check."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_restore_with_agent_download_files": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10 rows; Manager backup of keyspace1 (s3|gcs x native|rclone), wait DONE, TRUNCATE, then per node runs `scylla-manager-agent download-files -n <host id> -L <loc> -T <tag> --mode upload` (scylla-ccm agent_download_files; raises on non-zero exit) into the node's data dir followed by nodetool refresh, and verify_c1c2 checks all 10 rows at QUORUM. Guards restoring a Manager backup with the agent's download-files tool.",
+      "origin": {
+        "sha": "4f5c1166c4ca64800397415135f8e8e067d212bb",
+        "date": "2021-04-21",
+        "pr": null,
+        "summary": "Added the test (s3 only); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup and download-files locations use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "4f5c1166c4": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here uses the agent's download-files (scylla-manager pkg/downloader, upload-dir mode) instead of the boto/gcs client, then scylla nodetool refresh (tools/scylla-nodetool.cc:1732). The scylla part (snapshot, upload, refresh) is the same as in test_backup_files_command_with_many_sstable_files (kept, GREEN); the unique part is the Manager agent downloader against a real s3/gcs backup. scylla-manager tests the downloader only with local testdata (pkg/downloader/downloader_test.go::TestDownload); no integration test runs download-files (grep of *_test.go).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/downloader/downloader_test.go::TestDownload",
+          "coverage": "partial",
+          "note": "download plan/files incl. upload-dir mode from a local testdata backup; no real bucket, no refresh"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same backup + nodetool refresh restore (at scale), files downloaded by the test instead of the agent"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_execute_download_files_dry_run",
+          "coverage": "partial",
+          "note": "agent download-files --dry-run listing of a real backup"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side duplicates the backup + refresh of test_backup_files_command_with_many_sstable_files; the unique part is the Manager agent download-files restore path, unit-tested in scylla-manager only against local testdata, so unsure relevance for scylla. Note: obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_specific_keyspaces_includes_system_keyspaces": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10 rows; Manager backup with --keyspace keyspace1 (s3|gcs x native|rclone), wait DONE, then `sctool backup files --snapshot-tag` (get_backup_files_dict) must list system_schema files for node1. Guards Manager always adding system_schema to a keyspace-filtered backup (Manager 2.4+).",
+      "origin": {
+        "sha": "4d84a6700925540167e3ea41e62a4e547ecd40a8",
+        "date": "2021-04-20",
+        "pr": null,
+        "summary": "Added the test (s3 only); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "4d84a67009": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir (system_schema tables included). The asserted behavior is Manager-only: toTarget appends a system_schema unit unless --skip-schema (scylla-manager@9ef99661c pkg/service/backup/model.go:414-427; kept 'just in case' since schema is restored from DESC SCHEMA on Scylla >= 6.0) and the check reads Manager's `backup files` listing. Backend/method only change how the files are uploaded.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestGetTargetIntegration",
+          "coverage": "partial",
+          "note": "'filter keyspaces' golden (testdata/get_target/filter_keyspaces.golden.json): keyspace-filtered target has the system_schema unit, real cluster; target only, uploaded files not checked"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupSkipSchemaIntegration",
+          "coverage": "partial",
+          "note": "inverse: with skip_schema no system_schema sstables are uploaded"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same keyspace-filtered backup (at scale), system_schema not checked"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Asserts Manager target logic; scylla-manager TestGetTargetIntegration 'filter keyspaces' asserts system_schema in the target against a real cluster but not in the uploaded files, so partial; scylla side identical to the plain backups (e.g. test_backup_files_command_with_many_sstable_files). Note: backend/method inert for the check; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend/method only change the upload; system_schema inclusion is decided in Manager's target, 4 ids assert the same."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_task_progress": {
+      "description": "2-node 1-rack cluster; c-s writes 5000K rows (keyspace1.standard1 from c-s defaults, no replication option, STCS), Manager backup of all keyspaces (s3|gcs x native|rclone); once RUNNING (polled every 1s) asserts `sctool progress` shows a Progress value (!= 'N/A'), after DONE asserts it is '100%'. Then TRUNCATE, manual restore (download + nodetool refresh) and c-s read of all 5000K keys (ToolError on non-zero exit, scylla-ccm ccmlib/node.py:2181). Guards Manager's backup progress reporting.",
+      "origin": {
+        "sha": "05250d27b4aee56c7890060835e9b6cd8dc0cf91",
+        "date": "2019-12-22",
+        "pr": 1212,
+        "summary": "Second batch of Manager backup tests: progress checks on a 20-row backup; load raised to c-s 5000K in b77fa0ac (#1272) so RUNNING can be observed."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "4d258d5712": "explicit 1-rack 2-node topology instead of node count (same layout)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "bee13042a1": "c-s creates its own schema with STCS (dropped _create_stress_compatible_table)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "b77fa0ac95": "load changed to c-s write 5000K (backup of all keyspaces), RUNNING poll step 1s, restore verified by c-s read",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added restore + verify after DONE, DONE timeout 1000s",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "05250d27b4": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. With native, Manager's uploaded bytes come from scylla's task manager progress_completed (scylla-manager@9ef99661c pkg/service/backup/worker_scylla_upload.go:145-158; scylla db/snapshot/backup_task.cc:48), so '100%' also depends on scylla's backup task progress. The data check is the c-s read of all 5000K keys after restore (relies on c-s failing on missing rows). ~496s avg, slowest test of the module.",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup",
+          "coverage": "partial",
+          "note": "scylla native backup task ends with progress_completed == progress_total > 0, no Manager"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupResumeIntegration",
+          "coverage": "partial",
+          "note": "'resume after upload failed' asserts all bytes uploaded in Manager progress (assertMaxProgress) against a real cluster"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_restart_node_during_backup",
+          "coverage": "partial",
+          "note": "also c-s data backup + manual restore verified by c-s read (1000K rows)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique part is Manager progress reporting; the final 100% is partly covered by scylla test_simple_backup (native task progress) and scylla-manager TestBackupResumeIntegration, the data part by other c-s backup dtests. Slowest test of the module (~496s). Note: mid-run check only requires a Progress line; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:501-503",
+          "text": "Mid-run check only needs a Progress line (!= 'N/A', dtest_scylla_manager.py:1198); progress stuck at 0% until DONE passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_validate_delete_orphaned_files": {
+      "description": "2-node RF=2 cluster, ks.cf1 20 rows; Manager backup of ks (s3|gcs x native|rclone), then uploads an empty unrelated_file.txt into node1's ks/cf1 sstable dir in the bucket, runs `sctool backup validate --delete-orphaned-files` and asserts the summary reports exactly 1 orphaned and 1 deleted file and the object is gone. Guards Manager's backup validate orphan detection and deletion.",
+      "origin": {
+        "sha": "d2dc698f244ba6853b4aea3f1cdd9e23d9b8e9ea",
+        "date": "2021-06-23",
+        "pr": null,
+        "summary": "Added the test (s3 only); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup/validate locations use the backend param; spam file uploaded and listed via the s3|gcs endpoint client",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "d2dc698f24": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: backup validate lists the bucket through the agents' rclone and compares it with the manifests, no scylla code involved; the preceding backup exercises the usual scylla paths (snapshot REST, native /storage_service/backup or agent rclone upload) already covered by test_backup_files_command_with_many_sstable_files (kept, GREEN). The method param only changes the initial upload. scylla-manager CI runs the pkg/service/backup integration tests with s3, gcs and localstorage providers and both methods (.github/cfg/integration-test-cfg.yaml). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestValidateIntegration",
+          "coverage": "full",
+          "note": "adds orphaned sstable + scylla manifest; validate reports them, with DeleteOrphanedFiles deletes exactly those (counts and remaining files checked); real cluster, provider from the CI matrix incl. gcs"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_validate_backup_after_deleting_file",
+          "coverage": "partial",
+          "note": "same validate task, missing-file case"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Manager-only feature fully covered by scylla-manager TestValidateIntegration (orphans reported and deleted, counts checked) against a real cluster on s3 and gcs; the scylla part is a plain backup. Note: method param inert for validate; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the initial upload; validate lists the bucket via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_backup_while_node_is_drained": {
+      "description": "3-node RF=3 cluster (3 racks), ks.cf1 20 rows; `nodetool drain` on node3 and waits until node1 sees it DN, then a Manager backup of ks (s3|gcs x native|rclone) must reach DONE within 600s; node3 is restarted, the table truncated, the backup restored manually (download + nodetool refresh) and verify_c1c2 checks all rows at QUORUM. Guards Manager backup of a cluster with a drained node (scylladb/scylla-manager-enterprise#1782: backup failed on Manager's node sanity check; fixed by #1928, 2020-05-21).",
+      "origin": {
+        "sha": "4576884f2e14cefcbbbf8a388e6cb2cf3a159b53",
+        "date": "2020-01-19",
+        "pr": 1258,
+        "summary": "Third batch of Manager backup tests: drain node3 of 3 (RF 2), backup must be DONE, then restore + verify."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "0bff02f275": "RF 2 -> 3 on the 3 nodes (rack-valid topology)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology: 3 nodes, rf=2",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "origin: added the test",
+        "4e3255d09b": "line-history artifact: clean_restore_and_verify_backup introduced (predates this test)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. Here on a drained node: Manager picks backup hosts by pinging scylla REST (/storage_service/scylla_release_version, scylla-manager@9ef99661c pkg/scyllaclient/client_ping.go:69-85, :254) with no gossip-status filter (service.go:249-269), and drain (api/storage_service.cc:880) leaves the REST API up, so node3 should still be snapshotted and uploaded (snapshot / native backup task on a drained database). In manager-enterprise#1782 Manager devs confirmed snapshots work on a drained node and only Manager's sanity check failed. No scylla test snapshots or backs up a drained node (grep of test/ for drain). Live in scylla and Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupWithNodesDownIntegration",
+          "coverage": "partial",
+          "note": "node with scylla REST blocked by iptables is excluded from the target and the backup succeeds; not a drained node (REST up)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_shutting_down_node_before_backup",
+          "coverage": "partial",
+          "note": "stopped node (REST down, excluded) before backup, RF=3, DONE + restore"
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of a Manager backup with a drained node (REST up, gossip DN); Manager selects hosts by REST ping, so scylla should still snapshot/upload the drained node. scylla-manager only tests REST-blocked nodes and the other dtest a stopped node. Stable (one failure, build 295 with-tablets). Note: RF=3 restore doesn't check node3's part; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:632",
+          "text": "RF=3 on 3 nodes: QUORUM verify passes from node1/node2 alone, restore_backup skips unlisted hosts (:312); node3's backup isn't checked."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_basic_backup": {
+      "description": "2-node RF=2 cluster, ks.cf1 20 rows; Manager backup of ks (s3|gcs x native|rclone), wait DONE, then TRUNCATE, manual restore (sctool backup files -> download into upload/ -> nodetool refresh) and verify_c1c2 compares all rows at QUORUM. Basic Manager backup + restore smoke test.",
+      "origin": {
+        "sha": "387743cf63c66a24829093f78fc290f678ef28b9",
+        "date": "2019-12-12",
+        "pr": 1163,
+        "summary": "First batch of Manager backup tests: backup to minio s3 must reach DONE (restore + verify added in 4e3255d0, #1242)."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs); class gets backend/method fixtures (ManagerMethodMixin dropped)",
+        "056f5dc7a8": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, debug -> logger)",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "pass mgr_cluster to clean_restore_and_verify_backup (restore via sctool backup files)",
+        "4e3255d09b": "added keyspace filter and clean_restore_and_verify_backup: truncate, download backup files, nodetool refresh, verify rows",
+        "2508788ea5": "refactor: cluster+data setup moved into _prepare_cluster_with_data",
+        "387743cf63": "origin: added the test (backup DONE only)",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir; restore here is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), then Manager deletes its snapshot. The same flow runs with the same params in test_backup_a_single_keyspace_and_glob_pattern (same helpers, 2 of 5 keyspaces x 2 tables, manager_backup_tests.py:421-436), test_backup_files_command_with_many_sstable_files (same run_backup_command + clean_restore_and_verify_backup, own table setup with hundreds of sstables, GREEN) and TestBackupWithEaR::test_basic_backup_with_encryption_at_rest (plus EaR).",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "full",
+          "note": "same run_backup_command + clean_restore_and_verify_backup on 2 nodes RF=2, own table setup at scale (kept, GREEN)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_a_single_keyspace_and_glob_pattern",
+          "coverage": "full",
+          "note": "same _prepare_cluster_with_data / run_backup_command / clean_restore_and_verify_backup with more keyspaces and tables"
+        },
+        {
+          "path": "manager_backup_tests.py::TestBackupWithEaR::test_basic_backup_with_encryption_at_rest",
+          "coverage": "partial",
+          "note": "same backup + restore with encrypted tables"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_simple_backup_and_restore",
+          "coverage": "partial",
+          "note": "scylla native backup + restore of one small table, no Manager"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupSmokeIntegration",
+          "coverage": "partial",
+          "note": "Manager backup against a real cluster (CI matrix incl. gcs/native), checks manifests and files, no refresh restore"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: the identical backup + manual restore runs with the same params in test_backup_files_command_with_many_sstable_files (GREEN, kept; same run_backup_command + clean_restore_and_verify_backup) and test_backup_a_single_keyspace_and_glob_pattern (same helpers, more keyspaces); ~106s x 4 params per job. Note: restore skips unlisted hosts and RF=2 QUORUM verify passes from one replica; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a backup missing one node's files passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_compare_backup_list_size": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10000 rows; Manager backup of keyspace1 (s3|gcs x native|rclone), then parses the size in parentheses on the snapshot's `sctool backup list` line (K/M/G) and sums object sizes under backup/sst/cluster/<id>/dc/datacenter1/node in the bucket; asserts 0.98 <= reported/actual < 1 (stored objects also include snapshot manifest/schema files). Guards Manager's backup size reporting.",
+      "origin": {
+        "sha": "3b79a6f9005aad39c55be87c45fa812d0d4cd5d8",
+        "date": "2020-08-31",
+        "pr": 1639,
+        "summary": "Added the test: backup list size must equal the bucket's sstable bytes (exact ==, s3)."
+      },
+      "commits": {
+        "7b4c0d93f6": "Manager 3.10 uploads manifest.json: check changed to 0.98 <= ratio < 1, data 10 -> 10000 rows",
+        "6f075a3194": "location and bucket listing use the backend (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology (2 nodes, rf=2)",
+        "4d258d5712": "explicit topology layout instead of node count (same node count)",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "9ffd273f04": "formatting",
+        "a81a8b44e7": "Manager 3.0 CLI: exact == relaxed to +-1%, float parse of size units",
+        "3b79a6f900": "origin: added the test and size helpers",
+        "b31f5d4c8d": "file-level: get_backup_size_from_backup_list parses uppercase K/M/G units (Manager output change)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints (s3 or gs type, db/config.cc:1825), rclone method = agent uploads from the snapshot dir. The asserted part is Manager-only: the backup list size comes from the manifests Manager writes (sum of snapshot file sizes) and is compared with the bytes stored in the bucket; nothing scylla-specific is asserted. scylla-manager backup integration tests only check Size/StorageSize != 0 (TestBackupSmokeIntegration); none compares the reported size with stored bytes. Jenkins: build 305 (2026-04-09, off-schedule run) failed all 4 ids in both jobs while 306 passed with the old check; cause not determined (the Manager 3.10 manifest.json change adapted by 7b4c0d93, PR 6874 merged 2026-04-16, is a candidate); green since apart from infra builds 332/333.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupSmokeIntegration",
+          "coverage": "partial",
+          "note": "manifest Size and StorageSize must be non-zero, no accuracy check"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique Manager-side check (reported backup size vs stored bytes) with no scylla-manager equivalent; the scylla part is a plain backup. One unexplained all-params failure (build 305). Note: S3 listing not paginated; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "manager_backup_tests.py:103",
+          "text": "S3 list_objects isn't paginated (max 1000 keys); with more objects the actual size is undercounted and the ratio check fails."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_nonexisting_backup": {
+      "description": "2-node cluster with no user data; one Manager backup of all keyspaces (s3|gcs x native|rclone; final status not checked) so Manager knows the location, then `sctool backup delete --snapshot-tag=thisdoesnotexist`: if it raises ScyllaManagerError the message must contain 'not found'. There is no else branch, so a delete that succeeds also passes. Guards Manager's not-found error for an unknown snapshot tag.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added the backup delete tests (nonexisting, twice, all) and the delete-run-and-restore template with its 3 wrappers (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "backup location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes -> topology",
+        "18b6d6e05a": "pytest port (attr mark removed, warning -> logger.warning)",
+        "4ef71b0117": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: the restapi deleteSnapshot handler (scylla-manager@9ef99661c pkg/restapi/backup.go:189-210) passes the tag to Service.DeleteSnapshot without a format check (locations fall back to the cluster's backup tasks, backup.go:70-77); it lists manifests through the agents' rclone, matches none, deletes nothing and returns util.ErrNotFound (pkg/service/backup/service.go:1318), rendered as 'get resource: not found' (pkg/restapi/error.go:41). Here a backup exists, so PurgeSnapshotTags scans its manifests and returns at stale == 0 (purger.go:108-140), while test_delete_backup_twice's second delete finds no manifests left; both end at the same return, and the surviving backup isn't asserted on. Scylla is reached only by the preceding backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir); the method param only changes that upload. No scylla-manager test asserts the not-found result (DeleteSnapshot is called in tests only for existing tags, and restapi TestBackupDeleteSnapshot mocks success). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_backup_twice",
+          "coverage": "partial",
+          "note": "same delete_backup call and 'not found' check ending at the same ErrNotFound return (service.go:1318), there with no manifests left after a successful delete (kept, YELLOW); same missing-else bug"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Near-duplicate of test_delete_backup_twice (kept, YELLOW): same call and check ending at the same DeleteSnapshot ErrNotFound return (service.go:1318; the handler has no tag-format check), the only difference being an unasserted scan of the existing backup's manifests; the twin also exercises a successful delete; Manager-only, ~86s x 4 params per job. Bug: no else branch, a silently successful delete passes (same in the twin). Note: method param inert; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:731-736",
+          "text": "No else branch: if deleting the nonexistent tag succeeds silently, the test passes; only a wrong error message fails it."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the initial upload; the delete lists and removes files via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_backup_twice": {
+      "description": "2-node cluster with no user data; Manager backup of all keyspaces (s3|gcs x native|rclone; final status not checked), `sctool backup delete` of its snapshot tag must succeed (SCTool.run raises otherwise), then deleting the same tag again: if it raises ScyllaManagerError the message must contain 'not found'. No else branch, so a second delete that succeeds also passes. Guards Manager's handling of deleting an already-deleted snapshot.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added the backup delete tests (nonexisting, twice, all) and the delete-run-and-restore template with its 3 wrappers (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "backup location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes -> topology",
+        "18b6d6e05a": "pytest port (attr mark removed, warning -> logger.warning)",
+        "4ef71b0117": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: Service.DeleteSnapshot (scylla-manager@9ef99661c pkg/service/backup/service.go:1251-1321) lists manifests via the agents' rclone and removes the tag's manifests and unreferenced files with purger.PurgeSnapshotTags (purger.go:108); the second call deletes no manifest and returns util.ErrNotFound (:1318), rendered as 'get resource: not found' (pkg/restapi/error.go:41). Scylla is reached only by the backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir); the method param only changes that upload. No scylla-manager test asserts the not-found result: TestDeleteSnapshotIntegration deletes existing tags only, restapi TestBackupDeleteSnapshot mocks a successful service. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "partial",
+          "note": "successful deletes of existing tags against a real cluster (CI matrix incl. gcs); never deletes a tag twice or checks ErrNotFound"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_nonexisting_backup",
+          "coverage": "partial",
+          "note": "same not-found branch with a never-existing tag, no successful delete (RED, redundant with this one)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only error path (DeleteSnapshot -> ErrNotFound when no manifest matches, service.go:1318) that no scylla-manager test asserts; the scylla part is a plain backup, so unsure relevance for scylla. Bug: no else branch, a silently successful second delete passes. Note: method param inert; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:748-753",
+          "text": "No else branch: if the second delete of the tag succeeds silently, the test passes; only a wrong error message fails it."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the initial upload; the delete lists and removes files via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_all_backups": {
+      "description": "2-node cluster; three rounds of c-s write n=50K into keyspace1.standard1 (new key range each round), each followed by a run of the same Manager backup task of keyspace1 (--no-continue; s3|gcs x native|rclone; final status not checked). All three snapshot tags are then deleted with `sctool backup delete` (must succeed) and `sctool backup files --snapshot-tag` must list nothing for each. Guards that deleting every snapshot of a task leaves no backup files listed.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added the backup delete tests (nonexisting, twice, all) and the delete-run-and-restore template with its 3 wrappers (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "backup location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes -> topology",
+        "9ffd273f04": "formatting",
+        "18b6d6e05a": "pytest port (attr mark removed, assertFalse -> assert)",
+        "c1f80ca579": "reruns use start(continue_task=False) (sctool --no-continue) instead of continue_attr='false'",
+        "4ef71b0117": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: delete goes through Service.DeleteSnapshot -> purger.PurgeSnapshotTags (scylla-manager@9ef99661c pkg/service/backup/service.go:1251, purger.go:108), files removed via the agents' rclone, no scylla code; `backup files` (ListFiles, service.go:605) is built from manifests only, so the check proves the manifests are gone. Scylla is reached by the c-s writes and the backups (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir), the same paths as test_backup_files_command_with_many_sstable_files (kept, GREEN). scylla-manager TestDeleteSnapshotIntegration deletes every snapshot and asserts the bucket is empty (manifests, schemas, SSTs, scylla manifests); CI runs it over s3/gcs/localstorage x native/rclone x tablets (.github/cfg/integration-test-cfg.yaml). Slowest test of the delete group (~160s x 4 params per job, 150K c-s rows).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "full",
+          "note": "deletes all snapshots (2 tasks sharing SSTs) and asserts the bucket holds no manifests, schemas, SSTs or scylla manifests; real cluster, CI provider/method matrix incl. gcs"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_third_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same multi-run task + backup delete, deletes one run and restores the others"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Manager-only behavior fully covered by scylla-manager TestDeleteSnapshotIntegration (delete all snapshots, bucket empty: stronger than this manifest-based listing check) against a real cluster on s3 and gcs; the scylla part is plain c-s + backup; ~160s x 4 params per job. Note: checks only the manifest-based listing; method param inert; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:777-779",
+          "text": "backup files is built from manifests (Manager ListFiles), so the check proves the manifests are gone, not that SST objects left the bucket."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the uploads; deletion and the listing go through Manager and agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_first_run_and_restore_others": {
+      "description": "Thin wrapper of _delete_run_and_restore_others_template(0) (manager_backup_tests.py:781-818): 2-node RF=2 cluster, ks.cf1 gets rows 1-10, 11-20, 21-30 before each of three runs of one Manager backup task (s3|gcs x native|rclone, each must reach DONE). The first run's snapshot is deleted with `sctool backup delete` and `backup files` for it must be empty; runs 2 and 3 are then each restored manually (drop + recreate table, download into upload/, nodetool refresh) and verify_c1c2 checks exactly their cumulative rows at QUORUM. Guards that deleting one snapshot keeps the SSTs other snapshots still reference.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added _delete_run_and_restore_others_template and the first/second/third wrappers with the other backup delete tests (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "helper: backup location and assert message use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "helper: topology from generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2) for RF-rack validity",
+        "4d258d5712": "helper: explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "helper: config_and_create_cluster arg renamed nodes -> topology",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "18b6d6e05a": "helper: pytest port (assertFalse -> assert)",
+        "c1f80ca579": "helper: reruns use start(continue_task=False) (sctool --no-continue)",
+        "4ef71b0117": "origin: added the template and the wrapper",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir; restore is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), the same scylla paths as test_backup_files_command_with_many_sstable_files (kept, GREEN). The unique part is Manager-side: Service.DeleteSnapshot -> purger.PurgeSnapshotTags (scylla-manager@9ef99661c pkg/service/backup/service.go:1251, purger.go:108-150) deletes the files of the removed tag's manifests minus those referenced by kept manifests (set difference); its only positional input is the oldest kept tag (versioned-file purge, purger.go:154). `backup files` (ListFiles, service.go:605) is manifest-based, so the post-delete check proves the manifest is gone. scylla-manager TestDeleteSnapshotIntegration checks shared SSTs survive deleting one of two tasks' snapshots (file sets compared, real cluster, CI matrix), without a restore. Deleting the first (oldest) run: absent compaction between runs all its SSTs are still referenced by runs 2 and 3, and the oldest kept tag moves forward. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "partial",
+          "note": "deleting one task's snapshot keeps the SSTs shared with another task, then deleting the last empties the bucket; real cluster, CI matrix; different tasks, no restore"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_second_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template, middle run deleted (RED, covered by this and the third-run variant)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_third_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template, newest run deleted (its unique SSTs removed, absent compaction)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same backup + manual nodetool refresh restore (kept, GREEN)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side (backup, refresh restore) is the same as test_backup_files_command_with_many_sstable_files (GREEN); the unique part is Manager's delete keeping SSTs shared with later runs, covered only partially by scylla-manager TestDeleteSnapshotIntegration (different tasks, no restore), so unsure relevance for scylla. Note: deletion check reads only manifests; restore skips unlisted hosts and RF=2 QUORUM passes from one replica; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:804-805",
+          "text": "backup files is built from manifests (Manager ListFiles), so the deletion check proves the manifest is gone, not that unique SSTs left the bucket."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a kept snapshot losing one node's manifest passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_second_run_and_restore_others": {
+      "description": "Thin wrapper of _delete_run_and_restore_others_template(1) (manager_backup_tests.py:781-818): 2-node RF=2 cluster, ks.cf1 gets rows 1-10, 11-20, 21-30 before each of three runs of one Manager backup task (s3|gcs x native|rclone, each must reach DONE). The second run's snapshot is deleted with `sctool backup delete` and `backup files` for it must be empty; runs 1 and 3 are then each restored manually (drop + recreate table, download into upload/, nodetool refresh) and verify_c1c2 checks exactly their cumulative rows at QUORUM. Guards that deleting one snapshot keeps the SSTs other snapshots still reference.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added _delete_run_and_restore_others_template and the first/second/third wrappers with the other backup delete tests (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "helper: backup location and assert message use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "helper: topology from generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2) for RF-rack validity",
+        "4d258d5712": "helper: explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "helper: config_and_create_cluster arg renamed nodes -> topology",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "18b6d6e05a": "helper: pytest port (assertFalse -> assert)",
+        "c1f80ca579": "helper: reruns use start(continue_task=False) (sctool --no-continue)",
+        "4ef71b0117": "origin: added the template and the wrapper",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir; restore is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), the same scylla paths as test_backup_files_command_with_many_sstable_files (kept, GREEN). The unique part is Manager-side: Service.DeleteSnapshot -> purger.PurgeSnapshotTags (scylla-manager@9ef99661c pkg/service/backup/service.go:1251, purger.go:108-150) deletes the files of the removed tag's manifests minus those referenced by kept manifests (set difference); its only positional input is the oldest kept tag (versioned-file purge, purger.go:154). `backup files` (ListFiles, service.go:605) is manifest-based, so the post-delete check proves the manifest is gone. scylla-manager TestDeleteSnapshotIntegration checks shared SSTs survive deleting one of two tasks' snapshots (file sets compared, real cluster, CI matrix), without a restore. Deleting the middle run: by the set difference it is either all-shared like the first-run variant or has unique SSTs like the third-run variant, and the oldest kept tag stays as in the third; its two restores (oldest run after a later delete, newest run after an earlier delete) are done by the third and first variants. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_first_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template; all-shared delete case and restore of the newest run after an earlier delete (kept, YELLOW)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_third_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template; unique-SST delete case, oldest kept tag unchanged, restore of the oldest run after a later delete (kept, YELLOW)"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "partial",
+          "note": "deleting one task's snapshot keeps the SSTs shared with another task; real cluster, CI matrix; no restore"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Redundant: PurgeSnapshotTags is a set difference (purger.go:108-150) whose only positional input is the oldest kept tag, so deleting the middle run is the all-shared case of the first-run variant or the unique-SST case of the third-run variant, and both its restores are done there; ~100s x 4 params per job. Note: deletion check reads only manifests; restore skips unlisted hosts and RF=2 QUORUM passes from one replica; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:804-805",
+          "text": "backup files is built from manifests (Manager ListFiles), so the deletion check proves the manifest is gone, not that unique SSTs left the bucket."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a kept snapshot losing one node's manifest passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_delete_third_run_and_restore_others": {
+      "description": "Thin wrapper of _delete_run_and_restore_others_template(2) (manager_backup_tests.py:781-818): 2-node RF=2 cluster, ks.cf1 gets rows 1-10, 11-20, 21-30 before each of three runs of one Manager backup task (s3|gcs x native|rclone, each must reach DONE). The third run's snapshot is deleted with `sctool backup delete` and `backup files` for it must be empty; runs 1 and 2 are then each restored manually (drop + recreate table, download into upload/, nodetool refresh) and verify_c1c2 checks exactly their cumulative rows at QUORUM. Guards that deleting one snapshot keeps the SSTs other snapshots still reference.",
+      "origin": {
+        "sha": "4ef71b011743535bb494a7de0f8a7a0091241af6",
+        "date": "2020-06-11",
+        "pr": 1555,
+        "summary": "Added _delete_run_and_restore_others_template and the first/second/third wrappers with the other backup delete tests (s3 only)."
+      },
+      "commits": {
+        "6f075a3194": "helper: backup location and assert message use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "helper: topology from generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2) for RF-rack validity",
+        "4d258d5712": "helper: explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "helper: config_and_create_cluster arg renamed nodes -> topology",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "19991c953b": "formatting",
+        "18b6d6e05a": "helper: pytest port (assertFalse -> assert)",
+        "c1f80ca579": "helper: reruns use start(continue_task=False) (sctool --no-continue)",
+        "4ef71b0117": "origin: added the template and the wrapper",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir; restore is manual (boto/gcs client download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732), the same scylla paths as test_backup_files_command_with_many_sstable_files (kept, GREEN). The unique part is Manager-side: Service.DeleteSnapshot -> purger.PurgeSnapshotTags (scylla-manager@9ef99661c pkg/service/backup/service.go:1251, purger.go:108-150) deletes the files of the removed tag's manifests minus those referenced by kept manifests (set difference); its only positional input is the oldest kept tag (versioned-file purge, purger.go:154). `backup files` (ListFiles, service.go:605) is manifest-based, so the post-delete check proves the manifest is gone. scylla-manager TestDeleteSnapshotIntegration checks shared SSTs survive deleting one of two tasks' snapshots (file sets compared, real cluster, CI matrix), without a restore. Deleting the third (newest) run: absent compaction between runs, the only variant where SSTs unique to the deleted run (rows 21-30) are removed while the shared ones must stay. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "partial",
+          "note": "shared SSTs kept after deleting one task's snapshot, all removed after deleting the last; real cluster, CI matrix; no partial unique-file delete with restore"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "same purger removes files not referenced by kept manifests (retention purge, real cluster); no restore"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_first_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template, oldest run deleted (all SSTs shared, absent compaction)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_delete_second_run_and_restore_others",
+          "coverage": "partial",
+          "note": "same template, middle run deleted (RED, covered by this and the first-run variant)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "same backup + manual nodetool refresh restore (kept, GREEN)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla side (backup, refresh restore) is the same as test_backup_files_command_with_many_sstable_files (GREEN); the unique part is Manager's delete removing the newest run's own SSTs while keeping shared ones, covered only partially by scylla-manager TestDeleteSnapshotIntegration/TestPurgeIntegration (no restore), so unsure relevance for scylla. Note: deletion check reads only manifests; restore skips unlisted hosts and RF=2 QUORUM passes from one replica; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:804-805",
+          "text": "backup files is built from manifests (Manager ListFiles), so the deletion check proves the manifest is gone, not that unique SSTs left the bucket."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:312",
+          "text": "restore_backup skips hosts missing from the listing and RF=2 QUORUM verify passes from one replica; a kept snapshot losing one node's manifest passes."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_disable_backup_task_before_run_before_executed": {
+      "description": "2-node RF=2 cluster with keyspace1.cf1 (9 rows); creates a Manager backup task with a cron for the next minute boundary 20-80s away (cron_for_next_minute, dtest_scylla_manager.py:2005; s3|gcs x native|rclone), disables it (`sctool backup update --enabled=False`), asserts `sctool tasks --all` lists it as '*backup/<id>' (disabled) before the fire time, sleeps until fire time + 10s and then requires status NEW (wait_for_status, 100s timeout; a started run times out). Guards that a disabled task is not run at its scheduled time.",
+      "origin": {
+        "sha": "df6e2aaf3de763ebdd829e7455a549a31f9ce9d5",
+        "date": "2020-09-09",
+        "pr": 1681,
+        "summary": "Added the test (start date now+30s, wait 30s for NEW) with the ManagerTask.enabled helper."
+      },
+      "commits": {
+        "839daf7175": "cron at the next minute boundary 20-80s away (cron_for_next_minute); asserts is_task_disabled() and disable before fire time; sleeps until fire time + 10s (fixes a cron firing before the disable)",
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "8df35098dd": "topology from generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2) for RF-rack validity",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "config_and_create_cluster arg renamed nodes -> topology",
+        "d78e11ed75": "passes --method from the class param",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "d5e58f29b5": "cron built with create_cron_list_from_timedelta (minute, hour) instead of a 6-field list with seconds",
+        "a81a8b44e7": "Manager 3.0 CLI: start date replaced by a 1-minute cron, sleep 60s, NEW wait 100s; data inserted before task creation",
+        "18b6d6e05a": "pytest port (info -> logger.info)",
+        "df6e2aaf3d": "origin: added the test"
+      },
+      "relevance": "Only Scylla Manager scheduling: the task never runs, so scylla is reached only by cluster setup, the data insert and task-creation validation (location via agent rclone, native endpoint check). Disabling = PutTask with Enabled=false -> Unschedule (scylla-manager@9ef99661c pkg/service/scheduler/service.go:432-440); sctool marks disabled tasks with '*' in `tasks --all` (v3/pkg/managerclient/model.go:541). scylla-manager covers it only below a real run: pkg/scheduler/scheduler_test.go::TestUnscheduleBeforeRun (unit, fake runner: unscheduled before its trigger -> no run) and TestServiceScheduleIntegration subtests with a mock runner ('load tasks': disabled task not started; 'disable running task'). Live in Manager. ~136s x 4 params per job, mostly the cron wait.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/scheduler/scheduler_test.go::TestUnscheduleBeforeRun",
+          "coverage": "partial",
+          "note": "unscheduling before the trigger prevents the run; unit test with a fake runner"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration",
+          "coverage": "partial",
+          "note": "'load tasks' (disabled task not started) and 'disable running task' subtests, mock runner; no future-scheduled task disabled before its fire time"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only scheduling behavior; scylla-manager covers unscheduling only with a fake runner (TestUnscheduleBeforeRun) and service subtests with a mock runner, so partial and unsure relevance for scylla. Note: backend/method inert (task never runs); obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358-364",
+          "text": "Backend/method only reach task-creation validation; the task never runs, so all 4 ids check the same scheduling."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_execute_download_files_dry_run": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10 rows; Manager backup of keyspace1 (s3|gcs x native|rclone) must end DONE, then node1 runs `scylla-manager-agent download-files --mode upload --dry-run` for its host id and the snapshot tag (scylla-ccm agent_download_files raises on non-zero exit). The '  - ks.table (size)' rows of the printed plan, minus system_schema.*, must equal exactly the keyspace1 tables from system_schema.tables, and node1's keyspace1 upload/ dirs must stay empty. Guards the agent's dry-run listing and that it downloads nothing.",
+      "origin": {
+        "sha": "2638fa1d13c1509975a4a3fb713db9bbe91c08e1",
+        "date": "2021-06-27",
+        "pr": null,
+        "summary": "Added the test (s3 only; expected keyspace1 plus every system_schema table in the listing); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "9def002bc5": "stops expecting every system_schema table: filters system_schema.* out of the listing, compares keyspace1 only (scylla 6a4cad738a added 4 empty system_schema tables absent from the manifest; fixed the builds 334-339 failures)",
+        "6f075a3194": "backup and download-files locations use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "20908a47e2": "formatting",
+        "2638fa1d13": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths only in the backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir), the same as test_backup_files_command_with_many_sstable_files (kept, GREEN); the asserted part is Manager agent only: download-files reads the node's manifest from the bucket and prints the plan (scylla-manager@9ef99661c pkg/downloader/plan.go WriteTo), no scylla call. scylla-manager tests the plan only on local testdata (pkg/downloader/downloader_test.go::TestDownload 'plan'/'plan text' golden files); no integration test runs download-files. Jenkins: all 4 params failed builds 334-339 of both manager jobs (2026-09-18..10-12; 332-333 failed every test) with 'did not include system_schema.scylla_clusters/_datacenters/_racks/_nodes': scylla 6a4cad738a (committed 2026-09-10, db/schema_tables.hh:121-123) added four system_schema tables that are empty on a fresh cluster, so they have no sstables and are not in the manifest, while the test expected every system_schema table. dtest 9def002bc5 (PR #7581, merged 2026-10-14) dropped the system_schema comparison and build 340 (2026-10-16) passed again: a test-expectation break, not a Manager or scylla bug. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/downloader/downloader_test.go::TestDownload",
+          "coverage": "partial",
+          "note": "dry-run plan (JSON and text) of a local testdata backup, golden-file compared; no real bucket"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_restore_with_agent_download_files",
+          "coverage": "partial",
+          "note": "same agent download-files on a real backup, real download + refresh instead of dry run"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-agent-only check (dry-run plan) that scylla-manager tests only on local testdata; the scylla part is a plain backup, so unsure relevance for scylla. The all-param failures in builds 334-339 came from scylla 6a4cad738a's new empty system_schema tables breaking the test's expectation, fixed by dtest 9def002bc5 (#7581). Note: system_schema rows unchecked; reused failure message; method param inert; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:1287",
+          "text": "system_schema.* rows are dropped before comparing (9def002bc5), so only keyspace1.table1 is checked; missing or extra schema tables pass."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_backup_tests.py:1291",
+          "text": "Extra-tables assert reuses 'did not include the following table/s' for tables the listing has but shouldn't."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the upload; the dry-run plan is read from the Manager manifest either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_execute_download_files_on_nonexistent_keyspaces": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10 rows; Manager backup of keyspace1 (s3|gcs x native|rclone) must reach DONE, the table is truncated, then node1 runs `scylla-manager-agent download-files -K NONEXISTENT_KEYSPACE` for the snapshot: the call must fail and its stderr (err.args[-1] of scylla-ccm agent_download_files' exception) must contain 'no data matching filters'; no failure raises. Guards the agent's error for a keyspace filter that matches nothing.",
+      "origin": {
+        "sha": "e8ff598ffb564a023b3eb892a62c35c62211534d",
+        "date": "2021-04-21",
+        "pr": null,
+        "summary": "Added the test (s3 only); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup and download-files locations use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "8249572320": "formatting (noqa BLE001 on the broad except)",
+        "e8ff598ffb": "origin: added the test",
+        "160a1c2db1": "file-level: removed the old nose attr('scylla-manager') decorator",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager agent behavior for the asserted part: downloader.Download filters the manifest index and fails with 'no data matching filters <filters>' when nothing matches (scylla-manager@9ef99661c pkg/downloader/downloader.go:127-135), before any download; scylla is reached only by the preceding backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir), the same as test_backup_files_command_with_many_sstable_files (kept, GREEN). scylla-manager unit-tests the same error on a dummy manifest (pkg/downloader/downloader_test.go::TestDownloadFilterCheck); no integration test runs download-files. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/downloader/downloader_test.go::TestDownloadFilterCheck",
+          "coverage": "partial",
+          "note": "same 'no data matching filters' error from Download with a non-matching keyspace filter; unit test on a dummy manifest, no CLI or bucket"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_restore_with_agent_download_files",
+          "coverage": "partial",
+          "note": "same agent download-files on a real backup, no filter"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-agent-only argument error; scylla-manager unit-tests the identical error (TestDownloadFilterCheck) but no integration test runs the CLI against a real backup, so partial and unsure relevance for scylla. Note: TRUNCATE before the failing call is unused; method param inert; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "manager_backup_tests.py:1240",
+          "text": "TRUNCATE of keyspace1.table1 before the expected-to-fail download-files has no effect on the check (copied from the restore test)."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the upload; the filter error comes from the manifest index either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_purge_deleted_backup_task": {
+      "description": "Thin wrapper of _purge_deleted_backup_task_template(use_purge_only=False) (manager_backup_tests.py:1037-1063): 2-node RF=2 cluster, ks.cf1 20 rows; Manager backup of ks (s3|gcs x native|rclone) must reach DONE; the test lists the DC's sst objects, renames the task's manifests to a timestamp one year older (_rename_files_with_older_timestamps :1009), deletes the task (`sctool stop --delete`), runs nodetool compact on each node so new sstables get new names, then a new backup task of ks must reach DONE and none of the old sst objects may remain. Guards Manager purging a deleted task's backups once they exceed its 30-day retention.",
+      "origin": {
+        "sha": "9bc13c52c123dbbe4134b5a09cccbc747804577c",
+        "date": "2021-06-02",
+        "pr": null,
+        "summary": "Added the test inline (s3 only) with _rename_files_with_older_timestamps; no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "helpers: listing (_get_s3_files -> _get_endpoint_files), manifest rename and backups use the backend param (s3|gcs)",
+        "9ffd273f04": "formatting",
+        "eeb236dff7": "body moved into _purge_deleted_backup_task_template shared with test_purge_only_backup_task; DONE wait step 10 -> 5",
+        "9bc13c52c1": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: after `stop --delete` the backup task decorator keeps the deleted task in the retention map with RetentionDays max(days, 30) (scylla-manager@9ef99661c pkg/service/backup/service.go:105-135, model.go:555); the new task's purge stage (worker_purge.go:14-86) picks tags past that via staleTags (purger.go:29) and removes their unreferenced files with the same purger.PurgeSnapshotTags as backup delete, through the agents' rclone. Scylla is reached by the snapshots and uploads (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir) and nodetool compact (tools/scylla-nodetool.cc:4291), all plain. scylla-manager covers it jointly: TestServiceScheduleIntegration 'decorate backup task' (deleted task -> RetentionDays 30 in the map, mock runner), TestPurgeIntegration (year-old manifest of a removed task purged, days policy via task3, remaining files all referenced; real cluster) and TestDeleteSnapshotIntegration (PurgeSnapshotTags removes SST objects, bucket empty; real cluster), CI matrix s3/gcs/localstorage x native/rclone x tablets. ~99s x 4 params per job.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "year-old manifest of a removed task (fallback 30-day policy) and task3's 3-day-old manifest (days policy) purged during another run, unreferenced files removed; real cluster, CI matrix; the removed-task manifest copies a live one, so no unique SSTs"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration",
+          "coverage": "partial",
+          "note": "'decorate backup task' subtest: deleted task's retention becomes RetentionDays 30 in the retention map; mock runner"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestDeleteSnapshotIntegration",
+          "coverage": "partial",
+          "note": "same purger.PurgeSnapshotTags removes the SST objects of purged tags (bucket empty after the last delete); real cluster"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_purge_only_backup_task",
+          "coverage": "partial",
+          "note": "same template, purge triggered by a --purge-only task (kept, YELLOW)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "scylla-manager covers it jointly: the 'decorate backup task' subtest asserts a deleted task's 30-day retention (mock runner), TestPurgeIntegration the purge of a year-old removed-task manifest by days, and TestDeleteSnapshotIntegration SST removal by the same purger, both against a real cluster on s3 and gcs; the scylla part is plain backup + compact; ~99s x 4 params per job. Note: pre-purge listing not checked non-empty; method param inert; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:1045",
+          "text": "Pre-purge sst listing is never asserted non-empty (test_purge_removed_node_data does at :1001); an empty listing or wrong prefix would pass."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the uploads; purge lists and deletes via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_purge_only_backup_task": {
+      "description": "Thin wrapper of _purge_deleted_backup_task_template(use_purge_only=True) (manager_backup_tests.py:1037-1063): 2-node RF=2 cluster, ks.cf1 20 rows; Manager backup of ks (s3|gcs x native|rclone) must reach DONE; the test lists the DC's sst objects, renames the task's manifests to a timestamp one year older (_rename_files_with_older_timestamps :1009), deletes the task (`sctool stop --delete`), runs nodetool compact on each node, then a new `sctool backup --purge-only` task (no keyspace) must reach DONE, none of the old sst objects may remain and the DC's sst listing must be empty (:1063), i.e. the purge-only task uploaded nothing. Guards Manager's --purge-only mode (run only the purge stage) purging a deleted task's backups past its 30-day retention.",
+      "origin": {
+        "sha": "eeb236dff7f8bedc6184627ead4db036ce76441c",
+        "date": "2021-06-21",
+        "pr": null,
+        "summary": "Moved test_purge_deleted_backup_task's body into _purge_deleted_backup_task_template and added this --purge-only variant (s3 only); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "template: listing (_get_s3_files -> _get_endpoint_files), manifest rename and backups use the backend param (s3|gcs)",
+        "9ffd273f04": "formatting",
+        "eeb236dff7": "origin: template extracted, purge-only branch (run_backup_command(purge_only=True)) and the 'nothing uploaded' assert",
+        "9bc13c52c1": "template body origin: test_purge_deleted_backup_task added inline with _rename_files_with_older_timestamps (s3 only)",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: --purge-only makes the run skip every stage before PURGE (scylla-manager@9ef99661c pkg/service/backup/service.go:963-968); the purge stage then drops the deleted task's year-old manifests via the decorator's max(days, 30) retention (service.go:105-135, model.go:555) and removes their unreferenced files with purger.PurgeSnapshotTags through the agents' rclone. Scylla is reached only by the first plain backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir) and nodetool compact (tools/scylla-nodetool.cc:4291). scylla-manager runs PurgeOnly targets in TestBackupProtectedManifestsIntegration and TestBackupEventBasedHoldVanishedDirsIntegration (retention 1: stale snapshot purged, last snapshot kept unchanged, which rules out a new snapshot; real cluster, GCS hardcoded, retention-lock / event-based-hold modes); the stage skip is provider-independent, and the deleted-task purge is covered as for test_purge_deleted_backup_task (decorator subtest, TestPurgeIntegration, TestDeleteSnapshotIntegration on the s3/gcs CI matrix). ~97s x 4 params per job.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_retention_lock_integration_test.go::TestBackupProtectedManifestsIntegration",
+          "coverage": "partial",
+          "note": "PurgeOnly run with retention 1 purges the stale snapshot and keeps the last one unchanged (so no new snapshot); real cluster, GCS only, protected (retention lock / event-based hold) manifests"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/event_based_hold_interceptor_integration_test.go::TestBackupEventBasedHoldVanishedDirsIntegration",
+          "coverage": "partial",
+          "note": "PurgeOnly with retention 1: first snapshot fully purged, second kept; GCS, event-based hold"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "year-old manifest of a removed task (fallback 30-day policy) purged during another task's run, unreferenced files removed; real cluster, CI matrix"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/scheduler/service_integration_test.go::TestServiceScheduleIntegration",
+          "coverage": "partial",
+          "note": "'decorate backup task' subtest: deleted task's retention becomes RetentionDays 30 in the retention map; mock runner"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_purge_deleted_backup_task",
+          "coverage": "partial",
+          "note": "same template, purge triggered by a regular backup task (RED)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only, only partly covered: the purge-only stage skip runs in scylla-manager only in GCS-only retention-lock/event-based-hold tests (TestBackupProtectedManifestsIntegration, TestBackupEventBasedHoldVanishedDirsIntegration), the deleted-task purge in TestPurgeIntegration; no real-cluster test runs purge-only on a deleted task's aged files on s3. Kept as the one of the purge pair (test_purge_deleted_backup_task is RED); the scylla part is a plain backup + compact, ~97s x 4 params per job. Note: pre-purge listing not checked non-empty; method param inert; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:1045",
+          "text": "Pre-purge sst listing is never asserted non-empty (test_purge_removed_node_data does at :1001); an empty listing or wrong prefix would pass."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the uploads; purge lists and deletes via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_purge_removed_node_data": {
+      "description": "3-node cluster (dc1: rack1 x1, rack2 x2), ks.cf1 20 rows RF=2; Manager backup of ks with --retention 1 (s3|gcs x native|rclone) must reach DONE within 300s and node3's sst objects must exist in the bucket (:1001); node3 is decommissioned, the same task is restarted with --no-continue and must reach DONE within 300s (:1005), after which no object may remain under node3's sst prefix. Guards Manager removing a decommissioned node's backup files: with retention 1 the second run purges the first snapshot, node3's manifest and files included (scylla-manager#3277).",
+      "origin": {
+        "sha": "be02a005919b1b03550777da8a2d8a24ed53a913",
+        "date": "2021-06-02",
+        "pr": null,
+        "summary": "Added the test (s3 only, 3 nodes, retention 1, decommission, node3's prefix must end empty; 'new in manager 2.4'); no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup location and the listing (_get_s3_files -> _get_endpoint_files) use the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology {dc1: rack1 x1, rack2 x2} with rf=2 instead of 3 nodes in one rack",
+        "d78e11ed75": "assert message typo fixed; file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "be02a00591": "origin: added the test"
+      },
+      "relevance": "Exercises scylla code paths: a real decommission of node3 (nodetool decommission -> /storage_service/decommission, api/storage_service.cc:751; with tablets, tablet migration off node3), then snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir, on node1/node2. The asserted purge is Scylla Manager only: with --retention 1 the second run's purge stage drops the first snapshot's manifests (node3's included) and removes files no kept manifest references, via the agents' rclone (scylla-manager#3277: removal comes from retention, not from the decommission). With tablets the snapshot stage disables tablet balancing and re-enables it in a defer (scylla-manager@9ef99661c pkg/service/backup/worker_snapshot.go:23-31); the host pool can send that call to the decommissioned node, which keeps running and blocks 300s on a raft read_barrier (CLOUD-4795, open, found with this test on manager-3.13). The with-tablets-only failures here match it (WaitTimeoutExpiredError on the post-decommission DONE wait, :1005; :1002 at build 339's older dtest rev) in builds 339, 342, 343 (gcs-native, gcs-rclone, s3-rclone; teardown of gcs-native then also logs scylla native-upload abort errors, scylladb#24642), and some passing with-tablets runs in 341-342 took ~480-500s vs ~190s; no-tablets is unaffected; no logs were kept (no Jenkins artifacts, Argus runs without logs), so the match is by symptom. scylla-manager has no test with a real decommission. Live in scylla and Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "retention 1: a manifest copied under a random node id ('removed node') is purged in the next run; real cluster, CI matrix; no real decommission and no SSTs unique to that node"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/event_based_hold_interceptor_integration_test.go::TestBackupEventBasedHoldVanishedDirsIntegration",
+          "coverage": "partial",
+          "note": "dc2 nodes filtered out of the 2nd snapshot, purge-only with retention 1 removes the 1st snapshot incl. those nodes' files; GCS, event-based hold, no decommission"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_decommision_waits_for_backup",
+          "coverage": "partial",
+          "note": "scylla side of backup vs decommission: decommission waits for a running native backup on the leaving node; no backup after decommission, no Manager"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of a Manager backup across a real decommission, and it catches an open Manager bug: with tablets the post-decommission run can hang in SNAPSHOT (CLOUD-4795, found with this test; balancing call to the decommissioned node blocks 300s), which matches the with-tablets failures of builds 339/342/343 (no logs kept). The asserted purge is Manager-only and partly covered by TestPurgeIntegration / TestBackupEventBasedHoldVanishedDirsIntegration, so YELLOW rather than GREEN. Note: open CLOUD-4795; method param inert for the purge; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "https://scylladb.atlassian.net/browse/CLOUD-4795",
+          "text": "Catches open CLOUD-4795: with tablets the post-decommission run hangs in SNAPSHOT (balancing call to decommissioned node blocks 300s), fails :1005."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the uploads; purge lists and deletes via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_restart_node_during_backup": {
+      "description": "3-node RF=3 cluster (3 racks), c-s writes 1M rows (keyspace1, RF=3, CL=ALL); Manager backup of keyspace1 (s3|gcs x native|rclone); once the task is RUNNING node3 (scylla + agent) is stopped and started again and its agent reconfigured, and the same run must reach DONE within 600s; then the table is truncated, restored manually (download + nodetool refresh) and c-s reads the 1M rows. Guards Manager riding through a node restart within one backup run (agent-client retries) instead of failing the task (reworked for scylladb#22391 / scylla-manager#4223).",
+      "origin": {
+        "sha": "4576884f2e14cefcbbbf8a388e6cb2cf3a159b53",
+        "date": "2020-01-19",
+        "pr": 1258,
+        "summary": "Third batch of Manager backup tests: restart node3 during a backup of 20 rows and expect ERROR; skipped ('will return when minio bandwidth limiting is on', 8eb4042f) until 6b029b01a1 reworked it to expect DONE."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology: generate_cluster_topology_based_rf(1 DC, 3 nodes, rf=3)",
+        "4d258d5712": "explicit 1-DC/1-rack/3-node topology instead of a node count",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "6b029b01a1": "un-skipped and reworked: c-s 1M rows RF=3, reconfigure node3's agent after restart, expect DONE (was ERROR), then restore + c-s read",
+        "4576884f2e": "origin: added the test (20 rows, expect ERROR after the restart)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir, a scylla node stop/start mid-run, manual restore (download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732) and a c-s read. The scenario-specific part is Scylla Manager's: its agent client retries the calls to node3 until it is back, so the run finishes without a task retry. Unverified whether the stop lands mid-upload: a scylla shutdown during a native upload logs 'snapshots - Error uploading ... abort requested' (db/snapshot/backup_task.cc:75, scylladb#24642 open), which would fail the log check (this test has no ignore patterns), yet the [*-native] runs pass in every build but the infra builds 332/333; so node3 is likely stopped before or after its upload and scylla's native-abort path is probably not reached. scylla-manager has no test restarting a scylla node mid-backup: TestBackupResumeIntegration restarts only the agents or injects failures. ~313s x 4 params per job. Live in scylla and Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupResumeIntegration",
+          "coverage": "partial",
+          "note": "'resume after agent restart': agents restarted mid-upload, the same run completes and data is uploaded; scylla keeps running; real cluster, CI matrix"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_shutting_down_node_during_backup",
+          "coverage": "partial",
+          "note": "node stopped mid-backup, run fails, node restarted and task resumed to DONE + restore; rclone only"
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_backup_is_abortable",
+          "coverage": "partial",
+          "note": "scylla native backup task aborted via the task manager; no restart, no Manager"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (scylla node restart inside one Manager backup run), but the distinctive part is Manager's retry logic, partly covered by scylla-manager TestBackupResumeIntegration (agent restart); the [*-native] runs never hit scylla's native-upload abort errors (#24642), so the scylla side looks like an ordinary backup of a restarted node. Note: no check that node3 stopped while the backup was still running; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:598",
+          "text": "No status check after node3 stops; if the run finished first (or before node3's upload) the restart scenario isn't exercised, yet it passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_restore_after_purge": {
+      "description": "2-node RF=2 cluster; ks.cf1 (pkey=1, ckey 1-1000) written in 10 flushed batches; Manager backup of ks with --retention 3 --num-retries 0 (s3|gcs x native|rclone) gives tag[0]; ckey 1-1000 are then range-deleted and three more runs (--no-continue), each after writing and flushing 1000 new rows, give tag[1..3], so the 4th run purges tag[0]. The table is truncated, tag[1] is restored manually (download + nodetool refresh) and verify_lack_of_keys asserts none of ckey 1-1000 is present. Guards Manager's purge keeping files a retained, deduplicated snapshot still references, and the range tombstone surviving backup + restore.",
+      "origin": {
+        "sha": "06c807952fa5981a91c6d0b63595c3dc98bac1bf",
+        "date": "2020-03-09",
+        "pr": 1435,
+        "summary": "Added the test with insert_data_over_multiple_queries, delete_range and the clustering-key table helpers (s3 only, --interval 1h)."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology: generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2)",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "a81a8b44e7": "Manager 3.0 CLI: dropped --interval 1h",
+        "c1f80ca579": "start(continue_attr=False) -> start(continue_task=False) rename",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "06c807952f": "origin: added the test",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Exercises scylla code paths: flushes, a clustering range deletion, snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir, and a manual restore (download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732) of sstables carrying the range tombstone. The purge part is Scylla Manager only: deduplication across runs and the retention-3 purge of tag[0] removing only files no kept manifest references (purger.PurgeSnapshotTags via agent rclone); sctool backup files lists from manifests (ListFiles, scylla-manager@9ef99661c pkg/service/backup/service.go:605-637) and returns no error when none match. scylla-manager TestRestoreFullChangingMethodIntegration restores the latest snapshot after retention-3 purges and TestPurgeIntegration checks that a purge leaves only referenced files; neither restores the oldest retained snapshot. Live in scylla and Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_method_integration_test.go::TestRestoreFullChangingMethodIntegration",
+          "coverage": "partial",
+          "note": "retention 3 over 5 backups (rclone/native alternating), the latest snapshot restored after purges and tables validated identical; s3; latest not oldest-retained, no deletes"
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "after a purge every remaining SST / scylla manifest is referenced by a kept manifest; no restore"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "plain backup + manual restore baseline (GREEN)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Restoring the oldest retained snapshot after a purge is otherwise untested (scylla-manager restores only the latest after purges), but the unique part is Manager-side and the assertion is weak. Bug: only absence of ckey 1-1000 is checked, so an empty restore passes. Note: stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:712",
+          "text": "Only checks ckey 1-1000 absent; never that 1001-2000 restored or tag[0] purged; an empty restore (manifest gone, :312 skip) passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_shutting_down_node_before_backup": {
+      "description": "3-node RF=3 cluster (3 racks), ks.cf1 20 rows; node3 (scylla + agent) is stopped, then a Manager backup of ks (s3|gcs x native|rclone) must end DONE (wait_and_get_final_status, == DONE); node3 is started, the table truncated, the backup restored manually (download + nodetool refresh; node3 has no files, so restore_backup skips it at :312) and verify_c1c2 checks all rows at QUORUM. Guards Manager backing up a cluster with a down node by excluding it (scylla-manager-enterprise#1551, fixed 2020-05-21).",
+      "origin": {
+        "sha": "4576884f2e14cefcbbbf8a388e6cb2cf3a159b53",
+        "date": "2020-01-19",
+        "pr": 1258,
+        "summary": "Third batch of Manager backup tests: stop node3 of 3, backup must be DONE, then restore + verify; reinstated with RF=3 and the :312 skip in 229ce08c76 after manager#1551."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "8df35098dd": "RF-rack-valid topology: generate_cluster_topology_based_rf(1 DC, 3 nodes, rf=3)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "a95022a90e": "formatting",
+        "229ce08c76": "reinstated after manager#1551: RF=3, backup of ks only, final status must be DONE, node3 started before restore; restore_backup skips hosts missing from the listing",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "origin: added the test",
+        "4e3255d09b": "line-history artifact: clean_restore_and_verify_backup introduced (predates this test)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Scylla code paths reached are the plain ones: snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir, on node1/node2, and a manual restore (download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732); node3 is down (ccm stops scylla and agent) and never asked to snapshot. The scenario-specific part is Scylla Manager only: getLiveNodes pings scylla REST through each agent and drops hosts that fail (scylla-manager@9ef99661c pkg/service/backup/service.go:249-269, pkg/scyllaclient/client_ping.go:69-85), so the target holds node1/node2 and the run succeeds. scylla-manager TestBackupWithNodesDownIntegration asserts that against a real cluster (one node's REST blocked: target has 2 hosts, backup succeeds, 2 manifests); it skips on IPv6, so CI runs it on the IPv4 rows (s3 native/rclone, tablets on/off, gcs native). Unlike test_backup_while_node_is_drained (drained node still snapshotted by scylla), nothing scylla-side is specific here. ~455s x 4 params per job. Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupWithNodesDownIntegration",
+          "coverage": "partial",
+          "note": "node with scylla REST blocked by iptables (still running, not stopped) is excluded from the target (2 hosts), backup succeeds with 2 manifests; Manager's exclusion is the same REST-ping path (GetLiveNodes) as for a stopped node; same manager#1551 fix (08d0f98a8); real cluster; IPv4 CI rows"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_while_node_is_drained",
+          "coverage": "partial",
+          "note": "drained node (REST up) is included, backup DONE + restore (GREEN)"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_files_command_with_many_sstable_files",
+          "coverage": "partial",
+          "note": "plain backup + manual restore baseline (GREEN)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Slow + redundant: down-node exclusion is Manager-only (REST ping, GetLiveNodes) and asserted by scylla-manager TestBackupWithNodesDownIntegration (REST blocked by iptables, same ping path, also checks the node has no manifest) against a real cluster; the scylla side of a backup with a DN peer stays in test_backup_while_node_is_drained (GREEN) and the plain backup + restore in test_backup_files_command_with_many_sstable_files (GREEN); ~455s x 4 params per job. Note: node3's exclusion isn't asserted; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:614",
+          "text": "Only DONE + QUORUM restore of node1/node2 data; never checks node3 was excluded (no manifest/host check), unlike the Manager test."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_shutting_down_node_during_backup": {
+      "description": "4-node RF=4 cluster (4 racks), c-s writes 1M rows (RF=4, CL=ALL); the cluster is added with ScyllaManagerTool.add_cluster directly (no --method), Manager's agent_client backoff max_retries is set to 1 and the server restarted; a backup of keyspace1 (s3|gcs) must reach RUNNING, node4 (scylla + agent) is stopped, the task must reach ERROR within 200s, node4 is started and its agent reconfigured, the task is resumed (`sctool start`) and its final status must not be ERROR; then the table is truncated, restored manually and c-s reads the 1M rows. Guards Manager failing a run when a node dies mid-backup and completing it on resume (scylla-manager-enterprise#1551; reworked for scylladb#22391 / scylla-manager#4223).",
+      "origin": {
+        "sha": "4576884f2e14cefcbbbf8a388e6cb2cf3a159b53",
+        "date": "2020-01-19",
+        "pr": 1258,
+        "summary": "Added as test_shutting_down_nodes_during_backup (5 nodes, two stopped, gated on manager#1551); reinstated as this single-node variant in ae5c675141 (PR #1670, 2020-09-06)."
+      },
+      "commits": {
+        "921be1d2c0": "#24642 ignore patterns accept both exception formats (': ' or parentheses)",
+        "6f075a3194": "location uses the backend param (s3|gcs)",
+        "056f5dc7a8": "formatting",
+        "f242c816b0": "issue_open() -> is_issue_open fixture for the #24642 check",
+        "8df35098dd": "RF-rack-valid topology: generate_cluster_topology_based_rf(1 DC, 4 nodes, rf=4)",
+        "4d258d5712": "explicit 1-DC/1-rack/4-node topology instead of a node count",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "97b580b67f": "ignore scylla native-upload abort errors (scylladb#24642) when node4 stops",
+        "b1bd58372e": "1M rows (was 5M); cluster added via add_cluster directly instead of _create_mgr_cluster, Manager agent_client backoff max_retries=1 + restart so the run fails fast; ERROR wait 200s",
+        "a760226a8d": "tolerate a still-RUNNING task after 600s (removed again in b1bd58372e)",
+        "9ffd273f04": "formatting",
+        "aedaa57c4e": "formatting",
+        "263a30ff59": "configure_agent(node4) after the restart (agent config lost on node restart)",
+        "ae5c675141": "reinstated as single-node shutdown: 4 nodes, c-s 5M rows, wait ERROR, restart, resume, != ERROR, restore + c-s read",
+        "c1f80ca579": "start(continue_attr=...) -> start(continue_task=True) rename",
+        "6c3c1873ff": "refactor: run_backup_command takes kwargs instead of an options dict",
+        "4576884f2e": "origin: added test_shutting_down_nodes_during_backup",
+        "4e3255d09b": "line-history artifact: clean_restore_and_verify_backup introduced (predates this test)",
+        "d78e11ed75": "file-level: added the native|rclone --method param through _create_mgr_cluster, which this test bypasses since b1bd58372e (:563), so it never gets --method"
+      },
+      "relevance": "Exercises scylla code paths: c-s load, snapshots via scylla REST (proxied by scylla-manager-agent), uploads by the agents' rclone only (see bug), node4 stop/start, reuse of the snapshot after restart on resume, manual restore (download into upload/ + nodetool refresh, tools/scylla-nodetool.cc:1732) and a c-s read. The asserted behavior (run fails when a node dies mid-upload, resume completes) is Scylla Manager's; scylla-manager TestBackupResumeIntegration covers it with an injected upload failure ('resume after upload failed') and agent restarts against a real cluster on the CI matrix, never stopping scylla. add_cluster at :563 passes no method, so no --method flag and Manager's default rclone applies (scylla-manager@9ef99661c pkg/service/backup/model.go:510, default since fec50c445 2025-06-24, before that 'auto' = native when possible): the [*-native] ids rerun rclone, and the #24642 ignore patterns for scylla's native-upload abort (:574-576, S3-only text) can't fire. One failure outside infra builds (310, with-tablets, s3-rclone). ~385s x 4 params per job. Live in scylla and Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestBackupResumeIntegration",
+          "coverage": "partial",
+          "note": "'resume after upload failed' (injected upload failure on a host, run errors, resumed run uploads all) and 'resume after agent restart'; real cluster, CI matrix; scylla never stopped"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_restart_node_during_backup",
+          "coverage": "partial",
+          "note": "node restarted mid-backup, the same run must reach DONE, + restore; passes --method"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager fail-then-resume across a real node shutdown; scylla-manager covers resume only with injected failures / agent restarts (partial). Bug: no --method is passed, so the native params run rclone and scylla's native-upload abort path (#24642) is never exercised. Note: #24642 ignore patterns inert; != ERROR accepts STOPPED/ABORTED; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "manager_backup_tests.py:563",
+          "text": "add_cluster without method: no --method, Manager defaults to rclone (model.go:510); [*-native] params rerun rclone, native upload abort never exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "https://github.com/scylladb/scylladb/issues/24642",
+          "text": "Ignores scylla native-upload abort errors of open scylladb#24642; inert since native never runs here, and S3-only (gcs logs 'GCP error')."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:586",
+          "text": "Final status checked with != ERROR, so STOPPED/ABORTED pass this assert; only the later restore + c-s read may catch it."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_update_backup_parameters": {
+      "description": "2-node RF=2 cluster with keyspace1.cf1 and new_keyspace1.cf1 (20 rows each) and a second bucket newbackup-bucket; a Manager backup of keyspace1 (s3|gcs x native|rclone, via backup_api.backup) must reach DONE; then `sctool backup update` sets keyspace new_keyspace1, location <backend>:newbackup-bucket, num-retries 11, rate-limit 1, retention 12, snapshot-parallel 1,2,3 and upload-parallel 4,5,6, and the properties parsed from `sctool info` must equal the new keyspace, location, retention, rate-limit and both parallel lists. Guards Manager persisting updated backup task properties.",
+      "origin": {
+        "sha": "494d4ca01acbc8eef4ed0dfd64c56cf834dda436",
+        "date": "2020-09-07",
+        "pr": 1673,
+        "summary": "Added the test (s3 only) asserting the updated task arguments; the docstring already promised a rerun the test never did."
+      },
+      "commits": {
+        "6f075a3194": "location uses the backend param; the second bucket is created via endpoint_create_bucket (s3|gcs)",
+        "8df35098dd": "RF-rack-valid topology: generate_cluster_topology_based_rf(1 DC, 2 nodes, rf=2)",
+        "4d258d5712": "explicit 1-DC/1-rack/2-node topology instead of a node count",
+        "f81bd87d1a": "formatting (config_and_create_cluster arg renamed nodes -> topology)",
+        "d78e11ed75": "initial backup passes method=self.method (native|rclone param)",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "72809f2380": "formatting",
+        "aedaa57c4e": "formatting",
+        "fb3dfc9ea9": "line-history artifact: noqa on the neighbouring _get_s3_files",
+        "62c5535329": "create new_keyspace1 and newbackup-bucket before the update (Manager validates both)",
+        "f10c44165b": "properties read from sctool info (keyspace/location/rate-limit/... keys) instead of the task arguments",
+        "0502a5048d": "line-history artifact: neighbouring test_small_table_threshold_parameter moved to the repair file",
+        "dfbe085cd5": "update no longer passes cluster_name",
+        "a81a8b44e7": "line-history artifact: neighbouring repair test (100MiB -> 100Mi)",
+        "9bc13c52c1": "line-history artifact: neighbouring _get_s3_files reformatted",
+        "be02a00591": "line-history artifact: _get_s3_files added next to the test",
+        "188ad50436": "line-history artifact: blank line next to the test",
+        "18b6d6e05a": "pytest port (info -> logger.info)",
+        "b9530ac97c": "line-history artifact: neighbouring repair test uses repair_api",
+        "6eda9dd048": "line-history artifact: neighbouring test_small_table_threshold_parameter added",
+        "494d4ca01a": "origin: added the test"
+      },
+      "relevance": "Only Scylla Manager server / sctool behavior for the asserted part: `sctool backup update` re-validates the target (DCs and keyspaces via scylla REST, the new location via the agents' rclone; scylla-manager@9ef99661c pkg/service/backup/service.go targetFromProperties) and stores the properties, `sctool info` prints them back. Scylla is reached only by cluster setup and the initial plain backup (snapshots via scylla REST (proxied by scylla-manager-agent), native method = scylla /storage_service/backup task uploading to object_storage_endpoints, rclone method = agent upload from the snapshot dir); the method param changes only that backup. No scylla-manager test of the backup update -> info property round trip was found (pkg/command/backup has only flag docs such as update-res.yaml; scheduler integration tests update mock tasks via PutTask). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_disable_backup_task_before_run_before_executed",
+          "coverage": "partial",
+          "note": "same `sctool backup update` command, only --enabled=False (task then doesn't run)"
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Manager-only property round trip with no scylla-manager test found, so YELLOW per the Manager-side convention; the scylla part is a plain backup. Bug: the docstring's rerun with the updated args never happens. Note: num_retries not asserted; swapped / literal assert-message args; method param inert for the update; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_backup_tests.py:907-913",
+          "text": "Docstring claims the task is rerun to completion with the updated args; it never runs again, only sctool info properties are compared."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_backup_tests.py:924",
+          "text": "num_retries=11 is passed to backup update but never asserted (the Retry line of sctool info isn't checked)."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_backup_tests.py:950-955",
+          "text": "err_msg.format args swapped (actual printed as expected); the upload-parallel message prints the literal 'upload_parallel_list'."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the initial backup; the asserted update/info round trip is method-independent."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
+        }
+      ]
+    },
+    "TestScyllaMgmtBackup::test_validate_backup_after_deleting_file": {
+      "description": "2-node RF=2 cluster, keyspace1.table1 10 rows; Manager backup of keyspace1 (s3|gcs x native|rclone) must end DONE; `sctool backup validate` must report exactly 0 missing files and end DONE; then one random object under backup/sst/cluster/<id>/ is deleted from the bucket (_delete_file_from_bucket :262, asserts the listing non-empty) and a second validate must report exactly 1 missing file and end ERROR. Guards Manager's backup validate detecting files referenced by manifests but missing from the location.",
+      "origin": {
+        "sha": "63f8dffa4dba53e8381cb10b35db24437d9653fa",
+        "date": "2021-05-23",
+        "pr": null,
+        "summary": "Added the test (s3 only) with _delete_file_from_bucket; no own PR, landed via the pytest-port PR #2086."
+      },
+      "commits": {
+        "6f075a3194": "backup/validate locations use the backend param; docstring mentions gcs",
+        "056f5dc7a8": "formatting",
+        "5f79cc52f3": "_delete_file_from_bucket takes a prefix; same backup/sst/cluster/<id>/ prefix here",
+        "eccda80e42": "formatting",
+        "9ffd273f04": "formatting",
+        "20908a47e2": "formatting",
+        "63f8dffa4d": "origin: added the test",
+        "8df35098dd": "file-level: _prepare_cluster_with_data builds an RF-rack-valid topology (2 nodes, rf=2 by default)",
+        "d78e11ed75": "file-level: added native|rclone --method param (class fixture) and object_storage_endpoints config for native upload"
+      },
+      "relevance": "Only Scylla Manager behavior for the asserted part: backup validate lists the location through the agents' rclone and compares it with the manifests' file index, no scylla code involved; BackupValidateTask.get_file_status_summary (dtest_scylla_manager.py:1355) parses exact counts. The preceding backup exercises the usual scylla paths (snapshot REST, native /storage_service/backup or agent rclone upload) already covered by test_backup_files_command_with_many_sstable_files (kept, GREEN). The method param only changes the initial upload. scylla-manager CI runs the pkg/service/backup integration tests with s3, gcs and localstorage providers and both methods (.github/cfg/integration-test-cfg.yaml). Live in Manager.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestValidateIntegration",
+          "coverage": "full",
+          "note": "tampered manifest referencing 2 files absent from the bucket -> MissingFiles 2 and a 'broken snapshots' error; alien-node manifest -> MissingFiles >= 9; real cluster, provider from the CI matrix incl. gcs"
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_backup_validate_delete_orphaned_files",
+          "coverage": "partial",
+          "note": "same validate task, orphaned-file case (RED)"
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_deleting_file_from_s3",
+          "coverage": "partial",
+          "note": "deletes a backed-up file, then a Manager restore must fail"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Manager-only feature fully covered by scylla-manager TestValidateIntegration (manifest-referenced files absent from the bucket reported as missing with exact counts, validate errors) against a real cluster on s3 and gcs; the scylla part is a plain backup. Note: method param inert for validate; obsolete read_repair options; stale #26570 comment.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_backup_tests.py:358",
+          "text": "native/rclone param only changes the initial upload; validate lists the bucket via agent rclone either way."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "dtest_scylla_manager.py:1979",
+          "text": "insert_data_from_ranges creates tables with read_repair_chance/dclocal_read_repair_chance, obsolete in scylla, no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_backup_tests.py:151",
+          "text": "Comment cites scylladb#26570 (closed 2026-01-15) for per-backend endpoint formats; scylla has since unified the format."
         }
       ]
     }
