@@ -5,8 +5,10 @@ description: Weekly triage update - refresh Jenkins/dtest/scylla, mark deleted t
 
 Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
 
-1. Sync: `git pull --rebase -q`, `scripts/refresh.sh` (Jenkins CSVs, fetch dtest `next` + scylla `master`,
-   `gen_data.py`; takes minutes). Auth/login errors → ask the user to fix. `gen_data.py` also moves analysis
+1. Sync: `git uu && git -C ~/github/scylla-dtest uu && git -C ~/github/scylladb uu && git -C
+   ~/github/scylla-manager uu` (alias: checks out the main branch, fast-forwards it from upstream, pushes to
+   origin), then `scripts/refresh.sh` (Jenkins CSVs, fetch dtest `next` + scylla `master`, `gen_data.py`; takes
+   minutes). Auth/login errors, dirty tree or diverged branch → ask the user to fix. `gen_data.py` also moves analysis
    `<dtest file>.py:N` refs to the new dtest rev and prints `check <file>:<old> → <new>` for refs that pointed at
    changed/deleted code: the entries citing them get rechecked in step 5 (notes about removed code), even if
    `delta.py` doesn't list them.
