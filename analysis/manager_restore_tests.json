@@ -1,6 +1,6 @@
 {
   "file": "manager_restore_tests.py",
-  "analyzed_at": "2026-10-20",
+  "analyzed_at": "2026-11-16",
   "scylla_rev": "f35ad40c9d",
   "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
   "tests": {
@@ -47,6 +47,1196 @@
           "tag": "cant-fail",
           "ref": "manager_restore_tests.py:533-560",
           "text": "ks.cf1 never truncated before restore (Manager doesn't truncate), so verify_c1c2 passes on original data; only task DONE is real evidence."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_basic_restore": {
+      "description": "2-node, 2-rack cluster (RF 2). Inserts ks.cf1 k1..k20 at CL ALL, runs a Manager backup to minio/fake-gcs, TRUNCATEs ks.cf1 (insert_data_backup_and_cleanup -> _backup_and_cleanup, manager_restore_tests.py:47 -> clean_up_tables dtest_scylla_manager.py:1986-1996), then `sctool restore --restore-tables`. Asserts the task reaches DONE and verify_c1c2 reads exactly k1..k20 with matching c1/c2 at QUORUM (manager_backup_tests.py:216-246). Plain smoke for Manager data restore; params s3/gcs x rclone/native.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "restore_and_verify: timeout 1200s, dropped manual nodetool repair loop (helper).",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed manual repairs after restore (Manager 3.2 repairs restored tables itself).",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: topology generate_cluster_topology_based_rf(nodes=2, rf=2) -> 2 racks of 1 node.",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: Manager restore tables (restore --restore-tables, rclone and native methods) in scylla-manager@9ef99661c (master) pkg/service/restore; scylla load&stream (api/storage_service.cc:396) and native restore API (/storage_service/restore, api-doc/storage_service.json:893).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_method_integration_test.go::TestRestoreTablesMethodIntegration",
+          "coverage": "full",
+          "note": "Real Scylla: backed-up table truncated on the destination before each case (:183), restored with method=rclone and method=native (when the API is exposed, :117-126), then validateIdenticalTables (complete progress, tombstone_gc mode, row count equal to source; helper_integration_test.go:326-356). Backup taken on another cluster."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_adding_new_dc",
+          "coverage": "full",
+          "note": "Same 2-node RF-2 setup, same insert_data_backup_and_cleanup + restore_and_verify (lines 215-220 vs 91-95), plus an idle dc2 node added before restore (holds no ks replicas)."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_decommission",
+          "coverage": "partial",
+          "note": "Same backup/truncate/restore/verify flow with a decommission before restore; test_restore_after_adding_new_node likewise."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesMultiLocationIntegration",
+          "coverage": "partial",
+          "note": "Same cluster: backup, TRUNCATE (:1654-1656), restore, exact content compare (:1680-1686), but from two DC-specific locations with swapped DCs."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "2-node backup restored into fresh empty tables of the 6-node cluster; row count + complete progress (validateRestoreSuccess :1535-1593)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-manager TestRestoreTablesMethodIntegration (real Scylla: truncated table restored with rclone and native, row count + complete progress, same bar as test_restore_data_after_purge), and a strict subset of sibling test_restore_after_adding_new_dc (manager_restore_tests.py:214-220): identical cluster, data, truncate, restore and verify steps, the sibling only adds an idle dc2 node. Note: stale comment on --method (manager_restore_tests.py:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_adding_column": {
+      "description": "2-node RF-2 cluster; ks.cf1 k1..k20 backed up, TRUNCATEd (manager_restore_tests.py:47), then `ALTER TABLE ks.cf1 ADD c3 int` before restoring the old-schema sstables. Asserts restore DONE, key/c1/c2 value lists equal the inserted ones exactly (_compare_single_column :108-120) and c3 is null in every row (_validate_all_column_values_none :122-131; non-empty is guaranteed by the prior compares). Guards that Manager restore (no schema validation) loads pre-ALTER sstables into a table with an extra column.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed node1/node2 nodetool repair after restore (Manager 3.2 repairs restored tables).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: ALTER TABLE ADD; Manager restore does no schema check before load&stream / native restore (scylla-manager@9ef99661c (master)); scylla test_backup.py comment notes neither restore API validates destination schema.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_replacing_column",
+          "coverage": "partial",
+          "note": "Same Manager restore into a post-backup altered schema, but DROP c2 + ADD c2 int instead of a new column."
+        },
+        {
+          "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table_with_dropped_and_readded_column",
+          "coverage": "partial",
+          "note": "Scylla-native restore/refresh of sstables into a table altered after snapshot; no Manager, no added-only column."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreSchemaDropAddColumnIntegration",
+          "coverage": "partial",
+          "note": "Real Scylla; column dropped and re-added at the source before backup (:464-466), schema + tables restored; not a destination-side ALTER."
+        },
+        {
+          "path": "test/boost/schema_changes_test.cc::test_schema_changes_*",
+          "coverage": "partial",
+          "note": "Reader level: sstables written under a base schema read under evolved ones, incl. added regular/static columns (for_each_schema_change, test/lib/mutation_source_test.cc:2724-2737); no restore or streaming."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Manager restore into a destination table that gained a column after the backup; table truncated first (manager_restore_tests.py:47) and values compared exactly, c3 checked null. Unlike test_restore_after_removing_column (scylla's test_auto_snapshot_restore_table_with_dropped_column covers that case through the restore streamer), no scylla or scylla-manager restore test loads pre-ALTER sstables into a table with an added column; only the reader-level schema_changes_test does. Note: stale comment on --method (manager_restore_tests.py:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_decommission": {
+      "description": "3-node cluster dc1 {rack1: 1, rack2: 2}, RF 2; asserts node3 is in rack2 (manager_restore_tests.py:186) so racks stay valid. Inserts ks.cf1, backs up (all 3 nodes' sstables), TRUNCATEs (:47), decommissions node3, then restores and verifies DONE + exact k1..k20 at QUORUM (restore_and_verify :57-61). Guards Manager restore of a backup containing sstables of a node that left the cluster (load&stream to the new owners, Manager host list after decommission).",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "restore_and_verify: timeout 1200s, dropped manual nodetool repair loop (helper).",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed manual repairs after restore (Manager 3.2 repairs restored tables itself).",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: topology {'dc1': {'rack1': 1, 'rack2': 2}} + assert node3.rack == 'rack2' so rack2 keeps a node.",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: nodetool decommission; Manager restore picks any node with location access per DC (hostsByDC, scylla-manager@9ef99661c (master) pkg/service/restore/worker.go:168-185) and load&streams to current owners.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "partial",
+          "note": "[3-2]/[5-3] restore a larger cluster's backup into a smaller fresh cluster (schema restore + new Manager cluster), not the same cluster after decommission."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_method_integration_test.go::TestRestoreTablesMethodIntegration",
+          "coverage": "partial",
+          "note": "6-node backup restored into the 2-node cluster, so the backup holds sstables of nodes absent from the target (row count); fresh cluster, no topology change after the backup (integration clusters are fixed: dc1:3+dc2:3 and a 2-node second cluster, testing/docker-compose.yaml)."
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_with_streaming_scopes",
+          "coverage": "partial",
+          "note": "Scylla-native restore with streaming scopes over several topologies, same topology at backup and restore; no Manager."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Manager restore on the same cluster after a node left; table truncated before restore (manager_restore_tests.py:47) and verify_c1c2 compares exactly at QUORUM. Overlaps use fresh clusters or no Manager. Note: stale comment on --method (manager_restore_tests.py:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_adding_new_node": {
+      "description": "2-node RF-2 cluster; ks.cf1 backed up and TRUNCATEd (:47); a 3rd node bootstraps into dc1/rack1 (_add_new_node_and_wait_up_normal :193-203, waits UN and configures its agent), `nodetool repair` on it, then restore_and_verify (DONE + exact k1..k20 at QUORUM). Guards Manager restore after token ownership changed by a bootstrap (backup from 2 nodes, restore through 3), incl. Manager discovering the new host.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "restore_and_verify: timeout 1200s, dropped manual nodetool repair loop (helper).",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed manual repairs after restore (Manager 3.2 repairs restored tables itself).",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology; new node joins node1's dc/rack; explicit rf=2.",
+        "55034a17b8913f6ffa82cf6ccd13c1124778a7a0": "_add_new_node_and_wait_up_normal gains a rack argument (helper).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: bootstrap, Manager restore (scylla-manager@9ef99661c (master)); restore host choice per DC (worker.go:168-185) and load&stream to current owners.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "partial",
+          "note": "[2-3] restores a 2-node backup into a fresh 3-node cluster (schema restore, new Manager cluster), not the same cluster after bootstrap."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "2-node backup restored into the 6-node cluster (more owners than at backup, row count); fresh cluster, no topology change after the backup (integration clusters are fixed: dc1:3+dc2:3 and a 2-node second cluster, testing/docker-compose.yaml)."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Manager restore on the same cluster after a node bootstrapped; truncated first (manager_restore_tests.py:47), exact QUORUM verify. Note: `nodetool repair` at :211 repairs an already-truncated table (avoidable). Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:211",
+          "text": "node3 `nodetool repair` runs after the table was truncated and before restore; nothing to repair, leftover from origin."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_adding_new_dc": {
+      "description": "2-node cluster dc1 {rack1, rack2}; ks.cf1 (RF 2) backed up and TRUNCATEd (:47); a node is added in new dc2/rack3 (UN, agent configured), then restore_and_verify (DONE + exact k1..k20 at QUORUM). ks is created with integer replication_factor before dc2 exists (create_ks dtest_class.py:198-199; scylla expands it into the DCs existing at CREATE, cql3/statements/ks_prop_defs.cc:157-178) and never ALTERed, so dc2 holds no replicas; the test checks Manager restore with an extra non-replica DC node present (it may serve as restore host, worker.go:168-185).",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "restore_and_verify: timeout 1200s, dropped manual nodetool repair loop (helper).",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed manual repairs after restore (Manager 3.2 repairs restored tables itself).",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack dc1 topology; new node in dc2 gets rack3.",
+        "55034a17b8913f6ffa82cf6ccd13c1124778a7a0": "_add_new_node_and_wait_up_normal gains a rack argument (helper).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: adding a DC, Manager restore (scylla-manager@9ef99661c (master)); without --dc-mapping every node with location access can restore any DC's data (worker.go:168-185).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "Restores a dc1:2 keyspace into the dc1:3 + dc2:3 cluster, i.e. with a DC holding no replicas (row count); fresh cluster, no topology change after the backup (integration clusters are fixed: dc1:3+dc2:3 and a 2-node second cluster, testing/docker-compose.yaml)."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_adding_new_node",
+          "coverage": "partial",
+          "note": "Same flow with the new node joining dc1 and taking ownership."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Superset of test_basic_restore, but the new DC never gets ks replicas, so it only adds an idle non-replica node to a basic restore; Manager's smoke test already restores with a replica-less DC present (partial). Note: no data lands in dc2. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_restore_tests.py:218",
+          "text": "ks created with integer RF before dc2 exists and never ALTERed, so dc2 has no replicas; restore into the new DC is never exercised."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_remove_dc": {
+      "description": "Cluster dc1 {rack1: 1, rack2: 1} + dc2 {rack3: 1}; ks.cf1 with {'dc1': 2, 'dc2': 1} backed up and TRUNCATEd (:47), the only dc2 node is decommissioned, then restore_and_verify (DONE + exact k1..k20 at QUORUM). Guards Manager restore of a backup that includes a DC no longer in the cluster. Marked non-strict xfail on scylla-manager#3896 (load&stream 'bind: Invalid argument' with tablets).",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "restore_and_verify: timeout 1200s, dropped manual nodetool repair loop (helper).",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed manual repairs after restore (Manager 3.2 repairs restored tables itself).",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "15457e73978d4b564a9025d43e076381e396ae33": "Added non-strict @pytest.mark.xfail(reason=scylla-manager#3896).",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: decommission, Manager restore (scylla-manager@9ef99661c (master)). scylla-manager#3896 is OPEN (not transferred to scylladb). In dtest-manager-with-tablets every run ends XFAIL (169 SKIPPED rows, median 146s, console of build 343 prints XFAIL); where it fails there is not verified (no artifacts); no tablets-conditional skip exists in conftest.py. No-tablets: 156 PASSED rows are XPASS.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "partial",
+          "note": "Restores into a smaller fresh cluster; single DC, nothing about a removed DC."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreOnlyOneDCFromLocationIntegration",
+          "coverage": "partial",
+          "note": "Backup of a dc1+dc2 cluster restored with --dc-mapping dc1=dc1 into the dc1-only cluster, content compared (:1838-1848); fresh cluster, no DC removed after the backup (integration clusters are fixed, testing/docker-compose.yaml)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Unique scenario (restore after a DC was removed), but the non-strict xfail means it can never report a failure: XPASS is recorded PASSED and real failures SKIPPED (no-tablets build 315 runs: 137-149s, SKIPPED; with-tablets: always XFAIL). Bug: xfail hides results. Note: open issue scylla-manager#3896. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "manager_restore_tests.py:222",
+          "text": "Non-strict xfail on every job: passes are XPASS, failures XFAIL (CSV SKIPPED); with tablets it fails every run, unseen."
+        },
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "https://github.com/scylladb/scylla-manager/issues/3896",
+          "text": "xfail on scylla-manager#3896 (restore after DC removal, load&stream bind EINVAL, tablets), still open."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_delete_keyspace_while_restore_is_paused": {
+      "description": "2-node cluster; c-s writes 3.5M rows to keyspace1.standard1, Manager backup, TRUNCATE (:47). Starts a restore, waits RUNNING, `sctool stop`, then DROPs keyspace1.standard1 and rmtree's its dirs (_drop_table_and_delete_table_dir manager_backup_tests.py:167-174), resumes with continue. Asserts the task ends ERROR and progress mentions keyspace1.standard1 with 'not found' or 'is missing in the restored cluster'. Guards Manager's table-existence check on resume (scylla-manager service.go:93-105).",
+      "origin": {
+        "sha": "9ad66a2e89897d09e33bac56acdcd7553a773d61",
+        "date": "2023-02-27",
+        "pr": 3050,
+        "summary": "Shlomi Balalis: several new Manager restore tests incl. drop-table-while-paused (PR 'Manager restore additional tests', merged 2023-03-08)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "5f79cc52f3584f0302532e1f471da566e4147c5c": "Accept either 'not found' or 'is missing in the restored cluster' in progress output.",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "58b64b0d122d96d0851add8a8ab08c45aa2516b8": "Assert relaxed to 'keyspace1.standard1' and 'not found' both present.",
+        "ec0b81d1c6967d62b536ae33b13228d792f2410e": "formatting",
+        "0e1674413864041dae3fc99e11fc5a82b71be5e3": "Expected message -> 'validate table keyspace1.standard1 still exists: not found'.",
+        "14844a7e563f5338fef5bd2b38665927fc6cf551": "Expected message 'not found' -> 'unconfigured table'.",
+        "7556c9011694bc9b9d949879ad09cfd6b1ee9b46": "wait_for RUNNING polls every 2s instead of 20s.",
+        "9ad66a2e89897d09e33bac56acdcd7553a773d61": "origin: test added."
+      },
+      "relevance": "Live: scylla-manager@9ef99661c (master) pkg/service/restore/service.go:93-105 checks TableExists on resume ('table %s.%s not found', :103); a fresh run instead fails in initUnits ('is missing in the restored cluster', worker.go:438).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesPausedIntegration",
+          "coverage": "partial",
+          "note": "Real Scylla; pause/resume restore repeatedly and validate content; no table dropped while paused."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesTabletAwareProgressIntegration",
+          "coverage": "partial",
+          "note": "Tablet-aware restore (behind enableTabletAwareRestore): tables dropped and recreated while paused (:940-951), resume must succeed; never resumes with a missing table."
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_drop_keyspace_during_tablet_restore",
+          "coverage": "partial",
+          "note": "Scylla-native tablet restore with DROP KEYSPACE mid-download/attach; no Manager pause/resume."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Manager resume after the restored table was dropped; ERROR status and table name are asserted. Note: stop() result unchecked and the fresh-run error is also accepted, so a restore that finished before stop would pass. Note: name says keyspace, drops a table. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_restore_tests.py:383-390",
+          "text": "stop() result not asserted STOPPED; 'is missing in the restored cluster' is the fresh-run error (worker.go:438), so resume path isn't proven."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:375",
+          "text": "Name says delete keyspace; test drops table keyspace1.standard1."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_deleting_file_from_s3": {
+      "description": "2-node cluster (datacenter1/rack1); c-s writes 3.5M rows to keyspace1.standard1, Manager backup, TRUNCATE (:47). Deletes one random *Data.db object under node1's backup/sst/.../dc/datacenter1/node/<hostid>/keyspace/keyspace1/table/standard1/ prefix from minio or fake-gcs (_delete_file_from_bucket manager_backup_tests.py:262-269, asserts a match exists), then restores. Asserts ERROR and 'not present in listed versioned files' in progress. Guards Manager detecting a missing sstable component in the backup location.",
+      "origin": {
+        "sha": "9ad66a2e89897d09e33bac56acdcd7553a773d61",
+        "date": "2023-02-27",
+        "pr": 3050,
+        "summary": "Shlomi Balalis: several new Manager restore tests incl. restore after deleting backup files from s3 (PR 'Manager restore additional tests', merged 2023-03-08)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved into TestScyllaMgmtRestoreBase; no behavior change for this test.",
+        "d3761a497bb371eb74da39500cbf683363ac7a98": "Delete only *Data.db (SM 3.10 also uploads scylla manifests, deleting one let restore succeed); helper asserts a matching file exists.",
+        "5f79cc52f3584f0302532e1f471da566e4147c5c": "Delete 1 file under node1's keyspace1/standard1 prefix instead of 15 random files cluster-wide.",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "0d6d3892e7a7d4b093e5340939032886cf3268ac": "Expected error 'object not found' -> 'not present in listed versioned files' (scylla-manager 14aef7b).",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "9ad66a2e89897d09e33bac56acdcd7553a773d61": "origin: test added."
+      },
+      "relevance": "Live: error raised in scylla-manager@9ef99661c (master) pkg/service/restore/index.go:347 (adjustSSTablesWithRemote). Prefix assumptions hold for gcs too: Manager's backup layout is provider-independent and the dc name 'datacenter1' is generate_cluster_topology's default (tools/cluster_topology.py:4); a mismatch would fail loudly at manager_backup_tests.py:266.",
+      "duplicates": [
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_validate_backup_after_deleting_file",
+          "coverage": "partial",
+          "note": "Same deletion of a backup file, detected by `sctool backup validate`, not by restore."
+        },
+        {
+          "path": "test/cluster/object_store/test_backup.py::test_restore_with_non_existing_sstable",
+          "coverage": "partial",
+          "note": "Scylla-native restore API fails with 'Not Found' for a missing sstable; no Manager."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestValidateIntegration",
+          "coverage": "partial",
+          "note": "`backup validate` on real Scylla reports missing files for manifests referencing absent files (:2340-2347, :2394-2401); no restore."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test of Manager restore failing on a missing sstable component in the backup; asserts ERROR plus the specific index.go:347 message. Note: name/messages say s3 but it also runs gcs. Note: 3.5M-row write for a one-file scenario. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:394",
+          "text": "Name and assert messages say s3, but the test is parametrized over s3 and gcs (fake-gcs-server)."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:398",
+          "text": "3.5M-row cassandra-stress write (~4 min/param) though one deleted Data.db is all the scenario needs."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_post_restore_different_keyspace_not_repaired": {
+      "description": "Cluster 1 (2 nodes, RF 2): ks.cf1 backed up, truncated. Secondary 2-node cluster: Manager restore_schema (rolling restart, :63-71), then creates ks_2.cf_2 (RF 2) with 20 rows at CL ALL and flushes. Then _corrupt_data rmtree's node2's ks_2.cf_2 dir on the running node (:460-464), restores ks.cf1 data (DONE + exact verify, data goes into the fresh cluster) and asserts get_list_of_sstables(node2, ks_2.cf_2) is empty (tools/files.py:133-159). Meant to prove Manager's post-restore repair (stage REPAIR, scylla-manager tables_worker.go:327-357, limited to restored tables) does not touch ks_2.cf_2.",
+      "origin": {
+        "sha": "a63b9f100a22eb6b55d01457ef73cd79426e0540",
+        "date": "2023-09-13",
+        "pr": 3581,
+        "summary": "Shlomi Balalis: Manager 3.2 post-restore automatic repair should only target restored tables; two tests via a shared template (PR 'Manager 3.2 tests', merged 2023-09-28)."
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "0b958c0f08216c035efb1a169ff54732c8f48a45": "Template: restore_schema (with its rolling restart) moved before insert/flush/_corrupt_data; since then no restart follows the rmtree, so nothing recreates the cf_2 dir.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: template topology generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "72809f23801a6ef309e1a3e9f2d38fe93fef484a": "formatting (pep8-naming)",
+        "a63b9f100a22eb6b55d01457ef73cd79426e0540": "origin: test + _template_post_restore_repair_only_restored_table_is_repaired added.",
+        "b2f26f25dfebe0dd7d05f613c411a112f2e75fba": "formatting (flake8-commas)"
+      },
+      "relevance": "Live: post-restore repair stage still unconditional in scylla-manager@9ef99661c (master) (stage.go:24-34, tables_worker.go:159-160) and scoped to w.run.Units tables (tables_worker.go:327-333). The check is dead: get_list_of_sstables only lists *-Data.db inside a matching <table>-<hex> dir (files.py:149-152); scylla creates table dirs only at table init (sstables/storage.cc:1390) and sstable writes use a non-recursive temp-dir touch (storage.cc:268-275), so with no restart after the rmtree the dir stays gone. Inference: node2 still serves cf_2 from open sstables and both replicas got CL ALL writes (dtest_scylla_manager.py:1984), so a wrongful repair would have nothing to stream anyway.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "full",
+          "note": "Same restore_schema into the secondary cluster + restore_and_verify of ks.cf1 (lines 257-267), i.e. everything this test still checks."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "Asserts a tablet repair call happens after restore (:784-811); nothing about repair scope."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: the only distinctive assert can't fail: ks_2.cf_2's dir is removed on a running node and nothing recreates it (since 0b958c0f08 moved restore_schema's restart before the rmtree), so get_list_of_sstables is always empty; no positive check that ks.cf1 was repaired. The rest is fully covered by test_restore_different_size_cluster (:257-267). Note: unneeded rolling restart in restore_schema (:68-71); stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "manager_restore_tests.py:484-486",
+          "text": "cf_2 dir rmtree'd on running node2, never recreated (no restart since 0b958c0f08); get_list_of_sstables is always empty."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:68-71",
+          "text": "restore_schema restarts every target node; Manager restores schema via CQL (restore-schema.rst:27), so no restart is needed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_post_restore_different_table_not_repaired": {
+      "description": "Cluster 1 (2 nodes, RF 2): ks.cf1 backed up, truncated. Secondary 2-node cluster: Manager restore_schema (rolling restart, :63-71), then creates ks.cf_2 next to the restored ks.cf1, 20 rows at CL ALL, flushes. Then _corrupt_data rmtree's node2's ks.cf_2 dir on the running node (:460-464), restores ks.cf1 data (DONE + exact verify, data goes into the fresh cluster) and asserts get_list_of_sstables(node2, ks.cf_2) is empty (tools/files.py:133-159). Meant to prove Manager's post-restore repair (stage REPAIR, scylla-manager tables_worker.go:327-357, limited to restored tables) does not touch ks.cf_2.",
+      "origin": {
+        "sha": "a63b9f100a22eb6b55d01457ef73cd79426e0540",
+        "date": "2023-09-13",
+        "pr": 3581,
+        "summary": "Shlomi Balalis: Manager 3.2 post-restore automatic repair should only target restored tables; two tests via a shared template (PR 'Manager 3.2 tests', merged 2023-09-28)."
+      },
+      "commits": {
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "0b958c0f08216c035efb1a169ff54732c8f48a45": "Template: restore_schema (with its rolling restart) moved before insert/flush/_corrupt_data; since then no restart follows the rmtree, so nothing recreates the cf_2 dir.",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: template topology generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "72809f23801a6ef309e1a3e9f2d38fe93fef484a": "formatting (pep8-naming)",
+        "a63b9f100a22eb6b55d01457ef73cd79426e0540": "origin: test + _template_post_restore_repair_only_restored_table_is_repaired added."
+      },
+      "relevance": "Live: post-restore repair stage still unconditional in scylla-manager@9ef99661c (master) (stage.go:24-34, tables_worker.go:159-160) and scoped to w.run.Units tables (tables_worker.go:327-333). The check is dead: get_list_of_sstables only lists *-Data.db inside a matching <table>-<hex> dir (files.py:149-152); scylla creates table dirs only at table init (sstables/storage.cc:1390) and sstable writes use a non-recursive temp-dir touch (storage.cc:268-275), so with no restart after the rmtree the dir stays gone. Inference: node2 still serves cf_2 from open sstables and both replicas got CL ALL writes (dtest_scylla_manager.py:1984), so a wrongful repair would have nothing to stream anyway.",
+      "duplicates": [
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "full",
+          "note": "Same restore_schema into the secondary cluster + restore_and_verify of ks.cf1 (lines 257-267), i.e. everything this test still checks."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "Asserts a tablet repair call happens after restore (:784-811); nothing about repair scope."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: the only distinctive assert can't fail: ks.cf_2's dir is removed on a running node and nothing recreates it (since 0b958c0f08 moved restore_schema's restart before the rmtree), so get_list_of_sstables is always empty; no positive check that ks.cf1 was repaired. The rest is fully covered by test_restore_different_size_cluster (:257-267). Note: unneeded rolling restart in restore_schema (:68-71); stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "cant-fail",
+          "ref": "manager_restore_tests.py:484-486",
+          "text": "cf_2 dir rmtree'd on running node2, never recreated (no restart since 0b958c0f08); get_list_of_sstables is always empty."
+        },
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:68-71",
+          "text": "restore_schema restarts every target node; Manager restores schema via CQL (restore-schema.rst:27), so no restart is needed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_removed_table": {
+      "description": "2-node RF-2 cluster; ks.cf1 k1..k20 backed up and truncated (manager_restore_tests.py:47), then dropped and its data dirs removed on every node (_drop_table_and_delete_table_dir, manager_backup_tests.py:167-174). Creating a data restore task must then fail: the except branch asserts the ScyllaManagerError text contains 'table' and 'is missing in the restored cluster'. Guards Manager's task-creation validation that rejects restoring tables absent from the destination schema.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05). Originally expected 'not found'."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "38d0cdd4dfeb00535a497e8671578ceb49bfbb84": "Expected error text 'not found' -> 'is missing in the restored cluster' (Manager now checks destination tables when the task is created).",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: scylla-manager@9ef99661c validates the destination at task creation: pkg/restapi/task.go:306 createTask -> validateTask (:255-262) -> GetTargetUnitsViews -> worker.go initUnits (:435-441, 'table %s.%s, which is a part of restored backup, is missing in the restored cluster'). sctool exits non-zero, ccm's ScyllaManager.sctool raises on it and SCTool.run wraps it in ScyllaManagerError (dtest_scylla_manager.py:839).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetTargetUnitsViewsErrorIntegration",
+          "coverage": "partial",
+          "note": "Real-Scylla GetTargetUnitsViews error cases (bad/missing snapshot tag, no matching keyspace, bad params); none for a table missing in the destination."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_delete_keyspace_while_restore_is_paused",
+          "coverage": "partial",
+          "note": "Table dropped while a restore is paused; the resumed run fails ('not found' / 'is missing', :389-390), not the task-creation check."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of Manager rejecting a restore whose table is missing in the destination (worker.go:435-441, checked at task creation). Bug: no `else` after the try (:103-106, unlike :278-279 and :307-308) and no task wait, so if sctool accepted the task the test would pass. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_restore_tests.py:103-106",
+          "text": "No else/raise after the try: if the restore task is created without error the test passes silently; only the error text is checked."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_removing_column": {
+      "description": "2-node RF-2 cluster; ks.cf1 (key, c1 text, c2 text) k1..k20 backed up, TRUNCATEd (manager_restore_tests.py:47), then `ALTER TABLE ks.cf1 DROP c2` before restoring the pre-ALTER sstables, which still hold c2. Asserts restore DONE and that the key and c1 value lists equal the inserted ones exactly (_compare_single_column :108-120); the dropped c2 can't be queried, so it isn't checked. Guards that Manager restore loads sstables carrying a column dropped at the destination: Scylla skips cells older than the drop instead of failing with 'Column c2 missing in current schema' (sstables/mx/reader.cc:177-186).",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed node1/node2 nodetool repair after restore (Manager 3.2 repairs restored tables).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: ALTER TABLE DROP; the sstable reader skips cells of a column in dropped_columns with timestamp <= the drop and throws otherwise (sstables/mx/reader.cc:177-186, same lines at f35ad40c9d). Manager does no schema check before load&stream / native restore (scylla-manager@9ef99661c).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table_with_dropped_column",
+          "coverage": "partial",
+          "note": "Same Scylla case (sstable holding c2 loaded into a table where c2 is dropped, rows checked, c2 gone) via nodetool refresh and the native restore API, which streams like load&stream (sstables_loader.cc sstable_streamer); no Manager."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_replacing_column",
+          "coverage": "partial",
+          "note": "Same DROP c2 + restore, but c2 is re-added as int, so the reader takes the dropped_at branch (reader.cc:393) instead of the missing-column one (:177-186); not a superset."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreSchemaDropAddColumnIntegration",
+          "coverage": "partial",
+          "note": "Column dropped and re-added at the source before backup, schema + tables restored; not a destination-side DROP."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Scylla's test_auto_snapshot_restore_table_with_dropped_column covers the same sstable-vs-schema case through the restore API's streamer, and Manager adds no schema logic, so only the Manager-driven path (rclone download + load_and_stream refresh) is extra. Not a strict subset of test_restore_after_replacing_column: there c2 still exists, so a different reader branch runs (reader.cc:393 vs :177-186). Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_after_replacing_column": {
+      "description": "2-node RF-2 cluster; ks.cf1 (key, c1 text, c2 text) k1..k20 backed up, TRUNCATEd (manager_restore_tests.py:47), then `DROP c2` + `ADD c2 int` (type changed) before restoring sstables whose c2 cells are text written before the drop. Asserts restore DONE, key and c1 lists equal the inserted ones exactly (_compare_single_column :108-120) and c2 is null in every row (_validate_all_column_values_none :122-131; rows guaranteed by the prior compares). Guards that pre-drop cells are masked by the drop timestamp (sstables/mx/reader.cc:393) before the text-vs-int schema-mismatch check (:396) would reject them.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed node1/node2 nodetool repair after restore (Manager 3.2 repairs restored tables).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: Scylla allows re-adding a dropped column with another type (only counters refused, cql3/statements/alter_table_statement.cc:191-193); the reader skips cells with timestamp <= dropped_at before check_schema_mismatch (sstables/mx/reader.cc:393-396; mismatch flag set in sstable_mutation_reader.cc:140-145). Manager does no schema check (scylla-manager@9ef99661c).",
+      "duplicates": [
+        {
+          "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table_with_dropped_and_readded_column",
+          "coverage": "partial",
+          "note": "Drop + re-add, restore via refresh / native restore API (streams like load&stream), pre-drop value must read null; re-added with the same type (text), no Manager."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_after_removing_column",
+          "coverage": "partial",
+          "note": "Same DROP c2 + restore without the re-add; c2 not checked."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreSchemaDropAddColumnIntegration",
+          "coverage": "partial",
+          "note": "Drop + re-add (same type) at the source before backup, schema + tables restored; not a destination-side ALTER."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only test restoring sstables into a table whose column was dropped and re-added with a different type (scylla's test re-adds the same type); truncated first (:47), key/c1 compared exactly and c2 checked null. Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_alter_batch_size": {
+      "description": "2-node single-rack cluster; cassandra-stress writes 3.5M rows to keyspace1.standard1, backup + TRUNCATE (_backup_and_cleanup, manager_restore_tests.py:47). Starts a data restore with --batch-size 3, waits RUNNING, stops it (ManagerTask.stop, dtest_scylla_manager.py:973-976), runs `sctool restore update --batch-size 1` (RestoreTask.update :1453-1478), resumes with continue and asserts the final status is DONE. Meant to guard changing the properties of a paused restore task and resuming with them.",
+      "origin": {
+        "sha": "9ad66a2e89897d09e33bac56acdcd7553a773d61",
+        "date": "2023-02-27",
+        "pr": 3050,
+        "summary": "Shlomi Balalis: several new Manager restore tests (alter batch size, delete keyspace while paused, deleted file, purge) (PR 'Manager restore additional tests', merged 2023-03-08)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology, 1 rack x 2 nodes) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "7556c9011694bc9b9d949879ad09cfd6b1ee9b46": "RUNNING wait polls every 2s instead of 20s, so stop() catches the restore while it runs.",
+        "9ad66a2e89897d09e33bac56acdcd7553a773d61": "origin: test added."
+      },
+      "relevance": "Live: `sctool restore update` (scylla-manager@9ef99661c pkg/command/restore/cmd.go:47-62); on resume the new properties are parsed and only Units/Views/Stage come from the previous run (worker.go:56-85, decorateWithPrevRun :661-686), so the new batch size applies to the remaining batches. --batch-size is ignored for native batches (pkg/command/restore/res.yaml:28-30, batch.go:388-394).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesPausedIntegration",
+          "coverage": "partial",
+          "note": "Real-Scylla restore paused and resumed several times, exact content validated; same properties on every run, no update."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesResumeIntegration",
+          "coverage": "partial",
+          "note": "Pause + resume (continue) of a tables restore with validation; no property change."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Only test of `sctool restore update` between stop and resume, but Bug: it asserts only DONE: no data check although the table was truncated (:47), nothing checks batch size 1 took effect, stop() status ignored. Pause/resume itself is covered with data validation by scylla-manager integration tests. Note: --batch-size is ignored for native restore, so [*-native] params don't exercise it; stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "manager_restore_tests.py:369-373",
+          "text": "Only the final DONE is asserted: no row check after the truncate, no check that the updated batch size applied, stop() result ignored."
+        },
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_restore_tests.py:31-33",
+          "text": "Manager ignores --batch-size for native batches (res.yaml:30, batch.go:388-394), so [*-native] params don't exercise the batch-size change."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_check_tombstone_gc_value": {
+      "description": "Params initial_gc_mode repair/timeout/immediate/disabled. 2-node RF-2 cluster; c-s writes 2.5M rows to keyspace1.standard1, ALTER sets the tombstone_gc mode, backup + TRUNCATE (manager_restore_tests.py:47), data restore. Waits RUNNING (35s), polls up to 10s for tombstone_gc 'disabled' (TimeoutError otherwise), waits DONE and asserts the mode is back to initial_gc_mode (_get_tombstone_gc_mode :323-330 parses system_schema.tables extensions). Guards Manager disabling tombstone GC on restored tables during the restore and putting the original mode back afterwards; restored data isn't checked.",
+      "origin": {
+        "sha": "3cd9d584ad7304f04066c77200f6cb63976c7774",
+        "date": "2023-04-16",
+        "pr": 3117,
+        "summary": "Shlomi Balalis: rewrote the gc_grace_seconds restore checks from 4c1a2b5577 into this tombstone_gc-mode test (PR 'check the tombstone_gc mode during and after restore task', merged 2023-04-18); the final assert expected 'disabled' until 22976e23eb."
+      },
+      "commits": {
+        "e1784617a8cba74536e95f1fd18390d7ef38e98d": "Wait for 'disabled' raised from 5s (0.5s step) to 10s (1s step) (PR 7190, CLOUD-3489: slow location check).",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: generate_cluster_topology_based_rf(nodes=2, rf=2, dc_name_prefix='dc').",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "5f79cc52f3584f0302532e1f471da566e4147c5c": "Single 'disabled' check right after RUNNING replaced by a 5s polling loop.",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "22976e23eb01665cd84527094bc1b45a388bff06": "Final assert expects the original mode instead of 'disabled' (Manager now restores it).",
+        "3cd9d584ad7304f04066c77200f6cb63976c7774": "origin: test added (replaces the gc_grace_seconds tests).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "Predecessor: test_restore_check_gc_grace_seconds / test_pause_restore_and_check_gc_grace_seconds at these lines; replaced by 3cd9d584ad."
+      },
+      "relevance": "Live: tombstone_gc modes (scylla tombstone_gc.cc). scylla-manager@9ef99661c reads each restored table's mode at task init (worker.go:443-448, worker_tombstonegc.go:51-78), sets 'disabled' in stage DISABLE_TGC and re-applies the saved mode in ENABLE_TGC (tables_worker.go:145-171); the code is the same for every mode. Isolated failures (builds 306/307/312, Apr-May 2026, all native params): GCS 'location is not accessible' at backup (306), the old 5s poll timing out (307, consistent with the later 10s bump e1784617a8; its teardown also hit a Scylla abort in sstables_loader download_task_impl progress_holder ~sharded() after the test stopped mid native restore), and a teardown raft/system.peers timeout log error (312).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesPreparationIntegration",
+          "coverage": "full",
+          "note": "Real clusters: table with tombstone_gc 'repair'; restore held in the data stage asserts 'disabled' (again after pause/resume), then 'repair' after success, plus content check; deterministic (LAS hang) instead of a timed poll."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/helper_integration_test.go::validateIdenticalTables",
+          "coverage": "partial",
+          "note": "Helper used by most restore integration tests: asserts the restored table keeps the source tombstone_gc mode (:335-346)."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-manager TestRestoreTablesPreparationIntegration ('disabled' during the data stage, original mode after, real Scylla, deterministic); the other initial modes go through the same mode-agnostic code (tables_worker.go:145-171). Slow: ~315s x 16 params; isolated failures are env/timing (see relevance). Note: for 'disabled' the during-restore poll passes trivially; stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_restore_tests.py:346-353",
+          "text": "For initial_gc_mode='disabled' the during-restore poll passes at once; only the final restore-to-original check means anything."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_data_after_purge": {
+      "description": "2-node RF-2 cluster; ks.cf1 k1..k20 inserted and backed up with --retention 2, then three more insert + backup rounds (k21-100, k101-250, k251-387), so the two oldest snapshots get purged. Table truncated (clean_up_tables, manager_restore_tests.py:428), the latest snapshot (get_snapshot_tag of the last run) restored; asserts DONE and that k1..k387 with c1/c2 match exactly (verify_c1c2, manager_backup_tests.py:237-246). Guards that retention purge keeps the sstables still referenced by retained snapshots (Manager dedups unchanged sstables across snapshots).",
+      "origin": {
+        "sha": "9ad66a2e89897d09e33bac56acdcd7553a773d61",
+        "date": "2023-02-27",
+        "pr": 3050,
+        "summary": "Shlomi Balalis: several new Manager restore tests (alter batch size, delete keyspace while paused, deleted file, purge) (PR 'Manager restore additional tests', merged 2023-03-08)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "9ad66a2e89897d09e33bac56acdcd7553a773d61": "origin: test added."
+      },
+      "relevance": "Live: backup --retention purge and restore of a retained snapshot (scylla-manager@9ef99661c pkg/service/backup, pkg/service/restore).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_method_integration_test.go::TestRestoreFullChangingMethodIntegration",
+          "coverage": "full",
+          "note": "Real clusters: retention 3, five backups (alternating rclone/native), each latest snapshot restored (schema + tables) and validated, so the last two restores run after a purge (:271-312). Validates row counts, enough here: fillTable rewrites the same ids, so a wrongly purged sstable fails the restore itself. Skipped without native backup or on IPv6; S3 only."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/backup/service_backup_integration_test.go::TestPurgeIntegration",
+          "coverage": "partial",
+          "note": "Purge leaves no unreferenced files; doesn't restore the retained snapshots."
+        },
+        {
+          "path": "manager_backup_tests.py::TestScyllaMgmtBackup::test_restore_after_purge",
+          "coverage": "partial",
+          "note": "Retention 3; restores an older retained snapshot by download + nodetool refresh (no Manager restore), checks only the lack of deleted keys."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-manager TestRestoreFullChangingMethodIntegration (latest snapshot restored and validated after retention purge, both methods, real Scylla). Note: never checks that the old snapshots were purged; stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_restore_tests.py:422-427",
+          "text": "Never checks that the two oldest snapshots were actually purged (e.g. backup list), so a no-op retention still passes."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_different_size_cluster": {
+      "description": "Params (backed-up, target) node counts (2,3), (3,2), (2,4), (5,3). Cluster 1 (RF 2, RF-rack-valid racks): ks.cf1 k1..k20 backed up and truncated (manager_restore_tests.py:47). A fresh secondary cluster of the target size gets restore_schema (DONE + rolling restart, :63-71), then restore_and_verify: data restore DONE (timeout 1200) and exact key/c1/c2 compare at QUORUM (verify_c1c2, manager_backup_tests.py:237-246). Guards schema + data restore into a cluster with more or fewer nodes than the backed-up one; the target table is fresh, so the data check is meaningful.",
+      "origin": {
+        "sha": "340471c82ee5c97968ec690f3fc5da8e9fd233c4",
+        "date": "2023-04-30",
+        "pr": 3145,
+        "summary": "Shlomi Balalis: two clusters of different sizes, restore schema then data (PR 'restore schema+data in a cluster in a different size', merged 2023-06-11)."
+      },
+      "commits": {
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: both clusters via generate_cluster_topology_based_rf(nodes=N, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved to TestScyllaMgmtRestoreBase; restore_and_verify lost its unused cluster= arg.",
+        "340471c82ee5c97968ec690f3fc5da8e9fd233c4": "origin: test + restore_schema helper added.",
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; helpers use f'{self.backend}:...' (this test inherits all 4 combos).",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "Helper restore_and_verify: timeout 1200 and no manual nodetool repair after the restore (Manager repairs)."
+      },
+      "relevance": "Live: restore-schema applies DESCRIBE SCHEMA WITH INTERNALS via CQL and works with any cluster size (scylla-manager@9ef99661c docs/source/restore/restore-schema.rst:9,27; schema_worker.go:31-110); data restore streams sstables to the new topology (load&stream / native restore). The one isolated failure was a shrink param: [s3-native-3-2], no-tablets build 323 (2026-07-24), restore_schema not done within 600s (:66); cause unknown (no task progress logged).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreFullIntegration",
+          "coverage": "partial",
+          "note": "Schema then tables from a 2-node cluster into a 6-node 2-DC cluster, row-count and tombstone_gc validation; grow direction only."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreSchemaRoundtripIntegration",
+          "coverage": "partial",
+          "note": "Schema-only restore 2->6 and back 6->2 nodes."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesPreparationIntegration",
+          "coverage": "partial",
+          "note": "Tables restore 6->2 nodes into a hand-created schema."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_schema_with_mv",
+          "coverage": "partial",
+          "note": "Same restore_schema + restore_and_verify into a fresh cluster (2->2 nodes), plus an MV (:449-458)."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Growing is fully covered by scylla-manager TestRestoreFullIntegration (2->6 nodes, schema + tables), schema + tables into a smaller cluster only piecewise (schema-only 6->2 in Roundtrip, tables-only 6->2 in Preparation); the one isolated failure was a shrink param (see relevance). Slow: 16 params x ~220s. Note: unneeded rolling restart after restore_schema; stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:68-71",
+          "text": "restore_schema restarts every target node; Manager restores schema via CQL (restore-schema.rst:27), so no restart is needed."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_only_specific_keyspace": {
+      "description": "2-node RF-2 cluster; ks.cf1 k1..k20, ks_1.cf1/cf2 and ks_a.cf1 inserted, all three keyspaces backed up and truncated (_backup_and_cleanup, manager_restore_tests.py:45-47; clean_up_tables iterates the table dicts). Restores with --keyspace ks_* and waits DONE, then asserts ks_1/ks_a contents match exactly (verify_c1c2) and that none of ks.cf1's keys exist (verify_lack_of_keys, manager_backup_tests.py:248-260). Guards the restore keyspace glob filter: 'ks_*' becomes 'ks_*.*' (ksfilter.go:76-77) and must not match 'ks'; ks is in the backup and was emptied, so the lack-of-keys check is meaningful.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Removed node1/node2 nodetool repair after the restore (Manager 3.2 repairs restored tables).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: sctool restore --keyspace glob filter (scylla-manager@9ef99661c v3/pkg/util/inexlist/ksfilter/ksfilter.go:67-86); only the filtered units are restored (worker.go initUnits).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetTargetUnitsViewsIntegration",
+          "coverage": "partial",
+          "note": "Real backup of ks1/ks2; filter 'ks1.*,!ks1.table2' must yield only ks1.table1 as restore units (testdata/get_target/tables.*); no restore run or data check."
+        },
+        {
+          "path": "scylla-manager@9ef99661c v3/pkg/util/inexlist/ksfilter/ksfilter_test.go",
+          "coverage": "partial",
+          "note": "Unit tests of glob decoration/matching (e.g. 'kalle*' -> 'kalle*.*')."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial: scylla-manager's integration test checks that a keyspace filter on a real backup selects the right restore units, and ksfilter unit tests cover the glob; this dtest adds only the end-to-end data check (included keyspaces restored exactly, excluded ks left empty after the truncate at :47). Note: `ks_not_backed_up` is misnamed (ks is backed up, only not restored); stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:284",
+          "text": "`ks_not_backed_up` is misnamed: ks is in the backup (:290), it is only excluded from the restore."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_schema_with_mv": {
+      "description": "2-node RF-2 cluster; ks.cf1 k1..k20 inserted, MV ks.view_specific_rows (WHERE key='k1') created, ks backed up. A fresh 2-node secondary cluster gets restore_schema (DONE + rolling restart, manager_restore_tests.py:63-71); asserts the view exists in system_schema.views, then restore_and_verify (data restore DONE + exact base-table compare), asserts the view has exactly 1 row and runs verify_c1c2 on the view for k1 (exact). Guards Manager restoring a schema with an MV and rebuilding the view after the base-table data restore.",
+      "origin": {
+        "sha": "0110704eac39c31dac5d70ec5e228de6a91237b5",
+        "date": "2023-05-18",
+        "pr": 3175,
+        "summary": "Shlomi Balalis: restore of a backup that contains a materialized view (PR 'restoring a backup that contains a materialized view', merged 2023-07-25)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: 2-rack topology via generate_cluster_topology_based_rf(nodes=2, rf=2).",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "72809f23801a6ef309e1a3e9f2d38fe93fef484a": "formatting (pep8-naming: next(iter(...)))",
+        "d4691c2af354fd9556bf97ba38ae9e136fa5bade": "Helpers moved to TestScyllaMgmtRestoreBase; restore_and_verify lost its unused cluster= arg.",
+        "0110704eac39c31dac5d70ec5e228de6a91237b5": "origin: test added.",
+        "dc209947d45e64a5dcc3801f6d3819aeb5e9e9c3": "Helper restore_and_verify: timeout 1200 and no manual nodetool repair after the restore (Manager repairs)."
+      },
+      "relevance": "Live: Manager drops the views of restored tables, restores base data, recreates the views and waits for view building (scylla-manager@9ef99661c worker_views.go:16-63, 125). dtest enables views on tablets (dtest_setup.py:867-870) and the with-tablets job runs with --tablets (PYTEST_EXTRA_COMMANDLINE_OPTIONS, build 343), so ks gets tablets (tablets_mode_for_new_keyspaces, dtest_setup.py:904-905; create_ks default, dtest_class.py:184-210).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreFullViewIntegration",
+          "coverage": "partial",
+          "note": "Schema + tables restore of a table with MV and SI, view row counts validated; skipped for tablet keyspaces (:1327-1328), which the with-tablets job exercises here."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/restore_integration_test.go::TestRestoreTablesPausedIntegration",
+          "coverage": "partial",
+          "note": "Paused/resumed restore with MVs pre-created on the destination (vnode keyspaces only), exact view content."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_restore_different_size_cluster",
+          "coverage": "partial",
+          "note": "Same restore_schema + restore_and_verify into a fresh cluster, without a view."
+        }
+      ],
+      "decision": "GREEN",
+      "reason": "Only Manager MV schema + data restore for tablet keyspaces (with-tablets job); scylla-manager's TestRestoreFullViewIntegration skips tablet keyspaces (vnodes only). Target is a fresh cluster and the view content is compared exactly. Note: rolling restart after restore_schema isn't needed; --retention 2 unused; assert message re-reads a consumed result (:457); stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "slow",
+          "ref": "manager_restore_tests.py:68-71",
+          "text": "restore_schema restarts every target node; Manager restores schema via CQL (restore-schema.rst:27), so no restart is needed."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-config",
+          "ref": "manager_restore_tests.py:446",
+          "text": "--retention 2 on a backup task that runs once has no effect."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "manager_restore_tests.py:457",
+          "text": "Assert message calls len(list(result)) on an already consumed ResultSet, so it always reports 0 rows."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_using_different_batch_sizes": {
+      "description": "2-node single-rack cluster; c-s writes 1.5M rows (STCS) to keyspace1.standard1, backed up once. For batch sizes default, 1, 3, 5: TRUNCATE (manager_restore_tests.py:320), restore with that --batch-size, assert DONE, then `cassandra-stress read n=1500K` (restore_and_verify_using_stress :73-86). c-s validates every row it reads (CqlOperation.java:207-290) and a failed op makes it exit 1 (StressAction.java:507-516, Stress.java:158-161), which ccm's handle_external_tool_process raises as ToolError. Guards Manager's rclone batch sizing on a sizeable dataset.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; backup/restore location f's3:...' -> f'{self.backend}:...' in helpers.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology, 1 rack x 2 nodes) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added.",
+        "9c6097d1aff709737ce64fe481a10a73c37cfd60": "Helper restore_and_verify_using_stress: manual nodetool repair before the stress read removed; healthy_node left unused."
+      },
+      "relevance": "Live: --batch-size = sstables per shard per rclone batch (scylla-manager@9ef99661c pkg/command/restore/res.yaml:28-32, batch.go:57-66, 388-394), ignored for native batches. Tablet-aware restore is behind TabletAwareRestoreFeatureFlag (restore/config.go:14, off by default), so tablet tables also go through the batch dispatcher.",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreTablesSmokeIntegration",
+          "coverage": "partial",
+          "note": "Real-Scylla tables restore with batch size 1 and validation; most restore integration tests use batch 1 or the default."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/batch_test.go::TestBatchDispatcher*",
+          "coverage": "partial",
+          "note": "Unit tests (no Scylla) of the batch dispatcher, sizes incl. 1, 3, 10000 and max."
+        },
+        {
+          "path": "manager_restore_tests.py::TestScyllaMgmtRestore::test_basic_restore",
+          "coverage": "partial",
+          "note": "Default batch size restore with exact data compare."
+        }
+      ],
+      "decision": "YELLOW",
+      "reason": "Partial: batch size 1 and the default are restored with validation in scylla-manager integration tests, other sizes only in dispatcher unit tests; this is the only end-to-end restore with sizes 3/5, but slow (~458s x 4 params). Truncated before each restore (:320). Note: native params ignore --batch-size; the c-s read samples keys; healthy_node unused; stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_restore_tests.py:31-33",
+          "text": "Manager ignores --batch-size for native batches (res.yaml:30, batch.go:388-394), so [*-native] params run four identical restores."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "manager_restore_tests.py:85",
+          "text": "c-s read n=1500K samples keys from gaussian(1..1.5M) (SettingsPopulation.java:98,170), not every key; small gaps at the tails can go unseen."
+        },
+        {
+          "kind": "note",
+          "tag": "dead-code",
+          "ref": "manager_restore_tests.py:77",
+          "text": "restore_and_verify_using_stress takes healthy_node but no longer uses it (repair removed in 9c6097d1af)."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_using_nonexistent_keyspace": {
+      "description": "2-node RF-2 cluster (2 racks); ks.cf1 k1..k20 inserted, Manager backup, TRUNCATE (insert_data_backup_and_cleanup manager_restore_tests.py:50-55 -> :47). Then `sctool restore --restore-tables --keyspace ShlomoWasHere2023` with the real snapshot tag must fail at task creation: asserts the ScyllaManagerError text (carries sctool's stderr, dtest_scylla_manager.py:836-839) contains 'no data in backup locations match given keyspace pattern', and raises if no error occurs (:307-308). Guards Manager rejecting a keyspace filter that matches nothing in the backup.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; restore location f's3:...' -> f'{self.backend}:...'.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "91436e8eb00e0d297459c58d77f2a4d998d2d4d2": "RF-rack validity: topology generate_cluster_topology_based_rf(nodes=2, rf=2) -> 2 racks of 1 node.",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: scylla-manager@9ef99661c pkg/restapi/task.go:306 createTask -> validateTask (:255-262) -> GetTargetUnitsViews (pkg/service/restore/service.go:134-145) -> worker.init -> initUnits, 'no data in backup locations match given keyspace pattern' (worker.go:425-426). sctool restore only maps flags to task properties (pkg/command/restore/cmd.go:131-151); ccm's sctool raises with stdout/stderr on non-zero exit and SCTool.run wraps it (dtest_scylla_manager.py:836-839).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetTargetUnitsViewsErrorIntegration",
+          "coverage": "full",
+          "note": "Subtest 'no data matching keyspace pattern' (:600-604): real backup of ks1/ks2 on real Scylla (:644-647), keyspace 'fake_keyspace' (testdata/get_target/no_matching_keyspace.input.json); GetTargetUnitsViews must fail with the same message (:659-662). Same call validateTask makes for sctool restore."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetUnitsErrorIntegration",
+          "coverage": "partial",
+          "note": "Subtest 'no data matching keyspace pattern' (:710-719): keyspace 'fake_keyspace' against a real backup, only asserts that an error is returned."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-manager TestRestoreGetTargetUnitsViewsErrorIntegration ('no data matching keyspace pattern': real Scylla, real backup, same error string) via GetTargetUnitsViews, the call sctool restore reaches through createTask -> validateTask (task.go:262, :306); sctool only maps --keyspace to a property (cmd.go:138-144). Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
+        }
+      ]
+    },
+    "TestScyllaMgmtRestore::test_restore_using_nonexistent_snapshot_tag": {
+      "description": "2-node single-rack cluster with no data and no backup. `sctool restore --restore-tables --snapshot-tag sm_20190126161112UTC` must fail at task creation: asserts the lowercased ScyllaManagerError text (carries sctool's stderr, dtest_scylla_manager.py:836-839) contains 'no snapshot with tag sm_20190126161112utc', and raises if no error occurs (:278-279). Guards Manager rejecting a restore whose snapshot tag has no manifest in the location.",
+      "origin": {
+        "sha": "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc",
+        "date": "2023-01-31",
+        "pr": 2989,
+        "summary": "Shlomi Balalis: new manager_restore_tests.py with the first Manager 3.1 restore-task tests (PR 'Testing the new backup restore task', merged 2023-03-05)."
+      },
+      "commits": {
+        "6f075a3194a5b88f6b3e2c24f51c2268380001f5": "Base class gets s3/gcs x rclone/native autouse params; restore location f's3:...' -> f'{self.backend}:...'.",
+        "056f5dc7a8bcd61ebd14d1ffb892d5245d7c2c4e": "formatting (ruff: unused node2 -> _node2)",
+        "4d258d57124c107321a26ae39ea85be537d5a6c8": "config_and_create_cluster now gets an explicit topology dict (generate_cluster_topology) instead of a node count.",
+        "f81bd87d1af7452437bad3bd676fba6d798cff46": "formatting (config_and_create_cluster arg rename nodes= -> topology=)",
+        "eccda80e42a8dd4f03c8e1622b9491d500e79d49": "formatting (ruff 0.9.4)",
+        "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting (ruff format)",
+        "aedaa57c4e59e0bd34543b9427f646a61815f008": "formatting (pyupgrade)",
+        "a3be747dce31903723dec9b1a2c23f226765d638": "Expected error 'no snapshot with given tag' -> 'no snapshot with tag sm_20190126161112utc' (Manager message change).",
+        "4c1a2b55770a8cf5af4ae07a34682b77c7c90ecc": "origin: test added."
+      },
+      "relevance": "Live: scylla-manager@9ef99661c pkg/restapi/task.go:306 createTask -> validateTask (:255-262) -> GetTargetUnitsViews (pkg/service/restore/service.go:134-145) -> worker.init -> getLocationInfo: no manifest for the tag -> 'no snapshot with tag %s' (worker.go:112-118; initUnits has the same message at :417-418). Raised before the method is used (native support check worker.go:68-72; parseTarget only validates the value, model.go:154-155). sctool only maps flags to properties (pkg/command/restore/cmd.go:131-151).",
+      "duplicates": [
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetTargetUnitsViewsErrorIntegration",
+          "coverage": "full",
+          "note": "Subtest 'non-existing snapshot tag' (:611-616): location holding a real backup, tag sm_20060102150405UTC absent (testdata/get_target/non_existing_snapshot_tag.input.json); GetTargetUnitsViews must fail with 'no snapshot with tag' (:659-662), real Scylla. Same call validateTask makes for sctool restore."
+        },
+        {
+          "path": "scylla-manager@9ef99661c pkg/service/restore/service_restore_integration_test.go::TestRestoreGetUnitsErrorIntegration",
+          "coverage": "partial",
+          "note": "Subtest 'non-existent snapshot tag' (:699-708): only asserts that an error is returned."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by scylla-manager TestRestoreGetTargetUnitsViewsErrorIntegration ('non-existing snapshot tag': real Scylla, same 'no snapshot with tag' error) via GetTargetUnitsViews, the call sctool restore reaches through createTask -> validateTask (task.go:262, :306); sctool only maps --snapshot-tag to a property (cmd.go:145-151). Note: rclone/native params run the same path (error at worker.go:117, before the method matters). Note: stale comment on --method (:33).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "redundant-param",
+          "ref": "manager_restore_tests.py:31-33",
+          "text": "rclone/native params: the error is raised at worker.go:117 before the method is used (:68), so both run the same path."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "manager_restore_tests.py:33",
+          "text": "Comment says restore has no --method, but run_restore_command passes --method (dtest_scylla_manager.py:1527) and sctool restore supports it."
         }
       ]
     }
