@@ -1507,7 +1507,7 @@
       ]
     },
     "TestMaterializedViews::test_mv_alter_with_synchronous_updates": {
-      "description": "4 nodes RF=3, session CL=QUORUM, table cf with 100000 rows (10000 debug), 50 MVs (10 debug) created async and built. Async phase: updates rows one by one and reads a random view at QUORUM until a stale value is seen (only logged, never asserted). Then ALTERs all views to synchronous_updates=true and for every row updates c2 and asserts a random view immediately returns the new value. Covers ALTER MV WITH synchronous_updates (scylladb cb8a67dc98).",
+      "description": "4 nodes RF=3, session CL=QUORUM, table cf with 100000 rows (10000 debug), 50 MVs (10 debug) created async and built. Async phase: updates up to 20000 randomly sampled distinct rows one by one and reads a random view at QUORUM until a stale value is seen (only logged, never asserted). Then ALTERs all views to synchronous_updates=true and for another 20000 sampled rows (all rows in debug) updates c2 and asserts a random view immediately returns the new value. Covers ALTER MV WITH synchronous_updates (scylladb cb8a67dc98).",
       "origin": {
         "sha": "d6f609f080",
         "date": "2022-11-20",
@@ -1515,12 +1515,13 @@
         "summary": "Julia Yakovlev 'test(views): run MV updates in synchronous mode': two basic tests for synchronous_updates (create / alter); PR says wider coverage in SCT."
       },
       "commits": {
+        "2cec5fbcc7": "both update loops bounded to random.sample(range(rows), min(rows, 20000)): release 2x20k instead of up to 2x100k round trips, debug still every row in random order; fixes 2700s timeout (SCYLLADB-6212)",
         "eccda80e42": "formatting",
         "9ffd273f04": "formatting",
         "e7c9178260": "debug mode: 10000 rows, 10 MVs",
         "d6f609f080": "origin"
       },
-      "relevance": "Live (synchronous_updates view property, cqlpy test_mv_synchronous_updates). 37/37 passed but ~709s - one of the slowest tests in the module.",
+      "relevance": "Live (synchronous_updates view property, cqlpy test_mv_synchronous_updates). 89/89 passed, avg ~690s (window mostly before 2cec5fbcc7, which cut the sync loop from 100k to 20k rows) - one of the slowest tests in the module.",
       "duplicates": [
         {
           "path": "test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates",
@@ -1539,7 +1540,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~709s: 100k sequential update+read pairs x2) + redundant: ALTER to synchronous mode and the sync code path are directly verified by test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates, read-after-write for sync views by test_mv_create_with_synchronous_updates. Bug: async phase never asserts (only logger.error/warning, materialized_views_test.py:996-997,1009-1013), so it can't show the ALTER changed anything. Note: docstring claims ALTER happens during updates (:966) but it is sequential.",
+      "reason": "Slow (avg ~690s; 2cec5fbcc7 bounded the loops to 20k update+read pairs each, but it still inserts 100k rows and builds 50 views) + redundant: ALTER to synchronous mode and the sync code path are directly verified by test/cqlpy/test_materialized_view.py::test_mv_synchronous_updates, read-after-write for sync views by test_mv_create_with_synchronous_updates. Bug: async phase never asserts (only logger.error/warning, materialized_views_test.py:996-997,1009-1013), so it can't show the ALTER changed anything. Note: docstring claims ALTER happens during updates (:970) but it is sequential.",
       "issues": [
         {
           "kind": "bug",
@@ -3684,7 +3685,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "f35ad40c9d",
-  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b"
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "9d19bc68f8",
+  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
 }
