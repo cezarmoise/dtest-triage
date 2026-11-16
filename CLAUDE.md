@@ -38,8 +38,10 @@ Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy
   - `next-dtest-tablets`, `next-dtest-consistent-topology` — gating dtest, stages of `scylla-master/next`
     (filtered by `--stage`). Old `gating-dtest-release-with-{tablets,consistent-topology-changes}` jobs are stale
     since 2026-08-23. Builds that fail before the dtest stages have no results.
+  - `dtest-manager-no-tablets`, `dtest-manager-with-tablets` — `manager-master/`, only `manager_*` modules. Weekly,
+    so the 50 builds span ~9 months (old failures linger in pass rates); 6 splits.
 - `*_long.csv`: one row per run (build, split, test, status, duration).
-- Builds run 4 parallel splits; some tests run twice per build. Skipped runs excluded from stats.
+- Builds run 4 parallel splits (manager: 6); some tests run twice per build. Skipped runs excluded from stats.
 - Plugin RPC (`getExportCSV`) returns 500 via curl, hence REST API.
 - Scope: test functions with ≥1 non-skipped run in any job; tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
   Tests only ever skipped are excluded (e.g. `migration_test.TestTTLWithMigrate.test_big_table_with_ttls`).

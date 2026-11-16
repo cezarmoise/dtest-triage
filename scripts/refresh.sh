@@ -8,6 +8,9 @@ done
 python3 scripts/test_results.py --job scylla-master/next --stage 'dtest with tablets' -o jenkins/next-dtest-tablets
 python3 scripts/test_results.py --job scylla-master/next \
   --stage 'dtest with consistent topology changes' -o jenkins/next-dtest-consistent-topology
+for j in dtest-manager-no-tablets dtest-manager-with-tablets; do
+  python3 scripts/test_results.py --job manager-master/$j -o jenkins/$j
+done
 git -C ~/github/scylla-dtest fetch -q upstream next
 git -C ~/github/scylladb fetch -q upstream master
 python3 scripts/gen_data.py
