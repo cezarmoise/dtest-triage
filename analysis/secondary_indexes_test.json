@@ -1,8 +1,8 @@
 {
   "file": "secondary_indexes_test.py",
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "f35ad40c9d",
-  "dtest_rev": "992a197e9c83d9aef843230037da42b200cd4b2b",
+  "analyzed_at": "2026-11-16",
+  "scylla_rev": "9d19bc68f8",
+  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
   "tests": {
     "TestLocalIndexes::test_global_local_index_on_same_column": {
       "description": "4 nodes RF=3: creates a local index ((key), v) and a global index (v) on the same column, inserts 9 rows with repeating v values, then asserts each key+v query returns its single row via the local index and each v-only query returns all matching (pk,c) rows via the global index (assert_all, QUORUM, 30 retries). Guards coexistence of local and global indexes on one column and correct index selection.",
@@ -643,7 +643,7 @@
       "jira": "DTEST-792"
     },
     "TestLocalIndexes::test_ttl_local_index_column": {
-      "description": "Single node: table (key int, b, c), row (0,1,2), local index ((key), b) built; UPDATE USING TTL 60 SET b=3; asserts key+b=3 returns row, key+b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards view row expiry when indexed column has TTL.",
+      "description": "Single node: table (key int, b, c), row (0,1,2), local index ((key), b) built; UPDATE USING TTL 15 SET b=3; asserts key+b=3 returns row, key+b=1 none, index view has (0,3); sleeps ttl+5=20s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards view row expiry when indexed column has TTL.",
       "origin": {
         "sha": "b256636aa0",
         "date": "2019-07-08",
@@ -651,6 +651,7 @@
         "summary": "'Local index new tests': local mirror of TestSecondaryIndexes::test_ttl_index_column."
       },
       "commits": {
+        "8c894f50ed": "TTL 60->15, so the fixed sleep(ttl+5) drops from 65s to 20s; asserts unchanged (PR #7511).",
         "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
         "9ffd273f04": "formatting (ruff format).",
         "aedaa57c4e": "formatting (pyupgrade/isort).",
@@ -673,11 +674,11 @@
         {
           "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_ttl_index_column",
           "coverage": "partial",
-          "note": "Global twin (same 65s sleep)."
+          "note": "Global twin (same 20s sleep)."
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test whose scenario (TTL on indexed/view-key column expires the view row) is covered in seconds by test/cqlpy/test_materialized_view.py::test_view_update_with_ttl (same view-update path, local index = view with pk prefix) and cqlpy secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn. Note: docstring mentions default_time_to_live but the test uses USING TTL.",
+      "reason": "Single-node test whose scenario (TTL on indexed/view-key column expires the view row) is covered in seconds by test/cqlpy/test_materialized_view.py::test_view_update_with_ttl (same view-update path, local index = view with pk prefix) and cqlpy secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn; the dtest still spends ~20s in a fixed sleep. Note: docstring mentions default_time_to_live but the test uses USING TTL.",
       "issues": [
         {
           "kind": "note",
@@ -689,7 +690,7 @@
           "kind": "note",
           "tag": "slow",
           "ref": "secondary_indexes_test.py:1695",
-          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+          "text": "Fixed time.sleep(ttl + 5) = 20s for TTL 15; polling for expiry would cut it"
         }
       ],
       "jira": "DTEST-793"
@@ -1918,7 +1919,7 @@
       ]
     },
     "TestSecondaryIndexes::test_ttl_index_column": {
-      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built; UPDATE USING TTL 60 SET b=3; asserts b=3 returns row, b=1 none, index view has (0,3); sleeps 65s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards index row expiry when the indexed column has a TTL.",
+      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built; UPDATE USING TTL 15 SET b=3; asserts b=3 returns row, b=1 none, index view has (0,3); sleeps ttl+5=20s; asserts base row has b=null, both index queries empty and index view empty (CL ALL). Guards index row expiry when the indexed column has a TTL.",
       "origin": {
         "sha": "af3b759ff3",
         "date": "2018-07-03",
@@ -1926,6 +1927,7 @@
         "summary": "'TTL tests' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
       },
       "commits": {
+        "8c894f50ed": "TTL 60->15, so the fixed sleep(ttl+5) drops from 65s to 20s; asserts unchanged (PR #7511).",
         "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no practical effect on a single node (local view updates were already awaited, db/view/view.cc mutate_MV).",
         "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
         "9ffd273f04": "formatting (ruff format).",
@@ -1939,7 +1941,7 @@
         {
           "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn",
           "coverage": "full",
-          "note": "Global index, UPDATE USING TTL 1 SET indexed col = new value; after expiry both old and new value queries are empty (1.1s sleep)."
+          "note": "Global index, UPDATE USING TTL 1 SET indexed col = new value; after clock.jump(2) both old and new value queries are empty (server clock offset, no real sleep; skipped on release builds)."
         },
         {
           "path": "test/cqlpy/test_materialized_view.py::test_view_update_with_ttl",
@@ -1953,7 +1955,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (same TTL-on-indexed-column update, old/new value both gone after expiry). Note: docstring mentions default_time_to_live but the test uses USING TTL.",
+      "reason": "Fully covered by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (same TTL-on-indexed-column update, old/new value both gone after expiry, clock jump instead of a sleep); this single-node dtest still spends ~20s in a fixed sleep. Note: docstring mentions default_time_to_live but the test uses USING TTL.",
       "issues": [
         {
           "kind": "note",
@@ -1965,7 +1967,7 @@
           "kind": "note",
           "tag": "slow",
           "ref": "secondary_indexes_test.py:1075",
-          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+          "text": "Fixed time.sleep(ttl + 5) = 20s for TTL 15; polling for expiry would cut it"
         }
       ],
       "jira": "DTEST-807"
@@ -2100,7 +2102,7 @@
       "jira": "DTEST-810"
     },
     "TestSecondaryIndexes::test_ttl_non_index_column": {
-      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built (_prepare_for_ttl); UPDATE USING TTL 60 SET c=3; asserts row found by key and by b=1, index view has (0,1); sleeps 65s; asserts c is null and the row is still found via b=1 and still in the index view (CL ALL). Guards that TTL on a non-indexed column does not expire the index entry.",
+      "description": "Single node: table (key int, b, c), row (0,1,2), global index on b built (_prepare_for_ttl); UPDATE USING TTL 15 SET c=3; asserts row found by key and by b=1, index view has (0,1); sleeps ttl+5=20s; asserts c is null and the row is still found via b=1 and still in the index view (CL ALL). Guards that TTL on a non-indexed column does not expire the index entry.",
       "origin": {
         "sha": "af3b759ff3",
         "date": "2018-07-03",
@@ -2108,6 +2110,7 @@
         "summary": "'TTL tests' in 'Test of secondary index for Scylla' (Julia Yakovlev)."
       },
       "commits": {
+        "8c894f50ed": "TTL 60->15, so the fixed sleep(ttl+5) drops from 65s to 20s; asserts unchanged (PR #7511).",
         "579f14b960": "helper create_and_build_index now sets synchronous_updates = true on the index view; no practical effect on a single node (local view updates were already awaited, db/view/view.cc mutate_MV).",
         "056f5dc7a8": "lint: unused unpacked vars renamed to _keyspace_name/_index_name; no behavior change.",
         "9ffd273f04": "formatting (ruff format).",
@@ -2121,7 +2124,7 @@
         {
           "path": "test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn",
           "coverage": "full",
-          "note": "Global index on a, UPDATE USING TTL 1 SET b (non-indexed); after expiry SELECT WHERE a=3 still returns the row with b=null (1.1s sleep)."
+          "note": "Global index on a, UPDATE USING TTL 1 SET b (non-indexed); after clock.jump(2) SELECT WHERE a=3 still returns the row with b=null (no real sleep; skipped on release builds)."
         },
         {
           "path": "scylla-dtest secondary_indexes_test.py::TestSecondaryIndexes::test_ttl_index_column",
@@ -2130,7 +2133,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~70s, 65s of it time.sleep) single-node test fully covered in ~1s by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (TTL on non-indexed column, row still returned by index with null value); the extra index-view row check is the same view-update path. Note: docstring typo 'imdex'.",
+      "reason": "Fully covered by test/cqlpy/cassandra_tests/validation/entities/secondary_index_test.py::testIndexOnRegularColumnInsertExpiringColumn (TTL on non-indexed column, row still returned by index with null value); the extra index-view row check is the same view-update path, and the dtest still spends ~20s in a fixed sleep. Note: docstring typo 'imdex'.",
       "issues": [
         {
           "kind": "note",
@@ -2142,7 +2145,7 @@
           "kind": "note",
           "tag": "slow",
           "ref": "secondary_indexes_test.py:1096",
-          "text": "time.sleep(65) waiting for TTL 60; a 1s TTL would do"
+          "text": "Fixed time.sleep(ttl + 5) = 20s for TTL 15; polling for c=null would cut it"
         }
       ],
       "jira": "DTEST-808"
@@ -2197,7 +2200,7 @@
       ]
     },
     "TestStaticSecondaryIndexes::test_query_data_with_index": {
-      "description": "4-node RF=3 cluster (QUORUM): global index on static column cs1 of a (key, ck) table, created over 2 pre-existing partitions, then 3 more inserted. Asserts count(*) via the index (incl. pre-index data), pk+index, ck+index needing ALLOW FILTERING, contradictory cs1=X AND cs1=Y returning 0, partition delete, TTL on the static column (UPDATE and INSERT USING TTL 60, sleep 62s) dropping matches, TRUNCATE emptying index queries, count(*) of several rows per partition, and pk+ck+index (scylladb#12829, fixed by b03488a965). Guards secondary indexes on static columns (scylladb PR #11166).",
+      "description": "4-node RF=3 cluster (QUORUM): global index on static column cs1 of a (key, ck) table, created over 2 pre-existing partitions, then 3 more inserted. Asserts count(*) via the index (incl. pre-index data), pk+index, ck+index needing ALLOW FILTERING, contradictory cs1=X AND cs1=Y returning 0, partition delete, TTL on the static column (UPDATE and INSERT USING TTL 15, polled up to 20x1s) dropping matches, TRUNCATE emptying index queries, count(*) of several rows per partition, and pk+ck+index (scylladb#12829, fixed by b03488a965). Guards secondary indexes on static columns (scylladb PR #11166).",
       "origin": {
         "sha": "a13df9ce4791b0b7d0ee5eda823a4b57627fc06d",
         "date": "2023-02-15",
@@ -2205,6 +2208,7 @@
         "summary": "Added TestStaticSecondaryIndexes with this test after scylla added static-column indexes (scylladb PR #11166); pk+ck+index query left out due to scylladb#12829."
       },
       "commits": {
+        "71e1ed887d": "TTL 60->15; fixed sleep(62) replaced by polling the cs1='stat4' count for 0 (20 attempts x 1s); pre-expiry 'I will expire' check retries every 1s (PR #7511).",
         "14f5daef466afdc3d12587aedb401f31f748252c": "Dropped pytest.xfail(#12829) so the final pk+ck+static-index assert runs (scylla fix b03488a965); gave it num_attempts=10; fixed unmark comment.",
         "9ffd273f04490f817ee5b523207d7c2b46be4603": "formatting",
         "2980e37e1bda7d1085bc373706feb8008f25d3cf": "formatting",
@@ -2217,7 +2221,7 @@
         "78f1485991": "prepare(): adds ignore pattern for 'Error applying view update ... mutation_write_failure_exception'.",
         "5bdf61350b": "SecondaryIndexesHelpers derives from Tester; class now inherits only the helpers (no behavior change)."
       },
-      "relevance": "Live: static-column global indexes are supported (gms/feature_service.hh SECONDARY_INDEXES_ON_STATIC_COLUMNS, scylladb PR #11166, local static indexes rejected). #12829 is CLOSED (fixed by b03488a965, cqlpy test unskipped). Since 22be3b3925 (SCYLLADB-2817) every index read re-validates the indexed column, static included, on the base row (select_statement.cc:692 needs_post_filtering), so stale index rows are invisible to queries. The index view now has synchronous_updates=true (579f14b960), so 4 nodes add little eventual-consistency coverage. Not in next_gating; runs only in dtest-release/-with-raft (14/14 pass in the Jenkins window, ~80s).",
+      "relevance": "Live: static-column global indexes are supported (gms/feature_service.hh SECONDARY_INDEXES_ON_STATIC_COLUMNS, scylladb PR #11166, local static indexes rejected). #12829 is CLOSED (fixed by b03488a965, cqlpy test unskipped). Since 22be3b3925 (SCYLLADB-2817) every index read re-validates the indexed column, static included, on the base row (select_statement.cc:692 needs_post_filtering), so stale index rows are invisible to queries. The index view now has synchronous_updates=true (579f14b960), so 4 nodes add little eventual-consistency coverage. Not in next_gating; runs only in dtest-release/-with-raft (29/29 pass in the Jenkins window); ~31s since 71e1ed887d (was ~78s, per its commit message).",
       "duplicates": [
         {
           "path": "test/cqlpy/test_secondary_index.py::test_static_column_index_restrictions",
@@ -2261,7 +2265,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap: index queries, pre-index data, pk+s, pk+s+c (#12829), partition delete and the ck+s ALLOW FILTERING rule (PR 7629 claimed dtest-only) are in cqlpy test_secondary_index.py/test_allow_filtering.py; left unique are TTL/TRUNCATE on a static index, count(*) per partition, 4 nodes. Bug: delete/TTL/truncate checks only query through the index; stale cs1_key_index rows are invisible (base rows gone, or re-validated since scylla 22be3b3925). Note: fixed sleep(62) (open #7511), duplicate stat4 assert, 'delete of a static column' is a partition delete.",
+      "reason": "Partial overlap: index queries, pre-index data, pk+s, pk+s+c (#12829), partition delete and the ck+s ALLOW FILTERING rule (PR 7629 claimed dtest-only) are in cqlpy test_secondary_index.py/test_allow_filtering.py; left unique are TTL/TRUNCATE on a static index, count(*) per partition, 4 nodes. Bug: delete/TTL/truncate checks only query through the index; stale cs1_key_index rows are invisible (base rows gone, or re-validated since scylla 22be3b3925). Note: duplicate stat4 assert, 'delete of a static column' is a partition delete, unmark comment '~80s, mostly the TTL sleep' stale since 71e1ed887d.",
       "issues": [
         {
           "kind": "bug",
@@ -2271,21 +2275,21 @@
         },
         {
           "kind": "note",
-          "tag": "slow",
-          "ref": "secondary_indexes_test.py:377",
-          "text": "time.sleep(62) waiting for TTL 60 (~75% of the ~80s runtime); open scylla-dtest#7511 cuts TTL to 15 and polls"
-        },
-        {
-          "kind": "note",
           "tag": "dead-code",
           "ref": "secondary_indexes_test.py:381",
-          "text": "'make sure index data is also deleted' repeats the cs1='stat4' query of line 378 verbatim"
+          "text": "'make sure index data is also deleted' repeats the cs1='stat4' count==0 check just polled at line 378"
         },
         {
           "kind": "note",
           "tag": "stale-comment",
           "ref": "secondary_indexes_test.py:367",
           "text": "Comment says 'delete of a static column' but it is a partition delete; deleting only cs1 is untested"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "secondary_indexes_test.py:326",
+          "text": "@unmark.next_gating comment '~80s, mostly the TTL sleep' outdated: 71e1ed887d polls a 15s TTL, ~31s"
         }
       ]
     }
