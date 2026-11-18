@@ -31,6 +31,12 @@ bare `ruff`/`pytest` (e.g. "No issues found" while there are some).
      shared helper) → stop and ask the user.
    - `git log --oneline upstream/next..HEAD`: one commit per test. `git diff --stat upstream/next...HEAD`: deletions
      (plus rewritten import lines).
+   - Backport labels. Live releases: the plain `backport/<ver>` labels of
+     `gh label list -R scylladb/scylla-dtest --search backport` (not only `-done`; skip `manager-*`). `<ver>` gets
+     `backport/<ver>` when `upstream/branch-<ver>` (fetch first) has the removed tests and every covering test: dtest
+     siblings there; scylladb duplicates on `upstream/branch-<ver>` of `~/github/scylladb`, with the assertions the
+     material cites; scylla-manager duplicates: ask. None → `backport/none`. Cherry-pick conflicts don't matter (that
+     code is being deleted). zsh: `${v}` before a `:` (`$v:c…` is a modifier).
 3. `git push -u origin <branch>` (origin = cezarmoise fork; never a bare `git push`).
 4. PR body file (Markdown):
    - 1-2 sentences: what is removed and why; "One commit per test; each message names the covering test with a
@@ -41,9 +47,9 @@ bare `ruff`/`pytest` (e.g. "No issues found" while there are some).
    - One `Closes: <key>` line per key of the handoff's Closes.
    - Sections of `.github/pull_request_template.md`. Testing: tick only what ran: pre-commit ruff, `collect-diff`
      (N tests / M items gone, nothing else); "No Jenkins run" unticked. Pre-checks: backport label ticked
-     (`backport/none`), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
+     (the labels of step 2, and why), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
-   --reviewer pehala,jsmolar,yarongilor --assignee cezarmoise --label backport/none` (not a draft: the owner wants
+   --reviewer pehala,jsmolar,yarongilor --assignee cezarmoise --label <labels of step 2>` (not a draft: the owner wants
    reviewers at creation). Title like `alternator_tests: remove tests covered by test/alternator` or
    `manager tests: remove tests covered by scylla-manager integration tests`.
 5. `gh pr view <n> -R scylladb/scylla-dtest --json commits,reviewRequests,labels` matches; reply with the PR URL and
