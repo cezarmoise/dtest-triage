@@ -25,6 +25,10 @@ scripts/delta.py          # tests to recheck since each analysis' dtest_rev/scyl
 scripts/jira_sync.py      # closes Jira issues of DELETED / no-longer-RED tests, then parents with all sub-tasks done
 groups.json               # test → review group (Jira component, team, reviewers); for opening Jira issues
 scripts/groups.py         # validates groups.json, prints tests per team/group
+scripts/removal.py        # removal PRs: select (kind, pending branches) / info (verify duplicates upstream) /
+                          #   strip (in a dtest worktree) / collect-diff
+.claude/skills/remove-tests/  # /remove-tests <request>: select + verify here, dtest worktree (wt), PR by a Claude in
+                          #   herdr following pr.md
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
