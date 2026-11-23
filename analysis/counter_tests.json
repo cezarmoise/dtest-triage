@@ -20,9 +20,15 @@
         "23eae564fc": "file-level: removed 18 tests ported to scylla test/cluster/dtest/counter_test.py; moved #18180 tablets skip mark to TestCounters class; explicitly kept this test as not ported"
       },
       "relevance": "Live: counters are int64 sums in scylla (counters.hh/counters.cc); wraparound behavior unchanged, #2225 closed WONTFIX.",
-      "duplicates": [],
-      "decision": "GREEN",
-      "reason": "No scylla test asserts counter int64 overflow wraparound (grep of test/cqlpy/test_counter.py, test/cqlpy/cassandra_tests/validation/entities/counters_test.py, test/cluster/dtest/counter_test.py, test/boost/counter_test.cc found none), so unique; cheap single-node CQL test, good candidate to port to cqlpy. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: docstring says MAX_INT but value is sys.maxsize (INT64_MAX on 64-bit, platform-dependent) (counter_tests.py:24-27,39). Note: cache_hit_rate_read_balancing=False is irrelevant on 1 node (counter_tests.py:30).",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_dtest.py::test_counter_wraps_around",
+          "coverage": "full",
+          "note": "translation of this test (scylla ae844d02e7, merged in 42ab0bf5bd): same +sys.maxsize, +1, -1 updates, asserts whole table == [(0, INT64_MAX)], [(0, INT64_MIN)], [(0, INT64_MAX)]"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy test/cqlpy/test_dtest.py::test_counter_wraps_around (scylla ae844d02e7, series merged as 42ab0bf5bd), which runs the same three updates and asserts the same whole-table results on a single node; the dtest adds nothing beyond a 1-node cluster start (removal PR scylladb/scylla-dtest#7713 still open). Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: docstring says MAX_INT but value is sys.maxsize (INT64_MAX on 64-bit, platform-dependent) (counter_tests.py:24-27,39). Note: cache_hit_rate_read_balancing=False is irrelevant on 1 node (counter_tests.py:30).",
       "issues": [
         {
           "kind": "note",
@@ -64,6 +70,11 @@
       "relevance": "Live: unset counter increment skip semantics (Cassandra NEWS 'unset bind counter operation does not change the counter value') implemented in scylla.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_counter_update_unset_value",
+          "coverage": "full",
+          "note": "translation of this test (scylla ae844d02e7, merged in 42ab0bf5bd): c=c+1 on t=0, prepared c=c+? with UNSET_VALUE for keys 0-9 (dtest: 0-999), asserts whole table == [(0, 1)], i.e. existing counter unchanged and no new rows"
+        },
+        {
           "path": "test/cqlpy/test_unset.py::test_unset_counter_increment",
           "coverage": "partial",
           "note": "prepared c=c+? with UNSET_VALUE leaves existing counter unchanged; does not check that no row is created for new keys"
@@ -74,8 +85,8 @@
           "note": "increment/decrement with UNSET_VALUE on existing row unchanged"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Core assertion (UNSET increment is no-op on existing counter) fully covered by cqlpy test_unset.py::test_unset_counter_increment and counters_test.py::testCounterUpdatesWithUnset; only extra is 'no row created for 999 new keys', trivially addable to cqlpy. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: session.prepare() called inside the 1000-iteration loop (counter_tests.py:91-92), wasteful. Note: cache_hit_rate_read_balancing=False irrelevant on 1 node (counter_tests.py:71).",
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy test/cqlpy/test_dtest.py::test_counter_update_unset_value (scylla ae844d02e7, series merged as 42ab0bf5bd): same setup and same whole-table assertion (existing counter unchanged, no row created for unset keys), with 10 keys instead of 1000, which does not change the scenario; removal PR scylladb/scylla-dtest#7713 still open. Note: class mark skip_if(with_feature('tablets') & issue_open('#18180')) (counter_tests.py:19) is dead - scylladb#18180 (Tablets: support counters) closed 2025-11-04; tests already run in next-dtest-tablets. Note: session.prepare() called inside the 1000-iteration loop (counter_tests.py:91-92), wasteful. Note: cache_hit_rate_read_balancing=False irrelevant on 1 node (counter_tests.py:71).",
       "issues": [
         {
           "kind": "note",
@@ -264,7 +275,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
