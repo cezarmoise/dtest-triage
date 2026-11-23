@@ -20,7 +20,8 @@ Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
    `git commit -m "analysis: delta <date>" analysis/`.
 3. MOVED: the test was renamed or moved (detail = new `file::Class::test`). Move the entry to the new key (same
    module: rename the key; other module: copy it there if that module has data and set the old one DELETED with
-   `deleted.sha` = the commit) and recheck it as CHANGED. `--bump` the old module if it has no other lines.
+   `deleted.sha` = the commit, plus `commits["<sha:10>"] = "Deleted the test: <subject>"`) and recheck it as
+   CHANGED. `--bump` the old module if it has no other lines.
    Whole file renamed (all its tests MOVED to one new file): `git mv analysis/<old>.json analysis/<new>.json`, fix
    `file` and the keys, `--bump` it, rerun `delta.py <new module>` and recheck what it reports.
 4. Before spawning: one helper change hitting many modules (tree-wide refactor) → read its diff yourself. If it can't

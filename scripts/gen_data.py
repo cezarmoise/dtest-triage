@@ -190,10 +190,18 @@ def main():
     out_dir.mkdir(exist_ok=True)
     stats = load_stats()
     prs = PRs()
-    for mod in mods or sorted(stats):
+    for mod in mods or sorted(set(stats) | {p.stem for p in out_dir.glob("*.json") if p.name != "index.json"}):
         path = mod.replace(".", "/") + ".py"
+        dst = out_dir / f"{mod}.json"
         if not git("ls-tree", "--name-only", REV, "--", path).strip():
+            if dst.exists():  # file deleted: keep the data at its rev (links), add the deleting commit
+                data = json.loads(dst.read_text())
+                data["file_commits"] = with_prs(parse_log(git("log", REV, LOG_FMT, "--follow", "--", path)), prs)
+                dst.write_text(json.dumps(data, indent=1))
+                prs.save()
             print(f"skip {mod}: not in {REV}", file=sys.stderr)
+            continue
+        if mod not in stats:  # no runs in the Jenkins window: keep the old data
             continue
         tests = []
         for (cls, func), params in sorted(stats[mod].items()):
@@ -217,7 +225,7 @@ def main():
         file_commits = parse_log(git("log", REV, LOG_FMT, "--follow", "--", path))
         data = {"file": path, "rev": git("rev-parse", REV).strip(), "tests": tests,
                 "file_commits": with_prs(file_commits, prs)}
-        dst, ana = out_dir / f"{mod}.json", ROOT / f"analysis/{mod}.json"
+        ana = ROOT / f"analysis/{mod}.json"
         old = json.loads(dst.read_text())["rev"] if dst.exists() else data["rev"]
         dst.write_text(json.dumps(data, indent=1))
         if old != data["rev"] and ana.exists():  # after the data write: a crash skips a reline, never doubles it

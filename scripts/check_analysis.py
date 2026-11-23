@@ -51,6 +51,8 @@ for mod in sys.argv[1:]:
         if (a.get("decision") == "DELETED") != bool(d) or d and (
                 d.keys() != {"sha", "date", "pr", "prev"} or d["prev"] not in ("GREEN", "YELLOW", "RED")):
             problems.append(f"{k}: bad deleted {d!r}")
+        elif d and not any(d["sha"].startswith(c) for c in a.get("commits", {})):
+            problems.append(f"{k}: deleting commit {d['sha'][:10]} not in commits (delta.py --apply adds it)")
         if "jira" in a and not re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", str(a["jira"])):
             problems.append(f"{k}: bad jira {a['jira']!r}")
         issues = a.get("issues", [])

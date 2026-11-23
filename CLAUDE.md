@@ -47,7 +47,9 @@ Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy
 - `*_long.csv`: one row per run (build, split, test, status, duration).
 - Builds run 4 parallel splits (manager: 6); some tests run twice per build. Skipped runs excluded from stats.
 - Plugin RPC (`getExportCSV`) returns 500 via curl, hence REST API.
-- Scope: test functions with ≥1 non-skipped run in any job; tests/files gone from `upstream/next` are skipped (e.g. commitlog_test).
+- Scope: test functions with ≥1 non-skipped run in any job; tests/files gone from `upstream/next` are skipped (e.g. commitlog_test);
+  a deleted file's existing `data/<module>.json` keeps its `rev` and tests, only `file_commits` is refreshed (deleting
+  commit).
   Tests only ever skipped are excluded (e.g. `migration_test.TestTTLWithMigrate.test_big_table_with_ttls`).
 
 ## JSON formats (dashboard contract — keep in sync when changing scripts/prompt)
@@ -80,6 +82,7 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
    "description": "...",
    "origin": {"sha", "date", "pr": int | null, "summary"},   // verified origin; overrides data commits' pr
    "commits": {"<sha>": "1-line summary"},     // short or full sha, match by prefix; may include file commits
+                                               //   DELETED: includes `deleted.sha` (delta.py --apply, check_analysis.py)
    "relevance": "...",
    "duplicates": [{"path", "coverage": "full|partial", "note"}],
    "decision": "GREEN|YELLOW|RED|DELETED",

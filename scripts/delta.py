@@ -4,7 +4,8 @@
 
 usage: delta.py [--apply] [MODULE ...]              report (default: every analysis/*.json)
        delta.py --bump DTEST_REV SCYLLA_REV MODULE ...
---apply: write DELETED tests; bump revs of modules with nothing else to recheck.
+--apply: write DELETED tests (and their deleting commit in `commits`, also for DELETED tests set by hand);
+         bump revs of modules with nothing else to recheck.
 --bump:  set revs after a module's recheck (use the revs from the report header).
 
 Output: header `# dtest_rev <sha> scylla_rev <sha>`, then `<module> <Class::test> <KIND> <detail>`:
@@ -254,6 +255,13 @@ def ports(base):
     return out
 
 
+def add_deletion(t):
+    """Add the deleting commit to `commits` (the dashboard lists file commits the analysis summarized)."""
+    sha = t["deleted"]["sha"]
+    if not any(sha.startswith(k) for k in t["commits"]):
+        t["commits"][sha[:10]] = "Deleted the test: " + git("log", "-1", "--format=%s", sha).strip()
+
+
 def triggers(mod, a, closed):
     """Yield (key, KIND, detail) for one module."""
     path, base = a["file"], a["dtest_rev"]
@@ -322,6 +330,9 @@ def main():
             t["deleted"] = {"sha": sha, "date": git("log", "-1", "--format=%as", sha).strip(),
                             "pr": pr and pr["number"], "prev": t["decision"]}
             t["decision"] = "DELETED"
+        for t in a["tests"].values():
+            if t["decision"] == "DELETED":
+                add_deletion(t)
         if len(deleted) == len(found):
             a |= {"scylla_rev": scylla_rev, "dtest_rev": dtest_rev}
         save(mod, a)
