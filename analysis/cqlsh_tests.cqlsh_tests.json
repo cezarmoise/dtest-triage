@@ -340,18 +340,16 @@
           "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy (test_writing_*, test_all_datatypes_round_trip)",
           "coverage": "partial",
           "note": "csv content checks"
+        },
+        {
+          "path": "scylladb/cqlsh-rs@338c472569 tests/integration/float_format_tests.rs::test_copy_to_float_format",
+          "coverage": "partial",
+          "note": "port of the COPY TO csv check (testcopyto schema, 8 rows, c=i+0.5) added by cqlsh-rs PR #209 (fix of #194); no COPY FROM round trip, no TLS; cqlsh-rs CI only (Docker, --ignored) until scylladb/scylladb#29523 lands"
         }
       ],
       "decision": "YELLOW",
-      "reason": "Round trip fully duplicated by cqlsh_copy_tests.py::TestCqlshCopy::test_round_trip_murmur3 (_test_round_trip, same schema/10k rows, gating); only extra is single-node + csv-vs-rows compare (covered by TestCqlshCopy writing tests). Not slow (10s) so not auto-RED; candidate RED, though TestCqlshWithSSL::test_copy_to variant gives unique COPY-over-SSL coverage.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "open-issue",
-          "ref": "scylladb/cqlsh-rs#194",
-          "text": "Open cqlsh-rs COPY TO float formatting bug hits this test (base and SSL alike)."
-        }
-      ]
+      "reason": "Round trip fully duplicated by cqlsh_copy_tests.py::TestCqlshCopy::test_round_trip_murmur3 (_test_round_trip, same schema/10k rows, gating); only extra is single-node + csv-vs-rows compare (covered by TestCqlshCopy writing tests; for cqlsh-rs also by float_format_tests.rs::test_copy_to_float_format). Not slow (11s) so not auto-RED; candidate RED, though TestCqlshWithSSL::test_copy_to variant gives unique COPY-over-SSL coverage.",
+      "issues": []
     },
     "TestCqlsh::test_datetime_values": {
       "description": "CASSANDRA-9399: via cqlsh inserts date/time values including dates outside Python's datetime range (year 0, 10000) and nanosecond times; asserts cqlsh SELECT output renders in-range dates as YYYY-MM-DD and out-of-range as days-from-epoch integers (-719528, 2932897), plus DESCRIBE TABLE output.",
@@ -2189,7 +2187,7 @@
         "eccda80e42": "formatting (ruff 0.9.4)",
         "a37622dcb2": "SSL setup also sets auto_snapshot=False (faster DROP/TRUNCATE)"
       },
-      "relevance": "Inherited from TestCqlsh::test_copy_to: Live: cqlsh COPY TO/FROM. SSL angle: client_encryption_options (enabled, require_client_auth true/false) + cqlsh --ssl with cqlshrc [ssl] certfile/validate (+usercert/userkey when true); live in scylla and in cqlsh TLS handling (scylla-cqlsh sslhandling.py / cqlsh-rs). Stats: 64 runs, 100.0% pass, avg 72.9s/run (next-dtest-consistent-topology 32 runs 100.0% 79.5s, next-dtest-tablets 32 runs 100.0% 66.2s); base TestCqlsh::test_copy_to avg 10.2s. Only place where the real cqlsh binary connects over client TLS with usercert/userkey (require_client_auth=true): no other dtest passes --ssl/--cqlshrc, scylla-cqlsh SSL tests are mocks (test_copyutil.py patches ssl_settings), cqlsh-rs ssl_tests.rs has no client cert; driver-level TLS covered by native_transport_ssl_test.py and test/cluster/test_auth_certificate_or_password.py.",
+      "relevance": "Inherited from TestCqlsh::test_copy_to: Live: cqlsh COPY TO/FROM. SSL angle: client_encryption_options (enabled, require_client_auth true/false) + cqlsh --ssl with cqlshrc [ssl] certfile/validate (+usercert/userkey when true); live in scylla and in cqlsh TLS handling (scylla-cqlsh sslhandling.py / cqlsh-rs). Stats: 200 runs, 100.0% pass, avg 79.8s/run (next-dtest-consistent-topology 100 runs 100.0% 88.7s, next-dtest-tablets 100 runs 100.0% 70.9s); base TestCqlsh::test_copy_to avg 11.4s. Only place where the real cqlsh binary connects over client TLS with usercert/userkey (require_client_auth=true): no other dtest passes --ssl/--cqlshrc, scylla-cqlsh SSL tests are mocks (test_copyutil.py patches ssl_settings), cqlsh-rs ssl_tests.rs has no client cert; driver-level TLS covered by native_transport_ssl_test.py and test/cluster/test_auth_certificate_or_password.py.",
       "duplicates": [
         {
           "path": "cqlsh_tests/cqlsh_tests.py::TestCqlsh::test_copy_to",
@@ -2220,18 +2218,16 @@
           "path": "scylladb/cqlsh-rs tests/integration/ssl_tests.rs",
           "coverage": "partial",
           "note": "cqlsh-rs --ssl + cqlshrc certfile/validate, run in cqlsh-rs CI (--ignored) vs pinned scylla 2025.1/2026.1; require_client_auth=false only, no usercert/userkey, no COPY"
+        },
+        {
+          "path": "scylladb/cqlsh-rs@338c472569 tests/integration/float_format_tests.rs::test_copy_to_float_format",
+          "coverage": "partial",
+          "note": "port of the COPY TO csv check (testcopyto schema, 8 rows, c=i+0.5) added by cqlsh-rs PR #209 (fix of #194); no COPY FROM round trip, no TLS; cqlsh-rs CI only (Docker, --ignored) until scylladb/scylladb#29523 lands"
         }
       ],
       "decision": "YELLOW",
-      "reason": "Keep: no other test anywhere runs COPY TO/FROM over client TLS (no other dtest passes --ssl; scylla-cqlsh COPY TLS tests are mocks; cqlsh-rs ssl_tests.rs has no COPY and no client cert), here in both require_client_auth modes with real round-trip asserts. For Python cqlsh it additionally exercises per-worker TLS contexts (scylla-cqlsh pylib/cqlshlib/copyutil.py:1768, separate from main conn bin/cqlsh.py:2463). Base round trip itself is duplicated by TestCqlshCopy::test_round_trip_murmur3. Also named by scylladb/cqlsh-rs#194 (open, COPY TO float formatting; hits base and SSL alike). (Base TestCqlsh::test_copy_to: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating.",
-      "issues": [
-        {
-          "kind": "note",
-          "tag": "open-issue",
-          "ref": "scylladb/cqlsh-rs#194",
-          "text": "Open cqlsh-rs COPY TO float formatting bug hits this test (base and SSL alike)."
-        }
-      ]
+      "reason": "Keep: no other test anywhere runs COPY TO/FROM over client TLS (no other dtest passes --ssl; scylla-cqlsh COPY TLS tests are mocks; cqlsh-rs ssl_tests.rs has no COPY and no client cert), here in both require_client_auth modes with real round-trip asserts. For Python cqlsh it additionally exercises per-worker TLS contexts (scylla-cqlsh pylib/cqlshlib/copyutil.py:1768, separate from main conn bin/cqlsh.py:2463). Base round trip itself is duplicated by TestCqlshCopy::test_round_trip_murmur3. scylladb/cqlsh-rs#194 (COPY TO float formatting) closed 2026-11-22 by cqlsh-rs PR #209; its new COPY TO test has no TLS. (Base TestCqlsh::test_copy_to: YELLOW.) Cost: SSL runs take 56-97s vs 6-36s for the non-TLS base (~+50s/run, cause not identified); whole class 23 tests x 2 params ~50 min of test time per build, only in next-dtest-tablets/next-dtest-consistent-topology gating.",
+      "issues": []
     },
     "TestCqlshWithSSL::test_list_queries": {
       "description": "Inherited from TestCqlsh::test_list_queries (base origin cc3040ad69 2014-11-24), re-run on a fresh single node with client TLS, parametrized require_client_auth=true/false; driver session also over TLS. Base: CASSANDRA-8370: single node with PasswordAuthenticator+CassandraAuthorizer; creates user1, GRANT ALL ON ks.t1, read_barrier, then runs LIST USERS and LIST ALL PERMISSIONS OF user1 through cqlsh and compares the rendered tables (role/username/resource/permission rows).",
@@ -3897,7 +3893,7 @@
       "jira": "DTEST-1025"
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
