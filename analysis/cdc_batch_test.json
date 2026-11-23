@@ -1,8 +1,8 @@
 {
   "file": "cdc_batch_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestCDCBatchesSimple::test_delta_batch_only": {
       "description": "CDC with delta only (no images): logged batches inserting/updating all, even, odd columns, nulling, and re-updating 5 partitions x 3 rows x 10 cols of one of 11 types; asserts per-partition CDC group count, row count (no image rows) and delta values.",
@@ -25,6 +25,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[delta-all_types] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group), incl. the last delta row the dtest skips. Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -35,8 +40,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique type-matrix coverage of delta-only CDC log for logged multi-partition batches; boost test_batch_images covers images only. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified. (affects this test: no postimage).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[delta-all_types] (scylla c454b23eb1), which asserts the whole delta-only CDC log of the same batch sequence over the same types in one table instead of 11 clusters. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified; cqlpy checks every delta row.",
       "issues": [
         {
           "kind": "bug",
@@ -67,6 +72,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[preimage-all_types] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group), incl. the last delta row the dtest skips. Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params. Uses 'true'; the dtest's True renders as 'True', lowercased to the same image_mode::on (cdc/log.cc)."
+        },
+        {
           "path": "scylla-dtest cdc_batch_test.py::TestCDCBatchesSimple::test_preimage_on_delta_batch",
           "coverage": "full",
           "note": "preimage=True renders as 'True' (line 248), lowercased to 'true' in cdc/log.cc:431 -> identical image_mode::on config and identical expected data (_build_expected_data treats 'true' and True the same)."
@@ -83,7 +93,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Exact duplicate of test_preimage_on_delta_batch: True -> 'True' (cdc_batch_test.py:248) lowercased to 'true' in cdc/log.cc:431, same expected data; 11 params x ~5s of redundant gating time. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified.",
+      "reason": "Exact duplicate of test_preimage_on_delta_batch (True -> 'True', cdc_batch_test.py:248, lowercased to 'true' in cdc/log.cc:431) and fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[preimage-all_types] (scylla c454b23eb1, merges the True/'true' variants). Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified; cqlpy checks every delta row.",
       "issues": [
         {
           "kind": "bug",
@@ -115,6 +125,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[preimage-all_types] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group), incl. the last delta row the dtest skips. Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -125,8 +140,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_pre_image (int/map, single-partition unlogged); dtest adds logged multi-partition batches and 11 types. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[preimage-all_types] (scylla c454b23eb1): same batch sequence, types and preimage 'true', whole log compared. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified; cqlpy checks every delta row.",
       "issues": [
         {
           "kind": "bug",
@@ -157,6 +172,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[preimage_full-all_types] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group), incl. the last delta row the dtest skips. Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -167,8 +187,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only test of 'full' preimage with batches (boost test_batch_images has no full mode; cdc_types_test covers full only for single statements). Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[preimage_full-all_types] (scylla c454b23eb1): same batch sequence, types and full preimage, whole log compared. Bug: verify_cdc_rows sets delta_rows_end = len(rows) - 1 when postimage is off (cdc_batch_test.py:552), so the last delta row of every CDC group (per partition) is never verified; cqlpy checks every delta row.",
       "issues": [
         {
           "kind": "bug",
@@ -199,6 +219,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[postimage-all_types] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group). Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -209,8 +234,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_post_image (int/map, single-partition unlogged); unique logged multi-partition batch x 11-type coverage, stable in gating. Note: the len(rows)-1 delta-slice bug (line 552) does not apply (postimage on).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[postimage-all_types] (scylla c454b23eb1): same batch sequence and types with postimage, whole log compared.",
       "issues": []
     },
     "TestCDCBatchesSimple::test_preimage_full_delta_postimage": {
@@ -234,6 +259,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[preimage_full_postimage-all_types + preimage_full_postimage-no_nonfrozen_collections] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group). Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -244,8 +274,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only batch test combining full preimage with postimage; boost test_batch_pre_post_image uses preimage on only. Live behavior (cdc/log.cc image_mode::full).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[preimage_full_postimage-*] (scylla c454b23eb1): same batch sequence and types with full preimage + postimage, whole log compared, also for an atomic-types-only table.",
       "issues": []
     },
     "TestCDCBatchesSimple::test_preimage_on_delta_postimage": {
@@ -269,6 +299,11 @@
       "relevance": "CDC preimage modes on/full/off and postimage are live: cdc/log.cc:425-460 (options parsing, values lowercased), cdc/cdc_options.hh image_mode. Logged multi-partition batches (5 pk x 3 ck x 10 cols) of INSERT/UPDATE incl. null updates. Runs in next gating (both tablets and consistent-topology stages), 100% pass, ~5-13s per param x 11 types.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_batch",
+          "coverage": "full",
+          "note": "[preimage_postimage-all_types + preimage_postimage-no_nonfrozen_collections] scylla c454b23eb1 (merged 42ab0bf5bd), translated from this dtest: same 6 LOGGED batches (insert all, update all/even/odd, null, update all) over 5 pk x 3 ck, one table with all dtest types except varchar (alias of text), 4 cols per type; asserts the whole CDC log (every row, all columns, order, operation, one stream + contiguous batch_seq_no per group). Atomic-types-only table (non-split INSERT path) only in the preimage+postimage params."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_batch_pre_image/test_batch_post_image/test_batch_pre_post_image",
           "coverage": "partial",
           "note": "test_batch_images: unlogged batches, single partition per batch, int+map columns, preimage on/off + postimage; no 'full' preimage, no logged multi-partition batch, no type matrix."
@@ -279,8 +314,8 @@
           "note": "same image modes x types, but single statements, not batches."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Partial overlap with test/boost/cdc_test.cc::test_batch_pre_post_image (int/map, single partition, unlogged); dtest adds logged multi-partition batches, null updates and 11 types. Stable in gating.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_cdc_dtest.py::test_cdc_batch[preimage_postimage-*] (scylla c454b23eb1): same batch sequence and types with preimage 'true' + postimage, whole log compared, also for an atomic-types-only table.",
       "issues": []
     }
   }
