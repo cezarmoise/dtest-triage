@@ -1,8 +1,8 @@
 {
   "file": "cql_cast_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestCQLCast::test_cast_tinyint": {
       "description": "Creates table cast_tinyint_test with a tinyint column, inserts TestData.POSITIVE_VALUES['tinyint'] rows via cqlsh and checks SELECT CAST(col AS T) for every T in the type's cast matrix (other numerics, text, varchar), plus avg/sum/min/max(CAST(col AS T)) over all rows on the first value. Expected values are Cassandra 4.1 outputs (225424395a), with scylla's '.0' decimal formatting difference (scylladb#3109) stripped.",
@@ -27,6 +27,16 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[tinyint]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks; avg(cast AS decimal) checks moved to test_cast_avg_to_decimal[tinyint]"
+        },
+        {
+          "path": "test/cqlpy/test_dtest.py::test_cast_avg_to_decimal[tinyint]",
+          "coverage": "partial",
+          "note": "the avg(cast(tinyint_clmn AS decimal)) checks of this test, same expected values (cassandra_bug marks CASSANDRA-18470 for Cassandra only; runs normally on Scylla)"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
           "note": "all numeric->numeric/text cast pairs with small values"
@@ -42,8 +52,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (64s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[tinyint] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Its avg(cast AS decimal) checks are in test_cast_avg_to_decimal[tinyint]. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -105,6 +115,16 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[smallint]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks; avg(cast AS decimal) checks moved to test_cast_avg_to_decimal[smallint]"
+        },
+        {
+          "path": "test/cqlpy/test_dtest.py::test_cast_avg_to_decimal[smallint]",
+          "coverage": "partial",
+          "note": "the avg(cast(smallint_clmn AS decimal)) checks of this test, same expected values (cassandra_bug marks CASSANDRA-18470 for Cassandra only; runs normally on Scylla)"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
           "note": "all numeric->numeric/text cast pairs with small values"
@@ -120,8 +140,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (70s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[smallint] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Its avg(cast AS decimal) checks are in test_cast_avg_to_decimal[smallint]. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -183,6 +203,16 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[int]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked (the int 0 row's casts the dtest skips); skips the varchar (alias of text) checks; avg(cast AS decimal) checks moved to test_cast_avg_to_decimal[int]"
+        },
+        {
+          "path": "test/cqlpy/test_dtest.py::test_cast_avg_to_decimal[int]",
+          "coverage": "partial",
+          "note": "the avg(cast(int_clmn AS decimal)) checks of this test, same expected values (cassandra_bug marks CASSANDRA-18470 for Cassandra only; runs normally on Scylla)"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
           "note": "all numeric->numeric/text cast pairs with small values"
@@ -198,8 +228,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (60s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: _test_one_type cql_cast_test.py:224 `if exp_result and ...` skips falsy expectations, so the int value 0 row's casts to tinyint/smallint/float/double/bigint/varint (expected 0) are never asserted. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[int] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Its avg(cast AS decimal) checks are in test_cast_avg_to_decimal[int]. The int 0 row's expected-0 casts the dtest skips (check-disabled bug below) are checked there, so the bug doesn't hold it back. Bug: _test_one_type cql_cast_test.py:224 `if exp_result and ...` skips falsy expectations, so the int value 0 row's casts to tinyint/smallint/float/double/bigint/varint (expected 0) are never asserted. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -267,6 +297,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[bigint]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
           "note": "all numeric->numeric/text cast pairs with small values"
@@ -282,8 +317,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (63s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[bigint] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -343,8 +378,18 @@
         "056f5dc7a8": "formatting (ruff: unused out -> _out)",
         "2667a0d60a": "file: float/double->decimal compared with pytest.approx(rel=1e-6) after aggregation changes (scylladb PR 13105)"
       },
-      "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
+      "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass). cdaab59e20 (SCYLLADB-4919) replaced the undefined static_cast in float/double->integer casts with Java semantics; only NaN and large positive values changed, not the values this test checks.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[float]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
+          "path": "test/cqlpy/test_cast_data.py::test_cast_float_to_integer_types[f]",
+          "coverage": "partial",
+          "note": "float->tinyint/smallint/int/bigint incl. -564->-52, plus NaN/Infinity/saturation (scylla cdaab59e20, SCYLLADB-4919)"
+        },
         {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
@@ -366,8 +411,8 @@
           "note": "float->text precision round-trip"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (62s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[float] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. float/double->integer casts also in test_cast_data.py::test_cast_float_to_integer_types (cdaab59e20). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -427,8 +472,18 @@
         "056f5dc7a8": "formatting (ruff: unused out -> _out)",
         "2667a0d60a": "file: float/double->decimal compared with pytest.approx(rel=1e-6) after aggregation changes (scylladb PR 13105)"
       },
-      "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
+      "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass). cdaab59e20 (SCYLLADB-4919) replaced the undefined static_cast in float/double->integer casts with Java semantics; only NaN and large positive values changed, not the values this test checks.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[double]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
+          "path": "test/cqlpy/test_cast_data.py::test_cast_float_to_integer_types[db]",
+          "coverage": "partial",
+          "note": "double->tinyint/smallint/int/bigint incl. 76571.345->27/11035, plus NaN/Infinity/saturation (scylla cdaab59e20, SCYLLADB-4919)"
+        },
         {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
@@ -450,8 +505,8 @@
           "note": "double->text precision round-trip (#15127)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (54s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[double] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. float/double->integer casts also in test_cast_data.py::test_cast_float_to_integer_types (cdaab59e20). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -513,6 +568,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[decimal]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testNumericCastsInSelectionClause",
           "coverage": "partial",
           "note": "all numeric->numeric/text cast pairs with small values"
@@ -528,8 +588,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: every numeric cast pair is covered by cqlpy cast_fcts_test.py::testNumericCastsInSelectionClause and boost castas_fcts_test.cc; unique bits are edge values (wraparound/overflow) and aggregates over casts. Slow (77s avg, gating). Suggest porting the edge/aggregate cases to test/cqlpy/test_cast_data.py and removing. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[decimal] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -591,6 +651,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[varint]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/test_cast_data.py::test_cast_from_large_varint",
           "coverage": "partial",
           "note": "ported from this dtest (same value 32767456...575675): wraparound to tinyint/smallint/int/bigint, +-Infinity float, double, decimal, text"
@@ -611,8 +676,8 @@
           "note": "CAST(avg(CAST(x AS decimal)) AS text) and avg(CAST()) for int/long/float/double (test_explicit_type_casting_in_avg_function_*)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Single-value casts of the same huge varint are fully ported to test/cqlpy/test_cast_data.py::test_cast_from_large_varint (+ _to_varchar); only the aggregate-over-cast cases (sum/avg/min/max/cast(agg)) remain unique. Slowest test of the module (82s avg, gating). Port aggregates to cqlpy and remove. Note: avg->decimal is '#'-excluded here (only exercised by test_avg_cast_from_varint_to_decimal, @require #13601). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[varint] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Single-value casts also in test_cast_data.py::test_cast_from_large_varint. Note: avg->decimal is '#'-excluded here (only exercised by test_avg_cast_from_varint_to_decimal, @require #13601). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -680,6 +745,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[boolean]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testOtherTypeCastsInSelectionClause",
           "coverage": "full",
           "note": "ascii/inet/boolean -> text"
@@ -691,7 +761,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "boolean->text is fully covered by cqlpy cast_fcts_test.py::testOtherTypeCastsInSelectionClause and boost castas_fcts_test.cc::test_other_type_casts_in_selection_clause (varchar is an alias of text); dtest adds nothing but 12s of gating time. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[boolean] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -754,6 +824,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[ascii]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testOtherTypeCastsInSelectionClause",
           "coverage": "full",
           "note": "ascii/inet/boolean -> text"
@@ -765,7 +840,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "ascii->text fully covered by cqlpy cast_fcts_test.py::testOtherTypeCastsInSelectionClause and boost test_other_type_casts_in_selection_clause; min/max over a text-valued selector is generic aggregate behavior (test/cqlpy/test_aggregate.py). Redundant, 16s gating. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[ascii] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -828,6 +903,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[inet]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testOtherTypeCastsInSelectionClause",
           "coverage": "full",
           "note": "ascii/inet/boolean -> text"
@@ -839,7 +919,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "inet->text fully covered by cqlpy cast_fcts_test.py::testOtherTypeCastsInSelectionClause and boost test_other_type_casts_in_selection_clause; min/max over text selector is generic aggregate behavior. Redundant, 20s gating. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[inet] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -902,13 +982,18 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[uuid]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/boost/castas_fcts_test.cc::test_time_casts_in_selection_clause",
           "coverage": "partial",
-          "note": "timeuuid->text covered; plain uuid->text not directly tested in scylla"
+          "note": "timeuuid->text only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "No direct scylla test of uuid->text (only timeuuid->text in boost test_time_casts_in_selection_clause; test_cast_data.py has a uuid column but a TODO for more types). Trivial, low value; 1-line port to test/cqlpy/test_cast_data.py then remove. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[uuid] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -971,6 +1056,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[timeuuid]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/boost/castas_fcts_test.cc::test_time_casts_in_selection_clause",
           "coverage": "full",
           "note": "timeuuid->timestamp/date/text, timestamp->date/text incl. ms ('...29.805Z'), date->timestamp, time->text, plus ->ascii"
@@ -982,7 +1072,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "timeuuid->timestamp/date/text fully covered by boost castas_fcts_test.cc::test_time_casts_in_selection_clause and cqlpy cast_fcts_test.py::testTimeCastsInSelectionClause; min/max over casts is generic. Redundant, 30s gating. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[timeuuid] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -1048,6 +1138,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[date]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testTimeCastsInSelectionClause",
           "coverage": "full",
           "note": "timeuuid/timestamp/date->timestamp/date, timestamp/date/time->text (#14518)"
@@ -1059,7 +1154,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "date->timestamp fully covered by cqlpy cast_fcts_test.py::testTimeCastsInSelectionClause and boost test_time_casts_in_selection_clause. Redundant, 14s gating. Note: legacy @pytest.mark.dtest_debug (6b5a3275e4). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[date] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Note: legacy @pytest.mark.dtest_debug (6b5a3275e4). Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -1128,6 +1223,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[time]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testTimeCastsInSelectionClause",
           "coverage": "full",
           "note": "timeuuid/timestamp/date->timestamp/date, timestamp/date/time->text (#14518)"
@@ -1139,7 +1239,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "time->text (nanosecond formatting) fully covered by cqlpy cast_fcts_test.py::testTimeCastsInSelectionClause ('11:03:02.000000000') and boost test_time_casts_in_selection_clause. Redundant, 20s gating. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[time] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -1202,6 +1302,11 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Unlike siblings, unmarked from gating: runs only in dtest-release/dtest-release-with-raft (38/38 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from[timestamp]",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): identical POSITIVE_VALUES table, same queries (cast, agg(cast), cast(agg), cast(cast)) and the same normalizations, via the driver with cqlsh's 5-digit float formatting reproduced; stricter: CREATE/INSERT errors raise and expected 0 values are checked; skips the varchar (alias of text) checks"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py::testTimeCastsInSelectionClause",
           "coverage": "full",
           "note": "timeuuid/timestamp/date->timestamp/date, timestamp/date/time->text (#14518)"
@@ -1213,7 +1318,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "timestamp->date/text incl. ms formatting ('2009-12-17T00:26:29.805Z') fully covered by boost test_time_casts_in_selection_clause and cqlpy testTimeCastsInSelectionClause (#14518). Only runs in dtest-release(+raft) (38/38 pass). Note: @unmark.next_gating :83 (75af4cae11, 'failures in last 30 days' in 2023) looks stale. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from[timestamp] (scylla 0d6e9784cc, series 42ab0bf5bd): identical expected values, same queries and normalizations, run through the driver instead of cqlsh (cqlsh was only the runner), and stricter; removal PR scylladb/scylla-dtest#7713 open. Was already RED on the existing cqlpy/boost cast tests. Only runs in dtest-release(+raft). Note: @unmark.next_gating :83 (75af4cae11, 'failures in last 30 days' in 2023) looks stale. Bug: (class-level) _test_run cql_cast_test.py:175-177 silently `continue`s (debug log only, no assert) if CREATE TABLE fails -> test passes with zero checks. Note: other class-level issues: (1) _prefill_table :269-271 ignores INSERT errors; (2) duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); (3) dead `success = fail = 0` :139/:169; (4) one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting.",
       "issues": [
         {
           "kind": "bug",
@@ -1282,13 +1387,18 @@
       "relevance": "CAST(x AS T) selector functions (system.castAs*) are live in scylla (cql3/functions/castas_fcts.cc); tested via cqlsh on a 1-node cluster. Runs in gating only (next-dtest-tablets/consistent-topology, 32/32 pass).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_cast_from_udt_fields",
+          "coverage": "full",
+          "note": "translation of this test (scylla 0d6e9784cc, series 42ab0bf5bd): same frozen UDT with bigint/float/timestamp fields and rows, same cast/agg(cast)/cast(agg)/cast(cast) checks on udt_clmn.<field>_clmn with the dtest's expected values; INSERT errors raise"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/functions/cast_fcts_test.py",
           "coverage": "partial",
-          "note": "casts of plain columns only; no scylla test casts a UDT field selector (grep for `cast(x.y as` finds none)"
+          "note": "casts of plain columns only"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Casting UDT field selectors (and aggregates over them) has no scylla unit/cqlpy coverage, so this is the only unique scenario of the module; cast/field-selection are each well covered so value is moderate; better ported to cqlpy. Note: class-level issues that apply here: _prefill_table :269-271 ignores INSERT errors (missing rows still fail the value asserts); duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); dead `success = fail = 0` :139; one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting. The silent `continue` on CREATE TABLE failure (_test_run :175-177) does not apply: _udt_test_run asserts type/table creation (:182-183).",
+      "decision": "RED",
+      "reason": "Fully translated to scylla test/cqlpy/test_dtest.py::test_cast_from_udt_fields (scylla 0d6e9784cc, series 42ab0bf5bd): same UDT, rows, queries and expected values, run through the driver instead of cqlsh; removal PR scylladb/scylla-dtest#7713 open. Note: class-level issues that apply here: _prefill_table :269-271 ignores INSERT errors (missing rows still fail the value asserts); duplicated @pytest.mark.next_gating :12/:14 (a79be9b622+75af4cae11); dead `success = fail = 0` :139; one cqlsh subprocess per query and assertions on cqlsh display strings (float_precision=5, e.g. '7.6571e+18'), so float/double checks are low precision and tied to cqlsh formatting. The silent `continue` on CREATE TABLE failure (_test_run :175-177) does not apply: _udt_test_run asserts type/table creation (:182-183).",
       "issues": [
         {
           "kind": "note",
