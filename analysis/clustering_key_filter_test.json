@@ -1,8 +1,8 @@
 {
   "file": "clustering_key_filter_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestClusteringKeyFilter::test_check_consistence_after_row_tombstone": {
       "description": "Single node, cache off, compaction disabled. Rows key1/a and key2/b each flushed to own sstable; then key1/c (memtable) + partition delete of key2 flushed together, so key2's tombstone lives in an sstable whose ck range is [c,c]. SELECT p1 IN (key1,key2) AND c1 in [a,b] must return only key1/a, i.e. the CK filter must not drop the sstable holding key2's partition tombstone.",
@@ -31,6 +31,11 @@
       "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~6.9s. may_contain_rows keeps partition-tombstone sstables via cleared min/max (sstables.cc:2690-2698 comments).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_clustering_filter_partition_tombstone",
+          "coverage": "full",
+          "note": "1:1 translation: same schema, TWCS + NullCompactionStrategy with 'enabled':'false', one flush per write, same queries; BYPASS CACHE instead of --enable-cache 0 (both take make_sstable_reader in replica/table.cc make_reader); asserts exact row tuples."
+        },
+        {
           "path": "test/lib/mutation_source_test.cc::test_time_window_clustering_slicing",
           "coverage": "partial",
           "note": "TWCS mutation source with partition tombstone + static row, ck range outside rows -> tombstone still produced; run over sstable sources by run_mutation_source_tests. Single sstable, not cross-sstable shadowing."
@@ -46,8 +51,8 @@
           "note": "TWCS 2 sstables, ck range slice, asserts CK filter stats (scylla#8432). Single ck component."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Mostly unique end-to-end check that a partition tombstone in an sstable outside the queried ck range still shadows older rows under TWCS CK filtering; partial overlap with test_time_window_clustering_slicing and cqlpy test_clustering_filtering*. Cheap and easily portable to cqlpy (flush + BYPASS CACHE + no_autocompaction_context). Note: name says 'row tombstone' but it is a partition delete (remove_row, :244). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_clustering_filter_partition_tombstone (scylla ae844d02e7 (series 42ab0bf5bd)): same key1/key2 sstable layout, partition delete flushed with key1/c, same IN + c1 range query, both strategies, BYPASS CACHE (same sstable reader path as cache disabled). Note: name says 'row tombstone' but it is a partition delete (remove_row, :244). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
       "issues": [
         {
           "kind": "note",
@@ -96,6 +101,11 @@
       "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~6.3s. scylladb/scylladb#1544 closed.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_clustering_filter_one_column",
+          "coverage": "full",
+          "note": "1:1 translation: same schema, TWCS + NullCompactionStrategy with 'enabled':'false', one flush per write, same queries; BYPASS CACHE instead of --enable-cache 0 (both take make_sstable_reader in replica/table.cc make_reader); asserts exact row tuples."
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
           "coverage": "partial",
           "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
@@ -111,8 +121,8 @@
           "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Live behavior, partial overlap: cqlpy test_clustering_filtering* (TWCS, flush, BYPASS CACHE) cover point lookups outside sstable range but not range slice boundaries across sstables. Cheap; could be ported to cqlpy. Note: leftover '# print query' dead comments (clustering_key_filter_test.py:60,64,67). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_clustering_filter_one_column (scylla ae844d02e7 (series 42ab0bf5bd)): same two sstables and all 7 slice queries (incl. inverted range, scylla#1544), both strategies, BYPASS CACHE (same sstable reader path as cache disabled). Note: leftover '# print query' dead comments (clustering_key_filter_test.py:60,64,67). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
       "issues": [
         {
           "kind": "note",
@@ -164,6 +174,11 @@
       "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~7.9s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_clustering_filter_two_columns",
+          "coverage": "full",
+          "note": "1:1 translation: same schema, TWCS + NullCompactionStrategy with 'enabled':'false', one flush per write, same queries; BYPASS CACHE instead of --enable-cache 0 (both take make_sstable_reader in replica/table.cc make_reader); asserts exact row tuples."
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
           "coverage": "partial",
           "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
@@ -179,8 +194,8 @@
           "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Live behavior; composite-ck prefix ranges across multiple sstables under TWCS CK filter not found in scylla tests (cqlpy/boost CK-filter tests use single int ck). Cheap and portable to cqlpy. Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_clustering_filter_two_columns (scylla ae844d02e7 (series 42ab0bf5bd)): same 4 composite-ck rows in 4 sstables and all 13 c1/c2 slice queries, both strategies, BYPASS CACHE (same sstable reader path as cache disabled). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
       "issues": [
         {
           "kind": "note",
@@ -219,6 +234,11 @@
       "relevance": "Clustering-key sstable filter is live: sstables/sstable_set.cc filter_sstable_for_reader_by_ck() uses sstable::may_contain_rows() (sstables/sstables.cc:2685) when compaction_strategy::use_clustering_key_filter() is true, which only TWCS sets (compaction/compaction_strategy.cc:679); NullCompactionStrategy param is the no-filter control. enable_cache config still exists (db/config.cc:1446), passed via ccm jvm_args as '--enable-cache 0'. 'enabled':'false' keeps one sstable per flush. Runs only in gating (next-dtest-tablets / next-dtest-consistent-topology), class-level @next_gating since 3040c4e6; 64 runs, 100% pass, ~5.9s. Not marked dtest_debug unlike the other 3.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_clustering_filter_two_columns_single_row",
+          "coverage": "full",
+          "note": "1:1 translation: same schema, TWCS + NullCompactionStrategy with 'enabled':'false', one flush per write, same queries; BYPASS CACHE instead of --enable-cache 0 (both take make_sstable_reader in replica/table.cc make_reader); asserts exact row tuples."
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_clustering_filtering / _2 / _3",
           "coverage": "partial",
           "note": "TWCS (+LCS) single int ck, flush + BYPASS CACHE, query ck outside sstable range returns nothing (scylla#3552); _3 uses 2 sstables w/o autocompaction. No composite ck, no range slices, no tombstones."
@@ -234,8 +254,8 @@
           "note": "verifies sstable min/max clustering metadata that the filter relies on, not reads."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Live behavior; regression for composite-ck exclusive range vs sstable min/max, not found in scylla tests (single-ck only). Tiny scenario, trivially portable to cqlpy (flush + BYPASS CACHE, TWCS). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_clustering_filter_two_columns_single_row (scylla ae844d02e7 (series 42ab0bf5bd)): same single (a,c) sstable, c1='a' AND c2 in (b,d) query + count==1, both strategies, BYPASS CACHE (same sstable reader path as cache disabled). Note: helper check_number_of_rows assert message is str(len(result)) (always '1'), not the actual count (clustering_key_filter_test.py:236). Note: no test checks the filter was actually exercised (e.g. cf_stats clustering_filter_count / sstables_checked_by_clustering_filter metrics), only result correctness.",
       "issues": [
         {
           "kind": "note",
