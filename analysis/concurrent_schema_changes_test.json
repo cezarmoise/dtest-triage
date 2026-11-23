@@ -1,8 +1,8 @@
 {
   "file": "concurrent_schema_changes_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestConcurrentSchemaChanges::test_basic": {
       "description": "2 nodes on 2 racks. Via node1 creates ks_ns1/ks2_ns1, table cf_ns1 with row + secondary index, cf2_ns1; then drops ks2, creates ks3, drops cf2, creates cf3, ALTER ADD col4, creates index2, drops index. No assertion at all - passes if every DDL statement returns without error; never checks schema agreement.",
@@ -321,6 +321,7 @@
         "summary": "Cassandra dtest 'added concurrent table, index and column add tests' (Andrew Hust)"
       },
       "commits": {
+        "46de9f15a8": "session request_timeout=300: scylla-driver 3.29.13 execute_concurrent() no longer sends timeout=None, so ALTERs queued behind schema-agreement waits hit the 30s timeout (from closed PR #7806, landed via #7735); assertions untouched",
         "9d850adcc7": "drop wait(5)/wait(30); validate_schema_consistent(node1) moved before the metadata read; single-shot node2/node3 checks dropped (node1 describecluster covers all live nodes) (PR #7576)",
         "417073cea7": "validate_schema_consistent uses @retrying(num_attempts); drop unconditional waits",
         "9ffd273f04": "formatting",
@@ -349,7 +350,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with test_concurrent_schema.py::test_cassandra_issue_10250 (same race, much smaller scale); slow (~184s in Jenkins before 9d850adcc7 removed 35s of sleeps; the 500 group0 ALTERs dominate). Note: assert message 'didn't get success on table create' is copy-paste (:195). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
+      "reason": "Partial overlap with test_concurrent_schema.py::test_cassandra_issue_10250 (same race, much smaller scale); slow (~184s in Jenkins before 9d850adcc7 removed 35s of sleeps; the 500 group0 ALTERs dominate). Note: assert message 'didn't get success on table create' is copy-paste (:200). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
       "issues": [
         {
           "kind": "note",
@@ -517,6 +518,7 @@
         "summary": "Cassandra dtest 'added concurrent schema alteration with/without node being down' (CASSANDRA-10250 repro)"
       },
       "commits": {
+        "6a098d66e2": "session request_timeout=300: with scylla-driver 3.29.13 the 420 concurrent DDLs timed out (30s) waiting for schema agreement, failing every nightly run (PR #7891); assertions untouched",
         "9d850adcc7": "_do_lots_of_schema_actions drops wait(10) after creating the alter_me/index_me tables (PR #7576); assertions untouched",
         "056f5dc7a8": "ruff: rename unused node vars (formatting)",
         "417073cea7": "validate_schema_consistent uses @retrying(num_attempts); drop unconditional waits",
@@ -541,7 +543,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "test/cluster/test_concurrent_schema.py::test_cassandra_issue_10250 ports the same scenario with stronger verification; dtest is slow (~217s) and its real checks were commented out in 52b06c59f2. Bug: _verify_lots_of_schema_actions (:309-333) has index/column checks commented out, `errors` is always empty so `assert 0 == len(errors)` is a no-op. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
+      "reason": "test/cluster/test_concurrent_schema.py::test_cassandra_issue_10250 ports the same scenario with stronger verification; dtest is slow (~217s) and its real checks were commented out in 52b06c59f2. Bug: _verify_lots_of_schema_actions (:314-338) has index/column checks commented out, `errors` is always empty so `assert 0 == len(errors)` is a no-op. Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
       "issues": [
         {
           "kind": "bug",
@@ -567,6 +569,7 @@
         "summary": "Cassandra dtest; renamed in ae113e2ae0"
       },
       "commits": {
+        "6a098d66e2": "session request_timeout=300: with scylla-driver 3.29.13 the 420 concurrent DDLs timed out (30s) waiting for schema agreement, failing every nightly run (PR #7891); assertions untouched",
         "9d850adcc7": "_do_lots_of_schema_actions drops wait(10) after creating the alter_me/index_me tables (PR #7576); assertions untouched",
         "056f5dc7a8": "ruff: rename unused node vars (formatting)",
         "417073cea7": "validate_schema_consistent uses @retrying(num_attempts); drop unconditional waits",
@@ -605,7 +608,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Node-down catch-up after heavy churn is only partially covered; it hits open scylladb/scylladb#20588 (worked around by 4 ignore patterns, :367-373). Bug: same no-op verification as churn (commented checks, `errors` always empty, :320-333). Note: unmark next_gating cites scylla-enterprise#3231, CLOSED 2023-11-22 (:352). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
+      "reason": "Node-down catch-up after heavy churn is only partially covered; it hits open scylladb/scylladb#20588 (worked around by 4 ignore patterns, :380-386). Bug: same no-op verification as churn (commented checks, `errors` always empty, :325-338). Note: unmark next_gating cites scylla-enterprise#3231, CLOSED 2023-11-22 (:361). Note: class fixture sets start_rpc=true, which is value_status::Unused in scylla (db/config.cc:1288, Thrift removed) - dead config (concurrent_schema_changes_test.py:39).",
       "issues": [
         {
           "kind": "bug",
