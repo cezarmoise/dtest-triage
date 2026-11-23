@@ -37,24 +37,26 @@ give no verdict. Two devs disagree on a test → ask the user.
      `description`/`relevance`. Keep `jira`.
    `python3 scripts/check_analysis.py <modules>`, then `git commit -m "analysis: review #<n>" analysis/`,
    `git pull --rebase -q && git push -q`.
-5. Jira (kept tests with `jira`): `python3 scripts/jira_sync.py <keys>` (dry run) must print `<key> CLOSE Won't Fix`
-   with the new reason as the comment (SKIP = the key still has a RED test: leave it, report). Auto mode blocks
-   Jira writes: hand the user `! python3 scripts/jira_sync.py --apply <keys>`.
+5. Jira (kept tests with `jira`): `python3 scripts/jira_sync.py <keys>` (dry run, after the push) must print
+   `<key> CLOSE Won't Fix` with the new reason as the comment (SKIP = the key still has a RED test: leave it out,
+   report). The CLOSE keys go in the handoff: the herdr agent closes them once the PR work is done.
 6. PR work needed only for NEW items asking for something (keep, fixes, questions to answer). None (e.g. an
-   approval, or a review the user already handled) → skip steps 6-7 for that PR.
+   approval, or a review the user already handled) → skip steps 6-7 for that PR; CLOSE keys left → hand the user
+   `! python3 scripts/jira_sync.py --apply <keys>` (auto mode blocks Jira writes here).
    Handoff `$T/pr-<n>.handoff.md`, absolute paths (the other session has no `$T`):
    ```
    Apply the dev review of https://github.com/scylladb/scylla-dtest/pull/<n>: follow
    /home/cezar/github/dtest-triage/.claude/skills/removal-prs/review.md.
    Requested by the user ("/removal-prs <args>"): you may rewrite the branch and push it with --force-with-lease,
-   open a follow-up PR, close this PR, reply and comment on GitHub.
+   open a follow-up PR, close this PR, reply and comment on GitHub, close the Jira issues below as Won't Fix.
    Worktree: <path>, branch <branch>
    Review material: <abs $T>/pr-<n>.md
    Tests, in commit order:
    <sha10> <TEST>: remove | remove + fixes (<what>, <url>) | keep, drop the commit (<url>)
                  | keep + follow-up: <action> (<url>)
    PR-level: <cover letter / body fixes, nits, with urls | none>
-   Drop from Closes: <jira keys of kept tests | none> (closed Won't Fix from dtest-triage; don't touch Jira)
+   Drop from Closes: <jira keys of kept tests | none>
+   Close as Won't Fix: <CLOSE keys of step 5 | none>
    Not ours: <scylla follow-ups the dev proposed, questions left for the user | none>
    ```
 7. Herdr: `test "$HERDR_ENV" = 1`, else stop and give the user the handoff path.
@@ -68,7 +70,8 @@ give no verdict. Two devs disagree on a test → ask the user.
      (`herdr pane list --workspace <id>`) and start one as above.
    - `herdr agent prompt <agent> "Read <abs handoff> and follow it."`; a few seconds later `herdr agent get` says
      `working`.
-8. Reply per PR: test → verdict (dev, link) → analysis change; Jira command to run; herdr workspace + agent;
+8. Reply per PR: test → verdict (dev, link) → analysis change; Jira keys the agent closes (or the command for the
+   user); herdr workspace + agent;
    scylla follow-ups the dev proposed (for the user to file); questions. The agent reports PR URLs in its pane.
    A closed PR's branch and worktree go (the agent does it when it closes one; `R` treats branches as pending
    removals). Other `CLEANUP` lines of `R prs` (closed or merged elsewhere): do them here, step 9.

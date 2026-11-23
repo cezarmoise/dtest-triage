@@ -1,8 +1,8 @@
 # Apply a dev review to a removal PR (run by a Claude in the PR's scylla-dtest worktree)
 
-Input: the handoff (PR, worktree, branch, verdict per test, PR-level fixes, Closes keys to drop). The verdicts are
-decided: don't re-argue them. Analysis and Jira are done in dtest-triage: don't touch `~/github/dtest-triage`
-(except running `R`), Jira or the main `~/github/scylla-dtest` checkout.
+Input: the handoff (PR, worktree, branch, verdict per test, PR-level fixes, Closes keys to drop, Jira keys to close).
+The verdicts are decided: don't re-argue them. The analysis is already updated and pushed: don't touch
+`~/github/dtest-triage` (except running its scripts) or the main `~/github/scylla-dtest` checkout.
 `R`, `V`, ruff/pytest rules, commit message style, checks, backport labels, PR body sections: as in
 `/home/cezar/github/dtest-triage/.claude/skills/remove-tests/pr.md`. Commits always `PATH=$V:$PATH git commit`
 (hook runs ruff; never `--no-verify`).
@@ -26,7 +26,7 @@ decided: don't re-argue them. Analysis and Jira are done in dtest-triage: don't 
      (a branch gets `backport/<ver>` only if the changed code is there and the change matters there).
 3. Original PR:
    a. No `remove` test left → `gh pr comment <n> --body-file <f>` (per kept test: the dev's point in one line +
-      comment URL; the follow-up PR), `gh pr close <n>`. Go to step 4, then 5, then 3c.
+      comment URL; the follow-up PR), `gh pr close <n>`. Then steps 4-5, then 3c, then 6.
    b. Otherwise rewrite the branch:
       - Drop each kept test's commit, newest first (shas of later commits change after each rebase; re-read
         `git log --oneline <base>..` between drops): `git rebase -q --onto <sha>^ <sha>`. Conflict (a later commit
@@ -44,12 +44,17 @@ decided: don't re-argue them. Analysis and Jira are done in dtest-triage: don't 
       - Body (`gh pr edit <n> --body-file`): apply the dev's cover-letter fixes (checked); kept tests out of the
         table, counts, gaps, helpers and `Closes:`; add `### Kept after review`: per test, one line + comment URL
         (+ follow-up PR).
-   c. Closed PR, last: `git push -q origin --delete <branch>`, then from the main checkout
+   c. Closed PR, last (after steps 4-5): `git push -q origin --delete <branch>`, then from the main checkout
       `cd ~/github/scylla-dtest && command wt remove -D --foreground <branch>` (this worktree; the follow-up PR's
       stays). The herdr workspace stays: the user closes it.
-4. Replies: each handled NEW inline thread → `gh api -X POST repos/scylladb/scylla-dtest/pulls/<n>/comments/<id>/replies
+4. Jira, handoff's "Close as Won't Fix" keys, once the PRs are done:
+   `python3 /home/cezar/github/dtest-triage/scripts/jira_sync.py <keys>` (dry run): every key must print
+   `CLOSE Won't Fix` (anything else → don't apply, report), then the same with `--apply` (posts the new reason as
+   comment, transitions; parents are left to `/weekly`). Blocked by permissions → ask the user
+   in the pane to run `! python3 /home/cezar/github/dtest-triage/scripts/jira_sync.py --apply <keys>`.
+5. Replies: each handled NEW inline thread → `gh api -X POST repos/scylladb/scylla-dtest/pulls/<n>/comments/<id>/replies
    -f body=...`, 1-2 lines (what changed, in which commit / PR; or why not applied; scylla follow-ups: "left for a
    scylla follow-up"). Open PR: one PR comment summarizing the changes per review (link it), then
    `gh pr edit <n> --add-reviewer <dev login>` (re-request).
-5. Reply in the pane: PR URLs (original: updated/closed; follow-up), per test what happened, what wasn't applied and
+6. Reply in the pane: PR URLs (original: updated/closed; follow-up), Jira keys closed, per test what happened, what wasn't applied and
    why, scylla follow-ups the dev proposed. Open PRs keep their worktrees.
