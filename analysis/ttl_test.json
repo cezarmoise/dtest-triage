@@ -1,8 +1,8 @@
 {
   "file": "ttl_test.py",
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestDistributedTTL::test_ttl_is_replicated": {
       "description": "2-node cluster, RF=2 (NTS), table default_time_to_live=5. Inserts a row at CL=ALL, reads ttl(col1) via exclusive connections to node1 and node2 and asserts the remaining TTLs differ by <=1s, then sleeps 7s and asserts the row is gone at CL=ALL. Guards that the default TTL is applied to the mutation and replicated with it, not recomputed per replica.",
@@ -182,6 +182,16 @@
       "relevance": "Live: max_ttl check in cql3/attributes.cc:103; gc_clock is 64-bit so 2038 overflow handled.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_boundary_ttl_invalid",
+          "coverage": "partial",
+          "note": "2541a4201a split translation, rejected half: TTL 2^31 and 2^31-1 raise InvalidRequest, max_ttl+1 'ttl is too large', 0 rows; with test_boundary_ttl_beyond_2038 it is the whole dtest"
+        },
+        {
+          "path": "test/cqlpy/test_ttl.py::test_boundary_ttl_beyond_2038",
+          "coverage": "partial",
+          "note": "2541a4201a split translation, accepted half: max_ttl and 2^31-1-now (+1) accepted, row alive after 10s clock jump, TTL 5 overwrite expires at 20s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_time_overflow_using_ttl",
           "coverage": "full",
           "note": "insert/update USING TTL max_ttl (expiry beyond int32) and read with/without cache; refs scylladb#3353"
@@ -198,7 +208,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same scenario fully covered by cqlpy test_time_overflow_using_ttl (max_ttl expiry past int32, read immediately) and update_test.py::testUpdateWithTtl ('ttl is too large' for MAX_TTL+1); the 2^31-1-now boundary is strictly weaker than max_ttl. 25s of sleeps. Note: docstring still says 'boundary_ttl + 1 # invalid' but test asserts it is accepted (ttl_test.py:532 vs :562).",
+      "reason": "Fully translated to cqlpy by 2541a4201a, split in two: test_boundary_ttl_invalid (rejected TTLs, 'ttl is too large') and test_boundary_ttl_beyond_2038 (max_ttl, 2^31-1-now and +1 accepted, TTL 5 overwrite expires) together assert everything the dtest does, with clock jumps instead of 20s of sleeps; also covered by test_time_overflow_using_ttl and update_test.py::testUpdateWithTtl. Note: docstring still says 'boundary_ttl + 1 # invalid' but test asserts it is accepted (ttl_test.py:532 vs :562).",
       "issues": [
         {
           "kind": "note",
@@ -233,6 +243,11 @@
       "relevance": "Live: non-frozen list element TTL.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_collection_list_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 12, mylist[0],[4] USING TTL 5; asserts [42,2,3,4,42], [2,3,4] at 6s, row gone at 13s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/boost/cql_query_test.cc::test_ttl",
           "coverage": "partial",
           "note": "update ... using ttl set r3[1]='b' then forward_jump_clocks: element removed from list, without real sleeps"
@@ -243,8 +258,8 @@
           "note": "only that ttl(list[i]) is forbidden"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "List element TTL expiry is already covered by boost cql_query_test.cc::test_ttl (set r3[1] using ttl, element gone after clock jump); dtest adds only the table-default-TTL whole-row expiry on top, at 17s of real sleeps.",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_collection_list_ttl (2541a4201a): same per-element list TTL and default-TTL row expiry asserts, with clock jumps instead of 12s of sleeps. Element expiry also covered by boost cql_query_test.cc::test_ttl.",
       "issues": []
     },
     "TestTTL::test_collection_map_ttl": {
@@ -270,6 +285,11 @@
       "relevance": "Live: non-frozen map element TTL.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_collection_map_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 12, mymap[1],[5] USING TTL 5; asserts updated map, {2,3,4} entries at 6s, row gone at 13s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/cqlpy/test_select_collection_element.py::test_ttl_map_element",
           "coverage": "partial",
           "note": "checks per-element TTL values via TTL(m[k]) but not actual expiry"
@@ -280,8 +300,8 @@
           "note": "map element TTL in CDC log, not expiry of base data"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test found that verifies map entries actually expire individually while the rest of the map and row survive; cheap (13s, single node).",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_collection_map_ttl (2541a4201a): same asserts (map entries expire individually, rest of the row with the default TTL), with clock jumps instead of 8s of sleeps.",
       "issues": []
     },
     "TestTTL::test_collection_set_ttl": {
@@ -305,9 +325,15 @@
         "a6f2e52eea": "origin"
       },
       "relevance": "Live: non-frozen set element TTL.",
-      "duplicates": [],
-      "decision": "GREEN",
-      "reason": "No scylla test found for expiry of individual set elements (grep of test/cqlpy, test/boost for 'using ttl' + set append found none); cheap single-node test.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_ttl.py::test_collection_set_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 12, myset + {42} USING TTL 5; asserts 6 elements, {1..5} at 6s, row gone at 13s (clock fixture: dev/debug/sanitize builds only)"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_collection_set_ttl (2541a4201a): same asserts (added set element expires alone, rest of the row with the default TTL), with clock jumps instead of 12s of sleeps.",
       "issues": []
     },
     "TestTTL::test_default_ttl": {
@@ -362,9 +388,14 @@
       "relevance": "Live.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_default_ttl_can_be_removed",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 1, ALTER default_time_to_live = 0, insert, row still there after 2s clock jump (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_removing_default_ttl_does_not_affect_existing_rows",
           "coverage": "full",
-          "note": "ALTER default_time_to_live=0 then inserts key=3 and asserts it never expires (checked at ~42s), plus existing rows keep TTL"
+          "note": "ALTER default_time_to_live=0 then inserts key=3 and asserts it never expires (checked at ~32s), plus existing rows keep TTL"
         },
         {
           "path": "test/cqlpy/test_ttl.py::test_default_ttl_0_override",
@@ -373,7 +404,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_removing_default_ttl_does_not_affect_existing_rows in the same file (ttl_test.py:191-227 also ALTERs default TTL to 0 and verifies a new row never expires).",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_default_ttl_can_be_removed (2541a4201a), same assert (new row outlives the old 1s default TTL). Also a strict subset of test_removing_default_ttl_does_not_affect_existing_rows (dtest and its cqlpy translation).",
       "issues": [],
       "jira": "DTEST-644"
     },
@@ -399,13 +430,18 @@
       "relevance": "Cassandra-6363 scenario (CAS) no longer exercised; Scylla has supported LWT since 4.0, so the comment at ttl_test.py:516 is stale.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_delete_with_ttl_expired",
+          "coverage": "full",
+          "note": "2541a4201a translation of what runs: TTL 1 cell, 2s clock jump, unconditional DELETE, 0 rows; it also omits the CASSANDRA-6363 IF condition (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/insert_update_if_condition_test.py::testCasAndTTL",
           "coverage": "partial",
           "note": "LWT condition after a TTL 1 cell expired (the CAS + expired TTL interaction the original test targeted)"
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion: an unconditional DELETE removing a row is trivially covered everywhere; the original CASSANDRA-6363 LWT path was disabled (ttl_test.py:516-518, sha 54fdcdb8ae) with a stale 'Scylla does not support lightweight transactions' note. CAS+expired-TTL is covered by cqlpy testCasAndTTL.",
+      "reason": "What it checks (unconditional DELETE after a TTL'd cell expired) is fully translated to cqlpy test_ttl.py::test_delete_with_ttl_expired (2541a4201a); the original CASSANDRA-6363 conditional delete is disabled here (and in the port), and CAS on an expired TTL cell is covered by cqlpy testCasAndTTL. Bug: conditional DELETE ... IF commented out (ttl_test.py:516-518, 54fdcdb8ae). Note: stale comment says Scylla does not support LWT.",
       "issues": [
         {
           "kind": "bug",
@@ -497,6 +533,11 @@
       "relevance": "Live, basic USING TTL. 100% pass, ~14s avg in window (bd50a6d938 cuts ~6s; only latest builds reflect it).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_insert_ttl_works_without_default_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: no default TTL, USING TTL 10; check_eventually_expires asserts whole row at 5s, whole or gone at 9s (#5290: never null values), gone at 10s; samples clock-jump points instead of 0.1s polling (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_insert_ttl_has_priority_on_defaut_ttl",
           "coverage": "full",
           "note": "identical code path through eventually_expires; only difference is that table has default_time_to_live=1 which is overridden"
@@ -513,7 +554,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Near-identical copy of test_insert_ttl_has_priority_on_defaut_ttl (same eventually_expires helper, ttl_test.py:109-133); plain USING TTL expiry without a default is covered by boost cql_query_test.cc::test_ttl and #5290 by mutation_test.cc::test_row_marker_expiry.",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_insert_ttl_works_without_default_ttl (2541a4201a), incl. the #5290 no-null-values check (sampled at ttl-1 and ttl instead of polled). Also covered by boost cql_query_test.cc::test_ttl (plain USING TTL expiry) and mutation_test.cc::test_row_marker_expiry (#5290).",
       "issues": [],
       "jira": "DTEST-646"
     },
@@ -541,6 +582,11 @@
       "relevance": "Live: ALTER TABLE default_time_to_live. Gating, 100% pass, ~37s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_removing_default_ttl_does_not_affect_existing_rows",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 10, key1 default, key2 USING TTL 30, ALTER to 0, key3; asserts 3/2/1 rows at 5/12/32s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_alter_table_default_ttl_reset",
           "coverage": "partial",
           "note": "only checks schema value survives unrelated ALTER, no data"
@@ -551,8 +597,8 @@
           "note": "default TTL applies + explicit override, no ALTER"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test found verifying that ALTERing default_time_to_live (to 0) leaves existing rows' TTLs intact while new rows stop expiring; superset of test_default_ttl_can_be_removed (RED). Cost is mostly the 30s explicit TTL; could be shortened.",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_removing_default_ttl_does_not_affect_existing_rows (2541a4201a): same timeline and row counts (existing rows keep their TTLs, rows written after ALTER to 0 never expire), with clock jumps instead of 32s of sleeps. Note: runtime dominated by the 30s explicit TTL wait (ttl_test.py:189-228).",
       "issues": [
         {
           "kind": "note",
@@ -632,6 +678,11 @@
       "relevance": "Live, basic per-cell TTL. 100% pass, ~10s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_update_single_column_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: UPDATE USING TTL 5 SET col1=42; asserts [1,42,1,1], then [1,None,1,1] at 6s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/boost/cql_query_test.cc::test_ttl",
           "coverage": "full",
           "note": "key2: update using ttl 100 set r1, insert r2 without TTL; after forward_jump_clocks(200s) row has r1=null, r2 present"
@@ -643,7 +694,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_update_column_ttl_with_default_ttl in the same file (ttl_test.py:331-352 does the same update/asserts plus more), and the scenario is covered by boost cql_query_test.cc::test_ttl (key2 r1 expires, row stays).",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_update_single_column_ttl (2541a4201a), same asserts; also covered by boost cql_query_test.cc::test_ttl (key2: r1 expires, row stays).",
       "issues": [],
       "jira": "DTEST-648"
     },
@@ -668,6 +719,11 @@
       "relevance": "Live, per-cell TTL + row marker. 100% pass, ~9s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_update_multiple_columns_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: UPDATE USING TTL 5 sets col1-3; asserts [1,42,42,42], then [1,None,None,None] at 6s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/boost/cql_query_test.cc::test_ttl",
           "coverage": "full",
           "note": "cf2: insert using ttl 500, then insert (p1, r2) values ('foo', null) without TTL; after clock jump row stays with all regular columns null (live row marker only)"
@@ -679,7 +735,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario (all regular cells expired, row survives via non-TTL row marker) is covered by boost cql_query_test.cc::test_ttl (cf2 block); multiple columns in one UPDATE adds nothing over single-column TTL.",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_update_multiple_columns_ttl (2541a4201a), same asserts (all regular cells expire, row kept by the non-TTL row marker); also covered by boost cql_query_test.cc::test_ttl (cf2 block).",
       "issues": [],
       "jira": "DTEST-647"
     },
@@ -704,6 +760,11 @@
       "relevance": "Live. 100% pass, ~15s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_update_column_ttl_with_default_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 12, UPDATE USING TTL 5 SET col1=42; asserts [1,42,1,1], [1,None,1,1] at 6s, row gone at 13s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "test/boost/cql_query_test.cc::test_ttl",
           "coverage": "partial",
           "note": "per-cell TTL expiry with row surviving, no default TTL"
@@ -714,8 +775,8 @@
           "note": "explicit TTL overrides default (insert, not per-column update)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Each part is covered elsewhere (per-cell TTL by boost cql_query_test.cc::test_ttl, default-TTL expiry/override by cqlpy test_ttl.py), only the combination is unique; cheap but low incremental value. Keep this one rather than test_update_single_column_ttl (its subset).",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_update_column_ttl_with_default_ttl (2541a4201a): same asserts (column TTL lower than the default expires first, rest of the row with the default TTL), with clock jumps instead of 10s of sleeps. Parts also covered by boost cql_query_test.cc::test_ttl and cqlpy test_basic_default_ttl.",
       "issues": []
     },
     "TestTTL::test_update_column_ttl_with_default_ttl_2": {
@@ -739,6 +800,11 @@
       "relevance": "Live: row liveness = marker OR any live cell. 100% pass, ~13s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_update_column_ttl_with_default_ttl_2",
+          "coverage": "full",
+          "note": "2541a4201a translation: default TTL 5, UPDATE USING TTL 12 SET col1=42; asserts [1,42,None,None] at 6s (expired marker, row kept by col1), row gone at 13s (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_remove_column_ttl",
           "coverage": "partial",
           "note": "same liveness rule (marker expired, one non-TTL cell keeps row), no default TTL"
@@ -749,8 +815,8 @@
           "note": "only covers live marker + expired cells, not the reverse"
         }
       ],
-      "decision": "GREEN",
-      "reason": "No scylla test found for the reverse liveness case (expired row marker, row returned via a longer-TTL cell, then disappearing); cheap single-node test.",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_update_column_ttl_with_default_ttl_2 (2541a4201a): same asserts (row with an expired marker still returned via the longer-TTL cell, then gone), with clock jumps instead of 8s of sleeps.",
       "issues": []
     },
     "TestTTL::test_remove_column_ttl": {
@@ -774,6 +840,11 @@
       "relevance": "Live. 100% pass, ~9s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_ttl.py::test_remove_column_ttl",
+          "coverage": "full",
+          "note": "2541a4201a translation: INSERT USING TTL 2, UPDATE SET col1=42 without TTL; asserts [1,42,None,None] at 4s, same single post-expiry check (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
           "path": "scylla-dtest ttl_test.py::TestTTL::test_update_column_ttl_with_default_ttl_2",
           "coverage": "partial",
           "note": "same liveness rule: marker expired, row kept by one live cell; then also checks final expiry"
@@ -784,8 +855,8 @@
           "note": "cf2: insert using ttl then non-TTL write keeps row (but via new non-TTL row marker from INSERT, not via UPDATE cell)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Largely overlaps test_update_column_ttl_with_default_ttl_2 (expired marker, row kept by a single live cell); only difference is TTL source (USING TTL vs default). Note: no assertion before expiry, and name is misleading (overwrites cell, doesn't remove TTL).",
+      "decision": "RED",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_remove_column_ttl (2541a4201a), identical statements and assert, with a clock jump instead of a 4s sleep; also overlaps test_update_column_ttl_with_default_ttl_2 (dtest and its cqlpy translation). Note: no assertion before expiry (the port copies this), and name is misleading (overwrites cell, doesn't remove TTL).",
       "issues": [
         {
           "kind": "note",
@@ -828,8 +899,18 @@
         "7c3ba270a7": "debug prints for dtest#824 (smart_sleep_with_print, still present)",
         "449736c6f0": "origin"
       },
-      "relevance": "Live behavior (last-write-wins incl. TTL). 4 params x ~37s avg in window (~24s each after bd50a6d938), 100% pass.",
+      "relevance": "Live behavior (last-write-wins incl. TTL). 4 params x ~29s avg in window, 100% pass.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_ttl.py::test_overlapped_rows_ttls",
+          "coverage": "partial",
+          "note": "2541a4201a translation, LCS/STCS/TWCS params: same 20 rows, overwrites of keys 5-10/9-13/10-11/11-15 with TTL 20/30/10/40, same surviving keys at 11/21/31/41s; also never flushes (clock fixture: dev/debug/sanitize builds only)"
+        },
+        {
+          "path": "test/cqlpy/test_ttl.py::test_overlapped_rows_ttls_ics",
+          "coverage": "partial",
+          "note": "2541a4201a translation, ICS param (scylla_only), same check_overlapped_rows_ttls; with the above it is everything the dtest runs, but memtable-only too (clock fixture: dev/debug/sanitize builds only)"
+        },
         {
           "path": "test/boost/cql_query_test.cc::test_ttl",
           "coverage": "partial",
@@ -837,7 +918,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:589-629, never did since 449736c6f0), so all 4 variants read the same memtable data; 3 redundant variants, ~75s/run after bd50a6d938. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:77-78). Unique-ish overwrite-with-shorter-TTL check; keep one param or add flush+compact.",
+      "reason": "What runs is fully translated to cqlpy test_ttl.py::test_overlapped_rows_ttls (LCS/STCS/TWCS) + test_overlapped_rows_ttls_ics (2541a4201a), same keys and expected survivors with clock jumps instead of 24s of sleeps per param; only the per-strategy claim holds it back from RED, and the port has no flush/compaction either (fixing it there would make this RED). Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:589-629, never did since 449736c6f0), so all 4 variants read the same memtable data. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:77-78).",
       "issues": [
         {
           "kind": "bug",
