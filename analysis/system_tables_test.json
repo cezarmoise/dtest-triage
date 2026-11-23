@@ -325,7 +325,7 @@
       "issues": []
     },
     "TestConfigTable::test_invalid_update": {
-      "description": "Single node; parametrized invalid UPDATE system.config statements (no value, update source, update type, non-live-updateable api_port, unknown option) must raise WriteFailure containing the specific error message from config_table::apply. 6th param wrong_value_type (bool into failure_detector_timeout_in_ms) is xfail(#10394) + unmark.next_gating.",
+      "description": "Single node; parametrized invalid UPDATE system.config statements (no value, update source, update type, non-live-updateable api_port, unknown option) must raise WriteFailure containing the specific error message from config_table::apply. 6th param wrong_value_type (bool into failure_detector_timeout_in_ms) is xfail(#10394) + unmark.next_gating and expects 'Operation failed for system.config'.",
       "origin": {
         "sha": "2d9ba59d66",
         "date": "2022-04-07",
@@ -339,22 +339,27 @@
         "72809f2380": "formatting (ruff pep8-naming)",
         "2d9ba59d66": "origin: test added"
       },
-      "relevance": "Live: error strings in db/virtual_tables.cc:879-912 (option value is required / type is immutable / source is not updateable / not live-updateable / no such option).",
+      "relevance": "Live: error strings in db/virtual_tables.cc:879-912 (option value is required / type is immutable / source is not updateable / not live-updateable / no such option / cannot parse option value, :909).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_system_config_invalid_update",
+          "coverage": "full",
+          "note": "translated from this dtest (scylladb 045e11694c): same 6 statements and messages (pytest.raises match=re.escape ~ substring check); wrong_value_type not xfail, expects real 'cannot parse option value'"
+        },
         {
           "path": "test/boost/virtual_table_test.cc::test_system_config_table_no_live_update",
           "coverage": "partial",
           "note": "non-live-updateable option (cluster_name) throws mutation_write_failure_exception; no message check, other error paths not covered"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Mostly unique coverage of system.config update error paths, cheap (4s). Bug: wrong_value_type param xfail references scylladb#10394 which is CLOSED (2022-05-04) and is unmarked from gating; it has 0 runs in collected Jenkins data (system_tables_test.py:1047) - stale xfail, should be un-xfailed or dropped.",
+      "decision": "RED",
+      "reason": "test/cqlpy/test_virtual_tables.py::test_system_config_invalid_update (scylladb 045e11694c) is a direct translation with the same 6 cases, incl. wrong_value_type with the correct message, so the buggy param's scenario is covered too. Bug: wrong_value_type param (system_tables_test.py:1047) is a non-strict xfail on closed scylladb#10394 and expects the stale 'Operation failed for system.config' (now 'cannot parse option value'), so it always XFAILs and can't fail.",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
           "ref": "system_tables_test.py:1047",
-          "text": "wrong_value_type param: non-strict xfail on fixed (CLOSED) scylladb#10394, so it can never fail; unmarked from gating."
+          "text": "wrong_value_type: non-strict xfail on closed scylladb#10394; expects stale 'Operation failed' message (now 'cannot parse option value'), always XFAILs."
         }
       ]
     },
@@ -418,14 +423,26 @@
       "relevance": "Live: runtime_info_table cache group db/virtual_tables.cc:~735-745 (entries/hits/misses/hit_rate...).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info_cache_metrics",
+          "coverage": "full",
+          "note": "translated from this dtest (scylladb 045e11694c): same flush/read asserts (entries>=rows, memory_used, requests_total, hits, requests_total==hits+misses); misses-unchanged checked on the table's own row_cache_miss instead of global misses"
+        },
+        {
           "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info",
           "coverage": "partial",
           "note": "column existence only"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test validating runtime_info cache metrics semantics end-to-end (flush-populates-cache, hits/misses accounting); cheap (5.5s), 100% pass.",
-      "issues": []
+      "decision": "RED",
+      "reason": "test/cqlpy/test_virtual_tables.py::test_runtime_info_cache_metrics (scylladb 045e11694c) is a direct translation with the same asserts; it checks misses per table rather than globally, which is more robust. Note: global misses==misses check (system_tables_test.py:850) can flake on background reads of other tables (e.g. auth).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "system_tables_test.py:850",
+          "text": "Global cache misses unchanged assert; background reads of other tables (auth) can bump it and flake the test."
+        }
+      ]
     },
     "TestRuntimeInfoTable::test_content_toggle_item": {
       "description": "Single node, params gossip_active/incremental_backup_enabled: toggles via nodetool disablegossip/enablebackup, asserts system.runtime_info generic item reflects new state, reverts and asserts default state again.",
@@ -509,8 +526,13 @@
         "4fff8150aa": "added unmark.next_gating (kept out of gating); module next_gating",
         "9afd7fc05c": "origin: test added with xfail #10340"
       },
-      "relevance": "Live; bug #10340 fixed by scylladb c2e954adea (2026-08-18 'virtual_tables: fix reduction in system.runtime_info'), so the xfail now XPASSes (issue still OPEN on GitHub).",
+      "relevance": "Live; bug #10340 fixed by scylladb c2e954adea (2026-08-18 'virtual_tables: fix reduction in system.runtime_info'), issue closed 2026-11-02, so the xfail now XPASSes.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info_memtable_metrics",
+          "coverage": "full",
+          "note": "translated from this dtest (scylladb 045e11694c), not xfail: flushes all memtables, writes 100 rows to a new table, asserts memtable entries and memory_used grew"
+        },
         {
           "path": "test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables",
           "coverage": "full",
@@ -518,13 +540,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fix commit scylladb c2e954adea added test/cqlpy/test_virtual_tables.py::test_runtime_info_reduced_over_tables which fully covers (and is stronger than) this check. Bug: stale xfail on scylladb#10340 (system_tables_test.py:854) - fixed, test XPASSes, so it could never fail.",
+      "reason": "test/cqlpy/test_virtual_tables.py::test_runtime_info_memtable_metrics (direct translation, scylladb 045e11694c) and test_runtime_info_reduced_over_tables (fix c2e954adea) fully cover it without xfail. Bug: stale xfail on closed scylladb#10340 (system_tables_test.py:854) - fixed, test XPASSes, so it could never fail.",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
           "ref": "system_tables_test.py:854",
-          "text": "Non-strict xfail on scylladb#10340, fixed by scylladb c2e954adea; test XPASSes and can never fail."
+          "text": "Non-strict xfail on closed scylladb#10340, fixed by scylladb c2e954adea; test XPASSes and can never fail."
         }
       ],
       "jira": "DTEST-1037"
@@ -792,7 +814,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
