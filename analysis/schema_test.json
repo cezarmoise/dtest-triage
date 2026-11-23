@@ -22,9 +22,15 @@
         "e1bc6f024e": "class added to next_gating."
       },
       "relevance": "Live: cql3/statements/alter_table_statement.cc:410-411 throws 'Cannot drop columns from a non-CQL3 table'. But COMPACT STORAGE is deprecated, gated by enable_create_table_with_compact_storage (db/config.cc:1752, default false, 'will eventually be removed').",
-      "duplicates": [],
-      "decision": "YELLOW",
-      "reason": "No scylla test found asserting the non-CQL3 DROP rejection (grep 'Cannot drop columns' in test/ empty), so coverage is unique, but it is a trivial single-node CQL validation of a deprecated feature (db/config.cc:1752) better placed in cqlpy (e.g. test/cqlpy/test_guardrail_compact_storage.py). Note: class marks single_node/next_gating; 5s, 100% pass.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_alter_table.py::test_drop_column_compact_storage",
+          "coverage": "full",
+          "note": "translation (scylla 94938008dc): same COMPACT STORAGE table (compact_storage fixture enables the option), ALTER TABLE DROP c1, pytest.raises(InvalidRequest, match='Cannot drop columns from a'); scylla_only."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_alter_table.py::test_drop_column_compact_storage (scylla 94938008dc, translated from this dtest): same table, same DROP, same 'Cannot drop columns from a' InvalidRequest match (re.search, like assert_invalid). A single-node cluster for one CQL validation of deprecated COMPACT STORAGE (db/config.cc:1752).",
       "issues": []
     },
     "TestSchema::test_drop_column_compaction": {
@@ -55,6 +61,11 @@
       "relevance": "Live: drop/re-add column semantics with dropped_columns timestamps in scylla schema (system_schema.dropped_columns).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_alter_table.py::test_drop_and_readd_column",
+          "coverage": "full",
+          "note": "translation (scylla 94938008dc) of this test + test_drop_column_queries: same inserts, DROP/ADD c1, insert, then nodetool.compact (flushes first) and the same reads (SELECT key,c1 plus all columns and point reads); reads only, no purge check either."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testDropWithTimestamp",
           "coverage": "partial",
           "note": "drop + re-add after flush, old values hidden (explicit timestamps)."
@@ -71,7 +82,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Bug: since d31b560756 the dropped_columns erase+restart was removed, so the assertion (comment 'c1 values have been compacted away', schema_test.py:48) passes whether or not compaction purged the data - dropped_columns filtering at read hides it either way; effectively test_drop_column_queries + flush/compact. Partial overlap with cqlpy alter_test.py::testDropWithTimestamp/testAlterDropEmptySSTable.",
+      "reason": "Everything it asserts is covered by test/cqlpy/test_alter_table.py::test_drop_and_readd_column (scylla 94938008dc, translated from this dtest): same drop/re-add, flush + major compaction, same SELECT c1 check plus more. Bug: since d31b560756 (no dropped_columns erase + restart) the claimed purge (schema_test.py:48 'c1 values have been compacted away') is not verified: read-time dropped_columns filtering hides old values either way; the cqlpy port has the same blind spot and no scylla test checks that compaction purges dropped-column cells. YELLOW only because that claimed scenario is covered nowhere.",
       "issues": [
         {
           "kind": "bug",
@@ -111,6 +122,16 @@
       "relevance": "Live: drop + re-add regular column, dropped_columns timestamp filtering in reads (memtable path).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_alter_table.py::test_drop_and_readd_column",
+          "coverage": "full",
+          "note": "translation (scylla 94938008dc): same inserts, DROP/ADD c1, insert, then the same 4 asserts from the memtable (SELECT key,c1 / all columns, point reads key=0, key=3), again after compaction; no index queries either."
+        },
+        {
+          "path": "test/boost/secondary_index_test.cc::test_secondary_index_allow_some_column_drops",
+          "coverage": "partial",
+          "note": "index query after dropping an unindexed column (no re-add): closest to the commented-out index checks."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/alter_test.py::testDropWithTimestamp",
           "coverage": "partial",
           "note": "drop+re-add hides pre-drop values (explicit USING TIMESTAMP, after flush)."
@@ -127,12 +148,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Partial overlap with cqlpy alter_test.py::testDropWithTimestamp (drop/re-add hides old values); dtest adds server-side timestamps + memtable reads, a single-node CQL check that fits cqlpy. Bug: dead commented-out secondary-index checks (schema_test.py:57-58,75-81, 'Indexes not supported yet' from 99e1e0dba0) though scylla supports SI now.",
+      "reason": "What it still asserts is fully translated to test/cqlpy/test_alter_table.py::test_drop_and_readd_column (scylla 94938008dc): same memtable reads, plus after compaction. Bug: the index checks (CREATE INDEX on c2, SELECT ... WHERE c2 = 2/5 after drop + re-add) are commented out ('Indexes not supported yet', 99e1e0dba0, schema_test.py:58-59,80-86) though scylla supports SI, and no scylla test queries through an index after drop + re-add (boost test_secondary_index_allow_some_column_drops: drop only); re-enable them (then unique) or remove.",
       "issues": [
         {
           "kind": "bug",
           "tag": "check-disabled",
-          "ref": "schema_test.py:57-58,75-81",
+          "ref": "schema_test.py:58-59,80-86",
           "text": "Secondary-index checks commented out ('Indexes not supported yet', 99e1e0dba0), though scylla supports SI now."
         }
       ]
@@ -207,7 +228,7 @@
       "jira": "DTEST-854"
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
