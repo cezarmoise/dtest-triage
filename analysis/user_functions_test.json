@@ -83,6 +83,11 @@
       "relevance": "Live: UDF overload resolution + DROP FUNCTION disambiguation. Scylla 9161b7591d (SCYLLADB-1229) now resolves overloaded('foo') to text overload -> ambiguity no longer occurs.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udf.py::test_udf_overload",
+          "coverage": "full",
+          "note": "direct translation (scylla 2484c842c3): same table/4 overloads, per-type resolution (varchar==text, int, ascii), DROP of missing/ambiguous/varchar-alias signatures incl. 'doesn't exist' message, final unambiguous DROP; string literal checked to resolve to text/ascii overload instead of the dead ambiguity assert. Lua on Scylla"
+        },
+        {
           "path": "test/cqlpy/test_udf.py::test_drop_overloaded_udf",
           "coverage": "partial",
           "note": "DROP ambiguous overloads / drop with args / drop after unambiguous"
@@ -103,8 +108,8 @@
           "note": "overloaded UDFs, permission focus"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Per-arg-type UDF resolution (varchar==text, ascii, int) not directly covered in scylla; DROP parts covered by test_udf.py::test_drop_overloaded_udf. Single-node CQL semantics, easy cqlpy port. Bug: user_functions_test.py:138-142 ambiguity assert is dead - after scylla 9161b7591d the call resolves to overloaded(text) and only the unrelated filtering error is hit (before 896115a900 it hit unknown column k), so 'Ambiguous' is never checked.",
+      "decision": "RED",
+      "reason": "Fully covered by its direct translation test/cqlpy/test_udf.py::test_udf_overload (scylla 2484c842c3): every resolution and DROP assert, plus the string-literal case in corrected form (asserts it resolves to the text/ascii overload). Single-node CQL semantics, nothing dtest-specific left. Bug: user_functions_test.py:138-142 ambiguity assert is dead - after scylla 9161b7591d the call resolves to overloaded(text) and only the unrelated filtering error is hit, so 'Ambiguous' is never checked; the port checks the real behavior.",
       "issues": [
         {
           "kind": "bug",
@@ -130,6 +135,11 @@
       "relevance": "Live: native min/max/sum/avg/count.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_aggregate.py::test_builtin_aggregates_whole_table",
+          "coverage": "full",
+          "note": "direct translation (scylla 2484c842c3): same 9 rows, same min/max/sum/avg/count asserts"
+        },
+        {
           "path": "test/boost/aggregate_fcts_test.cc::test_aggregate_avg/sum/max/min/count",
           "coverage": "full",
           "note": "each native aggregate over multiple types"
@@ -146,7 +156,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Trivial single-node native aggregate checks fully covered by test/boost/aggregate_fcts_test.cc (test_aggregate_{avg,sum,max,min,count}) and test/cqlpy/test_aggregate.py; needlessly runs with UDF config in a UDF test class.",
+      "reason": "Trivial single-node native aggregate checks; direct translation test/cqlpy/test_aggregate.py::test_builtin_aggregates_whole_table (scylla 2484c842c3) has the same asserts, also covered by test/boost/aggregate_fcts_test.cc (test_aggregate_{avg,sum,max,min,count}) and test/cqlpy/test_aggregate.py; needlessly runs with UDF config in a UDF test class.",
       "issues": [
         {
           "kind": "note",
@@ -180,6 +190,11 @@
       "relevance": "Live: Lua UDAs with SFUNC/FINALFUNC/INITCOND (scylla 2022+).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_uda.py::test_aggregate_with_final_func_and_initcond",
+          "coverage": "full",
+          "note": "direct translation (scylla 2484c842c3, scylla_only Lua): suma = '16', aggregate as SFUNC rejected ('State function .* not found'), missing FINALFUNC rejected with a valid SFUNC ('Final function .* not found')"
+        },
+        {
           "path": "test/cqlpy/test_uda.py::test_custom_avg",
           "coverage": "full",
           "note": "UDA with SFUNC+FINALFUNC+INITCOND, Lua, result checked"
@@ -201,13 +216,13 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single-node UDA create/execute/validation fully covered by test/cqlpy/test_uda.py (test_custom_avg, test_wrong_sfunc_or_ffunc, test_no_final_func). Only uncovered bit is 'aggregate used as SFUNC' rejection, trivial. Note: user_functions_test.py:221 assert_invalid(finalfunc aggtwo) has no matching and aggtwo never exists (line 219 create fails), so it only checks 'not found'.",
+      "reason": "Fully covered by its direct translation test/cqlpy/test_uda.py::test_aggregate_with_final_func_and_initcond (scylla 2484c842c3), which also fixes the final-function check; rest also in test/cqlpy/test_uda.py (test_custom_avg, test_wrong_sfunc_or_ffunc). Bug: user_functions_test.py:221 'finalfunc aggtwo' uses sfunc test(int,double) with stype int, so CREATE fails on 'State function test(int, int) not found' (create_aggregate_statement.cc:41-45) before the final function is looked up.",
       "issues": [
         {
-          "kind": "note",
-          "tag": "limited-check",
+          "kind": "bug",
+          "tag": "wrong-scenario",
           "ref": "user_functions_test.py:221",
-          "text": "assert_invalid(finalfunc aggtwo) has no message match and aggtwo never exists, so it only checks 'not found'"
+          "text": "Missing-FINALFUNC check uses mismatched sfunc test(int,double); CREATE fails on state function lookup, final function never checked"
         }
       ],
       "jira": "DTEST-663"
@@ -243,7 +258,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-10-21",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
