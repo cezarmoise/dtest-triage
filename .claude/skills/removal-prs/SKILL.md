@@ -48,7 +48,8 @@ give no verdict. Two devs disagree on a test → ask the user.
    Apply the dev review of https://github.com/scylladb/scylla-dtest/pull/<n>: follow
    /home/cezar/github/dtest-triage/.claude/skills/removal-prs/review.md.
    Requested by the user ("/removal-prs <args>"): you may rewrite the branch and push it with --force-with-lease,
-   open a follow-up PR, close this PR, reply and comment on GitHub, close the Jira issues below as Won't Fix.
+   open a follow-up PR, close this PR, reply and comment on GitHub, close the Jira issues below as Won't Fix,
+   and once this PR is closed delete its branch (origin and local) and this worktree.
    Worktree: <path>, branch <branch>
    Review material: <abs $T>/pr-<n>.md
    Tests, in commit order:
