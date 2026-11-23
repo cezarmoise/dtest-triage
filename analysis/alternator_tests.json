@@ -282,9 +282,14 @@
       "relevance": "Live: alternator/executor.cc:5311 'Operand type mismatch in AttributeUpdates ADD'.",
       "duplicates": [
         {
-          "path": "test/alternator/test_item.py::test_update_item_add",
+          "path": "test/alternator/test_item.py::test_update_item_add_type_mismatch",
           "coverage": "full",
-          "note": "asserts ValidationException for ADD on string, map, set+string, and number/set/list mismatches in all directions"
+          "note": "translated from this dtest (scylla 5614d518f2): same 4 types (string/list/set/number), every cross-type ADD -> ValidationException; also asserts the item is unchanged; regex '[Tt]ype' (vs '[Oo]perand type') so it also passes on DynamoDB"
+        },
+        {
+          "path": "test/alternator/test_item.py::test_update_item_add",
+          "coverage": "partial",
+          "note": "ADD mismatches string+string, map+map, set+string, set/list/number vs each other; no string-attribute + number/list/set or number/list-attribute + string case"
         },
         {
           "path": "test/alternator/test_update_expression.py::test_update_expression_add_*",
@@ -293,7 +298,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "test/alternator/test_item.py::test_update_item_add covers every mismatch combination (number/set/list/string) with ValidationException on a single node, same as this single_node dtest.",
+      "reason": "Translated 1:1 as test/alternator/test_item.py::test_update_item_add_type_mismatch (scylla 5614d518f2, series 42ab0bf5bd): same 4 types and full cross-type matrix, plus an item-unchanged check; test_update_item_add already covered most combinations. Single node; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": [],
       "jira": "DTEST-960"
     },
@@ -594,9 +599,14 @@
       "relevance": "Live: UpdateItem ADD (alternator/executor.cc:4935,5290) and always_use_lwt isolation.",
       "duplicates": [
         {
+          "path": "test/alternator/test_item.py::test_update_item_add_concurrent",
+          "coverage": "partial",
+          "note": "translated from this dtest (scylla 5614d518f2): 3 threads concurrently ADD to one item for number/set/list, asserts exact final value (list as sorted multiset, stricter than the dtest's sum); 150 ops vs 10,000 (3000 debug); write isolation only_rmw_uses_lwt (test/alternator/test_config.yaml:17), which still sends AttributeUpdates ADD through LWT (alternator/executor.cc:4093 shard_for_execute, :5109 check_needs_read_before_write_attribute_updates)"
+        },
+        {
           "path": "test/alternator/test_write_isolation.py",
           "coverage": "partial",
-          "note": "only checks which ops are allowed per mode; header explicitly says concurrent isolation is NOT tested"
+          "note": "only checks which ops are allowed per mode; header says concurrent isolation is NOT tested there"
         },
         {
           "path": "test/cluster/test_alternator.py::test_alternator_concurrent_rmw_same_partition_different_server",
@@ -609,8 +619,8 @@
           "note": "ADD semantics single-threaded"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test verifying no lost updates for concurrent RMW under LWT isolation; scylla's test_write_isolation.py states concurrency is untested there. Single node, ~16s, 100% pass after timeout fix.",
+      "decision": "YELLOW",
+      "reason": "Translated as test/alternator/test_item.py::test_update_item_add_concurrent (scylla 5614d518f2, series 42ab0bf5bd): same 3-thread concurrent ADD on one item for number/set/list with exact final-value checks, LWT path via only_rmw_uses_lwt, but 150 ops instead of 10,000. Scale matters here: 59ab99c4af dropped the UNSAFE_RMW param because even 10,000 unprotected ops often lost no update, so 150 ops is a much weaker lost-update detector. Companion scylla-dtest#7713 (open) removes the dtest; reviewer to decide if the reduced scale is enough.",
       "issues": []
     },
     "TesterAlternator::test_write_isolation_during_stress": {
@@ -659,7 +669,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
