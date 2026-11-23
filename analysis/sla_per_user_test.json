@@ -125,6 +125,11 @@
       "relevance": "Live behavior (login as role with attached SL), but the test does not check scheduling group/SL effect at all.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_service_levels.py::test_service_level_entity_can_log_in",
+          "coverage": "full",
+          "note": "Translation (4622ae14a7), parametrized ROLE/USER: same superuser role (PASSWORD+LOGIN) / user (PASSWORD SUPERUSER) with attached SL logs in and INSERTs + SELECTs a row (stronger than the 10-row c-s write)"
+        },
+        {
           "path": "sla_per_user_test.py::TestSLAConfig::test_sla_configuration",
           "coverage": "full",
           "note": "login role with password+superuser+attached SL runs queries on 3 nodes and verifies they run in sl:<name> (stronger)"
@@ -141,7 +146,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low-value assertion (only that a 10-row c-s write succeeds as a role with an SL) and 5x slower (~24s) than its siblings; TestSLAConfig::test_sla_configuration in the same file logs in as such a role and additionally verifies the scheduling group, and scylla test_raft_service_levels/test_ldap_service_levels cover SL-attached users running queries.",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_service_level_entity_can_log_in (scylla 4622ae14a7, translated from this test): same ROLE/USER entities with an attached SL log in, write and read back. The dtest only asserts a 10-row c-s write succeeds and is ~5x slower (~22s) than its siblings; TestSLAConfig::test_sla_configuration also verifies the scheduling group. Note: doesn't verify the SL is used.",
       "issues": [
         {
           "kind": "note",
@@ -225,6 +230,11 @@
       "relevance": "Live: DETACH SERVICE_LEVEL FROM <role>, ATTACH, LIST ATTACHED.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_service_levels.py::test_replace_attached_service_level",
+          "coverage": "full",
+          "note": "Translation (4622ae14a7), parametrized ROLE/USER: SLs with 50/300 shares, ATTACH sl1, assert attached; DETACH + ATTACH sl2; assert LIST ATTACHED == [sl2] and both SLs keep their shares"
+        },
+        {
           "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
           "coverage": "partial",
           "note": "DETACH then LIST ATTACHED empty, re-ATTACH; LDAPRoleManager not CassandraRoleManager"
@@ -240,8 +250,8 @@
           "note": "same scenario but switches SL via ATTACH without DETACH"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap: detach/re-attach with LIST ATTACHED verification exists in test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level but only under LDAPRoleManager; with CassandraRoleManager detach is only exercised (not verified) in cqlpy helpers. Cheap (4.5s); keep or fold into test_attach_2_slas_to_role.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_replace_attached_service_level (scylla 4622ae14a7, translated from this test): same 50/300-share SLs, DETACH + re-ATTACH for ROLE and USER with LIST ATTACHED and shares verified (CassandraRoleManager, auth enabled in cqlpy run.py). Only the total-SL-count check is missing.",
       "issues": []
     },
     "TestSLA::test_update_assigned_sla_service_shares": {
@@ -328,13 +338,18 @@
       "relevance": "Live: ATTACH SERVICE_LEVEL overwrites the role's service_level attribute.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_service_levels.py::test_attach_second_service_level",
+          "coverage": "full",
+          "note": "Translation (4622ae14a7, 2026-11-02), parametrized ROLE/USER: SLs with 100/200 shares, ATTACH sl1 then sl2 without DETACH; asserts LIST ATTACHED == [sl2] and both SLs still listed with their shares (LIST SERVICE_LEVEL + LIST ALL)"
+        },
+        {
           "path": "test/cluster/auth_cluster/test_raft_service_levels.py::test_service_level_reuse_name",
           "coverage": "partial",
           "note": "re-ATTACHes another SL to cassandra without detach, but never checks LIST ATTACHED"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test verifying (via LIST ATTACHED) that ATTACH of a second SL replaces the first, for both roles and users; fast (4.5s), 100% pass.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_attach_second_service_level (scylla 4622ae14a7, translated from this test): same ROLE/USER params, ATTACH of a second SL replaces the first (LIST ATTACHED == [sl2]) and both SLs keep their shares. Only the dtest's total-SL-count check is missing (cqlpy shares a node).",
       "issues": []
     },
     "TestSLA::test_drop_sl_and_attach_new_to_role": {
@@ -354,13 +369,18 @@
       "relevance": "Live: DROP SERVICE_LEVEL detaches it from all roles.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_service_levels.py::test_drop_attached_service_level",
+          "coverage": "full",
+          "note": "Translation (4622ae14a7), parametrized ROLE/USER: attach sl1, assert attached; DROP sl1; assert LIST ATTACHED empty; attach sl2; assert LIST ATTACHED == [sl2]"
+        },
+        {
           "path": "test/cluster/auth_cluster/test_ldap_service_levels.py::test_ldap_attach_service_level",
           "coverage": "partial",
           "note": "'DROP also detaches the level from every role': asserts LIST ATTACHED empty after DROP (LDAPRoleManager)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with test_ldap_attach_service_level (same drop->detached assertion, LDAP role manager only). Note: docstring is a copy of test_attach_2_slas_to_role's and doesn't mention the DROP (sla_per_user_test.py:368-379).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_service_levels.py::test_drop_attached_service_level (scylla 4622ae14a7, translated from this test): DROP of the attached SL empties LIST ATTACHED for ROLE and USER, then another SL attaches; only the dtest's 'sla1 gone from LIST ALL' count check is missing. Note: docstring is a copy of test_attach_2_slas_to_role's and doesn't mention the DROP (sla_per_user_test.py:368-379).",
       "issues": [
         {
           "kind": "note",
