@@ -1,8 +1,8 @@
 {
   "file": "cdc_types_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestCDCCollectionsType::test_collection_delete": {
       "description": "Single-node CDC table (pkey, ckey, value, always_null) with no images (delta only); INSERT a collection, then DELETE value via collection_delete_tmpl. Asserts op=UPDATE with cdc$deleted_value=true, preimage == inserted collection, postimage value null. 4 params: map<text,text>, map<bigint,text>, set<text>, list<int>; timeuuid key.",
@@ -25,6 +25,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete",
+          "coverage": "full",
+          "note": "[delta] Same INSERT then DELETE of the collection column in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -46,7 +51,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same DELETE of a whole non-frozen collection column (collection tombstone) with images is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete[delta] (f3f1e6f787, translated from this dtest) runs the same INSERT + DELETE of the whole collection column on the same 4 types in the same image mode, asserting cdc$deleted_, images (null postimage) and row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -96,6 +101,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete",
+          "coverage": "full",
+          "note": "[postimage] Same INSERT then DELETE of the collection column in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -117,7 +127,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same DELETE of a whole non-frozen collection column (collection tombstone) with images is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete[postimage] (f3f1e6f787, translated from this dtest) runs the same INSERT + DELETE of the whole collection column on the same 4 types in the same image mode, asserting cdc$deleted_, images (null postimage) and row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -167,6 +177,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete",
+          "coverage": "full",
+          "note": "[preimage] Same INSERT then DELETE of the collection column in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -188,7 +203,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same DELETE of a whole non-frozen collection column (collection tombstone) with images is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete[preimage] (f3f1e6f787, translated from this dtest) runs the same INSERT + DELETE of the whole collection column on the same 4 types in the same image mode, asserting cdc$deleted_, images (null postimage) and row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -239,6 +254,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete",
+          "coverage": "full",
+          "note": "[preimage_full] Same INSERT then DELETE of the collection column in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -259,8 +279,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost collection tests use only UPDATE, so DELETE of a whole non-frozen collection column (collection tombstone) with images is not covered there. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete[preimage_full] (f3f1e6f787, translated from this dtest) runs the same INSERT + DELETE of the whole collection column on the same 4 types in the same image mode, asserting cdc$deleted_, images (null postimage) and row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -309,6 +329,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same INSERT then DELETE of the collection column in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -329,8 +354,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost collection tests use only UPDATE, so DELETE of a whole non-frozen collection column (collection tombstone) with images is not covered there. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_delete[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same INSERT + DELETE of the whole collection column on the same 4 types in the same image mode, asserting cdc$deleted_, images (null postimage) and row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -379,6 +404,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert",
+          "coverage": "full",
+          "note": "[delta] Same two INSERTs of non-frozen collections in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* (tombstone) in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -400,7 +430,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same INSERT of a non-frozen collection (op=insert + cdc$deleted_value tombstone) is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert[delta] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 4 collection types in the same image mode, asserting the cdc$deleted_ tombstone, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -450,6 +480,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert",
+          "coverage": "full",
+          "note": "[postimage] Same two INSERTs of non-frozen collections in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* (tombstone) in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -471,7 +506,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same INSERT of a non-frozen collection (op=insert + cdc$deleted_value tombstone) is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert[postimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 4 collection types in the same image mode, asserting the cdc$deleted_ tombstone, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -521,6 +556,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert",
+          "coverage": "full",
+          "note": "[preimage] Same two INSERTs of non-frozen collections in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* (tombstone) in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -542,7 +582,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same INSERT of a non-frozen collection (op=insert + cdc$deleted_value tombstone) is asserted by the _with_preimage_postimage variant (delta + preimage + postimage rows); flag combos covered by boost test_pre_post_image_logging. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert[preimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 4 collection types in the same image mode, asserting the cdc$deleted_ tombstone, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -593,6 +633,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert",
+          "coverage": "full",
+          "note": "[preimage_full] Same two INSERTs of non-frozen collections in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* (tombstone) in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -613,8 +658,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost collection tests use only UPDATE, so INSERT of a non-frozen collection (op=insert + cdc$deleted_value tombstone) is not covered there. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert[preimage_full] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 4 collection types in the same image mode, asserting the cdc$deleted_ tombstone, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -664,6 +709,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same two INSERTs of non-frozen collections in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* (tombstone) in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -684,8 +734,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost collection tests use only UPDATE, so INSERT of a non-frozen collection (op=insert + cdc$deleted_value tombstone) is not covered there. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_insert[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 4 collection types in the same image mode, asserting the cdc$deleted_ tombstone, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -734,6 +784,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update",
+          "coverage": "full",
+          "note": "[delta] Same UPDATE creating the row, then UPDATE overwriting the collections in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -755,7 +810,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE overwrite (val = {...}, deleted marker) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update[delta] (f3f1e6f787, translated from this dtest) runs the same create + overwrite UPDATEs on the same 4 collection types in the same image mode, asserting cdc$deleted_, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -805,6 +860,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements",
+          "coverage": "full",
+          "note": "[delta] Same UPDATE creating the row, then UPDATE value = value + {...} in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -826,7 +886,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE add-element (val = val + ...) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements[delta] (f3f1e6f787, translated from this dtest) runs the same create + add-element UPDATEs on the same 4 collection types in the same image mode, asserting delta, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -876,6 +936,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements",
+          "coverage": "full",
+          "note": "[postimage] Same UPDATE creating the row, then UPDATE value = value + {...} in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -897,7 +962,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE add-element (val = val + ...) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements[postimage] (f3f1e6f787, translated from this dtest) runs the same create + add-element UPDATEs on the same 4 collection types in the same image mode, asserting delta, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -947,6 +1012,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements",
+          "coverage": "full",
+          "note": "[preimage] Same UPDATE creating the row, then UPDATE value = value + {...} in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -968,7 +1038,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE add-element (val = val + ...) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements[preimage] (f3f1e6f787, translated from this dtest) runs the same create + add-element UPDATEs on the same 4 collection types in the same image mode, asserting delta, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1019,6 +1089,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements",
+          "coverage": "full",
+          "note": "[preimage_full] Same UPDATE creating the row, then UPDATE value = value + {...} in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1039,8 +1114,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Boost test_map/set/list_logging cover this UPDATE with pre+post and stronger exact asserts, but not 'full' preimage; Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements[preimage_full] (f3f1e6f787, translated from this dtest) runs the same create + add-element UPDATEs on the same 4 collection types in the same image mode, asserting delta, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1089,6 +1164,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same UPDATE creating the row, then UPDATE value = value + {...} in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1110,7 +1190,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE add-element (val = val + ...) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_add_elements[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same create + add-element UPDATEs on the same 4 collection types in the same image mode, asserting delta, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1160,6 +1240,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements",
+          "coverage": "full",
+          "note": "[delta] Same UPDATE creating the row, then UPDATE value = value - {...} in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, plus cdc$deleted_elements_* (set equality; list by count), never checked by the dtest (cdc_types_test.py:797); same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1181,7 +1266,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE remove-element (val = val - ..., asserting cdc$deleted_elements) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements[delta] (f3f1e6f787, translated from this dtest) runs the same create + remove-element UPDATEs on the same 4 collection types in the same image mode, asserting images and whole-collection equality plus row count, and also cdc$deleted_elements, which this dtest never checks. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1237,6 +1322,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements",
+          "coverage": "full",
+          "note": "[postimage] Same UPDATE creating the row, then UPDATE value = value - {...} in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, plus cdc$deleted_elements_* (set equality; list by count), never checked by the dtest (cdc_types_test.py:797); same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1258,7 +1348,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE remove-element (val = val - ..., asserting cdc$deleted_elements) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements[postimage] (f3f1e6f787, translated from this dtest) runs the same create + remove-element UPDATEs on the same 4 collection types in the same image mode, asserting images and whole-collection equality plus row count, and also cdc$deleted_elements, which this dtest never checks. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1314,6 +1404,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements",
+          "coverage": "full",
+          "note": "[preimage] Same UPDATE creating the row, then UPDATE value = value - {...} in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, plus cdc$deleted_elements_* (set equality; list by count), never checked by the dtest (cdc_types_test.py:797); same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1335,7 +1430,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE remove-element (val = val - ..., asserting cdc$deleted_elements) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements[preimage] (f3f1e6f787, translated from this dtest) runs the same create + remove-element UPDATEs on the same 4 collection types in the same image mode, asserting images and whole-collection equality plus row count, and also cdc$deleted_elements, which this dtest never checks. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1392,6 +1487,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements",
+          "coverage": "full",
+          "note": "[preimage_full] Same UPDATE creating the row, then UPDATE value = value - {...} in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, plus cdc$deleted_elements_* (set equality; list by count), never checked by the dtest (cdc_types_test.py:797); same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1412,8 +1512,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Boost test_map/set/list_logging cover this UPDATE with pre+post and stronger exact asserts, but not 'full' preimage; Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements[preimage_full] (f3f1e6f787, translated from this dtest) runs the same create + remove-element UPDATEs on the same 4 collection types in the same image mode, asserting images and whole-collection equality plus row count, and also cdc$deleted_elements, which this dtest never checks. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1468,6 +1568,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same UPDATE creating the row, then UPDATE value = value - {...} in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, plus cdc$deleted_elements_* (set equality; list by count), never checked by the dtest (cdc_types_test.py:797); same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1489,7 +1594,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE remove-element (val = val - ..., asserting cdc$deleted_elements) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_remove_elements[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same create + remove-element UPDATEs on the same 4 collection types in the same image mode, asserting images and whole-collection equality plus row count, and also cdc$deleted_elements, which this dtest never checks. Bug: _check_collection_in_cdc_log_rows receives deleted_element but never forwards it as deleted_keys (cdc_types_test.py:797), so check_cdc_deleted_elements is dead and cdc$deleted_elements_value is never asserted. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1545,6 +1650,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update",
+          "coverage": "full",
+          "note": "[postimage] Same UPDATE creating the row, then UPDATE overwriting the collections in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1566,7 +1676,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE overwrite (val = {...}, deleted marker) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update[postimage] (f3f1e6f787, translated from this dtest) runs the same create + overwrite UPDATEs on the same 4 collection types in the same image mode, asserting cdc$deleted_, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1616,6 +1726,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update",
+          "coverage": "full",
+          "note": "[preimage] Same UPDATE creating the row, then UPDATE overwriting the collections in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1637,7 +1752,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE overwrite (val = {...}, deleted marker) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update[preimage] (f3f1e6f787, translated from this dtest) runs the same create + overwrite UPDATEs on the same 4 collection types in the same image mode, asserting cdc$deleted_, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1688,6 +1803,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update",
+          "coverage": "full",
+          "note": "[preimage_full] Same UPDATE creating the row, then UPDATE overwriting the collections in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "partial",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1708,8 +1828,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Boost test_map/set/list_logging cover this UPDATE with pre+post and stronger exact asserts, but not 'full' preimage; Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update[preimage_full] (f3f1e6f787, translated from this dtest) runs the same create + overwrite UPDATEs on the same 4 collection types in the same image mode, asserting cdc$deleted_, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1758,6 +1878,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 152 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same UPDATE creating the row, then UPDATE overwriting the collections in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count, cdc$deleted_value_* in delta; same 4 types (map<text,text>, map<bigint,text>, set<text>, list<int>) at once; whole-collection equality (list in key order)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_map_logging/test_set_logging/test_list_logging",
           "coverage": "full",
           "note": "pre+post image on; UPDATE overwrite (cdc$deleted_val=true), add elements, remove elements/keys (asserts cdc$deleted_elements_val), element set/null; asserts preimage, delta, postimage values exactly. Only UPDATE statements, no INSERT/DELETE column, no 'full' preimage."
@@ -1779,7 +1904,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_map_logging/test_set_logging/test_list_logging (test/boost/cdc_test.cc:958,1043,1115) run the same UPDATE overwrite (val = {...}, deleted marker) on map/set/list with pre+post images and exact value asserts; image flag combos covered by test_pre_post_image_logging. This dtest asserts less. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_collections_update[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same create + overwrite UPDATEs on the same 4 collection types in the same image mode, asserting cdc$deleted_, images and whole-collection equality plus row count. Bug: check_cdc_base_collection_values compares map/list log values by containment only (keys in / values in expected, cdc_types_test.py:256-272), no size/pair equality. Note: class lacks @pytest.mark.scylla_cdc (other two classes have it, cdc_types_test.py:560). Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -1827,6 +1952,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations",
+          "coverage": "full",
+          "note": "[delta] Same INSERT, UPDATE, DELETE value of one row in 'delta' mode, reading all log rows of the partition; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count (3/5/6/8), plus cdc$deleted_value_* in the DELETE delta row (dropped by the dtest, cdc_types_test.py:501); all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -1847,9 +1977,15 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Subset of the same scenario's asserts in test_all_operation_with_preimage_postimage (delta/pre/post rows) except the row count for this flag combo; flag combos covered for int by boost test_pre_post_image_logging. Candidate to collapse; 24 params x ~4.5s. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations[delta] (f3f1e6f787, translated from this dtest) runs the same INSERT/UPDATE/DELETE in the same image mode with the same row-count and row checks, and also asserts cdc$deleted_value in the DELETE delta row, which this dtest never checks. Bug: verify_cdc_log_rows_after_operation takes deleted_col but never passes it to the delta-row check (cdc_types_test.py:501), so the DELETE step's cdc$deleted_value is never asserted. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cdc_types_test.py:501",
+          "text": "verify_cdc_log_rows_after_operation drops deleted_col; DELETE delta row's cdc$deleted_value never asserted (only op and keys)."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -1884,6 +2020,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations",
+          "coverage": "full",
+          "note": "[postimage] Same INSERT, UPDATE, DELETE value of one row in 'postimage' mode, reading all log rows of the partition; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count (3/5/6/8), plus cdc$deleted_value_* in the DELETE delta row (dropped by the dtest, cdc_types_test.py:501); all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -1904,9 +2045,15 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Subset of the same scenario's asserts in test_all_operation_with_preimage_postimage (delta/pre/post rows) except the row count for this flag combo; flag combos covered for int by boost test_pre_post_image_logging. Candidate to collapse; 24 params x ~4.5s. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations[postimage] (f3f1e6f787, translated from this dtest) runs the same INSERT/UPDATE/DELETE in the same image mode with the same row-count and row checks, and also asserts cdc$deleted_value in the DELETE delta row, which this dtest never checks. Bug: verify_cdc_log_rows_after_operation takes deleted_col but never passes it to the delta-row check (cdc_types_test.py:501), so the DELETE step's cdc$deleted_value is never asserted. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cdc_types_test.py:501",
+          "text": "verify_cdc_log_rows_after_operation drops deleted_col; DELETE delta row's cdc$deleted_value never asserted (only op and keys)."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -1940,6 +2087,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations",
+          "coverage": "full",
+          "note": "[preimage] Same INSERT, UPDATE, DELETE value of one row in 'preimage' mode, reading all log rows of the partition; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count (3/5/6/8), plus cdc$deleted_value_* in the DELETE delta row (dropped by the dtest, cdc_types_test.py:501); all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -1960,9 +2112,15 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Subset of the same scenario's asserts in test_all_operation_with_preimage_postimage (delta/pre/post rows) except the row count for this flag combo; flag combos covered for int by boost test_pre_post_image_logging. Candidate to collapse; 24 params x ~4.5s. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations[preimage] (f3f1e6f787, translated from this dtest) runs the same INSERT/UPDATE/DELETE in the same image mode with the same row-count and row checks, and also asserts cdc$deleted_value in the DELETE delta row, which this dtest never checks. Bug: verify_cdc_log_rows_after_operation takes deleted_col but never passes it to the delta-row check (cdc_types_test.py:501), so the DELETE step's cdc$deleted_value is never asserted. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cdc_types_test.py:501",
+          "text": "verify_cdc_log_rows_after_operation drops deleted_col; DELETE delta row's cdc$deleted_value never asserted (only op and keys)."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -1998,6 +2156,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations",
+          "coverage": "full",
+          "note": "[preimage_full] Same INSERT, UPDATE, DELETE value of one row in 'preimage_full' mode, reading all log rows of the partition; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count (3/5/6/8), plus cdc$deleted_value_* in the DELETE delta row (dropped by the dtest, cdc_types_test.py:501); all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -2018,9 +2181,15 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Most complete native-type scenario (insert/update/delete + exact row count) for this image mode; scalar type axis is one code path in cdc/log.cc, boost test_pre_post_image_logging covers images for int only. Keep as representative; collapse type matrix to a few types. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations[preimage_full] (f3f1e6f787, translated from this dtest) runs the same INSERT/UPDATE/DELETE in the same image mode with the same row-count and row checks, and also asserts cdc$deleted_value in the DELETE delta row, which this dtest never checks. Bug: verify_cdc_log_rows_after_operation takes deleted_col but never passes it to the delta-row check (cdc_types_test.py:501), so the DELETE step's cdc$deleted_value is never asserted. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cdc_types_test.py:501",
+          "text": "verify_cdc_log_rows_after_operation drops deleted_col; DELETE delta row's cdc$deleted_value never asserted (only op and keys)."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -2054,6 +2223,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same INSERT, UPDATE, DELETE value of one row in 'preimage_postimage' mode, reading all log rows of the partition; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count (3/5/6/8), plus cdc$deleted_value_* in the DELETE delta row (dropped by the dtest, cdc_types_test.py:501); all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -2074,9 +2248,15 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Most complete native-type scenario (insert/update/delete + exact row count) for this image mode; scalar type axis is one code path in cdc/log.cc, boost test_pre_post_image_logging covers images for int only. Keep as representative; collapse type matrix to a few types. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_all_operations[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same INSERT/UPDATE/DELETE in the same image mode with the same row-count and row checks, and also asserts cdc$deleted_value in the DELETE delta row, which this dtest never checks. Bug: verify_cdc_log_rows_after_operation takes deleted_col but never passes it to the delta-row check (cdc_types_test.py:501), so the DELETE step's cdc$deleted_value is never asserted. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "check-disabled",
+          "ref": "cdc_types_test.py:501",
+          "text": "verify_cdc_log_rows_after_operation drops deleted_col; DELETE delta row's cdc$deleted_value never asserted (only op and keys)."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -2822,6 +3002,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert",
+          "coverage": "full",
+          "note": "[delta] Same two INSERTs (empty row, then same values over the existing row) in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -2843,7 +3028,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Delta/postimage of INSERT already asserted by test_all_operation (same mode) and the preimage+postimage variant; low marginal value. Covered by test_native_type_insert_with_preimage_postimage (same delta/preimage/postimage rows) and test_all_operation* INSERT step. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert[delta] (f3f1e6f787, translated from this dtest) runs the same two INSERTs in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null; only loss: types as composite-key components, not single-column keys. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -2885,6 +3070,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert",
+          "coverage": "full",
+          "note": "[postimage] Same two INSERTs (empty row, then same values over the existing row) in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -2906,7 +3096,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Delta/postimage of INSERT already asserted by test_all_operation (same mode) and the preimage+postimage variant; low marginal value. Covered by test_native_type_insert_with_preimage_postimage (same delta/preimage/postimage rows) and test_all_operation* INSERT step. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert[postimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null; only loss: types as composite-key components, not single-column keys. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -2948,6 +3138,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert",
+          "coverage": "full",
+          "note": "[preimage] Same two INSERTs (empty row, then same values over the existing row) in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -2969,7 +3164,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Delta/postimage of INSERT already asserted by test_all_operation (same mode) and the preimage+postimage variant; low marginal value. Covered by test_native_type_insert_with_preimage_postimage (same delta/preimage/postimage rows) and test_all_operation* INSERT step. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert[preimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null; only loss: types as composite-key components, not single-column keys. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3012,6 +3207,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert",
+          "coverage": "full",
+          "note": "[preimage_full] Same two INSERTs (empty row, then same values over the existing row) in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -3032,8 +3232,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "INSERT over an existing row with images (op=insert + preimage) is not covered elsewhere: test_all_operation only inserts into an empty row, boost only checks op type. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Type matrix is one code path for scalars; keep a representative. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert[preimage_full] (f3f1e6f787, translated from this dtest) runs the same two INSERTs in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null; only loss: types as composite-key components, not single-column keys. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3074,6 +3274,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same two INSERTs (empty row, then same values over the existing row) in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys)."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_pre_post_image_logging",
           "coverage": "partial",
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
@@ -3094,8 +3299,8 @@
           "note": "same image modes x 11 types, via logged multi-partition batches."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "INSERT over an existing row with images (op=insert + preimage) is not covered elsewhere: test_all_operation only inserts into an empty row, boost only checks op type. Type matrix is one code path for scalars; keep a representative. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_insert[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same two INSERTs in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null; only loss: types as composite-key components, not single-column keys. Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3136,6 +3341,16 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null",
+          "coverage": "full",
+          "note": "[delta] Same UPDATE then UPDATE SET value=null in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys). Like the dtest, no cdc$deleted_value check on the null update."
+        },
+        {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_delete",
+          "coverage": "partial",
+          "note": "[delta] DELETE value: same dead cell as SET null (cql3/constants.cc); asserts cdc$deleted_value_* in delta plus images and row count."
+        },
+        {
           "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType::test_all_operation*",
           "coverage": "full",
           "note": "same 24 types and same image mode: INSERT, UPDATE over existing row, DELETE value with the same preimage/delta/postimage assertions + row-count check."
@@ -3162,7 +3377,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UPDATE SET v=NULL and DELETE v emit the same dead cell (cql3/constants.cc:41 setter null vs :74 deleter), so this repeats the DELETE-value case of test_native_type_delete / test_all_operation (same mode) with weaker asserts. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null[delta] (f3f1e6f787, translated from this dtest) runs the same UPDATE then SET value=null in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null. cdc$deleted_value of that dead cell (asserted by neither) is asserted for the same dead cell via DELETE in test_cdc_native_types_delete[delta]. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
         {
           "kind": "bug",
@@ -3204,6 +3419,16 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null",
+          "coverage": "full",
+          "note": "[postimage] Same UPDATE then UPDATE SET value=null in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys). Like the dtest, no cdc$deleted_value check on the null update."
+        },
+        {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_delete",
+          "coverage": "partial",
+          "note": "[postimage] DELETE value: same dead cell as SET null (cql3/constants.cc); asserts cdc$deleted_value_* in delta plus images and row count."
+        },
+        {
           "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType::test_all_operation*",
           "coverage": "full",
           "note": "same 24 types and same image mode: INSERT, UPDATE over existing row, DELETE value with the same preimage/delta/postimage assertions + row-count check."
@@ -3230,7 +3455,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UPDATE SET v=NULL and DELETE v emit the same dead cell (cql3/constants.cc:41 setter null vs :74 deleter), so this repeats the DELETE-value case of test_native_type_delete / test_all_operation (same mode) with weaker asserts. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null[postimage] (f3f1e6f787, translated from this dtest) runs the same UPDATE then SET value=null in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null. cdc$deleted_value of that dead cell (asserted by neither) is asserted for the same dead cell via DELETE in test_cdc_native_types_delete[postimage]. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
         {
           "kind": "bug",
@@ -3272,6 +3497,16 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null",
+          "coverage": "full",
+          "note": "[preimage] Same UPDATE then UPDATE SET value=null in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys). Like the dtest, no cdc$deleted_value check on the null update."
+        },
+        {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_delete",
+          "coverage": "partial",
+          "note": "[preimage] DELETE value: same dead cell as SET null (cql3/constants.cc); asserts cdc$deleted_value_* in delta plus images and row count."
+        },
+        {
           "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType::test_all_operation*",
           "coverage": "full",
           "note": "same 24 types and same image mode: INSERT, UPDATE over existing row, DELETE value with the same preimage/delta/postimage assertions + row-count check."
@@ -3298,7 +3533,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UPDATE SET v=NULL and DELETE v emit the same dead cell (cql3/constants.cc:41 setter null vs :74 deleter), so this repeats the DELETE-value case of test_native_type_delete / test_all_operation (same mode) with weaker asserts. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null[preimage] (f3f1e6f787, translated from this dtest) runs the same UPDATE then SET value=null in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null. cdc$deleted_value of that dead cell (asserted by neither) is asserted for the same dead cell via DELETE in test_cdc_native_types_delete[preimage]. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
         {
           "kind": "bug",
@@ -3341,6 +3576,16 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null",
+          "coverage": "full",
+          "note": "[preimage_full] Same UPDATE then UPDATE SET value=null in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys). Like the dtest, no cdc$deleted_value check on the null update."
+        },
+        {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_delete",
+          "coverage": "partial",
+          "note": "[preimage_full] DELETE value: same dead cell as SET null (cql3/constants.cc); asserts cdc$deleted_value_* in delta plus images and row count."
+        },
+        {
           "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType::test_all_operation*",
           "coverage": "full",
           "note": "same 24 types and same image mode: INSERT, UPDATE over existing row, DELETE value with the same preimage/delta/postimage assertions + row-count check."
@@ -3367,7 +3612,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UPDATE SET v=NULL and DELETE v emit the same dead cell (cql3/constants.cc:41 setter null vs :74 deleter), so this repeats the DELETE-value case of test_native_type_delete / test_all_operation (same mode) with weaker asserts. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null[preimage_full] (f3f1e6f787, translated from this dtest) runs the same UPDATE then SET value=null in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null. cdc$deleted_value of that dead cell (asserted by neither) is asserted for the same dead cell via DELETE in test_cdc_native_types_delete[preimage_full]. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
         {
           "kind": "bug",
@@ -3409,6 +3654,16 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 912 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null",
+          "coverage": "full",
+          "note": "[preimage_postimage] Same UPDATE then UPDATE SET value=null in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; all 18 native types + 4 frozen collections at once as pk/ck components and values (varchar alias and duplicate varint dropped; types are components of a composite key, not single-column keys). Like the dtest, no cdc$deleted_value check on the null update."
+        },
+        {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_delete",
+          "coverage": "partial",
+          "note": "[preimage_postimage] DELETE value: same dead cell as SET null (cql3/constants.cc); asserts cdc$deleted_value_* in delta plus images and row count."
+        },
+        {
           "path": "scylla-dtest cdc_types_test.py::TestCDCNativeType::test_all_operation*",
           "coverage": "full",
           "note": "same 24 types and same image mode: INSERT, UPDATE over existing row, DELETE value with the same preimage/delta/postimage assertions + row-count check."
@@ -3435,7 +3690,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UPDATE SET v=NULL and DELETE v emit the same dead cell (cql3/constants.cc:41 setter null vs :74 deleter), so this repeats the DELETE-value case of test_native_type_delete / test_all_operation (same mode) with weaker asserts. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_native_types_update_with_null[preimage_postimage] (f3f1e6f787, translated from this dtest) runs the same UPDATE then SET value=null in the same image mode and asserts the same rows exactly, plus row count and preimage cdc$deleted_always_null. cdc$deleted_value of that dead cell (asserted by neither) is asserted for the same dead cell via DELETE in test_cdc_native_types_delete[preimage_postimage]. Bug: update_with_null passes no deleted_col, so cdc$deleted_value of the null update is not asserted (cdc_types_test.py:449-466). Note: 'varint' listed twice in native_types_values (cdc_types_test.py:21,33) -> [varint0]/[varint1] duplicate params, wasted runtime.",
       "issues": [
         {
           "kind": "bug",
@@ -3478,6 +3733,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 237 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[delta-delete_fields] Same UPDATE creating the row, then UPDATE setting 1-2 fields to null in 'delta' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check for the deleted fields."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "full",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3494,7 +3754,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_udt_logging (cdc_test.cc:1208) runs UPDATE val.field = null with pre+post and asserts delta, cdc$deleted_elements_val and pre/post exactly; this dtest never checks deleted elements, so asserts strictly less. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[delta-delete_fields] (f3f1e6f787, translated from this dtest) runs the same field deletes on the same 3 non-frozen UDTs in the same image mode with the same asserts plus row count and preimage cdc$deleted_always_null; cdc$deleted_elements for field=null (checked by neither) is asserted by boost test_udt_logging. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -3537,6 +3797,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 237 runs, 100.0% pass, avg 4.8s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[postimage-delete_fields] Same UPDATE creating the row, then UPDATE setting 1-2 fields to null in 'postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check for the deleted fields."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "full",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3553,7 +3818,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_udt_logging (cdc_test.cc:1208) runs UPDATE val.field = null with pre+post and asserts delta, cdc$deleted_elements_val and pre/post exactly; this dtest never checks deleted elements, so asserts strictly less. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[postimage-delete_fields] (f3f1e6f787, translated from this dtest) runs the same field deletes on the same 3 non-frozen UDTs in the same image mode with the same asserts plus row count and preimage cdc$deleted_always_null; cdc$deleted_elements for field=null (checked by neither) is asserted by boost test_udt_logging. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -3596,6 +3861,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 246 runs, 100.0% pass, avg 4.6s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[preimage-delete_fields] Same UPDATE creating the row, then UPDATE setting 1-2 fields to null in 'preimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check for the deleted fields."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "full",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3612,7 +3882,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_udt_logging (cdc_test.cc:1208) runs UPDATE val.field = null with pre+post and asserts delta, cdc$deleted_elements_val and pre/post exactly; this dtest never checks deleted elements, so asserts strictly less. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[preimage-delete_fields] (f3f1e6f787, translated from this dtest) runs the same field deletes on the same 3 non-frozen UDTs in the same image mode with the same asserts plus row count and preimage cdc$deleted_always_null; cdc$deleted_elements for field=null (checked by neither) is asserted by boost test_udt_logging. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -3655,6 +3925,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 240 runs, 100.0% pass, avg 4.9s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[preimage_full-delete_fields] Same UPDATE creating the row, then UPDATE setting 1-2 fields to null in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check for the deleted fields."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3670,8 +3945,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Boost test_udt_logging covers field=null with pre+post but not 'full'; Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[preimage_full-delete_fields] (f3f1e6f787, translated from this dtest) runs the same field deletes on the same 3 non-frozen UDTs in the same image mode with the same asserts plus row count and preimage cdc$deleted_always_null; cdc$deleted_elements for field=null (checked by neither) is asserted by boost test_udt_logging. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "bug",
@@ -3714,6 +3989,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 243 runs, 100.0% pass, avg 4.6s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[preimage_postimage-delete_fields] Same UPDATE creating the row, then UPDATE setting 1-2 fields to null in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check for the deleted fields."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "full",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3730,7 +4010,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Boost test_udt_logging (cdc_test.cc:1208) runs UPDATE val.field = null with pre+post and asserts delta, cdc$deleted_elements_val and pre/post exactly; this dtest never checks deleted elements, so asserts strictly less. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed. Note: removed from next-gating as flaky in 37b001d6 (2020-09-15), now 100% over 243 runs.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[preimage_postimage-delete_fields] (f3f1e6f787, translated from this dtest) runs the same field deletes on the same 3 non-frozen UDTs in the same image mode with the same asserts plus row count and preimage cdc$deleted_always_null; cdc$deleted_elements for field=null (checked by neither) is asserted by boost test_udt_logging. Bug: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed. Note: removed from next-gating as flaky in 37b001d6 (2020-09-15), now 100% over 243 runs.",
       "issues": [
         {
           "kind": "bug",
@@ -3773,6 +4053,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[delta-insert] Same two INSERTs (ins, then upd values) in 'delta' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3789,7 +4074,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[delta-insert] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3832,6 +4117,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[postimage-insert] Same two INSERTs (ins, then upd values) in 'postimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3848,7 +4138,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[postimage-insert] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3891,6 +4181,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage-insert] Same two INSERTs (ins, then upd values) in 'preimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3907,7 +4202,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage-insert] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -3950,6 +4245,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage_full-insert] Same two INSERTs (ins, then upd values) in 'preimage_full' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -3965,8 +4265,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost test_udt_logging covers non-frozen UDT (int,text) with pre+post, test_frozen_logging covers frozen<udt> delta only; images for frozen UDTs with collection fields and INSERT are unique here. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage_full-insert] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4008,6 +4308,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage_postimage-insert] Same two INSERTs (ins, then upd values) in 'preimage_postimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4023,8 +4328,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost test_udt_logging covers non-frozen UDT (int,text) with pre+post, test_frozen_logging covers frozen<udt> delta only; images for frozen UDTs with collection fields and INSERT are unique here. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage_postimage-insert] (f3f1e6f787, translated from this dtest) runs the same two INSERTs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4261,6 +4566,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 243 runs, 100.0% pass, avg 4.7s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[preimage_full-update_fields] Same UPDATE creating the row, then UPDATE of 1-2 fields in 'preimage_full' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4276,8 +4586,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Boost test_udt_logging covers field update with pre+post but not 'full'; Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[preimage_full-update_fields] (f3f1e6f787, translated from this dtest) runs the same field UPDATEs (1-2 fields, incl. the UDT with a frozen<set> field) on the same 3 non-frozen UDTs in the same image mode, asserting delta (unset fields null), images, row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4319,6 +4629,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 234 runs, 100.0% pass, avg 4.6s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields",
+          "coverage": "full",
+          "note": "[preimage_postimage-update_fields] Same UPDATE creating the row, then UPDATE of 1-2 fields in 'preimage_postimage' mode; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 3 non-frozen UDTs at once; whole-UDT equality. Like the dtest, no cdc$deleted_elements_* check."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4334,8 +4649,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost test_udt_logging asserts single-field update with pre+post exactly; dtest adds multi-field update and a UDT with frozen<set> field. Candidate to merge into boost. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_update_fields[preimage_postimage-update_fields] (f3f1e6f787, translated from this dtest) runs the same field UPDATEs (1-2 fields, incl. the UDT with a frozen<set> field) on the same 3 non-frozen UDTs in the same image mode, asserting delta (unset fields null), images, row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4377,6 +4692,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[delta-update] Same two whole-UDT UPDATEs (ins, then upd values) in 'delta' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4393,7 +4713,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[delta-update] (f3f1e6f787, translated from this dtest) runs the same two whole-UDT UPDATEs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4436,6 +4756,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[postimage-update] Same two whole-UDT UPDATEs (ins, then upd values) in 'postimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4452,7 +4777,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[postimage-update] (f3f1e6f787, translated from this dtest) runs the same two whole-UDT UPDATEs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4495,6 +4820,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage-update] Same two whole-UDT UPDATEs (ins, then upd values) in 'preimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4511,7 +4841,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Same delta/preimage/postimage rows asserted by the _preimage_postimage variant for the same 6 UDT params; flag combos covered by boost test_pre_post_image_logging; frozen UDT delta covered by boost test_frozen_logging. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage-update] (f3f1e6f787, translated from this dtest) runs the same two whole-UDT UPDATEs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4554,6 +4884,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 228 runs, 100.0% pass, avg 4.5s.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage_full-update] Same two whole-UDT UPDATEs (ins, then upd values) in 'preimage_full' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4569,8 +4904,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost test_udt_logging covers non-frozen UDT (int,text) with pre+post, test_frozen_logging covers frozen<udt> delta only; images for frozen UDTs with collection fields and whole-UDT UPDATE are unique here. Only 'full'-preimage check of cdc$deleted_always_null is True for an untouched null column (check_cdc_deleted_always_null_column_in_preimage_row); boost test_pre_post_image_logging checks full mode only for values. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage_full-update] (f3f1e6f787, translated from this dtest) runs the same two whole-UDT UPDATEs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -4614,6 +4949,11 @@
       "relevance": "CDC with preimage ('true'/'full') and postimage is live: cdc/log.cc (image_mode parsing, image generation). cdc/log.cc only branches on column type for multi-cell (non-frozen collection/UDT) columns (cdc/log.cc:698,714), so the 20 scalar types share one code path. experimental_features ['cdc'] is now feature::UNUSED (db/config.cc:2120) and start_rpc is Unused (db/config.cc:1288) - harmless leftovers. Runs only in dtest-release / dtest-release-with-raft (100% pass, ~4.5s per param), single node. Stats: 192 runs, 100.0% pass, avg 4.9s. Marked next_gating: runs in next-dtest-tablets and next-dtest-consistent-topology (96/96 each, 100%).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update",
+          "coverage": "full",
+          "note": "[preimage_postimage-update] Same two whole-UDT UPDATEs (ins, then upd values) in 'preimage_postimage' mode, first write without preimage; asserts op, batch_seq and values in preimage/delta/postimage rows, preimage cdc$deleted_always_null_* (null; true in 'full') and exact row count; same 6 UDT types (3 frozen with collection fields, 3 non-frozen) at once; whole-UDT equality."
+        },
+        {
           "path": "test/boost/cdc_test.cc::test_udt_logging",
           "coverage": "partial",
           "note": "non-frozen UDT (int,text), pre+post on: whole-UDT set (deleted marker), single-field update, field=null (asserts cdc$deleted_elements_val={1}); exact pre/delta/post values. No frozen UDT images, no UDT with collection fields, no 'full'."
@@ -4629,8 +4969,8 @@
           "note": "int columns only; first UPDATE on empty row (no preimage) then 10 updates, preimage on/full/off x postimage x TTL; checks preimage/postimage values, full preimage includes unchanged column. Does not check cdc$deleted_<col> of null columns in full preimage."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial: boost test_udt_logging covers non-frozen UDT (int,text) with pre+post, test_frozen_logging covers frozen<udt> delta only; images for frozen UDTs with collection fields and whole-UDT UPDATE are unique here. Only test of this file in next gating (incl. tablets stage, 96/96). Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
+      "decision": "RED",
+      "reason": "Full: scylla test/cqlpy/test_cdc_dtest.py::test_cdc_udt_insert_update[preimage_postimage-update] (f3f1e6f787, translated from this dtest) runs the same two whole-UDT UPDATEs on the same 6 UDT types (incl. frozen UDTs with collection fields) in the same image mode, asserting whole-UDT values in all rows plus row count and preimage cdc$deleted_always_null. Was the file's only next-gating test. Note: check_cdc_log_row_udt (cdc_types_test.py:319) never checks cdc$deleted_elements_value / cdc$deleted_value for UDT rows. Note: per-operation checks index rows but never assert row count (only all_operation does, cdc_types_test.py:278), so extra CDC rows go unnoticed.",
       "issues": [
         {
           "kind": "note",
