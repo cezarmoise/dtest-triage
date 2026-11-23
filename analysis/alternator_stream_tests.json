@@ -198,7 +198,7 @@
       "issues": []
     },
     "TestAlternatorStreams::test_list_streams_limit_parameter": {
-      "description": "3-node Streams cluster; creates 20 KEYS_ONLY tables, then pages ListStreams with Limit 5,7,3,1,4 (sum 20) via a random coordinator per page using ExclusiveStartStreamArn=LastEvaluatedStreamArn. Asserts each page has exactly Limit streams, the union equals the 20 created ARNs, and a final call after the last ARN returns an empty list. Guards DynamoDB ListStreams Limit/paging semantics; no linked scylla issue.",
+      "description": "3-node Streams cluster; creates 20 KEYS_ONLY tables, then pages ListStreams with Limit 5,7,3,1,4 (sum 20) via a random coordinator per page using ExclusiveStartStreamArn=LastEvaluatedStreamArn. Asserts each page has exactly Limit streams, the union equals the 20 created ARNs, and a final call after the last ARN returns an empty list. Guards DynamoDB ListStreams Limit/paging semantics; found scylladb/scylladb#12601 (cross-node paging).",
       "origin": {
         "sha": "80a0fe88",
         "date": "2021-05-04",
@@ -216,22 +216,22 @@
         "5e4b1ec9f8": "tablets skip narrowed to issue_open(#23838) -> runs with tablets again",
         "23c130820e": "populate default rack_per_node=True"
       },
-      "relevance": "Live. alternator/streams.cc list_streams handles Limit/ExclusiveStartStreamArn; tables sorted by keyspace+table name (da8adb4d26, 2023) so order is deterministic and identical on every node (schema replicated) - cross-coordinator paging adds nothing.",
+      "relevance": "Live. alternator/streams.cc list_streams handles Limit/ExclusiveStartStreamArn; tables sorted by keyspace+table name (da8adb4d26, 2023), so page order should match on every node, but only this test checks it across nodes (per review).",
       "duplicates": [
         {
           "path": "test/alternator/test_streams.py::test_list_streams_paged",
-          "coverage": "full",
-          "note": "Limit=1 paging via LastEvaluatedStreamArn finds all tables."
+          "coverage": "partial",
+          "note": "Limit=1 paging via LastEvaluatedStreamArn finds all tables. One node only: each walk goes to one node (per review)."
         },
         {
           "path": "test/alternator/test_streams.py::test_list_streams_paged_cookie",
-          "coverage": "full",
-          "note": "exact page size == Limit, cookie == last ARN, no duplicates, last page end."
+          "coverage": "partial",
+          "note": "exact page size == Limit, cookie == last ARN, no duplicates, last page end. One node only: each walk goes to one node (per review)."
         },
         {
           "path": "test/alternator/test_streams.py::test_list_streams_paged_with_new_table",
-          "coverage": "full",
-          "note": "34 tables, page of Limit=2 has exactly 2, rest via ExclusiveStartStreamArn, each table once (#12601)."
+          "coverage": "partial",
+          "note": "34 tables, page of Limit=2 has exactly 2, rest via ExclusiveStartStreamArn, each table once (#12601). One node only: each walk goes to one node (per review)."
         },
         {
           "path": "test/alternator/test_streams.py::test_list_streams_unfull_last_page_no_cookie",
@@ -244,10 +244,17 @@
           "note": "Limit validation."
         }
       ],
-      "decision": "RED",
-      "reason": "ListStreams Limit/paging is fully covered by test/alternator/test_streams.py (test_list_streams_paged, _paged_cookie, _paged_with_new_table, 621c49b621). Only extra is random coordinator per page, which is irrelevant since list_streams sorts by ks/table name from replicated schema (alternator/streams.cc ~L239). Costs ~45s of 3-node cluster in gating for a pure API check.",
+      "decision": "GREEN",
+      "reason": "Per Piotr Szymaniak (ScyllaPiotr) https://github.com/scylladb/scylla-dtest/pull/7841#pullrequestreview-5992745995: keep: the only test that pages ListStreams across nodes; this setup found scylladb/scylladb#12601 (a paged walk across nodes listed one stream twice and missed another), and every scylladb test sends a whole walk to one node, so a page order that differs between nodes would go unnoticed. Move it out of next_gating instead (saves ~45s in each gating job; dtest_full still runs it daily).",
       "issues": [],
-      "jira": "DTEST-955"
+      "jira": "DTEST-955",
+      "review": {
+        "by": "Piotr Szymaniak (ScyllaPiotr)",
+        "url": "https://github.com/scylladb/scylla-dtest/pull/7841#pullrequestreview-5992745995",
+        "date": "2026-11-20",
+        "pr": 7841,
+        "verdict": "keep"
+      }
     }
   }
 }
