@@ -1,8 +1,8 @@
 {
   "file": "lwt_destructive_ddl_test.py",
-  "analyzed_at": "2026-11-16",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestLwtDestructiveDDL::test_drop_table": {
       "description": "3-node cluster (3 racks), 4 LWT threads (INSERT IF NOT EXISTS / UPDATE IF / DELETE IF EXISTS, also as single-statement batches; prepared lazily, retried) on nodes 1,2,3,1 while 4 threads loop DROP TABLE + CREATE TABLE ks.test with 0.1s pauses for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs (expected: no_such_column_family, mutation write failures, CAS prune failures). Guards against crashes when paxos/prune hits a dropped table.",
@@ -166,7 +166,7 @@
       ]
     },
     "TestLwtDestructiveDDL::test_ks_netw_topology_change_rf": {
-      "description": "Keyspace ks NTS {datacenter1: 3} (numeric or rack list, as stored); same LWT load (Unavailable tolerated) while DDL threads (1 if ks uses tablets, per keyspace_has_tablets; else 4, one per coordinator) loop ALTER KEYSPACE lowering datacenter1 RF 3->2 (last rack dropped for rack lists) and restoring it, each ALTER with timeout cql_timeout(90), for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards LWT/paxos against replica-set changes: schema-only on vnodes, tablet rebuild (replica add/remove + streaming) on tablets; deselected with --tablets while SCYLLADB-5983 is open (since a276279a).",
+      "description": "Keyspace ks NTS {datacenter1: 3} (numeric or rack list, as stored); same LWT load (Unavailable tolerated) while DDL threads (1 if ks uses tablets, per keyspace_has_tablets; else 4, one per coordinator) loop ALTER KEYSPACE lowering datacenter1 RF 3->2 (last rack dropped for rack lists) and restoring it, each ALTER with timeout cql_timeout(90), for 60s (120s dev, 180s debug). Asserts no worker died (future.result()), nodes live, LWT and DDL each succeeded at least once, and no unexpected log ERRORs. Guards LWT/paxos against replica-set changes: schema-only on vnodes, tablet rebuild (replica add/remove + streaming) on tablets; the tablets skip_if (a276279a, SCYLLADB-5983) is inert since that issue closed.",
       "origin": {
         "sha": "9494be41fc",
         "date": "2020-03-27",
@@ -186,7 +186,7 @@
         "e606aa3704": "1 DDL thread when ks has tablets (RF changes serialized server-side), ALTER timeout cql_timeout(90), window cql_timeout(60), DDL stopped before LWT, try/finally cleanup; fixes SCYLLADB-5928 (PR 7711).",
         "a276279aca": "skip_if(tablets & SCYLLADB-5983 open): debug builds abort on the ERM sanity check (3 read replicas > RF 2) while a tablet RF decrease migrates; deselects the test in all --tablets runs, release included."
       },
-      "relevance": "LWT (paxos) and RF change are live: on tablets an RF change is a global topology request rebuilding tablet replicas (cql3/statements/alter_keyspace_statement.cc:226-262), concurrent ones rejected ('Another RF change for this keyspace ks ongoing', :238), so e606aa37 uses 1 DDL thread there; on vnodes schema-only, 4 threads race. The test found SCYLLADB-5983 (In Review): a numeric RF decrease switches the schema before tablets migrate, so debug builds abort in network_topology_strategy::sanity_check_read_replicas (locator/network_topology_strategy.cc:629, still on master); fix scylladb/scylladb#31903 (open) sizes CLs from the tablet replica set. Since a276279a the tablets path is deselected: no next-dtest-tablets run after build 11794 (siblings still run through 11814). 70 runs in window, 98.6% pass; only failure tablets build 11761 (SCYLLADB-5928, fixed by e606aa37 / PR 7711); 52/52 passed since (builds 11769+: 20 tablets, 32 consistent-topology). Still runs on vnodes in next-dtest-consistent-topology.",
+      "relevance": "LWT (paxos) and RF change are live: on tablets an RF change is a global topology request rebuilding tablet replicas (cql3/statements/alter_keyspace_statement.cc:226-262), concurrent ones rejected ('Another RF change for this keyspace ks ongoing', :238), so e606aa37 uses 1 DDL thread there; on vnodes schema-only, 4 threads race. The test found SCYLLADB-5983 (debug abort in network_topology_strategy::sanity_check_read_replicas while a numeric RF decrease migrates tablets): now Done, fixed by scylla 88cd6f2639 (scylladb/scylladb#33015), which removed the debug-only check, no test added. scylladb/scylladb#31903 closed unmerged 2026-11-20, superseded by #32895 (open, CL sizing from tablet replicas, doesn't list 5983). Jira Done with no dtest/*-skip label, so the skip_if no longer fires: next-dtest-tablets skipped it in builds 11795-11822 and runs it again since 11827 (5/5 passed). 80 runs in window, 100% pass (50 next-dtest-consistent-topology, 30 next-dtest-tablets).",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets.py::test_tablet_rf_change",
@@ -205,7 +205,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage of RF 3->2 and back under LWT load: scylla RF-change tests (test_tablets.py::test_tablet_rf_change, ::test_rf_reduction_preserves_quorum_writes) have no LWT; test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild has no RF change. It caught a real tablets bug (SCYLLADB-5983, debug abort on RF decrease). Note: success asserts are run totals, don't prove the workloads overlapped. Note: tablets path skipped while SCYLLADB-5983 is open (fix scylladb/scylladb#31903 unmerged), in release too though only debug aborts; vnodes path still runs.",
+      "reason": "Unique coverage of RF 3->2 and back under LWT load: scylla RF-change tests (test_tablets.py::test_tablet_rf_change, ::test_rf_reduction_preserves_quorum_writes) have no LWT; test_tablets_lwt.py::test_lwt_state_is_preserved_on_tablet_rebuild has no RF change. It caught a real tablets bug (SCYLLADB-5983, debug abort on RF decrease). Note: success asserts are run totals, don't prove the workloads overlapped. Note: skip_if on SCYLLADB-5983 (closed, fixed by 88cd6f2639) and its comment about the removed ERM check are stale; tablets runs resumed.",
       "issues": [
         {
           "kind": "note",
@@ -215,9 +215,9 @@
         },
         {
           "kind": "note",
-          "tag": "open-issue",
-          "ref": "lwt_destructive_ddl_test.py:355",
-          "text": "skip_if(tablets & issue_open SCYLLADB-5983): deselected in all --tablets runs (abort is debug-only) until fix scylladb/scylladb#31903 merges; runs on vnodes."
+          "tag": "stale-mark",
+          "ref": "lwt_destructive_ddl_test.py:353-355",
+          "text": "skip_if(tablets & issue_open SCYLLADB-5983) inert: issue Done (check removed, 88cd6f2639); comment describes the removed debug ERM check."
         }
       ]
     },
