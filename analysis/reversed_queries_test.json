@@ -80,6 +80,16 @@
       "relevance": "Live: multi-partition IN + ORDER BY (unpaged) with reversed per-partition reads.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_clustering_order.py::test_reversed_selects_multi_partition",
+          "coverage": "full",
+          "note": "translation of this dtest (scylla 94938008dc): same table/tombstones, same 3 unpaged `bucket IN (1, 2) AND id > 3 AND id < 7` queries (partial order, full order, + PER PARTITION LIMIT 3), memtable and after flush; checks rows and group order but not the order within tied rows (unspecified by CQL, scylladb#15099)."
+        },
+        {
+          "path": "test/cqlpy/test_clustering_order.py::test_reversed_selects_multi_partition_bypass_cache",
+          "coverage": "full",
+          "note": "companion translation (scylla 94938008dc): same 3 queries with BYPASS CACHE after flush."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/select_limit_test.py::testPerPartitionLimit",
           "coverage": "partial",
           "note": "line 79-92: `a IN (3,2) ORDER BY b DESC PER PARTITION LIMIT` unpaged."
@@ -95,14 +105,20 @@
           "note": "reader-level reversed reads with range tombstones over memtable/sstable/cache."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only 3 queries; IN+ORDER BY DESC+PER PARTITION LIMIT unpaged is covered by cqlpy select_limit_test.py (lines 79-92) and testOrderByForInClause; added value is range tombstones + memtable/cache/sstable sources. Note: yield_multi_partition_selects docstring says 'single partition' (line 224, copy-paste).",
+      "decision": "RED",
+      "reason": "Translated into cqlpy test_clustering_order.py::test_reversed_selects_multi_partition + _bypass_cache (scylla 94938008dc): same data, same 3 queries over memtable / post-flush / BYPASS CACHE; only the order of tied rows is no longer checked, which CQL leaves unspecified (scylladb#15099, open) and the origin commit 73eb9931a4 doesn't target. Note: dtest pins Scylla's tie order with exact `==` (line 236). Note: yield_multi_partition_selects docstring says 'single partition' (line 224, copy-paste).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-comment",
           "ref": "reversed_queries_test.py:224",
           "text": "yield_multi_partition_selects docstring says 'single partition' (copy-paste)."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "reversed_queries_test.py:236",
+          "text": "exact `==` pins Scylla's unspecified order of tied rows (scylladb#15099, open); would fail if Scylla matched Cassandra."
         }
       ]
     },
@@ -470,9 +486,14 @@
       "relevance": "Live: TWCS + time_series_sstable_set (enable_optimized_twcs_queries, compaction/time_window_compaction_strategy.cc:127) with reversed single-partition reads.",
       "duplicates": [
         {
-          "path": "test/cqlpy/test_cql_query.py::test_twcs_reversed_restricted_query_optimized / test_twcs_reversed_restricted_query_regular",
+          "path": "test/cqlpy/test_clustering_order.py::test_reversed_query_twcs",
+          "coverage": "full",
+          "note": "translation of this dtest (scylla 94938008dc): DESC-clustered TWCS 1-minute table, autocompaction off, 5 flushes, `ORDER BY ck ASC` with exact rows+values; uses microsecond timestamps so rows really span 5 windows (fixes the dtest's bug); 10 rows instead of 300, sstable count implied by the flushes."
+        },
+        {
+          "path": "test/cqlpy/test_cql_query.py::test_twcs_reversed_restricted_query_optimized",
           "coverage": "partial",
-          "note": "TWCS 1-minute table, 10 sstables, autocompaction off, reversed (ORDER BY DESC) BYPASS CACHE queries incl. ck restrictions on both optimized and regular paths (scylladb 1b7750a3a2, 2026-09-23); asserts counts only, not order."
+          "note": "TWCS 1-minute table, 10 sstables, autocompaction off, reversed (ORDER BY DESC) BYPASS CACHE queries incl. ck restrictions on both optimized and regular paths (scylladb 1b7750a3a2, 2026-09-23); asserts counts only, not order. Same for test_twcs_reversed_restricted_query_regular."
         },
         {
           "path": "test/boost/mutation_reader_test.cc::test_clustering_order_merger_sstable_set_reversed",
@@ -480,8 +501,8 @@
           "note": "reversed clustering-order merger over time_series_sstable_set, asserts full content/order."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Mostly covered by cqlpy test_twcs_reversed_restricted_query_* (more sstables, both TWCS read paths, restrictions) plus boost test_clustering_order_merger_sstable_set_reversed (order); dtest adds only exact-order check via CQL on a DESC table. Candidate RED. Bug: USING TIMESTAMP gets seconds (`int(time.time())`, line 749-751) but CQL timestamps are microseconds, so all 300 writes fall within 300us in one 1970 window; the '5 windows' comment (line 743) is false and the 5 sstables come only from the flushes.",
+      "decision": "RED",
+      "reason": "Translated into cqlpy test_clustering_order.py::test_reversed_query_twcs (scylla 94938008dc), which does the intended multi-window scenario correctly (microsecond timestamps, 5 windows, exact order); also cqlpy test_twcs_reversed_restricted_query_* and boost test_clustering_order_merger_sstable_set_reversed. Bug: USING TIMESTAMP gets seconds (`int(time.time())`, line 748-750) but CQL timestamps are microseconds, so all 300 writes fall within 300us in one 1970 window; the '5 windows' comment (line 742) is false and the 5 sstables come only from the flushes.",
       "issues": [
         {
           "kind": "bug",
@@ -517,6 +538,16 @@
       "relevance": "Live: native reversed reads in memtable/cache/sstable readers, clustering restrictions with ORDER BY DESC.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_clustering_order.py::test_reversed_selects_single_partition",
+          "coverage": "full",
+          "note": "translation of this dtest (scylla 94938008dc): same table, same 31 rows, same 5 range/row tombstone deletes, same 11 ORDER BY id DESC queries with identical exact expected lists (check_reversed_single_partition_selects:185), from memtable and after flush; drops only CL=ALL (1 node) and unselected value text."
+        },
+        {
+          "path": "test/cqlpy/test_clustering_order.py::test_reversed_selects_single_partition_bypass_cache",
+          "coverage": "full",
+          "note": "companion translation (scylla 94938008dc): same 11 queries with BYPASS CACHE after flush (sstable read); with the test above covers all three dtest phases."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/select_multi_column_relation_test.py::testMultipleClusteringReversedComponents",
           "coverage": "partial",
           "note": "multi-column restrictions with reversed order, no tombstones / no source split."
@@ -542,12 +573,12 @@
           "note": "same query set via run_selects, but no flush/BYPASS CACHE source split; slow upgrade test."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique CQL-level combination: clustering restrictions (single + multi-column) x range tombstones x memtable/cache/sstable for reversed reads, exact row assertions; cheap (5s, 32/32 pass). Scylla tests cover pieces only (cqlpy without RTs/source split, boost at reader level).",
+      "decision": "RED",
+      "reason": "Translated 1:1 into cqlpy test_clustering_order.py::test_reversed_selects_single_partition + _bypass_cache (scylla 94938008dc): same data, tombstones, 11 queries and exact expected rows over memtable / post-flush / BYPASS CACHE reads; the dtest adds nothing but a ccm node.",
       "issues": []
     }
   },
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
