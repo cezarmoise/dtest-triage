@@ -1,8 +1,8 @@
 {
   "file": "listsnapshots_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestNodetoolListSnapshots::test_no_snapshots": {
       "description": "Fresh 1-node cluster; `nodetool listsnapshots` must print 'There are no snapshots' with no stderr. The size comparison is vacuous here (no rows).",
@@ -72,12 +72,17 @@
         "6c6d1ea737": "helpers: accept both KB and KiB unit spellings (scylladb/scylladb#31183)",
         "03ae955c2c": "added test"
       },
-      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1425 listsnapshots_operation) over REST /storage_service/snapshots and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
+      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1427 listsnapshots_operation) over REST /storage_service/snapshots ('Size on disk' column = REST 'total') and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_listsnapshots_one_table",
+          "coverage": "full",
+          "note": "translation (scylla c3fce9ce7c, series 42ab0bf5bd): 1 row, table snapshot, asserts listed tables == [table] and files' size <= total <= allocated (manifest/schema.cql excluded). Stricter: fails on missing/empty listing. Via REST /storage_service/snapshots (cqlpy nodetool.list_snapshots takes the REST branch on Scylla), same 'total' field nodetool prints as 'Size on disk', compared in exact bytes (dtest: rounded human sizes); CLI formatting covered by test/nodetool/test_snapshot.py::test_listsnapshots."
+        },
         {
           "path": "test/nodetool/test_snapshot.py::test_listsnapshots",
           "coverage": "partial",
-          "note": "mocked REST; checks output formatting only, no real sizes"
+          "note": "mocked REST; checks exact output formatting of the size columns (complements the cqlpy REST check)"
         },
         {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
@@ -90,8 +95,8 @@
           "note": "get_snapshot_details live==0, total>0; no comparison with filesystem"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only end-to-end check of listsnapshots size accuracy vs filesystem; scylla tests (rest_api, boost, mocked nodetool) only check zero/non-zero sizes or formatting. Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_listsnapshots_one_table (scylla c3fce9ce7c): same scenario and size bounds against the same REST 'total' value nodetool prints, plus exact table-list check; nodetool formatting by test/nodetool/test_snapshot.py::test_listsnapshots. Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
       "issues": [
         {
           "kind": "bug",
@@ -126,12 +131,17 @@
         "6c6d1ea737": "helpers: accept both KB and KiB unit spellings (scylladb/scylladb#31183)",
         "03ae955c2c": "added test"
       },
-      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1425 listsnapshots_operation) over REST /storage_service/snapshots and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
+      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1427 listsnapshots_operation) over REST /storage_service/snapshots ('Size on disk' column = REST 'total') and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_listsnapshots_system_keyspace",
+          "coverage": "full",
+          "note": "translation (scylla c3fce9ce7c, series 42ab0bf5bd): REST snapshot of keyspace system; asserts listing for the tag non-empty and all ks == system, then each table's files' size <= total <= allocated (#3572 scenario). Stricter: fails on empty listing. Via REST /storage_service/snapshots (cqlpy nodetool.list_snapshots takes the REST branch on Scylla), same 'total' field nodetool prints as 'Size on disk', compared in exact bytes (dtest: rounded human sizes); CLI formatting covered by test/nodetool/test_snapshot.py::test_listsnapshots."
+        },
         {
           "path": "test/nodetool/test_snapshot.py::test_listsnapshots",
           "coverage": "partial",
-          "note": "mocked REST; checks output formatting only, no real sizes"
+          "note": "mocked REST; checks exact output formatting of the size columns (complements the cqlpy REST check)"
         },
         {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
@@ -144,8 +154,8 @@
           "note": "get_snapshot_details live==0, total>0; no comparison with filesystem"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique: no scylla test lists snapshots of the system keyspace (rest_api/boost tests snapshot user tables only); direct regression for #3572. Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_listsnapshots_system_keyspace (scylla c3fce9ce7c): snapshots the system keyspace and checks every listed table's size against its snapshot files, and that the listing is non-empty; nodetool formatting by test/nodetool/test_snapshot.py::test_listsnapshots. Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
       "issues": [
         {
           "kind": "bug",
@@ -182,8 +192,18 @@
         "8f31589531": "added next_gating attr (later moved to class)",
         "6b5a3275e4": "added dtest_debug attr"
       },
-      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1425 listsnapshots_operation) over REST /storage_service/snapshots and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
+      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1427 listsnapshots_operation) over REST /storage_service/snapshots ('Size on disk' column = REST 'total') and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_listsnapshots_several_keyspaces",
+          "coverage": "full",
+          "note": "translation (scylla c3fce9ce7c, series 42ab0bf5bd) of test_snapshot_for_several_kses + test_several_snapshots_for_several_kses: 2 ks x 2 tables (dtest 3x3), REST keyspace snapshot of each, checks exact table list + files' size <= total <= allocated; then +1 row per table (dtest +10k), second snapshot of each ks, rechecks all 4 tags and asserts second snapshot has more Data.db files than first. First round = this test. Via REST /storage_service/snapshots (cqlpy nodetool.list_snapshots takes the REST branch on Scylla), same 'total' field nodetool prints as 'Size on disk', compared in exact bytes (dtest: rounded human sizes); CLI formatting covered by test/nodetool/test_snapshot.py::test_listsnapshots."
+        },
+        {
+          "path": "test/nodetool/test_snapshot.py::test_listsnapshots",
+          "coverage": "partial",
+          "note": "mocked REST; checks exact output formatting of the size columns (complements the cqlpy REST check)"
+        },
         {
           "path": "scylla-dtest listsnapshots_test.py::TestNodetoolListSnapshots::test_several_snapshots_for_several_kses",
           "coverage": "full",
@@ -196,7 +216,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_several_snapshots_for_several_kses in same file (same kses/cfes, same populate + per-ks snapshot, same final assertion over all listed rows). Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_listsnapshots_several_keyspaces (scylla c3fce9ce7c), whose first round is this scenario (2x2 instead of 3x3 ks/tables) with exact table-list checks; also a strict subset of test_several_snapshots_for_several_kses in the same file. Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
       "issues": [
         {
           "kind": "bug",
@@ -232,12 +252,17 @@
         "6c6d1ea737": "helpers: accept both KB and KiB unit spellings (scylladb/scylladb#31183)",
         "03ae955c2c": "added test"
       },
-      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1425 listsnapshots_operation) over REST /storage_service/snapshots and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
+      "relevance": "Live: native nodetool listsnapshots (tools/scylla-nodetool.cc:1427 listsnapshots_operation) over REST /storage_service/snapshots ('Size on disk' column = REST 'total') and /storage_service/snapshots/size/true; option tablets_initial_scale_factor is Used (db/config.cc:1762).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_listsnapshots_several_keyspaces",
+          "coverage": "full",
+          "note": "translation (scylla c3fce9ce7c, series 42ab0bf5bd) of test_snapshot_for_several_kses + test_several_snapshots_for_several_kses: 2 ks x 2 tables (dtest 3x3), REST keyspace snapshot of each, checks exact table list + files' size <= total <= allocated; then +1 row per table (dtest +10k), second snapshot of each ks, rechecks all 4 tags and asserts second snapshot has more Data.db files than first. Row count only changes sstable size, not size accounting. Via REST /storage_service/snapshots (cqlpy nodetool.list_snapshots takes the REST branch on Scylla), same 'total' field nodetool prints as 'Size on disk', compared in exact bytes (dtest: rounded human sizes); CLI formatting covered by test/nodetool/test_snapshot.py::test_listsnapshots."
+        },
         {
           "path": "test/nodetool/test_snapshot.py::test_listsnapshots",
           "coverage": "partial",
-          "note": "mocked REST; checks output formatting only, no real sizes"
+          "note": "mocked REST; checks exact output formatting of the size columns (complements the cqlpy REST check)"
         },
         {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
@@ -250,8 +275,8 @@
           "note": "get_snapshot_details live==0, total>0; no comparison with filesystem"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique end-to-end size accuracy with multiple snapshots per table; scylla tests check only zero/non-zero sizes (test/rest_api/test_storage_service.py::test_storage_service_snapshot). Would be GREEN but: Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_listsnapshots_several_keyspaces (scylla c3fce9ce7c): two snapshots per table over several keyspaces, sizes checked for all tags plus exact table lists and that the second snapshot has new sstables; smaller (2x2, +1 row vs 3x3, +10k rows) but same size accounting. Bug: compare_filesize_and_output (listsnapshots_test.py:182-201) never checks the parsed row count or that the expected ks/cf/snapshot appear; all([]) is True, so if the row regex (line 173, needs trailing whitespace) stops matching, the test passes vacuously. Note: True size column and 'Total TrueDiskSpaceUsed' are parsed/ignored.",
       "issues": [
         {
           "kind": "bug",
