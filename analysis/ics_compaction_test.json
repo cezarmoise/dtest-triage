@@ -1,8 +1,8 @@
 {
   "file": "ics_compaction_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestIcsCompaction::test_check_default_compaction_strategy": {
       "description": "Single node; create table via create_cf without compaction option, read system_schema.tables compaction class and assert it is IncrementalCompactionStrategy. Guards ICS being the default strategy in Scylla.",
@@ -25,6 +25,11 @@
       "relevance": "Live: schema/schema.hh:549 default compaction_strategy_type::incremental; db/schema_tables.cc:2288.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_default_compaction_strategy",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 5d68648736): table created without compaction clause, asserts system_schema.tables compaction class is IncrementalCompactionStrategy"
+        },
+        {
           "path": "test/cqlpy/test_cql_query.py::test_describe_simple_schema",
           "coverage": "partial",
           "note": "DESCRIBE shows ICS but tables created with explicit compaction clause"
@@ -35,8 +40,8 @@
           "note": "accepts ICS or STCS, so not a strict default check"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test found asserting the default strategy is ICS (no scylla cqlpy/cluster test checks a table created without compaction clause); cheap (3.7s).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_default_compaction_strategy (translated from it, scylladb 5d68648736): same schema query and ICS assert; dtest-release only, ~3.6s.",
       "issues": []
     },
     "TestIcsCompaction::test_alter_table_strategy_twice": {
@@ -60,6 +65,11 @@
       "relevance": "ALTER compaction live. Since scylladb ed1bb2fd1e (2026-10-14, 'compaction: make STCS an alias of ICS', fixes scylladb#22562) SizeTieredCompactionStrategy is an alias of ICS (name kept in schema, CQL deprecation warning), so STCS<->ICS switches are now ICS->ICS internally. Param 2 is effectively ICS->ICS->ICS now.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): every pair of STCS/LCS/TWCS/ICS as A->B->A, each step asserting schema class, data and major compaction. Param 2 STCS->ICS->STCS literally; param 1 STCS->LCS->ICS as ICS->LCS->ICS (STCS is an ICS alias since scylladb ed1bb2fd1e). Not reproduced: ALTER with ICS bucket/threshold options (validated in test/cqlpy/test_compaction_strategy_validation.py), multi-MB sstables + regular compaction after the switch, both keyspace modes (cqlpy uses the default keyspace); the dtest asserts nothing on those beyond no log errors."
+        },
+        {
           "path": "scylla-dtest ics_compaction_test.py::TestIcsCompaction::test_alter_table_from_ics[LEVELED] + test_alter_table_to_ics[LEVELED]",
           "coverage": "full",
           "note": "same transitions (STCS=ICS alias -> LCS -> ICS) with same helper"
@@ -76,7 +86,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: param1 = from_ics[LEVELED] + to_ics[LEVELED] (STCS is ICS alias since scylladb ed1bb2fd1e), param2 is ICS->ICS->ICS now; no data assertions, only schema class; 64 runs x ~80s in gating.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_strategy_switching (translated from it, scylladb 968ea669a3): param 2 literally, param 1 via the STCS=ICS alias (scylladb ed1bb2fd1e), with schema + data + major compaction checks where this dtest asserts only schema class; ~58s x 2 params in gating. Note: param 2 is a no-op ICS->ICS->ICS switch (STCS alias); only schema class asserted, no data check.",
       "issues": [
         {
           "kind": "note",
@@ -114,6 +124,11 @@
       "relevance": "Live. Since scylladb ed1bb2fd1e (2026-10-14, 'compaction: make STCS an alias of ICS', fixes scylladb#22562) SizeTieredCompactionStrategy is an alias of ICS (name kept in schema, CQL deprecation warning), so STCS<->ICS switches are now ICS->ICS internally. So [SIZE_TIERED] param is now a no-op strategy switch (ICS->ICS).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): STCS/LCS/TWCS->ICS and back, each step asserting schema class, data and major compaction. Not reproduced: ALTER with ICS bucket/threshold options (validated in test/cqlpy/test_compaction_strategy_validation.py), multi-MB sstables + regular compaction after the switch, both keyspace modes (cqlpy uses the default keyspace); the dtest asserts nothing on those beyond no log errors."
+        },
+        {
           "path": "scylla-dtest compaction_test.py::TestCompaction::test_compaction_strategy_switching",
           "coverage": "partial",
           "note": "switches between LCS/STCS/TWCS/ICS with data checks (no compaction after switch)"
@@ -129,8 +144,8 @@
           "note": "ICS option validation"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with compaction_test::test_compaction_strategy_switching; weak (only schema-class assert + no compaction error, no data check). Note: [SIZE_TIERED] param is ICS->ICS since scylladb ed1bb2fd1e (STCS alias), could drop it.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_strategy_switching (translated from it, scylladb 968ea669a3): STCS/LCS/TWCS->ICS with schema, data and major compaction checks; this dtest asserts only schema class + no errors; 3 params x ~55s in gating. Note: [SIZE_TIERED] param is ICS->ICS since scylladb ed1bb2fd1e.",
       "issues": [
         {
           "kind": "note",
@@ -167,6 +182,11 @@
       "relevance": "Live. Since scylladb ed1bb2fd1e (2026-10-14, 'compaction: make STCS an alias of ICS', fixes scylladb#22562) SizeTieredCompactionStrategy is an alias of ICS (name kept in schema, CQL deprecation warning), so STCS<->ICS switches are now ICS->ICS internally. So [SIZE_TIERED] param is a no-op switch now.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): ICS->STCS/LCS/TWCS and back, each step asserting schema class, data and major compaction. Not reproduced: ALTER with ICS bucket/threshold options (validated in test/cqlpy/test_compaction_strategy_validation.py), multi-MB sstables + regular compaction after the switch, both keyspace modes (cqlpy uses the default keyspace); the dtest asserts nothing on those beyond no log errors."
+        },
+        {
           "path": "scylla-dtest compaction_test.py::TestCompaction::test_compaction_strategy_switching",
           "coverage": "partial",
           "note": "switches between LCS/STCS/TWCS/ICS with data checks (no compaction after switch)"
@@ -177,8 +197,8 @@
           "note": "ICS/TWCS ALTERs under compaction"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with compaction_test::test_compaction_strategy_switching (ICS->others, data checked but no compaction); this one runs major compaction after switch but asserts only schema class. Note: [SIZE_TIERED] param is ICS->ICS since scylladb ed1bb2fd1e.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_strategy_switching (translated from it, scylladb 968ea669a3): ICS->STCS/LCS/TWCS with schema, data and major compaction checks; this dtest asserts only schema class; 3 params x ~55s in gating. Note: [SIZE_TIERED] param is ICS->ICS since scylladb ed1bb2fd1e.",
       "issues": [
         {
           "kind": "note",
@@ -289,7 +309,7 @@
       ]
     },
     "TestIcsCompaction::test_ics_sstables_refresh_with_collisions": {
-      "description": "Single node ICS table; write 4 sstables (keys 1-4), snapshot, write 4 more sstables (keys 5-8), restore snapshot via refresh into the live table, assert 8 rows. 'Collisions' = snapshot sstables with generation numbers colliding with existing ones (pre-UUID era); refresh must rename/load them without clobbering.",
+      "description": "Single node ICS table (sstable_size 2MB); write 4 sstables (keys 1-4, 1..4MB), wait for compactions, snapshot, write 4 more sstables (keys 5-8), restore the snapshot via refresh into the live table, assert 8 rows. 'Collisions' = snapshot sstables with the same names as sstables the table still has; refresh must load them under new names without clobbering. Autocompaction stays on and rows 1-4 never leave the table.",
       "origin": {
         "sha": "0c19b7cd5c",
         "date": "2019-12-22",
@@ -302,8 +322,18 @@
         "f80e92b298": "pytest port",
         "0c19b7cd5c": "origin"
       },
-      "relevance": "Refresh live, but generation collisions no longer possible: uuid_sstable_identifiers_enabled is value_status::Unused, default true (db/config.cc:1556) - sstables always get UUID ids, and refresh assigns new generations anyway. Nothing ICS-specific asserted.",
+      "relevance": "Refresh live (load-and-stream with tablets, in-place load with vnodes). Same-named sstables still possible: a snapshot hard-links the table's sstables, so their UUID names (uuid_sstable_identifiers_enabled Unused/true, db/config.cc:1585) match until the table compacts them. Nothing ICS-specific asserted.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_refresh.py::test_refresh_snapshot_into_ics_table_without_truncate",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): ICS table with autocompaction disabled, 4 sstables, snapshot, 4 more, asserts the snapshot's sstable names are among the table's, refresh, all 8 rows; tablets and vnodes."
+        },
+        {
+          "path": "test/cqlpy/test_refresh.py::test_refresh_snapshot_into_ics_table",
+          "coverage": "partial",
+          "note": "Same flow with TRUNCATE after the snapshot, so it checks refresh actually loads the snapshot (STCS/LCS/TWCS/ICS -> ICS); tablets and vnodes."
+        },
         {
           "path": "test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables",
           "coverage": "partial",
@@ -315,14 +345,20 @@
           "note": "snapshot+refresh round-trip"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Scenario 'collisions' obsolete (UUID sstable ids always on, db/config.cc:1556 Unused); reduces to refresh into non-empty table + row count, partially covered by test/cluster/test_refresh.py and snapshot_test; ~94s.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_refresh.py::test_refresh_snapshot_into_ics_table_without_truncate (translated from it, scylladb 968ea669a3), which guarantees and asserts the name collision on tablets and vnodes; ~77s gating. Bug: the 8-row check passes even if refresh loads nothing, rows 1-4 never left the table. Bug: autocompaction is on, so the snapshot's sstables may be compacted away before the refresh and no collision happens.",
       "issues": [
         {
-          "kind": "note",
-          "tag": "stale-comment",
-          "ref": "ics_compaction_test.py:505",
-          "text": "'collisions' name obsolete: UUID sstable ids always on, generation collisions impossible; reduces to refresh into non-empty table"
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "ics_compaction_test.py:525",
+          "text": "8-row check passes even if refresh loads nothing: snapshot rows 1-4 never left the table"
+        },
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "ics_compaction_test.py:517",
+          "text": "Autocompaction on: snapshot's sstables may be compacted away before refresh, so same-named sstables aren't guaranteed"
         }
       ]
     },
@@ -392,6 +428,11 @@
       "relevance": "Live but asserts nothing beyond ALTER succeeding.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): the [IncrementalCompactionStrategy] x LCS iteration does major compaction under LCS, ALTER back to ICS, major compaction, checking schema class and data at each step; [LCS] x ICS does LCS->ICS->major compaction. Not reproduced: 3 sstables of 3 partitions and both keyspace modes, on which the dtest asserts nothing."
+        },
+        {
           "path": "scylla-dtest ics_compaction_test.py::TestIcsCompaction::test_alter_table_to_ics[LEVELED]",
           "coverage": "full",
           "note": "same: LCS table, write, ALTER to ICS + schema assert, major compaction"
@@ -403,7 +444,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully redundant with test_alter_table_to_ics[LEVELED] (same helper flow, only extra LCS major compaction before ALTER); no assertions on data/sstables; ~50s gating. Note: docstring copy-pasted from test_sstable_files_validations_with_ics_compaction.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_strategy_switching (translated from it, scylladb 968ea669a3): LCS major compaction, ALTER to ICS, ICS major compaction, with schema + data checks where this dtest asserts only schema class; ~37s gating. Note: docstring copy-pasted from test_sstable_files_validations_with_ics_compaction.",
       "issues": [
         {
           "kind": "note",
@@ -501,7 +542,7 @@
       ]
     },
     "TestIcsCompaction::test_space_amplification_goal_3_buckets": {
-      "description": "Single node, smp=1, ICS with space_amplification_goal=1.70, min_threshold=4, min_sstable_size=4. 10MB sstable major-compacted, then 4 overlapping 1MB flushes: SA=1.4 < 1.7 so only same-tier (min_threshold) compaction happens -> sizes [4,10]. Then a 5MB flush pushes SA over 1.7 and asserts cross-tier compaction collapses everything into [10]. Guards both 'SAG not exceeded -> no cross-tier' and 'exceeded -> cross-tier' with real compactions.",
+      "description": "Single node, smp=1, ICS with space_amplification_goal=1.70, min_threshold=4, min_sstable_size=4. 10MB sstable major-compacted, then 4 overlapping 1MB flushes (each also gets a tiny shadowed cell with the same existing key, so they overlap one another): SA=1.4 < 1.7 so only same-tier (min_threshold) compaction happens -> sizes [4,10]. Then a 5MB flush pushes SA over 1.7 and asserts cross-tier compaction collapses everything into [10]. Guards both 'SAG not exceeded -> no cross-tier' and 'exceeded -> cross-tier' with real compactions.",
       "origin": {
         "sha": "85a35efe7e",
         "date": "2020-10-15",
@@ -509,6 +550,7 @@
         "summary": "Yaron Gilor 'Added space_amplification_goal_test' (enterprise dtest; PR 2525 in data is the later pytest port)."
       },
       "commits": {
+        "26a8230381": "make the four 1MB sstables overlap one another (tiny cell, existing key, old timestamp) so the min_threshold step still yields [4,10] once ICS splices non-overlapping runs (scylladb PR #33033, open); PR 7790",
         "056f5dc7a8": "formatting (unused var renames)",
         "9ffd273f04": "formatting",
         "2f930d708d": "add @pytest.mark.single_node",
@@ -517,7 +559,7 @@
         "139a005dae": "create_cluster sets tablets_initial_scale_factor=1",
         "85a35efe7e": "origin"
       },
-      "relevance": "Live: compaction/incremental_compaction_strategy.cc:378-412 (SAG), min_threshold enforced via --compaction-enforce-min-threshold (prepare()).",
+      "relevance": "Live: compaction/incremental_compaction_strategy.cc:378-412 (SAG), min_threshold enforced via --compaction-enforce-min-threshold (prepare()). dtest 26a8230381 prepares for scylladb PR #33033 (open, not on master), which would splice non-overlapping runs instead of compacting them; the comment at ics_compaction_test.py:693-694 describes that not-yet-merged behavior.",
       "duplicates": [
         {
           "path": "test/boost/incremental_compaction_test.cc::incremental_compaction_sag_test",
@@ -576,7 +618,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Weak asserts (>=3 files, each <=11MB; flush check is trivially true for 10MB writes) mostly covered by sibling tests' fragment-size checks; candidate RED. Note: 2-node RF=2 cluster but only node1 inspected (second node pointless, ~51s); docstring duplicated in test_lcs_major_compaction_then_ics_major_compaction.",
+      "reason": "Weak asserts (>=3 files, each <=11MB; flush check is trivially true for 10MB writes) mostly covered by sibling tests' fragment-size checks; candidate RED. Note: 2-node RF=2 cluster but only node1 inspected (second node pointless, ~40s); docstring duplicated in test_lcs_major_compaction_then_ics_major_compaction.",
       "issues": [
         {
           "kind": "note",
@@ -599,7 +641,7 @@
       ]
     },
     "TestIcsCompaction::test_strategy_to_ics_snapshot_refresh": {
-      "description": "Params [SIZE_TIERED, TIME_WINDOW, LEVELED]: single node, table with given strategy, 4 flushes of increasing size, snapshot, ALTER to ICS (asserts schema class), copy snapshot to upload + nodetool refresh, then c-s read of the same keys (c-s validates data). Guards loading sstables written under another strategy into an ICS table.",
+      "description": "Params [SIZE_TIERED, TIME_WINDOW, LEVELED]: single node, table with given strategy (sstable_size 2MB), 4 flushes of 1..4MB (keys 1-4), wait for compactions, snapshot, ALTER to ICS (asserts schema class), copy snapshot to upload + nodetool refresh, then c-s read of the same keys (c-s validates data). Guards loading sstables written under another strategy into an ICS table. The table is never truncated, so the snapshot's rows never leave it.",
       "origin": {
         "sha": "0c19b7cd5c",
         "date": "2019-12-22",
@@ -618,14 +660,24 @@
       "relevance": "Live (refresh, ALTER compaction). [SIZE_TIERED] is ICS->ICS since scylladb ed1bb2fd1e (STCS alias of ICS, scylladb#22562). Refresh is strategy-agnostic except LCS levels (rewritten on load, test/cluster/test_refresh.py).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_refresh.py::test_refresh_snapshot_into_ics_table",
+          "coverage": "full",
+          "note": "Translated from this dtest (scylladb 968ea669a3): STCS/LCS/TWCS/ICS table, 4 sstables, snapshot, TRUNCATE, 4 more rows, ALTER to ICS, refresh, asserts exactly all 8 rows; tablets (load-and-stream) and vnodes. Truncate makes the refresh actually checked. Not reproduced: 1-4MB c-s sstables and sstable_size_in_mb=2 (nothing asserted on them), schema class after ALTER (in test_compaction_strategy_switching)."
+        },
+        {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "partial",
+          "note": "STCS/LCS/TWCS -> ICS ALTER with schema class + data checks (the dtest's ALTER assert); no refresh"
+        },
+        {
           "path": "ics_compaction_test.py::TestIcsCompaction::test_ics_snapshot_and_restore",
           "coverage": "partial",
           "note": "ICS snapshot + refresh restore with row count + size checks"
         },
         {
-          "path": "test/cluster/test_refresh.py",
+          "path": "test/cluster/test_refresh.py::test_refresh_does_not_claim_sstables_created_by_another_shard",
           "coverage": "partial",
-          "note": "refresh of LCS sstables (levels rewritten); refresh generically"
+          "note": "refresh of LCS sstables above level 0 (levels rewritten on load); LCS table, not ICS"
         },
         {
           "path": "ics_compaction_test.py::TestIcsCompaction::test_alter_table_to_ics",
@@ -633,20 +685,20 @@
           "note": "same ALTER-to-ICS step, no refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap (refresh + ALTER to ICS covered by sibling tests and test/cluster/test_refresh.py); data check relies only on c-s read validation; 96 gating runs x ~88s. Note: [SIZE_TIERED] param is ICS->ICS since scylladb ed1bb2fd1e, drop it; LEVELED/TIME_WINDOW params give the only cross-strategy refresh value.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_refresh.py::test_refresh_snapshot_into_ics_table (translated from it, scylladb 968ea669a3), which truncates before refresh and checks exact rows on tablets and vnodes; ALTER schema check in test_compaction_strategy_switching; 3 params x ~71s in gating. Bug: c-s read passes even if refresh loads nothing, snapshot rows never left the table. Note: [SIZE_TIERED] is ICS->ICS since scylladb ed1bb2fd1e.",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "ics_compaction_test.py:448",
+          "text": "c-s read after refresh passes even if refresh loads nothing: snapshot rows never left the table (no truncate/drop)"
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
           "ref": "scylladb ed1bb2fd1e",
           "text": "[SIZE_TIERED] param is ICS->ICS since STCS became an ICS alias; no-op switch"
-        },
-        {
-          "kind": "note",
-          "tag": "limited-check",
-          "ref": "ics_compaction_test.py:441",
-          "text": "Data check relies only on cassandra-stress read validation"
         }
       ]
     }
