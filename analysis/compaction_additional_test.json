@@ -1,8 +1,8 @@
 {
   "file": "compaction_additional_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestCompactionAdditional::test_compact_data_by_time_window": {
       "description": "Single node, TWCS table with 1-minute windows and timestamp_resolution=MILLISECONDS. Writes 7 flushed sstables into each of 4 consecutive past windows (explicit ms USING TIMESTAMP), runs major compaction, snapshots the Data files, then writes 2 more windows and asserts the original sstables are still present (old, already-compacted windows must not be recompacted with newer data). Guards TWCS window bucketing / timestamp_resolution handling.",
@@ -32,6 +32,11 @@
       "relevance": "Live: TWCS and timestamp_resolution option exist (compaction/time_window_compaction_strategy.cc, TIMESTAMP_RESOLUTION_KEY).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_old_windows_not_compacted_again",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): TWCS 1-min windows, MILLISECONDS resolution, 7 flushes in each of 4 past windows with distinct rows per window, major -> asserts 4 sstables; writes 2 more windows, waits for compactions, asserts the 4 sstables are still there. Stricter."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::time_window_strategy_size_tiered_behavior_correctness",
           "coverage": "full",
           "note": "Asserts a past window already compacted into a single sstable is not picked again (newest_bucket == 0) - the exact property this dtest checks."
@@ -48,7 +53,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario (past compacted window not recompacted; ms resolution) fully covered by boost time_window_strategy_size_tiered_behavior_correctness + time_window_strategy_ts_resolution_check. Bug: after the second write loop there is no wait_for_compactions before listing files (compaction_additional_test.py:410), so a wrong compaction still in flight would not be caught (racy, weak assert). Note: MICROSECONDS param disabled since 2b442c05d3 (2019), parametrize with a single value.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_old_windows_not_compacted_again (translated from it, scylla f5d769e505: distinct rows per window, asserts 4 sstables, waits for compactions), and by boost time_window_strategy_size_tiered_behavior_correctness + time_window_strategy_ts_resolution_check. Bug: no wait_for_compactions after the second write loop before listing files (compaction_additional_test.py:410), so an in-flight wrong compaction is not caught. Note: the same 10 keys are written in every window (:388), so the major compaction keeps only the newest window and only its sstables are checked; MICROSECONDS param disabled since 2b442c05d3 (2019), parametrize with a single value.",
       "issues": [
         {
           "kind": "bug",
@@ -61,6 +66,12 @@
           "tag": "redundant-param",
           "ref": "2b442c05d3",
           "text": "MICROSECONDS param disabled since 2019; parametrize has a single value."
+        },
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "compaction_additional_test.py:388",
+          "text": "Same 10 keys written in every window, so the major keeps only the newest window; only that window's sstables are checked."
         }
       ],
       "jira": "DTEST-866"
@@ -81,13 +92,18 @@
       "relevance": "Live: replica/table.cc still wraps memtable flush in make_compacting_reader when the memtable has tombstones (merge bcadd8229b).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_flush_drops_deleted_rows",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): pk-only table, insert 10 rows and delete 3 (partition tombstones) in the memtable, flush; asserts via mutation_fragments that the sstable has partition tombstones for exactly the deleted keys and rows only for the others, and SELECT returns the 7 live rows. Stricter (exact sets)."
+        },
+        {
           "path": "test/boost/memtable_test.cc::memtable_flush_compresses_mutations",
           "coverage": "partial",
           "note": "Added in the same scylla merge (bcadd8229b); asserts flushed sstable contains only the tombstone. Uses a row tombstone on a pk+ck table vs partition tombstone here."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Feature unit-tested by test/boost/memtable_test.cc::memtable_flush_compresses_mutations from the same scylla merge (bcadd8229b); dtest only differs by partition vs row tombstone. Cheap (6s); candidate for RED if partition-tombstone compaction is considered generic.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_flush_drops_deleted_rows (translated from it, scylla f5d769e505): same partition-tombstone flush, with exact tombstone/row sets; the row-tombstone variant is also in boost memtable_test.cc::memtable_flush_compresses_mutations (same scylla merge bcadd8229b).",
       "issues": []
     },
     "TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node_stopped": {
@@ -251,6 +267,11 @@
       "relevance": "Live: TWCS fully-expired sstable detection (expired_sstable_check_frequency_seconds, get_fully_expired_sstables) and the 'Compacted N sstables to [...]' debug log (compaction/compaction.cc:1039).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_removes_expired_sstables",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same TWCS table (default TTL, gc_grace 1, tombstone_gc immediate, expired_sstable_check_frequency_seconds 1), 11 flushes 15s apart over 3 past windows; after TTL+gc the sstables stay until a new write+flush triggers compaction, which removes all of them; asserts only the new sstable is left, i.e. dropped, not rewritten (the dtest checked the 'Compacted N sstables to []' log) (clock fixture: dev/debug/sanitize builds only)."
+        },
+        {
           "path": "twcs_additional_test.py::TestTimeWindowCompactionStrategyAdditional::test_expired_sstables_are_compacted_separately",
           "coverage": "partial",
           "note": "TWCS with TTL'd sstables across windows; waits until expired sstables are removed from disk and checks 'Fully expired sstable' logs (next_gating, 76s)."
@@ -266,8 +287,8 @@
           "note": "Fully expired sstable compacts to no output."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Largely overlapped by twcs_additional_test::test_expired_sstables_are_compacted_separately (TWCS expired sstables removed) plus boost compaction_with_fully_expired_table; distinct only in default_ttl and multi-window e2e purge. Now cheap (~35s after PR 7501), so not 'slow + redundant'.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_removes_expired_sstables (translated from it, scylla f5d769e505): same 11 sstables over 3 windows, expired sstables kept until a compaction is triggered, then dropped without rewrite; also overlaps twcs_additional_test::test_expired_sstables_are_compacted_separately.",
       "issues": []
     },
     "TestCompactionAdditional::test_data_from_different_windows_compacted_together": {
@@ -285,6 +306,11 @@
       "relevance": "Live: TWCS compaction across buckets (scylla 7c90088152, 2021-11).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_compacts_deleted_data_of_different_windows",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 4 rows of one partition at the same timestamps in 4 windows, tombstone_gc disabled; major -> 4 sstables, partition delete, flush, major -> 1 sstable, and SELECT returns nothing."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
           "coverage": "full",
           "note": "Rows of one pk in 10 windows + partition tombstone compacted together (can_purge_tombstones::no) -> exactly 1 output sstable containing only the deletion. Same scenario."
@@ -301,7 +327,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (scylla 7c90088152, the OSS equivalent of enterprise#2055) and by sibling dtest TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_compacts_deleted_data_of_different_windows (translated from it, scylla f5d769e505: same rows and timestamps, plus a no-rows check), boost test_twcs_compaction_across_buckets (scylla 7c90088152, the OSS equivalent of enterprise#2055) and sibling dtest TestTimeWindowDataSegregation::test_compact_several_timewindows_after_delete_all_rows_in_old_timewindows.",
       "issues": [],
       "jira": "DTEST-869"
     },
@@ -397,15 +423,27 @@
         "9ffd273f04": "Formatting / tree-wide"
       },
       "relevance": "Live: compaction/task_manager_module.cc:235-250 sorts table tasks by live_disk_space_used and picks the smallest.",
-      "duplicates": [],
-      "decision": "GREEN",
-      "reason": "Unique coverage (no scylla test for major-compaction table ordering). Note: tie-break attrgetter('compaction_time','size') (compaction_additional_test.py:926, f9f8cae7c5) makes equal-ms compacted_at entries sort by size, i.e. the expected order; PR 3103 shows 100 and 10k tables tying, so ordering between small tables is often not actually checked (the largest table's order still is). 6 permutations x ~32s each.",
+      "duplicates": [
+        {
+          "path": "test/cqlpy/test_compaction.py::test_major_compaction_order_by_table_size",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 6 permutations of 3 tables of very different sizes on one shard (tablets disabled), keyspace major compaction; order taken from system.compaction_history ids (time UUIDs at compaction start) instead of ms compacted_at with a size tie-break. Stricter."
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_major_compaction_order_by_table_size (translated from it, scylla f5d769e505): same 6 size permutations, order from compaction_history time-UUID ids without this test's ms tie-break; 6 x ~34s here. Note: tie-break attrgetter('compaction_time','size') (compaction_additional_test.py:926, f9f8cae7c5) makes equal-ms compacted_at entries sort by size, so the order between small tables is often not checked (the largest table's still is); last param is 10_00 = 1000 (:874).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "compaction_additional_test.py:926",
           "text": "Tie-break by size makes equal-ms compacted_at entries sort as expected; small-table order often unchecked, largest table still checked."
+        },
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "compaction_additional_test.py:874",
+          "text": "Last param (100_000, 100, 10_00) is 1000, not 10_000 like the others; still a valid permutation."
         }
       ]
     },
@@ -436,6 +474,11 @@
       "relevance": "Live: TWCS major compaction segregates output per window (interposer).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_major_compaction_per_window",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): TWCS 1-min windows, min_threshold 7, 8 flushes per window in 3 past windows; asserts no sstable spans windows before and after major compaction and exactly one sstable per window. One partition (one compaction group) instead of many partitions on several shards, which here only loosens the check to <= shards. Stricter."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::twcs_major_compaction_test",
           "coverage": "partial",
           "note": "Mutations in different windows compacted into separate sstables; same-window into one."
@@ -446,9 +489,15 @@
           "note": "Major compaction -> 1 sstable per window and sstables do not span windows (smp=1)."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with boost twcs_major_compaction_test and sibling TestTimeWindowDataSegregation tests; adds multi-shard check. Note: tablets_initial_scale_factor passed again though prepare() already sets it; sstables_files_after_major_compaction is assigned but never used (dead var, compaction_additional_test.py:489).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_major_compaction_per_window (translated from it, scylla f5d769e505), which asserts exactly one sstable per window and none spanning windows; the multi-shard setup here only loosens the check to <= shards. Bug: _get_sstables_per_timewindow_dict maps an sstable to every window in its min..max range (compaction_additional_test.py:469), so a major compaction merging all windows into one sstable per shard passes both asserts (:496, :505). Note: tablets_initial_scale_factor passed again though prepare() already sets it; sstables_files_after_major_compaction is assigned but never used (:489).",
       "issues": [
+        {
+          "kind": "bug",
+          "tag": "weak-check",
+          "ref": "compaction_additional_test.py:469",
+          "text": "Sstables mapped to every window in their min..max range; a major merging all windows into one sstable per shard passes :496 and :505."
+        },
         {
           "kind": "note",
           "tag": "redundant-param",
@@ -697,6 +746,11 @@
       "relevance": "Live (TTL expiry -> tombstone purge, tombstone_gc immediate). Purge is done by the mutation compactor, strategy-agnostic; STCS == ICS alias now (5bf0c6ddac).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_removes_expired_data",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 4 strategies, tombstone_gc immediate; TTL'd keys flushed and checked in the sstables before they expire, clock jump past the TTL, insert key 99, flush all + major, asserts only key 99 is left in the sstables (clock fixture: dev/debug/sanitize builds only)."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::tombstone_purge_test",
           "coverage": "full",
           "note": "make_expiring cells, gc_grace 0, forward_jump_clocks past TTL, compaction purges expired data (and keeps it when it would resurrect shadowed data)."
@@ -713,7 +767,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Expired-TTL purge is fully covered by boost tombstone_purge_test, and it is strategy-agnostic so the 4 params add nothing. Bug: the TTL'd rows are never flushed before key 99 is upserted, so all data sits in one memtable and is purged at flush time; major compaction runs on a single sstable and is not really exercised (compaction_additional_test.py:1317-1325, same since origin 2910ac8d19). Note: comment 'TTL 3 + gc_grace 1' is stale since 068022d716 removed gc_grace_seconds.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_removes_expired_data (translated from it, scylla f5d769e505: same 4 strategies, and it checks the data is in sstables before it expires) and by boost tombstone_purge_test; purge is strategy-agnostic. Bug: the TTL'd rows are never flushed before key 99 is upserted, so all data sits in one memtable and is purged at flush time; major compaction runs on a single sstable and is not really exercised (compaction_additional_test.py:1317-1325, same since origin 2910ac8d19). Note: comment 'TTL 3 + gc_grace 1' is stale since 068022d716 removed gc_grace_seconds.",
       "issues": [
         {
           "kind": "bug",
@@ -920,6 +974,11 @@
       "relevance": "Live: TWCS cross-bucket compaction (compaction/compaction.cc mutation compaction in producer) since e44a28dce4.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_all_rows",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 1-partition 5-minute time series flushed every 10 rows, major -> 5 single-window sstables, all rows deleted with timestamps in the 6th minute -> 6, major -> 1 sstable, no rows."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
           "coverage": "full",
           "note": "10 sstables in different windows + tombstone sstable compacted -> single output containing only the deletion (same scenario, partition tombstone instead of row tombstones)."
@@ -931,7 +990,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario fully covered by boost test_twcs_compaction_across_buckets (added by the guarded scylla merge e44a28dce4) and duplicated by sibling dtest test_data_from_different_windows_compacted_together; row vs partition tombstones is not a meaningful difference for cross-bucket compaction.",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_all_rows (translated from it, scylla f5d769e505: same data and asserts), boost test_twcs_compaction_across_buckets (added by the guarded scylla merge e44a28dce4) and sibling dtest test_data_from_different_windows_compacted_together.",
       "issues": [],
       "jira": "DTEST-871"
     },
@@ -954,6 +1013,11 @@
       "relevance": "Live: TWCS interposer segregation + cross-bucket mutation compaction.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_first_window",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 5-minute time series, all rows of window 0 deleted with timestamps in the 6th minute -> 6 sstables, major -> 5 (window 0 gone), each within one window, cks 60..299 left. One partition instead of 5 (one compaction group either way: --smp 1 here)."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
           "coverage": "partial",
           "note": "Full deletion only -> single output."
@@ -969,8 +1033,8 @@
           "note": "Same flow with partial deletes in every window."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Combination (cross-bucket purge of one window + segregation of the rest) has no single unit test, but each half is covered in boost and the sibling several_rows test exercises the same flow; keep one of the two. Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:2121, 90).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_first_window (translated from it, scylla f5d769e505): same flow and sstable counts, with exact window and ck checks. Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:2121, 90).",
       "issues": [
         {
           "kind": "note",
@@ -998,6 +1062,11 @@
       "relevance": "Live: TWCS interposer segregation + cross-bucket mutation compaction.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_some_rows",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 5-minute time series, first 20 rows of each window deleted with timestamps in the 6th minute -> 6 sstables, major -> still 6, each within one window, exact remaining cks. One partition instead of 4 (one compaction group either way: --smp 1 here)."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::twcs_major_compaction_test",
           "coverage": "partial",
           "note": "Major output split per window."
@@ -1018,8 +1087,8 @@
           "note": "Partial row deletes in previous window, plus tombstone gc."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Partial overlap with boost twcs_major_compaction_test/test_twcs_compaction_across_buckets and two sibling dtests; cheap (~28s). Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:1986, 90); assert messages say 'more than'/'less than' regardless of direction.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_compaction_after_deleting_some_rows (translated from it, scylla f5d769e505): same flow and sstable counts, with exact window and ck checks. Note: tablets_initial_scale_factor=1 passed again though prepare() already sets it (compaction_additional_test.py:1986, 90); assert messages say 'more than'/'less than' regardless of direction.",
       "issues": [
         {
           "kind": "note",
@@ -1036,7 +1105,7 @@
       ]
     },
     "TestTimeWindowDataSegregation::test_compaction_remove_deleted_rows_in_previous_time_window": {
-      "description": "Single node --smp 1, TWCS 1-minute windows, gc_grace 15s (tombstone_gc timeout). Writes 1 partition x 60 rows (1 simulated minute), major -> 1 sstable; deletes first 20 cks with timestamps in window 2 -> 2 sstables; major within gc_grace -> still 2 sstables and 40 rows readable; sleeps until gc_grace passes, major -> asserts deleted rows gone from all sstables and 1 sstable left. Guards scylla 55bb70a878/e44a28dce4 (TWCS major compacts across buckets so deletes in a newer window purge data in older windows).",
+      "description": "Single node --smp 1, TWCS 1-minute windows, tombstone_gc timeout, gc_grace_seconds 3600. Writes 1 partition x 60 rows (1 simulated minute), major -> 1 sstable; deletes the first 20 cks with timestamps in window 2 -> 2 sstables; major -> still 2 sstables and 40 rows readable; then ALTERs gc_grace_seconds to 0, waits until 1s after the deletes, major -> asserts the deleted rows are gone from all sstables and 1 sstable is left. Guards scylla 55bb70a878/e44a28dce4 (TWCS major compacts across buckets so deletes in a newer window purge data in older windows).",
       "origin": {
         "sha": "0559d5a761",
         "date": "2022-04-04",
@@ -1044,6 +1113,8 @@
         "summary": "TWCS major compaction compacts sstables from different time windows after deletes (scylla 55bb70a)."
       },
       "commits": {
+        "96fcdec2c7": "PR 7865: gc_grace 3600 at create so the first major always keeps the tombstones (slow-CI flake SCYLLADB-6300); ALTER gc_grace_seconds=0 before the last major and sleep only until deletion_time+1s (~14s faster).",
+        "7426d50fd0": "PR 7786: take deletion_time after the deletes are written and flushed, so the sleep can't end a second too early (DTEST-1055).",
         "23642d4b5a": "Clamp sleep to >=0 (negative time.sleep crash).",
         "9ffd273f04": "formatting",
         "db4e3e20d0": "Drop uuid_sstable_identifiers_enabled=False mark; are_rows_in_sstable switched from sstable2json to scylla-sstable dump (new JSON layout).",
@@ -1052,8 +1123,13 @@
         "83889e264b": "assert_deleted_rows_in_sstables_exists/removed scan all sstables instead of first N windows.",
         "0559d5a761": "Origin."
       },
-      "relevance": "Live: TWCS cross-bucket major compaction (compaction/time_window_compaction_strategy.cc, e44a28dce4) and tombstone_gc timeout mode.",
+      "relevance": "Live: TWCS cross-bucket major compaction (compaction/time_window_compaction_strategy.cc, e44a28dce4) and tombstone_gc timeout mode; since 96fcdec2c7 the test also relies on compaction using the table's current gc_grace_seconds.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_compaction.py::test_twcs_compaction_of_deleted_rows_in_old_window",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): same 1-partition 60-row minute and 20 row deletes timestamped in the next window; asserts 2 sstables, the first major drops the deleted live rows but keeps their tombstones (live rows and tombstones told apart), 40 rows readable; after a gc_grace clock jump, flush all + major -> 1 sstable, no tombstones. Not reproduced: the ALTER gc_grace_seconds to 0, a timing workaround here (clock fixture: dev/debug/sanitize builds only)."
+        },
         {
           "path": "test/boost/sstable_compaction_test.cc::test_twcs_compaction_across_buckets",
           "coverage": "partial",
@@ -1065,14 +1141,14 @@
           "note": "Same delete-in-newer-window flow (4 sibling dtests of this pattern); sibling delete_all_rows triaged RED."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Cross-bucket purge is unit-covered by boost test_twcs_compaction_across_buckets and the flow is repeated by 3 sibling dtests; only the gc_grace wait + final purge is extra. Keep at most one of the 4 delete/TWCS siblings. Bug: assert_deleted_rows_in_sstables_exists (compaction_additional_test.py:2188) counts any 'clustering-row' incl. row tombstones (are_rows_in_sstable :2215), so after the 2nd major it passes on the tombstones even if shadowed data were dropped - the 'tombstones kept within gc_grace' check does not distinguish data from tombstones.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_twcs_compaction_of_deleted_rows_in_old_window (translated from it, scylla f5d769e505), which also tells live rows from tombstones; cross-bucket purge also unit-covered by boost test_twcs_compaction_across_buckets. Bug: assert_deleted_rows_in_sstables_exists (compaction_additional_test.py:2188) counts any 'clustering-row' incl. row tombstones (are_rows_in_sstable :2221), so after the 2nd major it passes on the tombstones whether or not the shadowed live rows were dropped; only the final purge check catches a missing cross-bucket compaction.",
       "issues": [
         {
           "kind": "bug",
           "tag": "weak-check",
           "ref": "compaction_additional_test.py:2188",
-          "text": "assert_deleted_rows_in_sstables_exists counts row tombstones as rows; passes even if shadowed data was dropped."
+          "text": "assert_deleted_rows_in_sstables_exists counts row tombstones as rows; can't tell whether the shadowed live rows were dropped."
         }
       ]
     },
@@ -1892,6 +1968,11 @@
       "relevance": "Live: scrub VALIDATE, log 'Finished scrubbing in validate mode {} - sstable is valid' (compaction/compaction.cc:2262).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_scrub_validate_valid_sstables",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla f5d769e505, merge 42ab0bf5bd / scylladb#32789): REST keyspace_scrub scrub_mode=VALIDATE on a flushed table; asserts the result is 0 (valid) and the sstables are unchanged. Not reproduced: the log-text checks, replaced by the REST result."
+        },
+        {
           "path": "test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable",
           "coverage": "full",
           "note": "Valid sstable (compressed/uncompressed): validation_errors==0, not quarantined, still the only in-strategy sstable."
@@ -1908,7 +1989,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scylla unit tests test/boost/scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable(_no_quarantine) fully cover 'valid sstable -> no errors, not quarantined, sstable unchanged', and test/rest_api/test_storage_service.py::test_storage_service_keyspace_scrub_mode covers the REST VALIDATE path; dtest adds only log-text checks. Note: regex alternative '(sstable(\\(s\\)|s) are' is dead, scylla only logs 'sstable is valid' (:2468); tablets_initial_scale_factor=1 passed redundantly in _prepare (:2540, already in prepare() :90).",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_scrub_validate_valid_sstables (translated from it, scylla f5d769e505: REST VALIDATE returns 0, sstables unchanged) and boost scrub_test.cc::sstable_scrub_validate_mode_test_valid_sstable(_no_quarantine); the dtest adds only log-text checks. Note: regex alternative '(sstable(\\(s\\)|s) are' is dead, scylla only logs 'sstable is valid' (:2474); tablets_initial_scale_factor=1 passed redundantly in _prepare (:2546, already in prepare() :90).",
       "issues": [
         {
           "kind": "note",
