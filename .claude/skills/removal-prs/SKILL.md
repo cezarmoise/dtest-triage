@@ -4,7 +4,7 @@ description: Apply developer reviews of our scylla-dtest test-removal PRs - reco
 argument-hint: "[PR number ...]"
 ---
 
-Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`. `R` = `python3 scripts/removal.py` (docstring:
+Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`. `R` = `scripts/removal.py` (docstring:
 `prs`, `pr`). Request: `$ARGUMENTS`.
 
 Rule: a developer's review of a removal PR is final. It becomes `review` in the analysis entry (CLAUDE.md contract);
@@ -70,7 +70,8 @@ give no verdict. Two devs disagree on a test → ask the user.
      (likely the PR's author, knows it); `working`/`blocked` → stop, report; none → a shell pane of that workspace
      (`herdr pane list --workspace <id>`) and start one as above.
    - `herdr agent prompt <agent> "Read <abs handoff> and follow it."`; a few seconds later `herdr agent get` says
-     `working`.
+     `working`. Reused agent: first `herdr agent read <agent> --source visible` — text on its `❯` input line = the
+     user is typing there: don't prompt, give the user the line to send.
 8. Reply per PR: test → verdict (dev, link) → analysis change; Jira keys the agent closes (or the command for the
    user); herdr workspace + agent;
    scylla follow-ups the dev proposed (for the user to file); questions. The agent reports PR URLs in its pane.

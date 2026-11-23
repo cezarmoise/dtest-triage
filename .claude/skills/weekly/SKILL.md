@@ -3,7 +3,7 @@ name: weekly
 description: Weekly triage update - refresh Jenkins/dtest/scylla, mark deleted tests, recheck tests affected by new dtest commits, closed issues or scylla ports, analyze new tests, close Jira issues of deleted or no-longer-RED tests. Use when asked for the weekly update/refresh or "what changed in dtest".
 ---
 
-Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
+Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`.
 
 1. Sync: `git uu && git -C ~/github/scylla-dtest uu && git -C ~/github/scylladb uu && git -C
    ~/github/scylla-manager uu` (alias: checks out the main branch, fast-forwards it from upstream, pushes to

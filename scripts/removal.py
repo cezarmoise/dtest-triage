@@ -33,9 +33,10 @@ collect-diff: pytest --collect-only of the whole repo at --base (default merge-b
   working tree; exit 1 unless exactly the given tests disappeared (inherited copies, added tests, new collection
   errors all fail).
 prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  worktree=<path|->  <title>` per open
-  PR by the author with a `<stem>: remove <test>` commit; new = reviews/comments by non-bot, non-author users after
-  the author's last comment or commit; dev = all of those by devs (not QA reviewers: their opinion isn't a verdict);
-  recorded = tests with an analysis `review` from this PR.
+  PR by the author with a `<stem>: remove <test>` commit or a `Follow-up to #<n>` body line; new = reviews/comments
+  by non-bot, non-author users after the author's last comment or commit (approvals without text don't count);
+  dev = all of those by devs (not QA reviewers: their opinion isn't a verdict); recorded = tests with an analysis
+  `review` from this PR.
   Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed PRs of the author whose
   branch still has a worktree, a local branch or an origin branch.
 pr: markdown: state, branch, worktree, `Closes:` keys, tests (commit subject → TEST, decision, jira, review),
@@ -531,6 +532,7 @@ AUTHOR = "cezarmoise"
 GH_REPO = "scylladb/scylla-dtest"
 QA = {"pehala", "jsmolar", "yarongilor"}  # reviewers added to every PR; not devs
 REMOVE_SUBJECT = re.compile(r"(\w+): remove (test_\w+)")
+FOLLOW_UP = re.compile(r"^Follow-up to #\d+", re.M)  # PR body of a change a dev asked for instead of a removal
 
 
 def gh_json(*args):
@@ -565,9 +567,9 @@ def removal_prs():
     prs = gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "open", "--limit", "100", "--json",
                   "number")  # commits per PR: the list query with commits exceeds GraphQL's node limit
     prs = [gh_json("pr", "view", str(p["number"]), "-R", GH_REPO, "--json",
-                   "number,title,headRefName,reviewDecision") for p in prs]
+                   "number,title,headRefName,reviewDecision,body") for p in prs]
     prs = [dict(p, commits=commits(p["number"])) for p in prs]
-    return [p for p in prs if any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])]
+    return [p for p in prs if FOLLOW_UP.search(p["body"]) or any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])]
 
 
 def commits(n):
@@ -601,6 +603,11 @@ def pr_tests(commits):
     return out
 
 
+def bare_approval(x):
+    """An APPROVED review without text: nothing to do on the PR."""
+    return x["where"] == "review" and x.get("state") == "APPROVED" and not x["body"].strip()
+
+
 def cmd_prs(a):
     wt = worktrees()
     for p in removal_prs():
@@ -608,7 +615,7 @@ def cmd_prs(a):
         tests = [t for _, cands in pr_tests(p["commits"]) for t in cands]
         rec = sum(analysis()[t.split("::")[0]][t.split("::", 1)[1]].get("review", {}).get("pr") == p["number"]
                   for t in tests)
-        print(f"#{p['number']}  {p['reviewDecision'] or '-'}  new={sum(x['at'] > last for x in human)}  "
+        print(f"#{p['number']}  {p['reviewDecision'] or '-'}  new={sum(x['at'] > last and not bare_approval(x) for x in human)}  "
               f"dev={sum(x['dev'] for x in human)}  recorded={rec}/{len(tests)}  {p['headRefName']}  "
               f"worktree={wt.get(p['headRefName'], '-')}  {p['title']}")
     local = set(git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/heads").split())

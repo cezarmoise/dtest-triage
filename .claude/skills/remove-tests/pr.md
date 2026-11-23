@@ -2,7 +2,10 @@
 
 Input: the handoff file (worktree, branch, kind, material, Closes, tests). Work only in the worktree; don't touch
 `~/github/dtest-triage` or the main `~/github/scylla-dtest` checkout.
-`R` = `python3 /home/cezar/github/dtest-triage/scripts/removal.py` (docstring explains `strip` and `collect-diff`).
+`R` = `/home/cezar/github/dtest-triage/scripts/removal.py` (executable; docstring explains `strip` and `collect-diff`).
+zsh: a variable holding `python3 <path>` doesn't word-split (`$R …` → exit 127): keep `R` one word.
+zsh: `${v}` before a `:` (`$sha:path`, `$v:c…` are modifiers): write `"${sha}:path"`.
+rtk shortens `git log`/`git show` output (subjects cut, bodies dropped): `rtk proxy git …` when you need full text.
 `V` = `$HOME/github/scylla-dtest/.venv-dtest-$(cat .python-version)/bin`.
 Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest`: the shell's rtk wrapper rewrites the output of
 bare `ruff`/`pytest` (e.g. "No issues found" while there are some).
@@ -36,7 +39,7 @@ bare `ruff`/`pytest` (e.g. "No issues found" while there are some).
      `backport/<ver>` when `upstream/branch-<ver>` (fetch first) has the removed tests and every covering test: dtest
      siblings there; scylladb duplicates on `upstream/branch-<ver>` of `~/github/scylladb`, with the assertions the
      material cites; scylla-manager duplicates: ask. None → `backport/none`. Cherry-pick conflicts don't matter (that
-     code is being deleted). zsh: `${v}` before a `:` (`$v:c…` is a modifier).
+     code is being deleted).
 3. `git push -u origin <branch>` (origin = cezarmoise fork; never a bare `git push`).
 4. PR body file (Markdown):
    - 1-2 sentences: what is removed and why; "One commit per test; each message names the covering test with a

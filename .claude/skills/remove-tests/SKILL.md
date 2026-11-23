@@ -4,7 +4,7 @@ description: Open a scylla-dtest PR removing triaged tests (one commit per test)
 argument-hint: "<which tests, in words>"
 ---
 
-Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`. `R` = `python3 scripts/removal.py` (its
+Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`. `R` = `scripts/removal.py` (its
 docstring explains subcommands, kinds and statuses). Request: `$ARGUMENTS`.
 
 One PR = one removal kind (`R select` kind column), so reviewers judge one kind of argument:
