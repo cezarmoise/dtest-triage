@@ -920,7 +920,7 @@
       ]
     },
     "TestMaterializedViews::test_decommission_node_during_mv_insert_4_nodes": {
-      "description": "4 nodes RF=3. Prefills keyspace1 with 10k rows via cassandra-stress, then in parallel runs a c-s user profile (cs_mv_profile.yaml: mview.users + 2 views) insert/read workload and a c-s mixed workload at CL=ONE for 1m, while after 30s node2 is decommissioned and a new node5 bootstrapped. Then waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that each view's row count equals base count(*) at QUORUM. Guards MV write path during decommission/bootstrap (scylla #2783, #3382).",
+      "description": "4 nodes RF=3. Prefills keyspace1 with 10k rows via cassandra-stress, then in parallel runs a c-s user profile (cs_mv_profile.yaml: mview.users + 2 views) insert/read workload and a c-s mixed workload at CL=ONE for 1m, while 30s after the profile's views exist node2 is decommissioned and a new node5 bootstrapped. Then waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that each view's row count equals base count(*) at QUORUM. Guards MV write path during decommission/bootstrap (scylla #2783, #3382).",
       "origin": {
         "sha": "891c4dd841",
         "date": "2018-05-24",
@@ -928,6 +928,7 @@
         "summary": "Julia Yakovlev 'Add decommission test; Remove require of fixed issues' (PR 647 'Fixes of materialized views tests')."
       },
       "commits": {
+        "be6d5a70da": "helper: waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "f106c691d1": "port to pytest (rename)",
         "c3471a97e4": "formatting",
@@ -956,7 +957,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Release-mode MV-under-decommission+bootstrap with base/view count check is not covered by scylla cluster tests (they are release-skipped and check only for crashes), but slow (~112s). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:233); docstring says 'removes one node' (copy-paste); helper checks error log only on node1 (:472).",
+      "reason": "Release-mode MV-under-decommission+bootstrap with base/view count check is not covered by scylla cluster tests (they are release-skipped and check only for crashes), but slow (~112s). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:233); docstring says 'removes one node' (copy-paste); helper checks error log only on node1 (materialized_views_test.py:528).",
       "issues": [
         {
           "kind": "note",
@@ -985,7 +986,7 @@
       ]
     },
     "TestMaterializedViews::test_double_node_failure_during_mv_insert_4_nodes": {
-      "description": "4 nodes RF=3. Same flow as the stop-node tests via _run_node_failure_during_mv_stress_insert with double_failure=True and duration 2m: c-s MV profile + mixed workload at CL=ONE while node2 is stopped after 30s and node3 after 40s; then both restarted, views waited for, node1 log checked (excluding mutation_write_timeout_exception) and view counts compared to base count(*) at CL=ALL. Checks views converge (hints/view-update backlog) after two nodes miss MV writes.",
+      "description": "4 nodes RF=3. Same flow as the stop-node tests via _run_node_failure_during_mv_stress_insert with double_failure=True and duration 2m: c-s MV profile + mixed workload at CL=ONE while node2 and node3 are stopped 30s and 40s after the profile's views exist; then both restarted, views waited for, node1 log checked (excluding mutation_write_timeout_exception) and view counts compared to base count(*) at CL=ALL. Checks views converge (hints/view-update backlog) after two nodes miss MV writes.",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -993,6 +994,7 @@
         "summary": "Julia Yakovlev: added node-failure-during-MV-insert tests and TableManager/MaterializedViewManager helpers."
       },
       "commits": {
+        "be6d5a70da": "helper: waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "a5d481ffd2": "remove no_boot_speedups mark",
         "52c82fbe62": "add no_boot_speedups mark",
@@ -1052,7 +1054,7 @@
       ]
     },
     "TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes": {
-      "description": "3 nodes RF=3, _run_node_failure_during_mv_stress_insert with double_failure=True, 2m stress: c-s MV profile + mixed workload at CL=ONE while node2 (after 30s) and node3 (after 40s) are stopped, leaving only node1; then both restarted, views waited for and view row counts compared to base count(*) at CL=ALL. Verifies views converge after 2 of 3 replicas missed base and view writes.",
+      "description": "3 nodes RF=3, _run_node_failure_during_mv_stress_insert with double_failure=True, 2m stress: c-s MV profile + mixed workload at CL=ONE while node2 and node3 are stopped 30s and 40s after the profile's views exist, leaving only node1; then both restarted, views waited for and view row counts compared to base count(*) at CL=ALL. Verifies views converge after 2 of 3 replicas missed base and view writes.",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -1060,6 +1062,7 @@
         "summary": "Julia Yakovlev: added node-failure-during-MV-insert tests and TableManager/MaterializedViewManager helpers."
       },
       "commits": {
+        "be6d5a70da": "Waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "fb3dfc9ea9": "formatting (noqa)",
         "6c93933b9b": "range_request_timeout + count(*) session timeout for validation",
@@ -1083,7 +1086,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique end-to-end check that views converge after two of three replicas miss MV writes, but slow (~192s). Note: docstring says 'starting size 4' (materialized_views_test.py:260, copy-paste); exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (:259); error log checked only on node1 (:472).",
+      "reason": "Unique end-to-end check that views converge after two of three replicas miss MV writes, but slow (~192s). Note: docstring says 'starting size 4' (materialized_views_test.py:260, copy-paste); exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:263,265); error log checked only on node1 (materialized_views_test.py:528).",
       "issues": [
         {
           "kind": "note",
@@ -1431,7 +1434,7 @@
       ]
     },
     "TestMaterializedViews::test_multidc_dc_failure_during_mv_insert": {
-      "description": "2 DCs x 3 nodes, keyspace mview NTS {dc1:2, dc2:1} from cs_mv_multidc_profile.yaml (users + 2 views). Runs 2m c-s user profile (insert + 3 reads, CL=QUORUM, retries with exponential delay) while after 30s all dc2 nodes are stopped; then restarts dc2, waits for both views built, and (eventually) checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts match base count(*) at CL=ALL. Verifies MV convergence after a whole remote DC was down during view-generating writes (hints/view update backlog).",
+      "description": "2 DCs x 3 nodes, keyspace mview NTS {dc1:2, dc2:1} from cs_mv_multidc_profile.yaml (users + 2 views). Runs 2m c-s user profile (insert + 3 reads, CL=QUORUM, retries with exponential delay) while all dc2 nodes are stopped 30s after the profile's views exist; then restarts dc2, waits for both views built, and (eventually) checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts match base count(*) at CL=ALL. Verifies MV convergence after a whole remote DC was down during view-generating writes (hints/view update backlog).",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -1439,6 +1442,7 @@
         "summary": "Julia Yakovlev: added node/DC-failure-during-MV-insert tests; originally rf=3 nodes=[2,2] with single-DC profile, fixed to real multi-DC keyspace in 06970ff0ab (PR 696)."
       },
       "commits": {
+        "be6d5a70da": "stop dc2 only 30s after the profile's views exist in system_schema.views (c-s container start race, SCYLLADB-6196)",
         "47dbad38bf": "run c-s via run_stress_with_tailed_output (memory limits)",
         "fbe94d9a11": "c-s -errors retries with exponential delay (stress_errors_options)",
         "d0329c5b99": "drop capture_output arg from c-s call",
@@ -1458,7 +1462,7 @@
         "9447209584": "managed_thread helper rename",
         "04017523a8": "origin"
       },
-      "relevance": "Live: MV writes with a whole DC down, hints + view updates replay. 38 runs 94.7% (1/20 failure in dtest-release), ~185s.",
+      "relevance": "Live: MV writes with a whole DC down, hints + view updates replay. 96 runs 97.9% (one failing dtest-release build, 1375), ~185s.",
       "duplicates": [
         {
           "path": "materialized_views_test.py::TestMaterializedViews::test_double_node_failure_during_mv_insert_3_nodes",
@@ -1472,12 +1476,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Only test of MV convergence after a full remote DC outage during writes, but slow (~185s) and slightly flaky (1/20). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:342,377); docstring wrong ('2 DCs with 2 nodes each, stops 2 nodes', actual nodes=[3,3], all 3 dc2 nodes stopped; :320); error log checked only on node1 (:472); prepare() creates unused keyspace ks (:327).",
+      "reason": "Only test of MV convergence after a full remote DC outage during writes, but slow (~184s) and slightly flaky: one failing dtest-release build (1375) in the window, unexplained (build gone from Jenkins); its 215s run is near normal, so not the c-s schema race fixed by be6d5a70 (that one ends in wait_for_view's 600s timeout). Note: exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783 (materialized_views_test.py:340,377); docstring wrong ('2 DCs with 2 nodes each, stops 2 nodes', actual nodes=[3,3], all 3 dc2 nodes stopped; materialized_views_test.py:336); error log checked only on node1 (materialized_views_test.py:528); prepare() creates unused keyspace ks (materialized_views_test.py:343).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-mark",
-          "ref": "materialized_views_test.py:342,377",
+          "ref": "materialized_views_test.py:340,377",
           "text": "exclude_errors masks mutation_write_timeout_exception citing closed scylladb#2783"
         },
         {
@@ -2540,7 +2544,7 @@
       "jira": "DTEST-783"
     },
     "TestMaterializedViews::test_range_tombstone_and_repair_test": {
-      "description": "Parametrized over 5 range-delete WHERE sets. 2 nodes RF=2, table (id,ck) + view keyed (v2,id,ck), 4x300 rows with 10KB text, flush; range-deletes rows, stops node2, deletes its base+view sstables, restarts and repairs ks on node2 (60s), greps node2 log for 'permit ks.<table>:view_update_generator: was not closed before destruction', then with node1 stopped compares base vs view on node2 and asserts deleted ranges are absent in the view. Reproducer for scylladb#14503 (fix c25201c1: view_updating_consumer split inside an open range tombstone).",
+      "description": "Parametrized over 5 range-delete WHERE sets. 2 nodes RF=2, table (id,ck) + view keyed (v2,id,ck), 4x300 rows with 10KB text, flush; range-deletes rows, stops node2, deletes its base+view sstables, restarts and repairs ks on node2 (up to 600s), greps node2 log for 'permit ks.<table>:view_update_generator: was not closed before destruction', fails if the repair timed out, then with node1 stopped compares base vs view on node2 and asserts deleted ranges are absent in the view. Reproducer for scylladb#14503 (fix c25201c1: view_updating_consumer split inside an open range tombstone).",
       "origin": {
         "sha": "1b55df0f26",
         "date": "2023-07-20",
@@ -2548,6 +2552,7 @@
         "summary": "Julia Yakovlev 'test(materialized views): range tombstones' for scylladb#14503 / scylla-enterprise#3072."
       },
       "commits": {
+        "1489f5dfec": "node2.repair() timeout 60 -> RANGE_TOMBSTONE_REPAIR_TIMEOUT (600s); a repair timeout now fails the test (after the permit-error check) instead of being swallowed (DTEST-365)",
         "36a75a3da5": "repair via node2.repair() (cluster repair with tablets) - re-applied",
         "d0e55d7e63": "revert of 44ed3fa059 (back to nodetool repair)",
         "44ed3fa059": "nodetool repair -> node2.repair(keyspace, timeout=60)",
@@ -2555,7 +2560,7 @@
         "17f9d01586": "removed @pytest.mark.next_gating (module out of gating, scylladb#15046)",
         "1b55df0f26": "origin"
       },
-      "relevance": "Live: repair-generated view updates through view_updating_consumer; the error message still exists (readers/mutation_reader.cc:46). Runs in both jobs, 190/190 passed, ~16s per param (~80s total).",
+      "relevance": "Live: repair-generated view updates through view_updating_consumer; the error message still exists (readers/mutation_reader.cc:46). Runs in both jobs, 490/490 passed, ~16s per param (~80s total).",
       "duplicates": [
         {
           "path": "test/boost/view_build_test.cc::test_view_update_generator_buffering",
@@ -2574,19 +2579,13 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "The bug itself is unit-tested by boost view_build_test.cc::test_view_update_generator_buffering(_with_random_mutations) added with the fix; this is the only end-to-end repair reproducer, but 5 params x ~16s is more than needed (one or two params would do). Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: repair TimeoutExpired is swallowed (`except subprocess.TimeoutExpired: pass`) so a hung/incomplete repair is not reported; self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3066-3106).",
+      "reason": "The bug itself is unit-tested by boost view_build_test.cc::test_view_update_generator_buffering(_with_random_mutations) added with the fix; this is the only end-to-end repair reproducer, but 5 params x ~16s is more than needed (one or two params would do). Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3066). The swallowed repair timeout was fixed by 1489f5dfe (timeout now fails the test).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "",
           "text": "Keyspace-wide repair also repairs the view, so view==base may come from view repair; permit-error grep guards the fix"
-        },
-        {
-          "kind": "bug",
-          "tag": "cant-fail",
-          "ref": "materialized_views_test.py:3092",
-          "text": "repair `except subprocess.TimeoutExpired: pass`; hung/incomplete repair not reported, later checks may pass on missing data"
         },
         {
           "kind": "bug",
@@ -2597,7 +2596,7 @@
       ]
     },
     "TestMaterializedViews::test_range_tombstone_and_repair_multiple_cycles": {
-      "description": "Same setup as test_range_tombstone_and_repair_test (2 nodes RF=2, 4x300 rows), but loops over 4 range deletes on one cluster: delete, stop node2, remove its sstables, restart, nodetool repair ks, grep for the view_update_generator permit error, stop node1, compare base vs view and check the deleted range is gone, restart node1. Reproducer for scylladb#14503 (repeated cycles).",
+      "description": "Same setup as test_range_tombstone_and_repair_test (2 nodes RF=2, 4x300 rows), but loops over 4 range deletes on one cluster: delete, stop node2, remove its sstables, restart, nodetool repair ks (up to 600s), grep for the view_update_generator permit error, fail if the repair timed out, stop node1, compare base vs view and check the deleted range is gone, restart node1. Reproducer for scylladb#14503 (repeated cycles).",
       "origin": {
         "sha": "1b55df0f26",
         "date": "2023-07-20",
@@ -2605,11 +2604,12 @@
         "summary": "Julia Yakovlev 'test(materialized views): range tombstones'."
       },
       "commits": {
+        "1489f5dfec": "nodetool repair timeout 60 -> RANGE_TOMBSTONE_REPAIR_TIMEOUT (600s); a repair timeout now fails the test (after the permit-error check) instead of being swallowed (DTEST-365)",
         "36a75a3da5": "added @pytest.mark.skip_if(with_feature('tablets')) (re-applied with the cluster-repair change; this test keeps nodetool repair)",
         "9ffd273f04": "formatting",
         "1b55df0f26": "origin"
       },
-      "relevance": "Live behavior, but skipped with tablets (vnodes-only, runs only in dtest-release-with-raft). 18/20 passed (90%), ~78s.",
+      "relevance": "Live behavior, but skipped with tablets (vnodes-only, runs only in dtest-release-with-raft). 46/50 passed (92%), all 4 failures in builds 1156-1171, before 1489f5dfe; ~75s.",
       "duplicates": [
         {
           "path": "materialized_views_test.py::TestMaterializedViews::test_range_tombstone_and_repair_test",
@@ -2623,7 +2623,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Flaky (2/20 failures) + slow (~78s) + redundant: its deletes are the same cases as test_range_tombstone_and_repair_test params (which also run with tablets) and the bug is unit-tested in boost view_build_test.cc. Note: tablets skip at materialized_views_test.py:3108 has no reason/issue. Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: repair TimeoutExpired is swallowed (`except subprocess.TimeoutExpired: pass`) so a hung/incomplete repair is not reported; self.allow_log_errors=True disables the generic error log check (:3065-3103).",
+      "reason": "Slow (~75s) + redundant: its deletes are the same cases as test_range_tombstone_and_repair_test params (which also run with tablets) and the bug is unit-tested in boost view_build_test.cc. Its failures (4/50, builds 1156-1171) predate 1489f5dfe, which fixed the swallowed 60s repair timeout PR 7677 identified in build 1171 (DTEST-365). Note: tablets skip at materialized_views_test.py:3108 has no reason/issue. Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3125).",
       "issues": [
         {
           "kind": "note",
@@ -2636,12 +2636,6 @@
           "tag": "limited-check",
           "ref": "",
           "text": "Keyspace-wide repair also repairs the view, so view==base may come from view repair; permit-error grep guards the fix"
-        },
-        {
-          "kind": "bug",
-          "tag": "cant-fail",
-          "ref": "materialized_views_test.py:3152",
-          "text": "repair `except subprocess.TimeoutExpired: pass`; hung/incomplete repair not reported, later checks may pass on missing data"
         },
         {
           "kind": "bug",
@@ -2733,7 +2727,7 @@
       ]
     },
     "TestMaterializedViews::test_remove_node_during_mv_insert_3_nodes": {
-      "description": "3 nodes RF=3. Prefills 10k rows with c-s, then in parallel runs a c-s user profile (mview.users + 2 views) insert/read workload and c-s mixed at CL=ONE for 1m, while after 30s node2 is removed (removenode). Waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts equal base count(*) at QUORUM (RF 3 > 2 nodes). Guards MV writes during removenode leaving RF > nodes (scylladb#6022 crash in view update with null schema).",
+      "description": "3 nodes RF=3. Prefills 10k rows with c-s, then in parallel runs a c-s user profile (mview.users + 2 views) insert/read workload and c-s mixed at CL=ONE for 1m, while 30s after the profile's views exist node2 is removed (removenode). Waits for both views to be built, checks node1 log for errors (excluding mutation_write_timeout_exception) and that view row counts equal base count(*) at QUORUM (RF 3 > 2 nodes). Guards MV writes during removenode leaving RF > nodes (scylladb#6022 crash in view update with null schema).",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -2741,6 +2735,7 @@
         "summary": "Julia Yakovlev, added with the stop/remove-node-during-MV-insert family (PR #566)."
       },
       "commits": {
+        "be6d5a70da": "file-level: helper waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "151cd5eef2": "skip with tablets (c-s NTS default enables tablets; removenode RF=3 on 3 nodes rejected); covered by the 4-node variant",
         "9ffd273f04": "formatting",
         "f106c691d1": "port to pytest (rename)",
@@ -2767,7 +2762,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~119s) + redundant: same helper and removenode as test_remove_node_during_mv_insert_4_nodes, which runs on both vnodes and tablets; the test's own skip comment (materialized_views_test.py:235-238) and 151cd5ee state the 4-node variant covers the same issue (scylladb#6022, closed). The only difference is RF > nodes after removal on vnodes. Note: exclude_errors masks mutation_write_timeout_exception (cited scylladb#2783 closed) (:240); helper checks error log only on node1 (:472).",
+      "reason": "Slow (~119s) + redundant: same helper and removenode as test_remove_node_during_mv_insert_4_nodes, which runs on both vnodes and tablets; the test's own skip comment (materialized_views_test.py:235-238) and 151cd5ee state the 4-node variant covers the same issue (scylladb#6022, closed). The only difference is RF > nodes after removal on vnodes. Note: exclude_errors masks mutation_write_timeout_exception (cited scylladb#2783 closed) (materialized_views_test.py:246); helper checks error log only on node1 (materialized_views_test.py:528).",
       "issues": [
         {
           "kind": "note",
@@ -2791,7 +2786,7 @@
       "jira": "DTEST-785"
     },
     "TestMaterializedViews::test_stop_node_during_mv_insert_4_nodes": {
-      "description": "4 nodes RF=3. Prefills 10k rows with c-s, then in parallel for 1m runs a c-s user profile (cs_mv_profile.yaml: mview.users + views users_by_first_name/users_by_last_name) insert/read workload and a c-s mixed workload at CL=ONE, while after 30s node2 is stopped. node2 is restarted, both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and each view's row count compared with base count(*) at QUORUM. Guards MV write path and view convergence when a replica is down (with 4 nodes base and view replicas differ, so view updates go to remote/dead replicas).",
+      "description": "4 nodes RF=3. Prefills 10k rows with c-s, then in parallel for 1m runs a c-s user profile (cs_mv_profile.yaml: mview.users + views users_by_first_name/users_by_last_name) insert/read workload and a c-s mixed workload at CL=ONE, while 30s after the profile's views exist node2 is stopped. node2 is restarted, both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and each view's row count compared with base count(*) at QUORUM. Guards MV write path and view convergence when a replica is down (with 4 nodes base and view replicas differ, so view updates go to remote/dead replicas).",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -2799,6 +2794,7 @@
         "summary": "Julia Yakovlev: added stop/remove-node-during-MV-insert family and TableManager/MaterializedViewManager helpers."
       },
       "commits": {
+        "be6d5a70da": "file-level: helper waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "f106c691d1": "port to pytest (rename)",
         "c3471a97e4": "formatting",
@@ -2853,7 +2849,7 @@
       ]
     },
     "TestMaterializedViews::test_stop_node_during_mv_insert_3_nodes": {
-      "description": "3 nodes RF=3, same helper as the 4-node variant: 10k c-s prefill, then 1m c-s MV-profile + mixed workload at CL=ONE while node2 is stopped after 30s; node2 restarted, views waited for, node1 log checked and view row counts compared with base count(*) at QUORUM. With 3 nodes/RF=3 every node holds all base and view replicas (vnodes self-pairing), so view updates are local.",
+      "description": "3 nodes RF=3, same helper as the 4-node variant: 10k c-s prefill, then 1m c-s MV-profile + mixed workload at CL=ONE while node2 is stopped 30s after the profile's views exist; node2 restarted, views waited for, node1 log checked and view row counts compared with base count(*) at QUORUM. With 3 nodes/RF=3 every node holds all base and view replicas (vnodes self-pairing), so view updates are local.",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -2861,6 +2857,7 @@
         "summary": "Julia Yakovlev: added with the stop/remove-node-during-MV-insert family."
       },
       "commits": {
+        "be6d5a70da": "file-level: helper waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "f106c691d1": "port to pytest (rename)",
         "c3471a97e4": "formatting",
@@ -2913,7 +2910,7 @@
       ]
     },
     "TestMaterializedViews::test_remove_node_during_mv_insert_4_nodes": {
-      "description": "4 nodes RF=3. 10k c-s prefill, then 1m c-s MV-profile (mview.users + 2 views) + mixed workload at CL=ONE while after 30s node2 is removed (stopped + removenode). Then both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and view row counts compared to base count(*) at ALL (remove action, RF 3 <= 3 nodes). Guards MV writes during removenode (scylladb#6022-class crashes) and view consistency after token/tablet ownership change.",
+      "description": "4 nodes RF=3. 10k c-s prefill, then 1m c-s MV-profile (mview.users + 2 views) + mixed workload at CL=ONE while 30s after the profile's views exist node2 is removed (stopped + removenode). Then both views waited for, node1 log checked for errors (excluding mutation_write_timeout_exception) and view row counts compared to base count(*) at ALL (remove action, RF 3 <= 3 nodes). Guards MV writes during removenode (scylladb#6022-class crashes) and view consistency after token/tablet ownership change.",
       "origin": {
         "sha": "04017523a8",
         "date": "2018-01-21",
@@ -2921,6 +2918,7 @@
         "summary": "Julia Yakovlev: added with the stop/remove-node-during-MV-insert family."
       },
       "commits": {
+        "be6d5a70da": "file-level: helper waits for both MV profile views in system_schema.views before counting the node-action delay (c-s container start race, SCYLLADB-6196)",
         "9ffd273f04": "formatting",
         "f106c691d1": "port to pytest (rename)",
         "c3471a97e4": "formatting",
@@ -3685,7 +3683,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-11-16",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
