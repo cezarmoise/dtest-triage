@@ -1,8 +1,8 @@
 {
   "file": "cql_tests.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestAbortedQueries::test_local_query": {
       "description": "Single node, 500 rows; on scylla restarts the node with --read-request-timeout-in-ms=0 --range-request-timeout-in-ms=0, then a full-table SELECT at CL=ONE with FallthroughRetryPolicy must fail (assert_unavailable). Originally (Cassandra) tested CASSANDRA-7392 aborting reads slowed by read_iteration_delay_ms on the local coordinator.",
@@ -34,13 +34,18 @@
       "relevance": "Scylla has no CASSANDRA-7392 read-iteration monitoring; the scylla variant only restarts with read_request_timeout_in_ms/range_request_timeout_in_ms=0 (both live options, db/config.cc) and expects the read to fail.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_local_query_times_out",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): 500 rows, read/range_request_timeout_in_ms=0 set at runtime + new connection, full scan at CL=ONE must raise ReadTimeout/ReadFailure/Unavailable (stricter than assert_unavailable)"
+        },
+        {
           "path": "test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective",
           "coverage": "partial",
           "note": "read with 0 timeout (USING TIMEOUT 0ms) -> ReadTimeout; same coordinator deadline path, per-query instead of config option"
         }
       ],
       "decision": "RED",
-      "reason": "Original scenario is Cassandra-only (CASSANDRA-7392 read_iteration_delay_ms monitoring); scylla adaptation (9ec13d1954) reduces to 'timeout=0 makes a read fail', covered by test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
+      "reason": "Original scenario is Cassandra-only (CASSANDRA-7392); the scylla adaptation (9ec13d1954, 'read/range timeout=0 -> scan fails') is translated 1:1 as test/cqlpy/test_dtest.py::test_local_query_times_out (scylla 132607ec9c, series 42ab0bf5bd) with a stricter exception check; companion scylla-dtest#7713 (open) removes the dtest. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
       "issues": [
         {
           "kind": "note",
@@ -157,13 +162,18 @@
       "relevance": "Scylla has no CASSANDRA-7392 read-iteration monitoring; the scylla variant only restarts with read_request_timeout_in_ms/range_request_timeout_in_ms=0 (both live options, db/config.cc) and expects the read to fail. Scylla secondary indexes only serve EQ restrictions, so 'col < ?' is a filtering full scan, not an index read.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_index_query_times_out",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): same table + index on col, 500 rows, same 'col < ? ALLOW FILTERING' query at CL=ONE with timeouts=0 set at runtime; expects ReadTimeout/ReadFailure/Unavailable. Also a filtering scan, no index read"
+        },
+        {
           "path": "test/cqlpy/test_using_timeout.py::test_per_query_timeout_effective",
           "coverage": "partial",
           "note": "read with 0 timeout (USING TIMEOUT 0ms) -> ReadTimeout; same coordinator deadline path, per-query instead of config option"
         }
       ],
       "decision": "RED",
-      "reason": "Cassandra-only origin (CASSANDRA-7392); scylla variant is 'timeout=0 -> read fails', covered by cqlpy test_using_timeout::test_per_query_timeout_effective. Bug: query 'col < ? ALLOW FILTERING' (cql_tests.py:977) does not use the secondary index in scylla (range restriction on indexed col -> filtering scan), so no index path is tested. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
+      "reason": "Cassandra-only origin (CASSANDRA-7392); the scylla variant ('timeout=0 -> query fails') is translated 1:1 as test/cqlpy/test_dtest.py::test_index_query_times_out (scylla 132607ec9c, same query, stricter exception check); companion scylla-dtest#7713 (open) removes the dtest. Bug: query 'col < ? ALLOW FILTERING' (cql_tests.py:977) does not use the secondary index in scylla (range restriction on indexed col -> filtering scan), so no index path is tested. Note: Cassandra-only branches are dead code under scylla (jvm_args -Dcassandra.test.read_iteration_delay_ms, read_request_timeout_in_ms=1000, watch_log_for('Some operations timed out'), unused mark). Note: assert_unavailable (tools/assertions.py:85) accepts Unavailable/ReadTimeout/ReadFailure/WriteTimeout/WriteFailure (+NoHostAvailable/ConnectionShutdown via 66c6765954) -> passes on almost any failure, not specifically a timeout.",
       "issues": [
         {
           "kind": "bug",
@@ -265,6 +275,11 @@
       "relevance": "Live: compaction_collection_elements_count_warning_threshold (db/config.cc:893), large_data_handler logs 'Writing large collection ...' (db/large_data_handler.cc:649/696) and records system.large_cells.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_large_collection",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): threshold 1000 set at runtime, 1000 map elements, compact (flushes) -> no 'Writing large collection <ks>/<table>' log and no system.large_cells row; +1 element -> warning logged and exactly 1 system.large_cells row"
+        },
+        {
           "path": "test/boost/sstable_3_x_test.cc::test_sstable_too_many_collection_elements",
           "coverage": "partial",
           "note": "threshold boundary: elements==threshold no record, threshold+1 recorded"
@@ -281,7 +296,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "All assertions covered by scylla tests combined: boundary (sstable_3_x_test::test_sstable_too_many_collection_elements), system.large_cells row (cql_query_large_test::test_large_cells_dual_threshold), warning log below/above threshold (cqlpy test_large_data_guardrail::test_collection_*). Single-node, nothing distributed.",
+      "reason": "Translated 1:1 as test/cqlpy/test_dtest.py::test_large_collection (scylla 132607ec9c): same threshold boundary, log and system.large_cells assertions, threshold set at runtime instead of at startup; also covered piecewise by sstable_3_x_test::test_sstable_too_many_collection_elements, cql_query_large_test::test_large_cells_dual_threshold and cqlpy test_large_data_guardrail. Single node, nothing distributed; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": [],
       "jira": "DTEST-578"
     },
@@ -310,6 +325,16 @@
       "relevance": "Live: scylla invalidates prepared statements on schema change (cql3/query_processor) and still supports ALTER ... TYPE for value-compatible types (cql3/statements/alter_table_statement.cc:86 validate_alter, int->blob).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_prepared_statement_invalidation",
+          "coverage": "full",
+          "note": "split translation (scylla 132607ec9c), with test_prepared_statement_invalidation_alter_type: SELECT * re-prepared by the driver after DROP c (3 cols) and ADD d (new col), explicit-column statement fails with InvalidRequest after DROP"
+        },
+        {
+          "path": "test/cqlpy/test_dtest.py::test_prepared_statement_invalidation_alter_type",
+          "coverage": "full",
+          "note": "other half of the split translation (scylla_only): after ALTER d TYPE blob both SELECT * and explicit-column statements re-prepare and return the row"
+        },
+        {
           "path": "test/boost/schema_change_test.cc::test_prepared_statement_is_invalidated_by_schema_change",
           "coverage": "partial",
           "note": "server returns not_prepared after ALTER ADD for 'select *'"
@@ -320,8 +345,8 @@
           "note": "server invalidates explicit-column statement after DROP"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Server-side invalidation covered by boost schema_change_test (test_prepared_statement_is_invalidated_by_schema_change / _when_referenced_column_is_dropped); unique part is end-to-end driver re-prepare incl. ALTER TYPE int->blob, which could live in cqlpy. Cheap (5s, single node).",
+      "decision": "RED",
+      "reason": "Every dtest assertion is now in cqlpy (scylla 132607ec9c): test/cqlpy/test_dtest.py::test_prepared_statement_invalidation (DROP/ADD column, driver re-prepare, explicit statement fails) and ::test_prepared_statement_invalidation_alter_type (ALTER TYPE int->blob re-prepare); server-side invalidation also in boost schema_change_test. Single node; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestMiscellaneousCQL::test_reverse_query": {
@@ -637,6 +662,16 @@
       "relevance": "Live; COMPACT STORAGE deprecated (needs enable_create_table_with_compact_storage).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_table_statements",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): same statements and assertions (CREATE incl. COMPACT STORAGE, ALTER ADD, 10 inserts each, SELECT, TRUNCATE -> empty, DROP -> SELECT fails)"
+        },
+        {
+          "path": "test/cqlpy/test_dtest.py::test_table",
+          "coverage": "partial",
+          "note": "scylla 405800190d, translation of cql_additional_tests.py::TestCQL::test_table (not this dtest): CREATE incl. COMPACT STORAGE, TRUNCATE of the compact table, DROP + recreate; no ALTER ADD or SELECT-after-DROP"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/truncate_test.py::testTruncate",
           "coverage": "full",
           "note": "truncate"
@@ -658,7 +693,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Single-node DDL/DML smoke fully covered by cqlpy (truncate_test.py::testTruncate, compact_storage_test.py, test_alter_table.py, drop_test.py); Cassandra StorageProxy-path rationale doesn't apply.",
+      "reason": "Translated 1:1 as test/cqlpy/test_dtest.py::test_smoke_table_statements (scylla 132607ec9c); also covered by cqlpy truncate_test.py::testTruncate, compact_storage_test.py, test_alter_table.py, drop_test.py. Cassandra StorageProxy-path rationale doesn't apply; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": [],
       "jira": "DTEST-588"
     },
@@ -680,6 +715,11 @@
       "relevance": "Live (secondary indexes).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_index_statements",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): same CREATE INDEX, 10 rows, lookup v1 = 0 -> [(0, 0, 0)], DROP INDEX -> same query fails with InvalidRequest"
+        },
+        {
           "path": "test/cqlpy/test_secondary_index.py",
           "coverage": "full",
           "note": "create/query/drop index incl. test_create_index_if_not_exists and query-after-drop cases"
@@ -691,7 +731,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Basic CREATE/DROP INDEX + lookup is fully covered by test/cqlpy/test_secondary_index.py and cassandra_tests secondary_index_test.py; single-node, no distributed aspect.",
+      "reason": "Translated 1:1 as test/cqlpy/test_dtest.py::test_smoke_index_statements (scylla 132607ec9c); also covered by test/cqlpy/test_secondary_index.py and cassandra_tests secondary_index_test.py. Single node; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": [],
       "jira": "DTEST-585"
     },
@@ -713,6 +753,11 @@
       "relevance": "Live (UDTs).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_type_statements",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): CREATE TYPE, table with frozen UDT, ALTER TYPE ADD, second table, DROP tables + TYPE, then CREATE TABLE using the dropped type fails"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testAlterUDT",
           "coverage": "full",
           "note": "ALTER TYPE ADD + usage; file also covers create/drop and invalid statements"
@@ -724,7 +769,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "UDT create/alter/drop fully covered by test/cqlpy/cassandra_tests/validation/entities/user_types_test.py (testAlterUDT, testInvalidUDTStatementsAlter, ...). Only final assert_invalid checks anything; no data inserted.",
+      "reason": "Translated 1:1 as test/cqlpy/test_dtest.py::test_smoke_type_statements (scylla 132607ec9c); UDT DDL also covered by cassandra_tests user_types_test.py (testAlterUDT, ...); companion scylla-dtest#7713 (open) removes the dtest. Note: only the final assert_invalid checks anything; no data inserted.",
       "issues": [
         {
           "kind": "note",
@@ -752,6 +797,11 @@
       "relevance": "Live (legacy USER statements map to roles).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_user_statements",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c) on cqlpy's PasswordAuthenticator/CassandraAuthorizer server (test/cqlpy/run.py:332): CREATE USER WITH PASSWORD + DROP; ALTER USER sets the first password of a passwordless user; same no-throw checks"
+        },
+        {
           "path": "test/cluster/dtest/auth_test.py",
           "coverage": "full",
           "note": "ported dtest auth suite: CREATE/ALTER/DROP USER with login + negative checks (e.g. line ~299 ALTER USER)"
@@ -763,7 +813,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Zero assertions (no login with new password, no check user exists/gone); CREATE/ALTER/DROP USER fully covered by test/cluster/dtest/auth_test.py (and dtest auth_test.py). Bug: no-op test, only checks statements don't throw.",
+      "reason": "Translated as test/cqlpy/test_dtest.py::test_smoke_user_statements (scylla 132607ec9c; ALTER USER on a user created without password, for Cassandra's password-change rate limit); CREATE/ALTER/DROP USER with login checks in test/cluster/dtest/auth_test.py; companion scylla-dtest#7713 (open) removes the dtest. Bug: no-op test, only checks statements don't throw.",
       "issues": [
         {
           "kind": "bug",
@@ -797,6 +847,11 @@
       "relevance": "Live basic CQL DML.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_data_statements",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): identical INSERT/SELECT COUNT (=, IN, IN+ck)/SELECT/UPDATE/DELETE statements and assertions"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/select_test.py",
           "coverage": "full",
           "note": "SELECT/COUNT/IN"
@@ -818,7 +873,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Basic single-node DML fully covered by cqlpy select_test/update_test/delete_test/test_aggregate. Note: dtest_smoke mark is unused for this file (Jenkinsfile:415 runs `-m dtest_smoke bootstrap_test.py` only); dtest_debug selection would lose one cheap sanity test.",
+      "reason": "Translated 1:1 as test/cqlpy/test_dtest.py::test_smoke_data_statements (scylla 132607ec9c); also covered by cqlpy select_test/update_test/delete_test/test_aggregate; companion scylla-dtest#7713 (open) removes the dtest. Note: dtest_smoke mark is unused for this file (Jenkinsfile:415 runs `-m dtest_smoke bootstrap_test.py` only); dtest_debug selection would lose one cheap sanity test.",
       "issues": [
         {
           "kind": "note",
@@ -846,6 +901,11 @@
       "relevance": "Live (batches/batchlog).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_smoke_batch_statement",
+          "coverage": "full",
+          "note": "translation (scylla 132607ec9c): same logged batch (2 INSERT, UPDATE, DELETE column), and also checks the resulting rows"
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatch",
           "coverage": "full",
           "note": "batch with checks on results"
@@ -862,7 +922,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: no assertions at all (cql_tests.py:234-261), only checks batch doesn't throw. Fully covered by test/cqlpy/cassandra_tests/validation/operations/batch_test.py::testBatch and dtest batch_test.py.",
+      "reason": "Translated as test/cqlpy/test_dtest.py::test_smoke_batch_statement (scylla 132607ec9c), which also checks the batch's result; also covered by cassandra_tests batch_test.py::testBatch and dtest batch_test.py; companion scylla-dtest#7713 (open) removes the dtest. Bug: no assertions at all (cql_tests.py:234-261), only checks the batch doesn't throw.",
       "issues": [
         {
           "kind": "bug",
