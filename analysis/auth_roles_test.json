@@ -27,6 +27,11 @@
       "relevance": "Live: cql3/statements/list_permissions_statement.cc; role-resource permissions and auto-grant to creators still in Scylla. No EXPORT permission in scylla master (auth/permission.hh at 349d7ea6c2), so the EXPORT expectations of b72d7fb were reverted (ec5ff7e7dc); scylladb#32514 (open) authorizes S3 export via a new ALL OBJECT STORAGE resource and leaves creator perms unchanged.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_permissions.py::test_list_permissions",
+          "coverage": "full",
+          "note": "translation (scylla 80992ce4b8, PR scylladb#32789): same role graph (role1 -> role2 -> mike, role3), same LIST ALL / OF / ON ROLE / DROP / ALTER [OF] / own-perms assertions with exact sets. LIST ALL PERMISSIONS filtered to the test's roles/resources, so it drops the dtest's implicit check that the keyspace creator gets no <all functions in ks> perms (pins open scylladb#13747); compares sets, so duplicate rows (caught by the dtest's sorted-list compare) would go unnoticed"
+        },
+        {
           "path": "test/cluster/dtest/auth_test.py::TestAuth::test_all_authorization_operations",
           "coverage": "partial",
           "note": "LIST ALL PERMISSIONS / OF / ON ... NORECURSIVE for plain users; no role inheritance, no ON ROLE resources, no creator auto-grants"
@@ -37,9 +42,16 @@
           "note": "grant/revoke applicable perms on data/role resources, not LIST output with role graph"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test checking LIST PERMISSIONS output across role inheritance, ON ROLE resources and OF filtering; not ported in scylladb#24343 (test/cluster/dtest/auth_roles_test.py lacks it). Fast (4.9s), 100% pass over 56 runs, maintained (b72d7fb, reverted in ec5ff7e7dc).",
-      "issues": []
+      "decision": "RED",
+      "reason": "Fully translated to test/cqlpy/test_permissions.py::test_list_permissions (scylla 80992ce4b8, PR scylladb#32789): same role graph and LIST PERMISSIONS assertions, exact sets. Only dropped bit: no <all functions in ks> perms for the keyspace creator (support_func=False), which pins open scylladb#13747 rather than intended behavior. Note: that expectation will fail once #13747 is fixed.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "open-issue",
+          "ref": "https://github.com/scylladb/scylladb/issues/13747",
+          "text": "support_func=False expects keyspace creator gets no function perms, i.e. open scylladb#13747; fails if fixed."
+        }
+      ]
     },
     "TestAuthRoles::test_list_permissions_validation": {
       "description": "Non-superuser mike, granted role2 (which is granted role1), lists permissions OF role2 and OF role1 (roles granted to him) successfully, and gets Unauthorized for LIST ALL PERMISSIONS (everyone's) and LIST ALL PERMISSIONS OF john (role not granted to him). Guards authorization checks in LIST PERMISSIONS for non-superusers.",
@@ -59,13 +71,18 @@
       "relevance": "Live: error strings at cql3/statements/list_permissions_statement.cc:68,75.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_permissions.py::test_list_permissions_validation",
+          "coverage": "full",
+          "note": "translation (scylla 80992ce4b8, PR scylladb#32789): same setup (role1 -> role2 -> mike, john), mike lists perms OF role2 / OF role1 (exact sets), same two Unauthorized messages"
+        },
+        {
           "path": "test/cluster/dtest/auth_test.py::TestAuth::test_all_authorization_operations",
           "coverage": "partial",
           "note": "asserts identical Unauthorized messages ('view everyone's permissions', 'view cathy's permissions') and user listing own perms; lacks listing perms OF a role granted (transitively) to the user"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Both Unauthorized assertions duplicated by scylladb test/cluster/dtest/auth_test.py::test_all_authorization_operations; only unique bit is non-superuser listing perms of transitively granted roles. Cheap (4.7s, 100% pass); could merge into test_list_permissions or keep.",
+      "decision": "RED",
+      "reason": "Fully translated to test/cqlpy/test_permissions.py::test_list_permissions_validation (scylla 80992ce4b8, PR scylladb#32789): identical assertions incl. listing perms of transitively granted roles, previously the only unique bit; Unauthorized checks also in test/cluster/dtest/auth_test.py::test_all_authorization_operations.",
       "issues": []
     },
     "TestAuthRoles::test_drop_non_existent_role_should_not_update_cache": {
@@ -85,6 +102,11 @@
       },
       "relevance": "roles_validity_in_ms is not a Scylla config option (no match in db/config.cc), so the test's cache config is a no-op. Scylla's auth cache (auth/cache.cc) mirrors role records loaded from tables via load_roles/remove_role; no negative-lookup caching, so the CASSANDRA-9189 mechanism does not exist. Remaining flow (create role, grant, login, select) is basic.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_permissions.py::test_drop_non_existent_role_then_create_it",
+          "coverage": "full",
+          "note": "translated from this dtest (scylla 80992ce4b8): DROP ROLE IF EXISTS of a nonexistent role, then create it, GRANT ALL on a table, log in and SELECT; runs with cqlpy's default auth cache settings instead of roles_validity_in_ms=10000"
+        },
         {
           "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_grant_revoke_permissions",
           "coverage": "partial",
@@ -132,6 +154,11 @@
       "relevance": "Behavior live: service/client_state.cc check_user_can_login() checks only the role's own can_login ('{} is not permitted to log in'). #4284 fixed by scylladb a139afc30c (2019-02-27), yet the check remains commented out, so the test only verifies LIST ROLES output.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_permissions.py::test_roles_do_not_inherit_login_privilege",
+          "coverage": "full",
+          "note": "translation (scylla 80992ce4b8, PR scylladb#32789): same LIST ROLES OF mike / OF with_login rows (first 4 columns), i.e. everything this test still checks; no login attempt either"
+        },
+        {
           "path": "test/cluster/dtest/auth_roles_test.py::TestAuthRoles::test_list_roles",
           "coverage": "partial",
           "note": "LIST ROLES OF with inherited roles and mixed login flags (role1 LOGIN=false, mike LOGIN=true) - covers what this test actually asserts"
@@ -148,7 +175,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "As-is only asserts LIST ROLES output already covered by test_list_roles (scylladb test/cluster/dtest/auth_roles_test.py). The meaningful non-inheritance login check was disabled for #4284, fixed since a139afc30c (2019); re-enable it (then unique, GREEN) or remove.",
+      "reason": "What it still asserts (LIST ROLES output) is fully translated to test/cqlpy/test_permissions.py::test_roles_do_not_inherit_login_privilege (scylla 80992ce4b8). Bug: the real check (LOGIN=false role granted a LOGIN role still can't log in) is commented out for #4284, fixed in a139afc30c (2019), and no scylla test covers it; re-enable it (then unique) or remove.",
       "issues": [
         {
           "kind": "bug",
@@ -159,7 +186,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-10-28",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
