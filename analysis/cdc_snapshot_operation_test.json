@@ -1,8 +1,8 @@
 {
   "file": "cdc_snapshot_operation_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestCDCSnapshotOperation::test_create_snapshot_with_collection_list_with_base_rows_delete_postimage": {
       "description": "Single node, table (pkey, ckey, value list<text|varchar|ascii>) with cdc enabled (postimage). Inserts/updates 100 rows, deletes them, updates again, flushes, snapshots keyspace 'ks', drops it and recreates schema. Restores base table via nodetool refresh: asserts base rows equal and cdc log stays empty (refresh must not generate CDC entries). Then refreshes the cdc log table from snapshot and asserts log rows equal the originals.",
@@ -22,8 +22,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<varchar> -> column l list<text> (varchar alias); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -35,8 +40,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, list<varchar> via column l list<text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -70,8 +75,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<varchar> -> column l list<text> (varchar alias); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -83,8 +93,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, preimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, list<varchar> via column l list<text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -117,8 +127,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<ascii> -> column l list<text> (no list<ascii>); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -130,8 +145,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, preimage+postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, list<ascii> via column l list<text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -164,8 +179,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<text> -> column l list<text>; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -177,8 +197,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, no images, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, list<text> via column l list<text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -211,8 +231,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<varchar> -> column l list<text> (varchar alias); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -224,8 +249,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, list<varchar> via column l list<text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -252,8 +277,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<varchar> -> column l list<text> (varchar alias); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -265,8 +295,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, preimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, list<varchar> via column l list<text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -294,8 +324,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<ascii> -> column l list<text> (no list<ascii>); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -307,8 +342,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, preimage+postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, list<ascii> via column l list<text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -335,8 +370,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest list<text> -> column l list<text>; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -348,8 +388,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (list, no images, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, list<text> via column l list<text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -376,8 +416,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<smallint,varchar> -> column m map<int,text> (no smallint key); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -389,8 +434,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, map<smallint,varchar> via column m map<int,text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -423,8 +468,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<bigint,varchar> -> column m map<int,text> (no bigint key); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -436,8 +486,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, preimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, map<bigint,varchar> via column m map<int,text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -469,8 +519,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<tinyint,ascii> -> column m2 map<tinyint,ascii>; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -482,8 +537,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, preimage+postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, map<tinyint,ascii> via column m2 map<tinyint,ascii>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -515,8 +570,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<int,text> -> column m map<int,text>; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -528,8 +588,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, no images, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, map<int,text> via column m map<int,text>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -561,8 +621,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<smallint,varchar> -> column m map<int,text> (no smallint key); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -574,8 +639,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, map<smallint,varchar> via column m map<int,text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -601,8 +666,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<bigint,varchar> -> column m map<int,text> (no bigint key); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -614,8 +684,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, preimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, map<bigint,varchar> via column m map<int,text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -642,8 +712,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<tinyint,ascii> -> column m2 map<tinyint,ascii>; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -655,8 +730,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, preimage+postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, map<tinyint,ascii> via column m2 map<tinyint,ascii>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -682,8 +757,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest map<int,text> -> column m map<int,text>; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -695,8 +775,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (map, no images, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, map<int,text> via column m map<int,text>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -723,8 +803,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<varchar> -> column s set<varchar>; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -736,8 +821,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, set<varchar> via column s set<varchar>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -776,8 +861,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<varchar> -> column s set<varchar>; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -789,8 +879,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, preimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, set<varchar> via column s set<varchar>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -828,8 +918,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<ascii> -> column s set<varchar> (no set<ascii>); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -841,8 +936,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, preimage+postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, set<ascii> via column s set<varchar>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -880,8 +975,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<text> -> column s set<varchar> (= text); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -893,8 +993,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, no images, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, set<text> via column s set<varchar>, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -932,8 +1032,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<varchar> -> column s set<varchar>; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -945,8 +1050,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, set<varchar> via column s set<varchar>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -978,8 +1083,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<varchar> -> column s set<varchar>; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -991,8 +1101,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, preimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, set<varchar> via column s set<varchar>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -1025,8 +1135,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<ascii> -> column s set<varchar> (no set<ascii>); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1038,8 +1153,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, preimage+postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, set<ascii> via column s set<varchar>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -1071,8 +1186,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest set<text> -> column s set<varchar> (= text); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1084,8 +1204,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (set, no images, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, set<text> via column s set<varchar>, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading). Note: populate_base_table_with_collection_set_type uses set(f'{i}') / set(f'new_{i}'), which builds a set of characters (e.g. {'n','e','w','_','5'}), not a one-element set; self-consistent so it passes, but not the intended data.",
       "issues": [
         {
           "kind": "note",
@@ -1117,8 +1237,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest text -> column t text; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1130,8 +1255,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, no images, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, text via column t text, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1164,8 +1289,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest varchar -> column t text (varchar = text alias); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1177,8 +1307,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, postimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, varchar via column t text, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1211,8 +1341,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest varchar -> column t text (varchar = text alias); deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1224,8 +1359,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, preimage, with deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, varchar via column t text, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1259,8 +1394,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest ascii -> column a ascii; deleted+rewritten rows -> rows 5-9 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1272,8 +1412,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique coverage (restore of CDC log table via refresh; refresh not generating CDC rows), the most complete native variant (pre+postimage + deletes); only variant in next gating and the only one run with tablets (next-dtest-tablets, 100%/32 runs). Keep as representative. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, ascii via column a ascii, with deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1305,8 +1445,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [delta-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest text -> column t text; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1318,8 +1463,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, no images, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode delta, text via column t text, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1345,8 +1490,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest varchar -> column t text (varchar = text alias); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1358,8 +1508,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode postimage, varchar via column t text, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1385,8 +1535,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest varchar -> column t text (varchar = text alias); never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1398,8 +1553,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, preimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage, varchar via column t text, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
@@ -1426,8 +1581,13 @@
         "22d7d9ad65": "added dtest_full class mark",
         "cfd14e94a3": "import fix: CDCInitializeHelper from cdc_test"
       },
-      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. No other dtest (grep cdc + refresh/restore_snapshot on upstream/next) or scylla test restores a _scylla_cdc_log table via refresh.",
+      "relevance": "Live: CDC (pre/postimage, collections) and nodetool refresh from upload/ are current features. Scylla loader has no CDC handling (no 'cdc' in sstables_loader.cc / replica/distributed_loader.cc), so refresh of base table must not produce log rows - the test asserts that. Since scylla 9e11f1035c (series 42ab0bf5bd) test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc does the same (restore base without log rows, then restore the _scylla_cdc_log table); no other dtest does.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc",
+          "coverage": "full",
+          "note": "translation (scylla 9e11f1035c, series 42ab0bf5bd), params [preimage_postimage-tablets/vnodes]: same workflow - snapshot ks, drop+recreate table, refresh base -> rows == before and CDC log == [], refresh log -> log rows == before. dtest ascii -> column a ascii; never-deleted rows -> rows 0-4 of the same table. Diffs, immaterial to the loader: 10 rows (dtest 100), DROP TABLE (dtest DROP KEYSPACE + rmtree), REST storage_service/sstables (= nodetool refresh), one-element sets (dtest set(f'{i}') char sets)."
+        },
         {
           "path": "test/cluster/test_refresh.py",
           "coverage": "partial",
@@ -1439,8 +1599,8 @@
           "note": "CDC log content/options, no snapshot/refresh"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Unique scenario (no other scylla/dtest test restores a CDC log table via refresh), but one of 32 matrix variants of the same workflow (native, preimage+postimage, without deletes; 100% pass, ~6s). Delete/image axes add little; value type changes cdc log columns. Candidate to collapse into one parametrized test, keep one per value-type family. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_cdc (scylla 9e11f1035c, series 42ab0bf5bd): same snapshot/refresh workflow and asserts, CDC mode preimage_postimage, ascii via column a ascii, without deletes, run with tablets and vnodes in 0.1s vs ~6s; companion scylla-dtest#7713 (open) removes the dtest. Note: prepare_cluster_and_schema sets experimental_features=['cdc'], which is feature::UNUSED in scylla (db/config.cc:2120) - dead config. Note: 'with_base_rows_delete' re-UPDATEs after DELETE, so base rows end up present; only difference is DELETE entries in the cdc log (name misleading).",
       "issues": [
         {
           "kind": "note",
