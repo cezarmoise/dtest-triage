@@ -161,6 +161,11 @@
       "relevance": "Live: all native types, collections, frozen UDTs in collections supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udt.py::test_udt_complex_data_types",
+          "coverage": "full",
+          "note": "Translated from this test (scylla 2484c842c3): same 3 UDTs, table, literals and list update; compares values instead of driver str()."
+        },
+        {
           "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testUserTypes / testNestedUserTypes",
           "coverage": "partial",
           "note": "UDTs in map, nested UDT in set; fewer types."
@@ -171,8 +176,8 @@
           "note": "Complex types incl. UDTs via JSON."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Single-node pure CQL serialization round-trip; no exact scylla test with this kitchen-sink schema but each piece (UDT in list/map, nested UDTs, native types) is covered piecemeal in cqlpy. Cheap (5s) and portable to cqlpy. Note: assertions compare str() of driver objects (assert_all result_as_string, tools/assertions.py:193), so they are coupled to python-driver repr (e.g. float item12 rounding, OrderedMapSerializedKey) rather than server behavior.",
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy test_udt.py::test_udt_complex_data_types (scylla 2484c842c3, translated from this test): same schema, same literal INSERT, same per-column SELECTs and list UPDATE, with value comparison (stronger than the dtest). Single-node pure CQL; nothing dtest-specific. Note: assertions compare str() of driver objects (assert_all result_as_string, tools/assertions.py:193), coupled to python-driver repr rather than server behavior.",
       "issues": [
         {
           "kind": "note",
@@ -200,13 +205,18 @@
       "relevance": "Live: schema merge ordering (tables before types) in db/schema_tables.cc still relevant.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udt.py::test_drop_keyspace_with_udt_table",
+          "coverage": "full",
+          "note": "Translated from this test (scylla 2484c842c3): CREATE TYPE, table with frozen<udt>, DROP KEYSPACE must not fail (#3068)."
+        },
+        {
           "path": "test/cqlpy/test_keyspace.py::test_alter_keyspace_preserves_udt",
           "coverage": "partial",
           "note": "Drops keyspace containing a UDT, but drops the table first."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique regression coverage for scylladb#3068 (fix c35dd86c87 added no test); no scylla test drops a keyspace that still has a table using a UDT. Cheap (4.7s, single node); implicit assertion (no exception) matches the bug symptom. Portable to cqlpy.",
+      "decision": "RED",
+      "reason": "Fully covered by cqlpy test_udt.py::test_drop_keyspace_with_udt_table (scylla 2484c842c3, translated from this test, reproduces scylladb#3068): same statements on a single node, plain DROP KEYSPACE (stricter than IF EXISTS). Nothing dtest-specific.",
       "issues": []
     },
     "TestUserTypes::test_nested_type_dropping": {
@@ -729,23 +739,28 @@
       "relevance": "Live: cross-keyspace UDT reference rejected.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_udt.py::test_udt_from_another_keyspace",
+          "coverage": "full",
+          "note": "Translated from this test (scylla 2484c842c3): existing UDT in another keyspace, CREATE TABLE with frozen<ks.udt> rejected with same message."
+        },
+        {
           "path": "test/boost/user_types_test.cc::test_invalid_user_type_statements",
           "coverage": "full",
-          "note": "create table referencing ks2.ut2 and frozen<ks2.ut2> rejected with same message."
+          "note": "create table referencing existing ks2.ut2 and frozen<ks2.ut2> rejected with same message."
         },
         {
           "path": "test/cqlpy/cassandra_tests/validation/entities/user_types_test.py::testInvalidUDTStatements",
-          "coverage": "full",
-          "note": "Same error for frozen<otherKeyspace.myType>."
+          "coverage": "partial",
+          "note": "Same error, but for frozen<otherKeyspace.myType> in a keyspace that doesn't exist."
         }
       ],
       "decision": "RED",
-      "reason": "Exact scenario and message covered by boost test_invalid_user_type_statements and cqlpy testInvalidUDTStatements. Single-node CQL validation; nothing dtest-specific.",
+      "reason": "Exact scenario and message covered by cqlpy test_udt.py::test_udt_from_another_keyspace (scylla 2484c842c3, translated from this test) and boost test_invalid_user_type_statements. Single-node CQL validation; nothing dtest-specific.",
       "issues": [],
       "jira": "DTEST-656"
     }
   },
-  "analyzed_at": "2026-11-16",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
