@@ -26,6 +26,11 @@
       "relevance": "Live: partition deletes, tombstone_gc mode 'timeout', scylla sstable dump-data used by ccm dump_sstables.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_purges_expired_tombstones",
+          "coverage": "full",
+          "note": "Translation of this dtest and test_compaction_delete_2 (scylla 41e84a1205): per STCS/LCS/TWCS/ICS, tombstone_gc=timeout, insert 10, flush, delete 3, flush, asserts reads and exactly 3 partition tombstones in the sstables (mutation_fragments), then the compaction checks. scylla_only + clock fixture: runs in dev/debug, skipped in release builds (needs test_clocks_offset_seconds). Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_compaction_delete_2",
           "coverage": "full",
           "note": "Calls the same _test_compaction_delete() helper first (identical steps and asserts), then adds the compaction/expiry checks."
@@ -37,7 +42,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_compaction_delete_2, which runs the same _test_compaction_delete() helper with the same assertions before continuing (compaction_test.py:111-152). Note: docstring/name claim compaction but no compaction runs. Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_purges_expired_tombstones (scylla 41e84a1205, translated from it): same delete -> flush -> reads + sstable partition-tombstone count per strategy, before its compaction checks; also a strict subset of test_compaction_delete_2 (compaction_test.py:111-152). Note: docstring/name claim compaction but no compaction runs. Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -84,6 +89,11 @@
       "relevance": "Live: gc_grace_seconds-based purge (tombstone_gc mode 'timeout', tombstone_gc_state).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_purges_expired_tombstones",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, tombstone_gc=timeout, 3 partition tombstones kept by major compaction before gc_grace_seconds, purged after clock.jump(gc_grace+1); flush_all before each compaction frees commitlog segments (the dtest's global compact did the same); rows checked after. scylla_only + clock fixture: runs in dev/debug, skipped in release builds (needs test_clocks_offset_seconds). Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_compaction_delete_tombstone_gc[timeout-*]",
           "coverage": "full",
           "note": "Same flow per strategy: delete 10 keys with tombstone_gc=timeout, count_deleted() (insert key 99, flush, major compact, dump) = 10 before expiry and 0 after; on 2 nodes, with a 30s gc_grace (PR 7503)."
@@ -100,7 +110,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Redundant: test_compaction_delete_tombstone_gc[timeout-<strategy>] asserts the same keep-before/purge-after-gc_grace behavior after major compaction per strategy (2 nodes, same flow); purge logic also unit-tested in sstable_compaction_test.cc::tombstone_purge_test. Still ~28s x4 strategies, mostly the expiry wait. Note (class-level): start_rpc='true' Unused in scylla (db/config.cc:1288).",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_purges_expired_tombstones (scylla 41e84a1205, translated from it): same keep-before/purge-after-gc_grace check after major compaction per strategy, with a clock jump instead of the 25-45s wait (Jenkins avg 42.9s x4 strategies); also by test_compaction_delete_tombstone_gc[timeout-*] here and unit-level sstable_compaction_test.cc::tombstone_purge_test. Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -158,6 +168,16 @@
           "path": "test/cluster/test_repair.py::test_tombstone_gc_for_streaming_and_repair",
           "coverage": "partial",
           "note": "immediate mode gc during repair, not compaction-after-repair."
+        },
+        {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_purges_expired_tombstones",
+          "coverage": "partial",
+          "note": "timeout mode only, single node (scylla 41e84a1205): tombstones kept by major compaction before gc_grace_seconds, purged after; no repair."
+        },
+        {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_deletes_sstables_of_deleted_data",
+          "coverage": "partial",
+          "note": "immediate mode only, single node (scylla 41e84a1205): fully deleted data purged by major compaction; no repair."
         }
       ],
       "decision": "GREEN",
@@ -202,6 +222,11 @@
       "relevance": "Live: ALTER TABLE compaction class switching (STCS/LCS/TWCS/ICS all supported).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_strategy_switching",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205, extended in scylla 968ea669a3): every ordered pair of STCS/LCS/TWCS/ICS, deletes in memtable, ALTER A->B->A, asserting the whole table (no row left unchecked, where the dtest skipped key 10) and the schema class after the ALTER, after flush and after major compaction. No restart, but the dtest's restart follows cluster.clear() and checks nothing. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "test/cluster/test_major_compaction.py::test_alter_compaction_strategy_during_compaction",
           "coverage": "partial",
           "note": "Strategy switch TWCS->LCS mid-compaction (no crash); debug/dev only, no data check."
@@ -212,8 +237,8 @@
           "note": "Strategy ALTERs under tablets."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Weak: data is read right after ALTER with no compaction under the new strategy, and cluster.clear() wipes data before restart so nothing is verified post-restart; key 10 never checked (range(11,100)) (compaction_test.py:530-570). Partial overlap only. Note (class-level): start_rpc='true' Unused in scylla (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_strategy_switching (scylla 41e84a1205, translated from it; 968ea669a3 added switch-back + compaction + schema checks): same per-strategy switch with deletes in memtable, checking data after ALTER, flush and major compaction; this dtest checks data only right after ALTER (32s x4 strategies). Bug: no compaction under the new strategy and cluster.clear() wipes data before restart, so nothing is verified post-restart (compaction_test.py:552-570); RED since the claimed scenario is covered by the port. Note: key 10 never checked (:561). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "bug",
@@ -368,9 +393,14 @@
       "relevance": "Live: compaction option 'enabled' (compaction_strategy / schema), system.compaction_history.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_with_option",
+          "coverage": "full",
+          "note": "Translation of this dtest and _schema (scylla 41e84a1205): per strategy, table2 is ALTERed to compaction enabled=false, flushes 6 one-partition sstables into the table and an autocompaction-enabled reference table, waits for the reference to compact and asserts the table kept all 6 (stronger than the dtest's 2s compaction_history poll); ALTER enabled=true, asserts it compacts. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_disable_autocompaction_schema",
           "coverage": "partial",
-          "note": "enabled=false at CREATE + restart; re-enable also goes through nodetool, so ALTER enabled=true alone is only tested here."
+          "note": "enabled=false at CREATE + restart; re-enable also goes through nodetool there. ALTER enabled=false/true itself is covered by the cqlpy port."
         },
         {
           "path": "test/cqlpy/test_compaction_strategy_validation.py (enabled:false ~L151)",
@@ -378,8 +408,8 @@
           "note": "Only DESCRIBE output with enabled=false, not compaction behavior."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only functional test of ALTER compaction 'enabled' false/true; no scylla equivalent found. Note: unlike sibling tests it lacks disable_load_balancing (tablet migration could add compactions; compaction_test.py:663-681). Note (class-level): start_rpc='true' Unused in scylla (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_with_option (scylla 41e84a1205, translated from it): ALTER compaction 'enabled' false blocks and true restores autocompaction, per strategy, with a reference-table check; 17s x4 strategies. Note: unlike sibling tests it lacks disable_load_balancing (compaction_test.py:663-681). Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -420,6 +450,11 @@
       "relevance": "Live: nodetool/REST disable/enableautocompaction (table::disable_auto_compaction, is_auto_compaction_disabled_by_user), ALTER compaction options.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_survives_alter",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, REST disable, reference-table not-compacted check, ALTER compaction tombstone_threshold 0.9, asserts REST state still disabled and not compacted again, enable, asserts it compacts. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "test/boost/sstable_compaction_test.cc::autocompaction_control_test",
           "coverage": "partial",
           "note": "disable/enable auto compaction blocks/allows background compaction; no schema change in between."
@@ -430,8 +465,8 @@
           "note": "nodetool->REST mapping only (mocked)."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique check that an ALTER of compaction options keeps user-disabled autocompaction off; scylla tests cover the toggle only. Note (class-level): start_rpc='true' Unused in scylla (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_survives_alter (scylla 41e84a1205, translated from it): ALTER of compaction options keeps user-disabled autocompaction off (state and behavior), then enable restores it, per strategy, via the REST calls nodetool makes (test/nodetool/test_autocompaction.py); 25s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -464,6 +499,11 @@
       "relevance": "Live: upgrade_sstables REST (api/tasks.cc:58, exclude_current_version defaults false so all sstables are rewritten) and the user-disabled check gating only regular compactions (is_auto_compaction_disabled_by_user() checks in compaction/compaction_manager.cc). Before 6b38d33134 the restart re-enabled the non-persistent disable, so the scenario was never exercised.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_allows_upgrade",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, REST disable, 6 flushed sstables, same REST GET keyspace_upgrade_sstables (status checked), asserts all 6 sstables were rewritten (new set, disjoint from the old) and autocompaction still disabled; stronger than the dtest's 'Upgrade' log wait. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "test/cluster/test_sstable_compression_dictionaries_basic.py::test_retrain_dict",
           "coverage": "partial",
           "note": "Incidental: disables autocompaction, then upgrade_sstables must rewrite (size < 0.1x); default strategy only, no autocompaction-state assert."
@@ -484,8 +524,8 @@
           "note": "REST API params."
         }
       ],
-      "decision": "YELLOW",
-      "reason": "6b38d33134 made the test actually run upgrade with autocompaction disabled (old restart re-enabled it). Only explicit check for upgrade; scylla covers it incidentally (test_retrain_dict, default strategy) and the rest_api sibling lacks UPGRADE, so partial. Note: REST status unchecked (compaction_test.py:783). Note: prepate_testbed configuration_options now unused (:896-900). Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_allows_upgrade (scylla 41e84a1205, translated from it): upgrade_sstables with autocompaction disabled rewrites every sstable and leaves autocompaction disabled, per strategy, checked on the sstables instead of a log line. Note: REST status unchecked (compaction_test.py:783). Note: prepate_testbed configuration_options unused (:896-900). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -528,6 +568,11 @@
       "relevance": "Live: reshape on nodetool refresh (vnodes: process_upload_dir in replica/distributed_loader.cc, rejected with tablets at :181; tablets: load-and-stream into the maintenance set, reshaped by off-strategy), REST keyspace_offstrategy_compaction -> table::perform_offstrategy_compaction (replica/table.cc:3023) -> compaction_manager::perform_offstrategy (compaction/compaction_manager.cc:2072, no is_auto_compaction_disabled_by_user check), 'Reshaped' log (compaction/compaction.cc:1534, compaction/task_manager_module.cc:980), disable autocompaction.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_allows_reshape",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205), params tablets and vnodes: STCS table, REST disable, 6 sstables each with rows in 3 one-minute windows, copy to upload/, TRUNCATE, ALTER to TWCS 1-minute, asserts still disabled, REST refresh (POST storage_service/sstables, = nodetool refresh per test/nodetool/test_refresh.py) + keyspace_offstrategy_compaction; asserts all rows, every sstable single-window covering the 3 windows, autocompaction still disabled."
+        },
+        {
           "path": "test/cluster/test_tablets.py::test_reshape_with_tablets",
           "coverage": "partial",
           "note": "Autocompaction disabled, then restart must reshape 32 sstables/tablet ('Reshaped' log); boot path, not refresh."
@@ -548,8 +593,8 @@
           "note": "Refresh with autocompaction disabled (vnodes, debug/dev only), but asserts refresh succeeds, not reshape."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique: only test asserting reshape runs on nodetool refresh (vnodes) / off-strategy after load-and-stream (tablets) while autocompaction is disabled; scylla tests cover reshape on boot with autocompaction disabled (test_reshape_with_tablets, test_size_tiered_layout_across_restart) or refresh with it disabled without checking reshape. PR 7671 cut runtime, PR 7709 (26d1759d36) fixed its tablets failure (SCYLLADB-5920). Note: 3 of 4 class params skipped at runtime; the skipped ones carry next_gating, so the real LCS run is never gated (compaction_test.py:805-806). Note: never re-asserts autocompaction is still disabled (compaction_test.py:815). Note (class-level): start_rpc='true' Unused (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_allows_reshape[tablets|vnodes] (scylla 41e84a1205, translated from it): same refresh + off-strategy reshape with autocompaction disabled on both keyspace kinds, asserting the reshaped sstables are single-window and autocompaction is still disabled, where this dtest only waits for a 'Reshaped' log (Jenkins avg 227s, ~17s after PR 7709). Note: 3 of 4 class params skipped at runtime and only those carry next_gating (compaction_test.py:805-806). Note: never re-checks autocompaction is still disabled (:815). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -594,6 +639,16 @@
       "relevance": "Live: nodetool/REST disable/enableautocompaction -> table::disable_auto_compaction / _compaction_disabled_by_user (replica/table.cc:5435-5462, compaction_manager.cc:1634).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction",
+          "coverage": "full",
+          "note": "Translation of this dtest and _twice (scylla 41e84a1205): per strategy, REST DELETE storage_service/auto_compaction/<ks>?cf= (what nodetool disableautocompaction sends), asserts state of table and reference, flushes 6 one-partition sstables into the table and an autocompaction-enabled reference table, waits for the reference to compact and asserts the table kept all 6 (stronger than the dtest's 2s compaction_history poll); disables twice more and re-checks; enables, asserts state and that both compact. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
+          "path": "test/nodetool/test_autocompaction.py",
+          "coverage": "partial",
+          "note": "nodetool->REST mapping (mocked): disable/enableautocompaction [ks [table]] -> DELETE/POST storage_service/auto_compaction/<ks>[?cf=], no-arg form iterates keyspaces."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_disable_autocompaction_alter_and_nodetool",
           "coverage": "full",
           "note": "Same disable->fill->no-compact / enable->fill->compacted sequence, plus an ALTER phase in the middle (compaction_test.py:683-709)."
@@ -607,15 +662,10 @@
           "path": "test/rest_api/test_column_family.py::test_column_family_auto_compaction_table",
           "coverage": "partial",
           "note": "REST POST/DELETE/GET autocompaction state per table."
-        },
-        {
-          "path": "test/nodetool/test_autocompaction.py",
-          "coverage": "partial",
-          "note": "nodetool->REST mapping only (mocked)."
         }
       ],
       "decision": "RED",
-      "reason": "Strict subset of test_disable_autocompaction_alter_and_nodetool (same steps and asserts, which adds an ALTER phase); 21s x4 strategies. Toggle also unit-tested in sstable_compaction_test.cc::autocompaction_control_test. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction (scylla 41e84a1205, translated from it): same disable -> no compaction / other table unaffected -> enable -> compacts sequence per strategy via the REST calls nodetool makes (mapping in test/nodetool/test_autocompaction.py), with a reference-table check; also a subset of test_disable_autocompaction_alter_and_nodetool; 18s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -649,6 +699,16 @@
       "relevance": "Live, but disable is a plain flag set (replica/table.cc:5462 _compaction_disabled_by_user = true) plus stop of ongoing compactions - trivially idempotent.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): after the first disable + check, disables twice more, asserts state still disabled and flushes 6 one-partition sstables into the table and an autocompaction-enabled reference table, waits for the reference to compact and asserts the table kept all 6 (stronger than the dtest's 2s compaction_history poll). Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
+          "path": "test/nodetool/test_autocompaction.py",
+          "coverage": "partial",
+          "note": "nodetool->REST mapping (mocked): disable/enableautocompaction [ks [table]] -> DELETE/POST storage_service/auto_compaction/<ks>[?cf=], no-arg form iterates keyspaces."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_disable_autocompaction_alter_and_nodetool",
           "coverage": "partial",
           "note": "Covers disable -> second fill still not compacting (after ALTER instead of re-disable)."
@@ -665,7 +725,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Low value + redundant: only new assertion is that re-disabling an idempotent flag (replica/table.cc:5462) doesn't fail; rest duplicates test_disable_autocompaction_nodetool/alter_and_nodetool; 23s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction (scylla 41e84a1205, translated from it): repeated disable keeps autocompaction off, checked against a reference table, per strategy; the toggle is an idempotent flag (replica/table.cc:5462); 20s x4 strategies. Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -700,6 +760,11 @@
       "relevance": "Live: nodetool without args iterates keyspaces -> DELETE/POST storage_service/auto_compaction/<ks> (api/storage_service.cc, test/nodetool/test_autocompaction.py::test_disableautocompaction).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_all_tables",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, REST DELETE storage_service/auto_compaction/<ks> for every keyspace (what no-arg nodetool sends, per test/nodetool/test_autocompaction.py::test_disableautocompaction), asserts both tables disabled, flushes 6 sstables into each and into a reference table in a new keyspace, waits for the reference to compact and asserts both kept 6; re-enables all, asserts state and that both compact. Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "test/nodetool/test_autocompaction.py::test_disableautocompaction",
           "coverage": "partial",
           "note": "Mocked: no-arg nodetool issues per-keyspace REST calls."
@@ -715,8 +780,8 @@
           "note": "disable/enable auto compaction blocks/allows background compaction at table level."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only e2e check that keyspace-wide (no-arg) disable actually stops compactions; pieces covered by mocked nodetool + rest_api state + boost unit test. Note: `timestamp = self.assert_table_did_not_compact(...)` is always None (helper's return inside pytest.raises, compaction_test.py:725,924-925), so later since_timestamp filter is a no-op; disable_mark unused (:715). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_all_tables (scylla 41e84a1205, translated from it): keyspace-wide disable stops compaction of both tables and enable restores it, per strategy, via the per-keyspace REST calls no-arg nodetool makes (test/nodetool/test_autocompaction.py::test_disableautocompaction); 20s x4 strategies. Note: timestamp from assert_table_did_not_compact is always None, so the later since_timestamp filter is a no-op; disable_mark unused (compaction_test.py:719,725,924-925). Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -765,6 +830,11 @@
       "relevance": "Live: compaction option 'enabled' parsed in cql3/statements/cf_prop_defs.cc:374 / db/schema_tables.cc:2298; enabled=false maps to null strategy (schema/schema.hh:758).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_disable_autocompaction_with_option",
+          "coverage": "partial",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, table1 CREATEd with compaction enabled=false, flushes 6 one-partition sstables into the table and an autocompaction-enabled reference table, waits for the reference to compact and asserts the table kept all 6 (stronger than the dtest's 2s compaction_history poll); ALTER enabled=true, asserts it compacts. No restart: the port does not check that the option still disables autocompaction after a restart (commit message says so)."
+        },
+        {
           "path": "test/cqlpy/test_compaction_strategy_validation.py",
           "coverage": "partial",
           "note": "'enabled' value validation and DESCRIBE with enabled:false; no compaction behavior."
@@ -775,8 +845,8 @@
           "note": "Null strategy compaction behavior at unit level, not via schema option."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only behavioral test that schema 'enabled':'false' stops compaction and persists across restart. Note: pre-restart phase also nodetool-disables the table (compaction_test.py:639), so only the post-restart check (no new writes, 2s poll) exercises the schema flag. Note: stale 'TODO' comment (:647). Note: assert_table_did_not_compact only polls compaction_history for 2s (timeout=2) and filters by table name only, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "decision": "YELLOW",
+      "reason": "Mostly covered by test/cqlpy/test_compaction.py::test_disable_autocompaction_with_option (scylla 41e84a1205, translated from it): CREATE with enabled=false blocks autocompaction and ALTER enabled=true restores it, per strategy, without the extra nodetool disable this dtest adds; left unique is only the post-restart check that the schema option still disables compaction, which is weak (no new writes, 2s poll). Note: pre-restart phase also nodetool-disables the table (compaction_test.py:639), so only the post-restart check exercises the schema flag. Note: stale 'TODO' comment (:651). Note: assert_table_did_not_compact only polls compaction_history for 2s and filters by table name, not keyspace (compaction_test.py:911-925). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -983,6 +1053,11 @@
       "relevance": "Live: tombstone_gc immediate mode, major compaction purging and sstable removal.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_compaction_deletes_sstables_of_deleted_data",
+          "coverage": "full",
+          "note": "Translation of this dtest (scylla 41e84a1205): per strategy, tombstone_gc=immediate, insert 10, delete all, clock.jump(1), flush, major compaction; asserts live_ss_table_count == 0 and no -Data.db left in the table dir (waits up to 30s), stronger than the dtest's first-dir file check. scylla_only + clock fixture: runs in dev/debug, skipped in release builds (needs test_clocks_offset_seconds). Not reproduced: vnodes keyspaces (cqlpy default keyspace uses tablets); the dtest ran in vnodes and tablets jobs."
+        },
+        {
           "path": "compaction_test.py::TestCompaction::test_compaction_delete_tombstone_gc[immediate-*]",
           "coverage": "partial",
           "note": "Immediate-mode purge on major compaction, but live rows remain (no empty-output/sstable deletion check)."
@@ -998,8 +1073,8 @@
           "note": "Unit-level purge logic."
         }
       ],
-      "decision": "GREEN",
-      "reason": "Cheap (7s) e2e check that fully-purged compaction leaves no sstables; other tests overlap only partially (no fully-purged output / sstable deletion check). Note: skip_if_no_major_compaction is dead code (Cassandra <2.2 only, compaction_test.py:496,907-909); cfs[0] assumes single table dir (:513). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_compaction.py::test_compaction_deletes_sstables_of_deleted_data (scylla 41e84a1205, translated from it): immediate-mode delete of all data, major compaction, asserts no sstables in the table's list nor Data.db files on disk, per strategy. Note: skip_if_no_major_compaction is dead code (Cassandra <2.2 only, compaction_test.py:496,907-909); cfs[0] assumes a single table dir (:517). Note (class-level): fixture sets start_rpc='true', Unused in scylla (db/config.cc:1288).",
       "issues": [
         {
           "kind": "note",
@@ -1022,7 +1097,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
