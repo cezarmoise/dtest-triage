@@ -17,6 +17,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 5 threads behind a barrier, each op twice: per-table snapshots, DELETE kn=<both ks>, snapshot all keyspaces, DELETE tag=<all-ks tag>, GET snapshots; asserts every REST call ok; 2 ks x 2 tables; no unfiltered clearsnapshot (same snapshot_ctl::clear_snapshot under the modify lock, db/snapshot-ctl.cc:268)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all",
           "coverage": "full",
           "note": "same per-table create + per-ks clear race, on 10 ks x 10 tables plus clear-all/create-all"
@@ -27,8 +32,8 @@
           "note": "same code on 10 ks"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Strict subset of test_parallel_operations_for_10_ks_1_table_per_ks and test_parallel_operations_create_clear_per_ks_and_all (same helpers, same race, more ks/tables). Fast (5.6s), so not RED under slow+redundant rule; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, series 42ab0bf5bd, names this dtest): per-table snapshots racing per-keyspace clears (plus create-all, clear by tag and list), each op repeated behind a barrier and every REST call asserted ok; smaller schema (2x2 vs up to 10x10), but every create/clear op takes snapshot_ctl's modify lock whatever the table count; nodetool->REST mapping in test/nodetool/test_snapshot.py; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_for_10_ks_1_table_per_ks": {
@@ -47,6 +52,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 5 threads behind a barrier, each op twice: per-table snapshots, DELETE kn=<both ks>, snapshot all keyspaces, DELETE tag=<all-ks tag>, GET snapshots; asserts every REST call ok; 2 ks x 2 tables; no unfiltered clearsnapshot (same snapshot_ctl::clear_snapshot under the modify lock, db/snapshot-ctl.cc:268)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all",
           "coverage": "full",
           "note": "same per-table create + per-ks clear race with 10 tables per ks, plus create-all/clear-all"
@@ -57,8 +67,8 @@
           "note": "same race with 10 tables/ks + clear-all"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Covered by test_parallel_operations_create_clear_per_ks_and_all (superset: same ops, 10 tables/ks, plus create-all/clear-all). Fast (14.7s), so YELLOW not RED. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, series 42ab0bf5bd, names this dtest): per-table snapshots racing per-keyspace clears (plus create-all, clear by tag and list), each op repeated behind a barrier and every REST call asserted ok; smaller schema (2x2 vs up to 10x10), but every create/clear op takes snapshot_ctl's modify lock whatever the table count; nodetool->REST mapping in test/nodetool/test_snapshot.py; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_for_10ks_and_10tables_and_clearallsnapshots": {
@@ -77,13 +87,18 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 5 threads behind a barrier, each op twice: per-table snapshots, DELETE kn=<both ks>, snapshot all keyspaces, DELETE tag=<all-ks tag>, GET snapshots; asserts every REST call ok; 2 ks x 2 tables; no unfiltered clearsnapshot (same snapshot_ctl::clear_snapshot under the modify lock, db/snapshot-ctl.cc:268)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all",
           "coverage": "full",
           "note": "same 10x10 schema; runs per-table create, per-ks clear, clear-all (all synced) plus create-all and extra unsynced create-all/clear-all - strict superset"
         }
       ],
       "decision": "RED",
-      "reason": "Slow (100s avg) and strictly covered by test_parallel_operations_create_clear_per_ks_and_all (55s), which runs the same three ops on the same 10x10 schema plus create-all. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, series 42ab0bf5bd, names this dtest): per-table snapshots racing per-keyspace and all-keyspace clears; the port clears all keyspaces by tag instead of an unfiltered clearsnapshot (same clear_snapshot path); each op repeated behind a barrier and every REST call asserted ok; smaller schema (2x2 vs up to 10x10), but every create/clear op takes snapshot_ctl's modify lock whatever the table count; nodetool->REST mapping in test/nodetool/test_snapshot.py; companion scylla-dtest#7713 (open) removes the dtest. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
       "issues": [
         {
           "kind": "note",
@@ -110,6 +125,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 5 threads behind a barrier, each op twice: per-table snapshots, DELETE kn=<both ks>, snapshot all keyspaces, DELETE tag=<all-ks tag>, GET snapshots; asserts every REST call ok; 2 ks x 2 tables; no unfiltered clearsnapshot (same snapshot_ctl::clear_snapshot under the modify lock, db/snapshot-ctl.cc:268)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all",
           "coverage": "full",
           "note": "identical 4 futures (synced+unsynced create-all/clear-all) on same 10x10 schema, plus per-ks ops"
@@ -120,8 +140,8 @@
           "note": "same create-all/clear-all futures on 30x10 schema, plus listsnapshots"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Its four ops are a strict subset of test_parallel_operations_create_clear_per_ks_and_all and test_parallel_operations_create_list_clear_for_all_ks. Fast (12s), so YELLOW not RED; candidate to drop. No scylla test runs snapshot ops concurrently (grep test/ for concurrent/parallel snapshot: none; test/boost/database_test.cc snapshot/clear_snapshot cases are sequential).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, series 42ab0bf5bd, names this dtest): all-keyspace snapshots racing all-keyspace clears (by tag in the port, unfiltered here; same clear_snapshot path), each op repeated behind a barrier and every REST call asserted ok; smaller schema (2x2 vs up to 10x10), but every create/clear op takes snapshot_ctl's modify lock whatever the table count; nodetool->REST mapping in test/nodetool/test_snapshot.py; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_create_clear_per_ks_and_all": {
@@ -140,13 +160,18 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 5 threads behind a barrier, each op twice: per-table snapshots, DELETE kn=<both ks>, snapshot all keyspaces, DELETE tag=<all-ks tag>, GET snapshots; asserts every REST call ok; 2 ks x 2 tables; no unfiltered clearsnapshot (same snapshot_ctl::clear_snapshot under the modify lock, db/snapshot-ctl.cc:268)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_snapshot_parallel_in_complex_mode_creating_listing_clearing",
           "coverage": "partial",
           "note": "complex test races create-all/per-table/clear-all with periodic list/clear but has no per-ks clear"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Most complete create/clear race (superset of 3 sibling tests) with no scylla equivalent. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, series 42ab0bf5bd, names this dtest): the same four ops (create-all, clear-all, per-table create, per-keyspace clear) run concurrently; clear-all is by tag in the port (same clear_snapshot path); each op repeated behind a barrier and every REST call asserted ok; smaller schema (2x2 vs up to 10x10), but every create/clear op takes snapshot_ctl's modify lock whatever the table count; nodetool->REST mapping in test/nodetool/test_snapshot.py; companion scylla-dtest#7713 (open) removes the dtest. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
       "issues": [
         {
           "kind": "note",
@@ -173,6 +198,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation). The #5603 fix (serialize true_snapshot_size against modify ops) is still in place via run_snapshot_list_operation.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "partial",
+          "note": "names this dtest (f891b01b9f): create-all / clear-by-tag / list race, but list is only GET storage_service/snapshots; nodetool listsnapshots also calls GET snapshots/size/true (tools/scylla-nodetool.cc:1435), the true_snapshots_size path whose serialization fixed #5603 (682fb3acfd)"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_snapshot_parallel_in_complex_mode_creating_listing_clearing",
           "coverage": "partial",
           "note": "also races list vs clear, but 15x15x1000 rows and 169s"
@@ -184,7 +214,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Cheapest regression for scylladb/scylladb#5603 (list vs concurrent clear); no scylla test races listsnapshots with clearsnapshot. Does not use the buggy per-table helper.",
+      "reason": "Cheapest (32s vs 139s/147s for test_parallel_operations_with_large_data_size / test_snapshot_parallel_in_complex_mode_creating_listing_clearing) test racing nodetool listsnapshots' true-size query (GET /storage_service/snapshots/size/true, the scylladb/scylladb#5603 path fixed by 682fb3acfd) against clearsnapshot, which no scylla test does: test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f, names this dtest) races only GET storage_service/snapshots, and test/boost/database_test.cc::test_snapshot_ctl_true_snapshots_size is sequential. scylla-dtest#7713 (open) removes it as translated, but the replacement lacks that call. Does not use the buggy per-table helper.",
       "issues": []
     },
     "TestParallelSnapshotOperations::test_parallel_operations_with_large_data_size": {
@@ -204,6 +234,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "partial",
+          "note": "same op mix (per-table create, per-keyspace clear, create-all, list, clear) at 2x2 tables and tiny data, list without snapshots/size/true; f891b01b9f left the dtests needing hundreds of MB"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_snapshot_parallel_in_complex_mode_creating_listing_clearing",
           "coverage": "partial",
           "note": "same 15x15x1000x1000 data; races create-all, per-table create, clear-all with periodic list/clear; lacks per-ks clear"
@@ -215,7 +250,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Slow (166s) and largely overlaps test_snapshot_parallel_in_complex_mode_creating_listing_clearing (same data size, same ops except per-ks clear) and test_parallel_operations_create_list_clear_for_all_ks; probably keep only one of the large-data tests. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "reason": "Slow (139s) and largely overlaps test_snapshot_parallel_in_complex_mode_creating_listing_clearing (same data size, same ops except per-ks clear) and test_parallel_operations_create_list_clear_for_all_ks; the small-data op mix is now in test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f), left in dtest only for its ~225MB data. Probably keep only one of the large-data tests. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
       "issues": [
         {
           "kind": "note",
@@ -242,6 +277,11 @@
       "relevance": "Live: nodetool snapshot/clearsnapshot/listsnapshots and the REST snapshot API are still there; scylla serializes them with snapshot_ctl::_lock (rwlock, db/snapshot-ctl.hh:162, run_snapshot_modify_operation/run_snapshot_list_operation).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations",
+          "coverage": "partial",
+          "note": "same op mix (per-table create, per-keyspace clear, create-all, list, clear) at 2x2 tables and tiny data, list without snapshots/size/true; f891b01b9f left the dtests needing hundreds of MB"
+        },
+        {
           "path": "snapshot_test.py::TestParallelSnapshotOperations::test_parallel_operations_with_large_data_size",
           "coverage": "partial",
           "note": "same data size and similar ops; this one adds periodic list/clear loops"
@@ -253,7 +293,7 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Most thorough list/clear/create stress (no scylla equivalent) but slow (169s) and overlaps test_parallel_operations_with_large_data_size; keep one of the two. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
+      "reason": "Most thorough list/clear/create stress: test/cqlpy/test_snapshot.py::test_snapshot_parallel_operations (f891b01b9f) has the op mix at small scale, but no scylla test uses large data or periodic list/clear loops. Slow (147s) and overlaps test_parallel_operations_with_large_data_size; keep one of the two. Note: SnapshotOperations.create_snapshots_per_keyspace_table (snapshot_test.py:83-92) appends (stdout, stderr) outside the inner cf loop (line 91), so only the last table per ks gets its stderr checked; nonzero exit still raises ToolError (ccmlib handle_external_tool_process), so impact is small.",
       "issues": [
         {
           "kind": "note",
@@ -280,6 +320,11 @@
       "relevance": "Live: replica/table.cc:4340-4440 writes schema.cql in every snapshot dir (with internals); nodetool refresh from upload/ still supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types",
+          "coverage": "full",
+          "note": "[columns] translated from it (f891b01b9f): same 20 native types and values, cf snapshot instead of keyspace snapshot; recreate from schema.cql + DESCRIBE + refresh, asserts exact rows instead of count; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table",
           "coverage": "partial",
           "note": "recreate table from schema.cql + refresh (load_method=refresh), but simple schema, auto_snapshot not explicit snapshot, no all-types coverage"
@@ -295,8 +340,8 @@
           "note": "DESCRIBE round trip of random tables, not via snapshot schema.cql"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Unique all-native-types snapshot->schema.cql->refresh round trip (8s), only partly covered by test/cluster/object_store/test_auto_snapshot_restore.py (2026-07-29, simple table). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types[columns] (f891b01b9f, series 42ab0bf5bd, translated from it): same all-native-types table through snapshot -> schema.cql -> refresh, comparing restored values (the dtest only counted rows); companion scylla-dtest#7713 (open) removes the dtest. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed.",
       "issues": [
         {
           "kind": "note",
@@ -323,6 +368,11 @@
       "relevance": "Live: replica/table.cc:4340-4440 writes schema.cql in every snapshot dir (with internals); nodetool refresh from upload/ still supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types",
+          "coverage": "full",
+          "note": "[frozen_udt] translated from it (f891b01b9f): frozen UDT of the 20 native types, UDT recreated by hand as in the dtest, table from schema.cql + DESCRIBE, refresh, exact rows; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "snapshot_test.py::TestSchemaFileInSnapshot::test_restore_data_from_snapshot_with_udt_with_refresh",
           "coverage": "partial",
           "note": "same helper, non-frozen UDT"
@@ -333,8 +383,8 @@
           "note": "schema.cql + refresh restore, no UDT"
         }
       ],
-      "decision": "GREEN",
-      "reason": "No scylla test restores a frozen-UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed. The UDT is recreated by hand, so the test doesn't check that the type is captured anywhere in the snapshot.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types[frozen_udt] (f891b01b9f, series 42ab0bf5bd, translated from it): same frozen all-native-types UDT table restored via schema.cql + refresh, comparing values; companion scylla-dtest#7713 (open) removes the dtest. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by column values, so type-specific sstable/value issues would pass unnoticed. The UDT is recreated by hand, so the test doesn't check that the type is captured anywhere in the snapshot.",
       "issues": [
         {
           "kind": "note",
@@ -368,6 +418,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types",
+          "coverage": "full",
+          "note": "[udt] translated from it (f891b01b9f): non-frozen UDT of the 20 native types, UDT recreated by hand as in the dtest, table from schema.cql + DESCRIBE, refresh, exact rows; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "snapshot_test.py::TestSchemaFileInSnapshot::test_restore_data_from_snapshot_with_frozen_udt_with_refresh",
           "coverage": "partial",
           "note": "same helper (create_and_restore_udt_from_snapshot), frozen UDT"
@@ -378,8 +433,8 @@
           "note": "recreate table from snapshot schema.cql + nodetool refresh (load_method=refresh), checks values; auto_snapshot on DROP instead of explicit nodetool snapshot, no DESCRIBE comparison"
         }
       ],
-      "decision": "GREEN",
-      "reason": "No scylla test restores a non-frozen (multi-cell) UDT table from snapshot schema.cql + refresh; cheap (8s). Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values. The UDT is recreated by hand (snapshot_test.py:894), so the test doesn't check that the type is captured in the snapshot.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types[udt] (f891b01b9f, series 42ab0bf5bd, translated from it): same non-frozen all-native-types UDT table restored via schema.cql + refresh, comparing values; companion scylla-dtest#7713 (open) removes the dtest. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values. The UDT is recreated by hand (snapshot_test.py:894), so the test doesn't check that the type is captured in the snapshot.",
       "issues": [
         {
           "kind": "note",
@@ -415,6 +470,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types",
+          "coverage": "full",
+          "note": "[columns] translated from it (f891b01b9f): table recreated from snapshot schema.cql, DESCRIBE equal, empty, row written after the snapshot discarded, upload/ + refresh, exact row values (all native types instead of int/text); runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table",
           "coverage": "partial",
           "note": "recreate table from snapshot schema.cql + nodetool refresh (load_method=refresh), checks values; auto_snapshot on DROP instead of explicit nodetool snapshot, no DESCRIBE comparison"
@@ -430,8 +490,8 @@
           "note": "explicit snapshot + refresh restore discarding post-snapshot writes, table recreated by hand"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Basic case of the schema.cql restore flow; covered by its dtest siblings (all-native-types variant + test_basic_snapshot_and_restore_with_refresh) and partly by scylla test_auto_snapshot_restore_table (refresh, value checks, but auto_snapshot). Fast (8.7s), drop candidate. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values; redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:824.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types[columns] (f891b01b9f, series 42ab0bf5bd, translated from it): schema.cql recreate + DESCRIBE + empty check + refresh restore discarding post-snapshot writes, checking row values instead of count(*); companion scylla-dtest#7713 (open) removes the dtest. Note: data restore is checked only by row count (check_rows_number_in_table, snapshot_test.py:953), not by values; redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:824.",
       "issues": [
         {
           "kind": "note",
@@ -468,6 +528,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file_after_alter",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): snapshot, ALTER ADD val1, snapshot; asserts val1 absent from the first schema.cql and present in the second, recreate from the second + DESCRIBE equal, descriptions differ"
+        },
+        {
           "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table_with_dropped_column",
           "coverage": "partial",
           "note": "schema.cql must reflect ALTER DROP (with timestamp); restore + value checks. Stronger for drops, no ADD case"
@@ -478,8 +543,8 @@
           "note": "DROP + re-ADD reflected in schema.cql"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "ALTER-after-snapshot reflected in schema.cql: scylla test_auto_snapshot_restore.py covers the harder DROP/re-ADD cases with data checks; ADD-only is trivial since schema.cql is a describe of the current schema (replica/table.cc:4441). Cheap (9.5s); partial overlap.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_schema_file_after_alter (f891b01b9f, series 42ab0bf5bd, translated from it): same two snapshots around ALTER ADD, recreate from the second schema.cql with DESCRIBE equality, plus a direct check of the column in each schema.cql; DROP/re-ADD cases in test/cluster/object_store/test_auto_snapshot_restore.py; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestSchemaFileInSnapshot::test_schema_file_created": {
@@ -503,6 +568,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): cf-list snapshot of 2 tables (simple + clustering order/list/comment), schema.cql read from the snapshot, DROP TABLE, run schema.cql, DESCRIBE equal; drops tables, not keyspace + data dir"
+        },
+        {
           "path": "snapshot_test.py::TestSchemaFileInSnapshot::test_restoring_by_schema_file_with_refresh",
           "coverage": "full",
           "note": "same steps (same table, same snapshot cmd, DESCRIBE equality) plus data restore"
@@ -518,8 +588,8 @@
           "note": "recreate table from snapshot schema.cql + nodetool refresh (load_method=refresh), checks values; auto_snapshot on DROP instead of explicit nodetool snapshot, no DESCRIBE comparison"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Strict subset of test_restoring_by_schema_file_with_refresh (create_restore_data_with_snapshot, snapshot_test.py:792: same schema.cql existence + recreate + DESCRIBE equality, then data restore). Existence also asserted in test/boost/database_test.cc::table_snapshot_works. Fast (7.6s), so not RED under slow+redundant; drop candidate.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_schema_file (f891b01b9f, series 42ab0bf5bd, translated from it): snapshot -> schema.cql -> drop -> recreate -> DESCRIBE equality, on 2 tables incl. clustering order, collection and comment; existence also in test/boost/database_test.cc::table_snapshot_works; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestSchemaFileInSnapshot::test_schema_file_created_by_multiple_tables": {
@@ -542,6 +612,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021). Multi-table snapshot (cf list) supported by REST /storage_service/snapshots cf param.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): cf-list snapshot of 2 tables (simple + clustering order/list/comment), schema.cql read from the snapshot, DROP TABLE, run schema.cql, DESCRIBE equal; drops tables, not keyspace + data dir"
+        },
+        {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
           "coverage": "partial",
           "note": "multi-table snapshot via REST, checks snapshot details, no schema.cql"
@@ -562,8 +637,8 @@
           "note": "same check, single table"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Combination of covered pieces: schema.cql round trip (test_schema_file_created / test_restoring_by_schema_file_with_refresh), multi-table snapshot (scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot, test/nodetool/test_snapshot.py), and 2-table variant test_upper_case_of_table_name_is_saved_mixed_case. 17s; partial overlap only.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_schema_file (f891b01b9f, series 42ab0bf5bd, translated from it): one cf-list snapshot of several tables (2 vs 5), per-table schema.cql recreate + DESCRIBE equality; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved": {
@@ -587,6 +662,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021). schema.cql uses schema::describe, same code as DESCRIBE.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file_quoted_names",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): quoted upper-case table with quoted upper-case columns plus a lower-case table in one cf-list snapshot; schema.cql recreate + DESCRIBE equality for both"
+        },
+        {
           "path": "snapshot_test.py::TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved_mixed_case",
           "coverage": "full",
           "note": "same UPPER_CASE_CF table/row/steps/assert, plus a lower-case table in the same snapshot"
@@ -597,8 +677,8 @@
           "note": "DESCRIBE quoting of identifiers, not via snapshot schema.cql"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Strict subset of test_upper_case_of_table_name_is_saved_mixed_case (identical upper-case table steps and DESCRIBE assert, snapshot_test.py:766-790). No scylla test recreates a quoted-name table from schema.cql. Fast (7.6s), drop candidate in favor of the mixed-case one.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_schema_file_quoted_names (f891b01b9f, series 42ab0bf5bd, translated from it): same quoted upper-case table and columns recreated from schema.cql with DESCRIBE equality; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved_mixed_case": {
@@ -620,6 +700,11 @@
       "relevance": "Live: replica/table.cc:4340-4442 writes schema.cql (describe with internals) in every snapshot dir; nodetool snapshot/refresh still supported. Guards scylladb/scylladb#4192 (schema.cql missing, closed 2020) and #7980 (malformed compaction part in schema.cql, closed 2021).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file_quoted_names",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): quoted upper-case table with quoted upper-case columns plus a lower-case table in one cf-list snapshot; schema.cql recreate + DESCRIBE equality for both"
+        },
+        {
           "path": "snapshot_test.py::TestSchemaFileInSnapshot::test_upper_case_of_table_name_is_saved",
           "coverage": "partial",
           "note": "subset (upper-case table only)"
@@ -635,8 +720,8 @@
           "note": "cf list parsing only, lower-case names"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test of case-sensitive table names through nodetool snapshot cf list -> snapshot dir -> schema.cql -> recreate; no scylla test does snapshot + schema.cql with quoted identifiers (grep test/ for schema.cql). Cheap (10s), 100% pass.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_schema_file_quoted_names (f891b01b9f, series 42ab0bf5bd, translated from it): quoted upper-case and lower-case tables in one cf-list snapshot, both recreated from schema.cql with DESCRIBE equality; companion scylla-dtest#7713 (open) removes the dtest.",
       "issues": []
     },
     "TestSnapshot::test_basic_mulitple_tables_snapshot_and_restore_with_refresh": {
@@ -662,6 +747,21 @@
       "relevance": "Live: nodetool snapshot accepts -cf/--column-family/--table aliases with comma list (test/nodetool/test_snapshot.py:149); REST /storage_service/snapshots cf param; refresh from upload/ supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): restores 2 tables with exact rows and post-snapshot writes discarded, but from a keyspace snapshot; cf-list snapshot of several tables in test_snapshot_schema_file (check_schema_files) and test/rest_api test_storage_service_snapshot, cf snapshot -> refresh restore in test_snapshot_restore_native_types; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_native_types",
+          "coverage": "partial",
+          "note": "cf=<table> snapshot -> upload/ + refresh restore, exact rows (single table)"
+        },
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_schema_file",
+          "coverage": "partial",
+          "note": "cf-list snapshot of 2 tables (cf=t1,t2), per-table schema.cql; no data restore"
+        },
+        {
           "path": "snapshot_test.py::TestSnapshot::test_basic_snapshot_and_restore_with_refresh",
           "coverage": "partial",
           "note": "same helper, 1 table, ks-level snapshot"
@@ -682,8 +782,8 @@
           "note": "recreate table from snapshot schema.cql + nodetool refresh (load_method=refresh), checks values; auto_snapshot on DROP instead of explicit nodetool snapshot, no DESCRIBE comparison"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Multi-table snapshot + refresh restore discarding post-snapshot writes; pieces covered by test_basic_snapshot_and_restore_with_refresh (restore), scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-table snapshot) and test/nodetool/test_snapshot.py (cf list). Keep one of the three flag variants (this one). Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "decision": "RED",
+      "reason": "Covered in combination by scylla tests from f891b01b9f, series 42ab0bf5bd, which names this dtest: test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh (multi-table restore, exact rows, post-snapshot writes discarded; keyspace-level snapshot), test_snapshot_schema_file and test/rest_api/test_storage_service.py::test_storage_service_snapshot (cf-list snapshot of several tables), test_snapshot_restore_native_types (cf snapshot -> refresh restore); -cf parsing in test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table; companion scylla-dtest#7713 (open) removes the dtest. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
       "issues": [
         {
           "kind": "note",
@@ -719,6 +819,11 @@
       "relevance": "Live: nodetool snapshot accepts -cf/--column-family/--table aliases with comma list (test/nodetool/test_snapshot.py:149); REST /storage_service/snapshots cf param; refresh from upload/ supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f), as one test with the -cf variant: restores 2 tables with exact rows (keyspace snapshot); its comment leaves the --column-family option to test/nodetool test_snapshot_keyspace_with_table; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "snapshot_test.py::TestSnapshot::test_basic_mulitple_tables_snapshot_and_restore_with_refresh",
           "coverage": "full",
           "note": "identical except '-cf' alias"
@@ -730,7 +835,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--column-family' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "reason": "Fully covered: scylla test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh (f891b01b9f, series 42ab0bf5bd, names this dtest) covers multi-table snapshot + refresh restore, and test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table checks that '--column-family t1,t2' (parametrized -cf/--column-family/--table) gives the same REST call kn=ks&cf=t1,t2; companion scylla-dtest#7713 (open) removes the dtest. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
       "issues": [
         {
           "kind": "note",
@@ -767,6 +872,11 @@
       "relevance": "Live: nodetool snapshot accepts -cf/--column-family/--table aliases with comma list (test/nodetool/test_snapshot.py:149); REST /storage_service/snapshots cf param; refresh from upload/ supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f), as one test with the -cf variant: restores 2 tables with exact rows (keyspace snapshot); its comment leaves the --table option to test/nodetool test_snapshot_keyspace_with_table; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
           "path": "snapshot_test.py::TestSnapshot::test_basic_mulitple_tables_snapshot_and_restore_with_refresh",
           "coverage": "full",
           "note": "identical except '-cf' alias"
@@ -778,7 +888,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Only difference from test_basic_mulitple_tables_snapshot_and_restore_with_refresh is the '--table' alias, which is fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table (parametrized -cf/--column-family/--table, comma list); flag parsing is in nodetool, server sees same REST call. 11s of duplicate work. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "reason": "Fully covered: scylla test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh (f891b01b9f, series 42ab0bf5bd, names this dtest) covers multi-table snapshot + refresh restore, and test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table checks that '--table t1,t2' (parametrized -cf/--column-family/--table) gives the same REST call kn=ks&cf=t1,t2; companion scylla-dtest#7713 (open) removes the dtest. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
       "issues": [
         {
           "kind": "note",
@@ -822,6 +932,16 @@
       "relevance": "Live: keyspace snapshot (REST /storage_service/snapshots kn=ks) and nodetool refresh from upload/ (load_new_sstables) both supported.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): keyspace snapshot (REST kn=ks) of 2 tables, row written after the snapshot, drop+recreate tables, copy to upload/ + load_new_sstables, asserts exact rows; drops tables, not the keyspace; runs with tablets (test/cqlpy/run.py --enable-tablets=true); vnodes snapshot->refresh in test_snapshot_restore_cdc[vnodes], vnodes refresh in test/cluster/test_refresh.py"
+        },
+        {
+          "path": "test/nodetool/test_refresh.py::test_refresh",
+          "coverage": "partial",
+          "note": "'nodetool refresh ks tbl' -> REST load_new_sstables mapping (mock)"
+        },
+        {
           "path": "test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables",
           "coverage": "partial",
           "note": "ks snapshot via REST, TRUNCATE, copy snapshot sstables to upload/, refresh (load_and_stream, 2 nodes), asserts exact set of keys; no post-snapshot writes / drop+recreate"
@@ -842,8 +962,8 @@
           "note": "snapshot files == table files + manifest/schema; no restore"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Fast (6s) e2e snapshot+refresh restore, but strict subset of scenario covered by scylla test/cluster/test_refresh.py::test_refresh_deletes_uploaded_sstables (ks snapshot -> upload/ -> refresh, exact key check) plus the multi-table dtest sibling; only extra is drop+recreate and discarding post-snapshot writes. Drop candidate. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh (scylla f891b01b9f, series 42ab0bf5bd, translated from it): keyspace snapshot -> post-snapshot write -> drop/recreate -> upload/ + refresh, checking exact row values instead of count(*), plus a repeated refresh (dbeb8c2c19); nodetool refresh mapping in test/nodetool/test_refresh.py::test_refresh; companion scylla-dtest#7713 (open) removes the dtest. Note: data checked only by count(*) (validate_rows_count_in_all_tables, snapshot_test.py:149); redundant second 'nodetool refresh' after restore_snapshot_with_refresh already ran it (tools/snapshots.py restore_snapshot_with_refresh) at snapshot_test.py:237.",
       "issues": [
         {
           "kind": "note",
@@ -1125,16 +1245,21 @@
         "9ffd273f04": "formatting (ruff format)",
         "e2aeb911c8": "match error in stderr too (native nodetool)"
       },
-      "relevance": "Live: server check in api/storage_service.cc:2018 ('Only one keyspace allowed when specifying a column family'); native nodetool has its own check only for multiple positional keyspaces (tools/scylla-nodetool.cc snapshot_operation).",
+      "relevance": "Live: server check in api/storage_service.cc:1724 at scylla 07a29f8ece ('Only one keyspace allowed when specifying a column family'); native nodetool has its own check only for multiple positional keyspaces (tools/scylla-nodetool.cc snapshot_operation).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_tables_of_two_keyspaces",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): REST POST kn=<ks>,system&cf=<t> -> asserts 400 and 'Only one keyspace allowed when specifying a column family'; the dtest's 'ks,ks1' single positional reaches the server as the same kn (tools/scylla-nodetool.cc snapshot_operation)"
+        },
         {
           "path": "test/nodetool/test_snapshot.py::test_snapshot_multiple_keyspace_with_table",
           "coverage": "partial",
           "note": "nodetool-side rejection of '--table tbl1 ks1 ks2' (separate positionals), mock server, no REST request; server-side check not exercised"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only test of the server-side 'Only one keyspace allowed when specifying a column family' check (api/storage_service.cc:2018); scylla covers only the nodetool-side variant (test/nodetool/test_snapshot.py::test_snapshot_multiple_keyspace_with_table). Cheap (5s) but would fit better as a scylla test/rest_api case. Note: insert_rows/validate_rows_count_in_all_tables hardcode 'ks.' (snapshot_test.py:145,151), so session1 writes/validates ks.cf0 again and ks1.cf0 is never populated (data setup is irrelevant to the assertion anyway).",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_tables_of_two_keyspaces (f891b01b9f, series 42ab0bf5bd, translated from it): same server-side rejection (api/storage_service.cc:1724 at scylla 07a29f8ece) and error text via REST; nodetool forwards the 'ks,ks1' positional unchanged as kn with cf (snapshot_operation; mapping in test/nodetool/test_snapshot.py::test_snapshot_keyspace_with_table), nodetool-side variant in test_snapshot_multiple_keyspace_with_table; companion scylla-dtest#7713 (open) removes the dtest. Note: insert_rows/validate_rows_count_in_all_tables hardcode 'ks.' (snapshot_test.py:145,151), so session1 writes/validates ks.cf0 again and ks1.cf0 is never populated (data setup is irrelevant to the assertion anyway).",
       "issues": [
         {
           "kind": "note",
@@ -1165,6 +1290,11 @@
       "relevance": "Live: no-arg snapshot -> REST without kn -> snapshot of all keyspaces.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_all_keyspaces",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): REST snapshot without kn; listed keyspaces == every keyspace with tables in system_schema.tables (system ones included), test table present; a2c508f281 added manifest.json per table and a second round"
+        },
+        {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
           "coverage": "partial",
           "note": "'all keyspaces' snapshot verified to contain exactly the user tables (system keyspaces filtered out by verify_snapshot_details)"
@@ -1175,8 +1305,8 @@
           "note": "no ktlist -> no kn param, 'all keyspaces' message (mock)"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Only extra over scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot is that system keyspaces are included; fast (6s). Note: helper comment says auth-v2 data lives in system_auth_v2 (snapshot_test.py:1143-1146), but scylla moved auth tables to the system keyspace (scylladb 2ab143fb40); system_auth stays as an empty cqlsh-compat keyspace (auth/service.cc:152-159), so removing it is still right. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_all_keyspaces (f891b01b9f, series 42ab0bf5bd, translated from it): no-keyspace snapshot contains exactly the keyspaces that have tables, system ones included; no-arg 'nodetool snapshot' -> no kn in test/nodetool/test_snapshot.py::test_snapshot_options_matrix; companion scylla-dtest#7713 (open) removes the dtest. Note: helper comment says auth-v2 data lives in system_auth_v2 (snapshot_test.py:1143-1146), but scylla moved auth tables to the system keyspace (scylladb 2ab143fb40); system_auth stays as an empty cqlsh-compat keyspace (auth/service.cc:152-159), so removing it is still right. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
       "issues": [
         {
           "kind": "note",
@@ -1212,6 +1342,11 @@
       "relevance": "Live: multi-keyspace snapshot, REST kn=ks0,ks2.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_some_keyspaces",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): 3 keyspaces, REST kn=ks1,ks2, asserts the listed tables are exactly those of ks1 and ks2"
+        },
+        {
           "path": "test/rest_api/test_storage_service.py::test_storage_service_snapshot",
           "coverage": "partial",
           "note": "'multiple keyspaces' step: kn=[ks0,ks1], exact table set checked (excludes others); server-side"
@@ -1222,8 +1357,8 @@
           "note": "'ks1 ks2' positionals -> kn=ks1,ks2 (mock); comma-joined single positional not tested but takes the same join path"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Fast strict subset of scylla test/rest_api/test_storage_service.py::test_storage_service_snapshot (multi-ks snapshot, exact set) + test/nodetool/test_snapshot.py::test_snapshot_keyspace; drop candidate. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_some_keyspaces (f891b01b9f, series 42ab0bf5bd, translated from it): 2 of 3 keyspaces, exact table set; 'nodetool snapshot ks1 ks2' -> kn=ks1,ks2 in test/nodetool/test_snapshot.py::test_snapshot_keyspace; companion scylla-dtest#7713 (open) removes the dtest. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
       "issues": [
         {
           "kind": "note",
@@ -1253,6 +1388,11 @@
       "relevance": "Live: -kc/--kc.list aliased to --keyspace-table-list (tools/scylla-nodetool.cc:4078); produces the same REST call kn=ksA,ksB.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_some_keyspaces",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f), as one test with the positional variant; its comment leaves -kc to test/nodetool test_snapshot_ktlist"
+        },
+        {
           "path": "snapshot_test.py::TestSnapshotOptions::test_snapshot_of_specified_keyspaces_only",
           "coverage": "full",
           "note": "identical server request, only nodetool flag differs"
@@ -1264,7 +1404,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Pure flag-alias duplicate: '-kc ks0,ks2' parsing fully covered by scylla test/nodetool/test_snapshot.py::test_snapshot_ktlist (-kc with 'ks1,ks2' -> kn=ks1,ks2); server sees the same request as test_snapshot_of_specified_keyspaces_only. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
+      "reason": "Fully covered: scylla test/cqlpy/test_snapshot.py::test_snapshot_some_keyspaces (f891b01b9f, series 42ab0bf5bd, names this dtest) checks the multi-keyspace snapshot (exact table set), and test/nodetool/test_snapshot.py::test_snapshot_ktlist checks '-kc ks1,ks2' -> kn=ks1,ks2; companion scylla-dtest#7713 (open) removes the dtest. Note: _get_snapshot_dir_paths filters with 'path.is_dir' without call (snapshot_test.py:1163-1164) - always truthy, no-op filter.",
       "issues": [
         {
           "kind": "note",
@@ -1334,6 +1474,11 @@
       "relevance": "Live: scylla-nodetool --skip-flush (tools/scylla-nodetool.cc:5112) -> REST sf (api/storage_service.cc:2002 .skip_flush); tablestats prints Memtable data size/switch count (tools/scylla-nodetool.cc:3275-3277).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_skip_flush",
+          "coverage": "full",
+          "note": "translated from it (f891b01b9f): REST sf=true snapshot of a table with data only in the memtable has no *-Data.db, a following normal snapshot does; stronger than the dtest's tablestats memtable checks"
+        },
+        {
           "path": "test/boost/database_test.cc::snapshot_skip_flush_works",
           "coverage": "full",
           "note": "server semantics, stronger: skip_flush snapshot leaves no sstables in table dir and snapshot has only manifest.json+schema.cql"
@@ -1344,8 +1489,8 @@
           "note": "--skip-flush -> sf=true REST param and 'skipFlush=true' output"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Combined scylla tests cover both halves: test/boost/database_test.cc::snapshot_skip_flush_works (no flush, stronger on-disk check) + test/nodetool/test_snapshot.py::test_snapshot_options_matrix (--skip-flush -> sf=true); only REST 'sf' parsing (api/storage_service.cc:2002) is uniquely end-to-end here. Fast (6.6s), real assertion (switch count ==). Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1163-1164), no-op filter.",
+      "decision": "RED",
+      "reason": "Fully covered by test/cqlpy/test_snapshot.py::test_snapshot_skip_flush (f891b01b9f, series 42ab0bf5bd, translated from it): sf=true end-to-end on a real server (REST sf parsing included), checked directly on the snapshot's files; --skip-flush -> sf=true in test/nodetool/test_snapshot.py::test_snapshot_options_matrix, server semantics also in test/boost/database_test.cc::snapshot_skip_flush_works; companion scylla-dtest#7713 (open) removes the dtest. Note: snapshot dir listing result ignored; _get_snapshot_dir_paths uses 'path.is_dir' without call (snapshot_test.py:1163-1164), no-op filter.",
       "issues": [
         {
           "kind": "note",
@@ -1356,7 +1501,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-11-09",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4"
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
