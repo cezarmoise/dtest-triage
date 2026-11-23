@@ -1,8 +1,8 @@
 {
   "file": "backup_restore_tests.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestBackupRestore::test_clearsnapshot_options": {
       "description": "Single node, ks0.cf and ks1.cf, 3 rounds of insert + 'nodetool snapshot -t snapshotN ks0 ks1'. Then 'clearsnapshot -t snapshot0' must remove snapshot0 in both keyspaces and leave snapshot1/2 file sets untouched; 'clearsnapshot -t snapshot1 -- ks1' must remove only ks1's snapshot1; plain 'clearsnapshot' must remove everything. Guards nodetool clearsnapshot tag/keyspace filtering end-to-end.",
@@ -32,19 +32,24 @@
       "relevance": "Live: nodetool clearsnapshot (-t, keyspace list) -> DELETE /storage_service/snapshots; replica::database::clear_snapshot(tag, {ks}, table). Works for vnodes and tablets (100% pass on both jobs, 32 runs, ~18s).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_delete_by_tag_and_keyspace",
+          "coverage": "full",
+          "note": "scylla dbeb8c2c19, translated from this test: 2 ks, 3 tags (REST snapshot kn=ks0,ks1); delete tag in all ks, tag in one ks, all snapshots of ks0,ks1; asserts deleted dirs gone, other snapshots' file lists unchanged. Only gap: final unfiltered clear (no tag, no ks); both filters (database.cc:3608/3615) independent and each exercised"
+        },
+        {
+          "path": "test/nodetool/test_snapshot.py::test_clearnapshot_tag_and_keyspace / test_clearnapshot_tag / test_clearnapshot",
+          "coverage": "partial",
+          "note": "mock REST: nodetool clearsnapshot args -> DELETE storage_service/snapshots params (incl. unfiltered)"
+        },
+        {
           "path": "test/boost/database_test.cc::clear_multiple_snapshots",
           "coverage": "partial",
-          "note": "single tag clear keeps other tags, clear-all, bogus tag; single keyspace only, no cross-keyspace isolation"
+          "note": "single tag clear keeps other tags, clear-all in one ks, bogus tag"
         },
         {
           "path": "test/boost/database_test.cc::clear_snapshot",
           "coverage": "partial",
           "note": "clear tag in ks"
-        },
-        {
-          "path": "test/nodetool/test_snapshot.py::test_clearnapshot_tag_and_keyspace / test_clearnapshot_tag / test_clearnapshot",
-          "coverage": "partial",
-          "note": "mock REST: verifies CLI args -> API params only"
         },
         {
           "path": "dtest snapshot_test.py::TestSnapshot::test_cleaning_snapshot_created_by_ks",
@@ -57,9 +62,16 @@
           "note": "clearsnapshot per-ks and all, in parallel"
         }
       ],
-      "decision": "YELLOW",
-      "reason": "Logic mostly covered by boost database_test::clear_multiple_snapshots + nodetool/test_snapshot.py arg mapping + snapshot_test.py clears; only gap is cross-keyspace isolation of 'clearsnapshot -t X -- ks1' end-to-end. Cheap and stable; candidate for merge into snapshot_test.py.",
-      "issues": []
+      "decision": "RED",
+      "reason": "Fully covered by scylla test/cqlpy/test_snapshot.py::test_snapshot_delete_by_tag_and_keyspace (dbeb8c2c19, translated from it): same 3-tag/2-ks delete-by-tag, by tag+ks and by ks sequence with identical file-list assertions; nodetool->REST mapping in test/nodetool/test_snapshot.py. Only the final unfiltered clearsnapshot differs (port limits it to its keyspaces), a combination of independently tested filters. Note: comment/assert messages mismatched.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "cosmetic",
+          "ref": "backup_restore_tests.py:462",
+          "text": "Comment says snapshot1 deleted but checks snapshot0; kept-snapshot asserts (473, 497) say 'has not been deleted'; 'direcotry' typo."
+        }
+      ]
     },
     "TestBackupRestore::test_failure_durring_restore_no_corrupt_data": {
       "description": "Single node: insert data, snapshot ks.cf, drop ks, recreate with swapped values, drain, delete live sstables, copy snapshot into upload/, start 'nodetool refresh' and kill -9 the node a random 0-1s after 'Loading new SSTables' log line. Delete commitlogs, restart, refresh again and assert all original rows/values present. Guards crash-safety of refresh (upload dir processing) - no corruption, restore can be resumed.",
@@ -189,9 +201,14 @@
       "relevance": "Live: incremental_backups config (replica/database.cc:476), REST set_incremental_backups_enabled (api/column_family.cc:1207), table.cc:2276 cfg.backup = incremental_backups_enabled(). Passes on vnodes+tablets (32 runs, 100%, ~16s).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_incremental_backup",
+          "coverage": "full",
+          "note": "scylla dbeb8c2c19, translated from this test; param new_keyspace = dtest flow (enable, then create ks/table): flushes in backups/ == table sstables, compaction changes table dir but not backups/; existing_table param adds table created before enabling. Stricter: asserts backups non-empty and compaction rewrote files"
+        },
+        {
           "path": "test/nodetool/test_backup.py::test_enablebackup",
           "coverage": "partial",
-          "note": "mock REST only, no on-disk check"
+          "note": "mock REST: nodetool enablebackup -> POST storage_service/incremental_backups value=true"
         },
         {
           "path": "dtest system_tables_test.py (incremental_backup_enabled toggle)",
@@ -199,9 +216,16 @@
           "note": "only checks the flag value in system table"
         }
       ],
-      "decision": "GREEN",
-      "reason": "Only functional test of incremental backups found: no scylla test checks the backups/ dir (grep of test/ for incremental_backups/backups dir only hits config_test, mutation_test cfg=false, nodetool mock). Feature live, fast and stable.",
-      "issues": []
+      "decision": "RED",
+      "reason": "Fully covered by scylla test/cqlpy/test_snapshot.py::test_incremental_backup[new_keyspace] (dbeb8c2c19, translated from it), which asserts the same backups/ == flushed sstables and unchanged-after-compaction checks, plus non-empty backups and that compaction rewrote sstables; enablebackup CLI mapping in test/nodetool/test_backup.py. Note: post-compaction sstable set logged, not asserted.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "backup_restore_tests.py:343",
+          "text": "Doesn't assert compaction rewrote sstables (sstables_files2 only logged); backups-unchanged check would pass if compaction did nothing."
+        }
+      ]
     },
     "TestBackupRestore::test_no_data_resurrection_or_loss_after_restore": {
       "description": "Single node: insert 10 rows, flush, ALTER DROP c2 + ADD c2, insert 10 more rows, flush. Stop node, copy sstables, save 'DESC KEYSPACE ks WITH INTERNALS'; drop ks, rmtree data, recreate schema from the description, assert re-described schema equals the original, copy sstables back offline and restart. Assert old rows have c2=null (no resurrection) and new rows keep c2 (no loss). Guards the documented backup procedure (DESC SCHEMA WITH INTERNALS emitting 'ALTER TABLE ... DROP c2 USING TIMESTAMP'), scylladb PR 18115.",
@@ -264,9 +288,14 @@
       "relevance": "Refresh is live. Second refresh is a no-op since refresh empties upload/ (test_refresh_deletes_uploaded_sstables). Assertion is COUNT(*)+values of same keys, which would pass even if sstables were loaded twice (same keys/timestamps), so 'no additional data' is not really detectable.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh",
+          "coverage": "full",
+          "note": "scylla dbeb8c2c19 added the second load naming this dtest: snapshot -> drop/recreate -> copy to upload -> load -> rows; load again (bare POST, nothing re-copied, same strength as dtest) -> rows unchanged; also checks post-snapshot row absent"
+        },
+        {
           "path": "dtest snapshot_test.py::TestSnapshot::test_basic_snapshot_and_restore_with_refresh",
           "coverage": "full",
-          "note": "snapshot -> drop ks -> recreate -> copy to upload -> refresh -> count; also checks post-snapshot data discarded; runs on same next-dtest-consistent-topology/tablets jobs (32 runs, 100%)"
+          "note": "snapshot -> drop ks -> recreate -> copy to upload -> refresh -> count; also checks post-snapshot data discarded; runs on same next-dtest jobs"
         },
         {
           "path": "test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh]",
@@ -280,12 +309,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Core flow (snapshot->drop->recreate->upload->refresh->verify) covered by scylla test/cluster/object_store/test_auto_snapshot_restore.py::test_auto_snapshot_restore_table[refresh] and dtest snapshot_test.py::test_basic_snapshot_and_restore_with_refresh (same next-dtest jobs); the 'second refresh adds nothing' check cannot fail by construction (same keys/timestamps, upload dir emptied per test_refresh_deletes_uploaded_sstables).",
+      "reason": "Fully covered by scylla test/cqlpy/test_snapshot.py::test_snapshot_restore_with_refresh (dbeb8c2c19 added the repeated load, citing this dtest): snapshot->drop->recreate->upload->refresh->verify, then refresh again and verify; also dtest snapshot_test.py::test_basic_snapshot_and_restore_with_refresh. Bug: the 'second refresh adds nothing' check cannot fail (upload/ emptied by first refresh; same keys/timestamps would pass even if loaded twice).",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "backup_restore_tests.py",
+          "ref": "backup_restore_tests.py:183-187",
           "text": "'Second refresh adds nothing' can't fail: upload/ emptied by first refresh, and same keys/timestamps would pass even if loaded twice."
         }
       ],
