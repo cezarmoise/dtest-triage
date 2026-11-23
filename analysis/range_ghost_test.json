@@ -1,8 +1,8 @@
 {
   "file": "range_ghost_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestRangeGhosts::test_ghosts": {
       "description": "Single node, RF=1 table with tombstone_gc=immediate. Inserts 1000 partitions, checks full scan returns 1000, flushes, deletes 500 partitions, checks scan returns 500, flushes, sleeps 1s, major-compacts, checks scan still returns 500. Guards against 'range ghosts' (deleted partitions showing up as empty rows in range scans), a Cassandra pre-1.2 Thrift-era artifact; asserts only row counts, never that tombstones were actually purged.",
@@ -28,8 +28,13 @@
         "e62db8d9d76bf0ab9da61526eb334ca69c7eeccd": "Fix for Cassandra 1.2: text column, quoted keys; no ghosts expected in 1.2+ (version branch, later removed).",
         "511522f2e0d6399191d79e393ed6f14d3a843550": "Origin."
       },
-      "relevance": "Range ghosts are a Cassandra/Thrift pre-1.2 behavior; in CQL (and Scylla) deleted partitions are never returned by a scan regardless of compaction. tombstone_gc='immediate' and major compaction are live in Scylla. Test passes 32/32 in gating (~8.5s).",
+      "relevance": "Range ghosts are a Cassandra/Thrift pre-1.2 behavior; in CQL (and Scylla) deleted partitions are never returned by a scan regardless of compaction. tombstone_gc='immediate' and major compaction are live in Scylla. Passes 100/100 runs (~8.6s).",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_dtest.py::test_no_range_ghosts",
+          "coverage": "full",
+          "note": "Translation of this test (scylla 66cf7bf9a0, series 42ab0bf5bd): same insert/flush/delete-half/flush/purge/major-compact sequence with tombstone_gc=immediate, 20 partitions, clock.jump instead of sleep; asserts counts and exact remaining rows after compaction."
+        },
         {
           "path": "test/cqlpy/cassandra_tests/validation/operations/delete_test.py::testNoRangeGhost",
           "coverage": "partial",
@@ -57,7 +62,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Tests Cassandra-only artifact (range ghosts, pre-1.2 Thrift); scan-after-delete covered by cqlpy delete_test.py::testNoRangeGhost and dtest cql_additional_tests::test_no_range_ghost, immediate-mode tombstone purge by compaction verified properly by compaction_test::test_compaction_delete_tombstone_gc[immediate]. Note: post-compaction assert (range_ghost_test.py:45) is identical to the pre-compaction one (line 38), so it never checks that tombstones were purged; the 'time.sleep(1)' is the only GC-related logic.",
+      "reason": "Fully covered by scylla test/cqlpy/test_dtest.py::test_no_range_ghosts (translated from this test in 66cf7bf9a0): same scan-after-delete across memtable, sstables and tombstone-purging major compaction, asserting exact remaining rows (stronger than counts). Also tests a Cassandra-only artifact (range ghosts, pre-1.2 Thrift). Note: post-compaction assert (range_ghost_test.py:45) is identical to the pre-compaction one (line 38), so it never checks that tombstones were purged.",
       "issues": [
         {
           "kind": "note",
