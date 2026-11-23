@@ -1287,9 +1287,150 @@
         }
       ],
       "jira": "DTEST-994"
+    },
+    "TestCqlshCopy::test_copy_to_with_more_failures_than_max_attempts": {
+      "description": "Single node, 100k rows via cassandra-stress. Sets CQLSH_COPY_TEST_FAILURES={'failing_range': tokens 0..5e18, num_failures 5} and runs COPY TO WITH MAXATTEMPTS='3', so ranges in that span fail more often than allowed. Asserts cqlsh output matches COPY_TO_FAILURE_RE ('some records might be missing') and the csv has fewer than 100k lines. Guards cqlsh COPY TO giving up on a range after MAXATTEMPTS (CASSANDRA-9304); server not involved in the injection.",
+      "origin": {
+        "sha": "8b41fd41c8",
+        "date": "2015-11-15",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Tests with failure injection for CASSANDRA-9304' (Stefania Alborghetti); came in with an upstream merge, no scylla-dtest PR."
+      },
+      "commits": {
+        "4a61708738": "no change to this test (removed adjacent test_bulk_round_trip_with_timeouts)",
+        "ccc91f1984": "assert COPY_TO_FAILURE_RE on stdout+stderr instead of 'some records might be missing' in stderr; add skip_if(cqlsh-rs#193)",
+        "6f9e307f77": "no change to this test (adjacent test_bulk_round_trip_with_timeouts)",
+        "fb3dfc9ea9": "no change to this test (adjacent test_bulk_round_trip_with_timeouts)",
+        "19da3c487f": "no change to this test (adjacent test_bulk_round_trip_with_timeouts)",
+        "b15f3b5c8f": "no change to this test (adjacent test_bulk_round_trip_with_timeouts)",
+        "d9b34802f3": "pytest port (logger, f-strings, plain asserts; same checks)",
+        "4ff1e28809": "no change to this test (removed other-partitioner round trip tests)",
+        "b56055c59a": "no change to this test (predates it; adjacent CASSANDRA-9302 tests)",
+        "e45ceca512": "no change to this test (predates it; adjacent CASSANDRA-9302 tests)",
+        "f804b8b7a7": "no change to this test (predates it; adjacent round trip tests)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "add @require('#2386') (skipped on scylla)",
+        "238b55c2bd": "remove @require('#2386'): test enabled on scylla (file-level, landed with pytest port 2021-11)",
+        "0bb45ec361": "widen failing_range end 1e18 -> 5e18",
+        "16516faec2": "prepare() without partitioner arg; readlines() count",
+        "8b41fd41c8": "test added (origin)"
+      },
+      "relevance": "MAXATTEMPTS retry logic and the CQLSH_COPY_TEST_FAILURES failing_range hook are pure cqlsh-client code (scylla-cqlsh pylib/cqlshlib/copyutil.py: ExportTask.export_records retry/give-up, ExportProcess.maybe_inject_failures); server only serves token-range SELECTs. Scylla master still ships Python scylla-cqlsh (tools/cqlsh submodule). Skipped on every run since 2026-08-09 (ccc91f1984) by skip_if(issue_open('scylladb/cqlsh-rs#193')) until that issue closed 2026-11-22, hence only 2 runs (build 11832, both gating jobs, passed). cqlsh-rs has no CQLSH_COPY_TEST_FAILURES hook (cqlsh-rs tests/integration/dtest_copy_tests.rs:1037 says these tests are not ported for that reason), so the pass implies gating still runs Python cqlsh (inference).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyToWithFailures::test_copy_to_with_more_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh a08e1bec9b, PR #234); stronger: asserts 'will try again later attempt 2 of 3', 'permanently given up after 0 rows and 3 attempts', 'some records might be missing' and exact exported row count; runs in scylla-cqlsh CI (integration_test_scylla job, pytest ./cqlshlib/test) against scylladb/scylla:2026.3.4"
+        },
+        {
+          "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy::test_copy_to_with_fewer_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "same file; with num_failures=3 vs MAXATTEMPTS='2' it checks the same give-up outcome with the same asserts"
+        }
+      ],
+      "decision": "RED",
+      "reason": "cqlsh-client behavior fully covered by stronger port scylla-cqlsh test_copy_round_trip.py::TestCopyToWithFailures::test_copy_to_with_more_failures_than_max_attempts (a08e1bec9b, scylla-cqlsh#234); dtest #7384 precedent: COPY retry behavior belongs in cqlsh's suite. Note: asserts only the final warning and lines < 100k (cqlsh_copy_tests.py:1395, 1399), not that retries happened. Note: CQLSH_COPY_TEST_FAILURES set (cqlsh_copy_tests.py:1387) and never unset. Note: skip_if(cqlsh-rs#193) (cqlsh_copy_tests.py:1368) inert, issue closed 2026-11-22.",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "limited-check",
+          "ref": "cqlsh_copy_tests.py:1395",
+          "text": "Only COPY_TO_FAILURE_RE (cqlsh_copy_tests.py:48) and lines<100k (cqlsh_copy_tests.py:1399); no check that ranges were retried MAXATTEMPTS times."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cqlsh_copy_tests.py:1387",
+          "text": "CQLSH_COPY_TEST_FAILURES env set, never unset; leaks into later run_cqlsh calls in the worker."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "cqlsh_copy_tests.py:1368",
+          "text": "skip_if(issue_open('scylladb/cqlsh-rs#193')) inert: issue closed 2026-11-22."
+        }
+      ]
+    },
+    "TestCqlshCopy::test_copy_to_with_fewer_failures_than_max_attempts": {
+      "description": "Single node, 100k rows via cassandra-stress. Sets CQLSH_COPY_TEST_FAILURES={'failing_range': tokens 0..5e18, num_failures 3} and runs COPY TO WITH MAXATTEMPTS='2'. Docstring claims fewer failures than attempts, so COPY TO should retry and succeed, but 3 failures exceed 2 attempts and the test asserts the failure outcome: COPY_TO_FAILURE_RE ('some records might be missing') and fewer than 100k csv lines. Originally (CASSANDRA-9304) MAXATTEMPTS=5 with assertNotIn + full row count.",
+      "origin": {
+        "sha": "8b41fd41c8",
+        "date": "2015-11-15",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest 'Tests with failure injection for CASSANDRA-9304' (Stefania Alborghetti); came in with an upstream merge, no scylla-dtest PR."
+      },
+      "commits": {
+        "ccc91f1984": "assert COPY_TO_FAILURE_RE on stdout+stderr instead of 'some records might be missing' in stderr; add skip_if(cqlsh-rs#193)",
+        "518ca98f00": "MAXATTEMPTS '5' -> '2' so the flipped failure asserts pass (3 failures > 2 attempts); log message still says 5",
+        "d9b34802f3": "pytest port, but flipped the asserts: assertNotIn('some records might be missing') / count == 100k -> 'in' / count < 100k",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "add @require('#2386') (skipped on scylla)",
+        "238b55c2bd": "remove @require('#2386'): test enabled on scylla (file-level, landed with pytest port 2021-11)",
+        "0bb45ec361": "widen failing_range end 1e18 -> 5e18",
+        "16516faec2": "prepare() without partitioner arg; readlines() count",
+        "8b41fd41c8": "test added (origin)"
+      },
+      "relevance": "MAXATTEMPTS retry logic and the CQLSH_COPY_TEST_FAILURES failing_range hook are pure cqlsh-client code (scylla-cqlsh pylib/cqlshlib/copyutil.py: ExportTask.export_records retry/give-up, ExportProcess.maybe_inject_failures); server only serves token-range SELECTs. Scylla master still ships Python scylla-cqlsh (tools/cqlsh submodule). Skipped on every run since 2026-08-09 (ccc91f1984) by skip_if(issue_open('scylladb/cqlsh-rs#193')) until that issue closed 2026-11-22, hence only 2 runs (build 11832, both gating jobs, passed). cqlsh-rs has no CQLSH_COPY_TEST_FAILURES hook (cqlsh-rs tests/integration/dtest_copy_tests.rs:1037 says these tests are not ported for that reason), so the pass implies gating still runs Python cqlsh (inference).",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyToWithFailures::test_copy_to_with_fewer_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh bcb1900ceb, PR #234) of the claimed scenario; commit message documents this dtest's MAXATTEMPTS=2 bug; uses MAXATTEMPTS=5, asserts 'attempt 2 of 5', no 'permanently given up', no 'some records might be missing', all rows exported; runs in scylla-cqlsh CI (integration_test_scylla job, pytest ./cqlshlib/test) against scylladb/scylla:2026.3.4"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries",
+          "coverage": "full",
+          "note": "COPY TO with failing_range num_failures=3 over the whole ring, MAXATTEMPTS=5; asserts retries and every row exported"
+        },
+        {
+          "path": "cqlsh_tests/cqlsh_copy_tests.py::TestCqlshCopy::test_copy_to_with_more_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "same file; covers what this test actually checks (give-up after MAXATTEMPTS), same asserts"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Bug: num_failures=3 with MAXATTEMPTS='2' (cqlsh_copy_tests.py:1421-1424) and failure asserts make it a copy of test_copy_to_with_more_failures_than_max_attempts; the claimed retry-then-succeed scenario is fully covered by scylla-cqlsh TestCopyToWithFailures::test_copy_to_with_fewer_failures_than_max_attempts (bcb1900ceb, #234) and TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries, and the give-up path by the dtest/scylla-cqlsh 'more' tests. Note: log message says 5 max attempts (cqlsh_copy_tests.py:1423). Note: env never unset (cqlsh_copy_tests.py:1422). Note: skip_if(cqlsh-rs#193) (cqlsh_copy_tests.py:1403) inert.",
+      "issues": [
+        {
+          "kind": "bug",
+          "tag": "wrong-scenario",
+          "ref": "cqlsh_copy_tests.py:1421-1424",
+          "text": "3 failures vs MAXATTEMPTS='2' and failure asserts: tests give-up, not retry-then-succeed as claimed (flipped in d9b34802f3, 518ca98f00)."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cqlsh_copy_tests.py:1423",
+          "text": "Log message says '5 max attempts' but the command uses MAXATTEMPTS='2'; docstring says job should succeed."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cqlsh_copy_tests.py:1422",
+          "text": "CQLSH_COPY_TEST_FAILURES env set, never unset; leaks into later run_cqlsh calls in the worker."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "cqlsh_copy_tests.py:1403",
+          "text": "skip_if(issue_open('scylladb/cqlsh-rs#193')) inert: issue closed 2026-11-22."
+        }
+      ]
     }
   },
-  "analyzed_at": "2026-11-02",
+  "analyzed_at": "2026-11-23",
   "scylla_rev": "07a29f8ece",
   "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c"
 }
