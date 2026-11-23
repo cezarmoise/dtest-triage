@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Close Jira issues whose tests are gone or no longer RED, then parents once all their sub-tasks are done.
 
-usage: jira_sync.py [--apply]   (dry run without --apply)
+usage: jira_sync.py [--apply] [KEY ...]   (dry run without --apply; KEYs: only those issues, no parents)
 
-Per `jira` key (all tests carrying it): all DELETED → Done; `dtest-red` issue and none RED → Won't Fix (the test
-stays); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
+Per `jira` key (all tests carrying it): all DELETED → Done; none RED and the issue is `dtest-red` or a dev review
+said keep (`review.verdict`) → Won't Fix (the test stays); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
 with a changed test that stay open. REST via `curl -n` (Python's netrc needs 0600).
 """
 import json
@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 API = "https://scylladb.atlassian.net/rest/api/2"
 DTEST = "https://github.com/scylladb/scylla-dtest"
 apply = "--apply" in sys.argv[1:]
+only = {a for a in sys.argv[1:] if a != "--apply"}
 
 
 def jira(method, path, body=None):
@@ -62,8 +63,10 @@ def close(key, why, status="Done"):
 tests = defaultdict(list)  # jira key → [(module::test, analysis entry)]
 for f in sorted((ROOT / "analysis").glob("*.json")):
     for k, a in json.loads(f.read_text())["tests"].items():
-        if a.get("jira"):
+        if a.get("jira") and (not only or a["jira"] in only):
             tests[a["jira"]].append((f"{f.stem}::{k}", a))
+if only - tests.keys():
+    sys.exit(f"not a `jira` of any test: {' '.join(sorted(only - tests.keys()))}")
 if not tests:
     sys.exit()
 issues = fetch(tests)
@@ -78,7 +81,8 @@ for key, ts in sorted(tests.items()):
                     for t, a in ts if a["decision"] != "RED")
     if all(a["decision"] == "DELETED" for _, a in ts):
         close(key, why)
-    elif "dtest-red" in issues[key]["labels"] and not red:
+    elif not red and ("dtest-red" in issues[key]["labels"]
+                      or any(a.get("review", {}).get("verdict") == "keep" for _, a in ts)):
         close(key, why, "Won't Fix")
     elif any(a["decision"] == "DELETED" for _, a in ts) or "dtest-red" in issues[key]["labels"] and len(red) < len(ts):
         print(f"{key} SKIP still on {', '.join(t for t, a in ts if a['decision'] != 'DELETED')}")
@@ -87,6 +91,8 @@ for key, ts in sorted(tests.items()):
         continue
     closed.add(key)
 
+if only:
+    sys.exit()
 parents = {f["parent"]["key"] for f in issues.values() if f["issuetype"]["subtask"]}
 children = defaultdict(list)
 for k, f in fetch(parents, "parent").items():

@@ -5,6 +5,8 @@ usage: removal.py select [--module GLOB]... [--decision D]... [--kind K]... [--d
        removal.py info TEST... | -          (fetch dtest next, scylladb/scylla-manager master first)
        removal.py strip [--force] TARGET... (in a dtest worktree)
        removal.py collect-diff [--base REV] TEST...  (in a dtest worktree)
+       removal.py prs                       (open removal PRs and their review state)
+       removal.py pr N                      (material for handling the reviews of PR N)
 
 select: `<test>  <decision>  <kind>  jira=<key>  pending=<branch>  dup=<first full duplicate>`, DELETED never listed.
   --decision default RED. --module matches the dotted module or its file path (fnmatch).
@@ -30,6 +32,14 @@ strip: remove functions/classes (with decorators and the comments right above) f
 collect-diff: pytest --collect-only of the whole repo at --base (default merge-base with upstream/next) and of the
   working tree; exit 1 unless exactly the given tests disappeared (inherited copies, added tests, new collection
   errors all fail).
+prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  worktree=<path|->  <title>` per open
+  PR by the author with a `<stem>: remove <test>` commit; new = reviews/comments by non-bot, non-author users after
+  the author's last comment or commit; dev = all of those by devs (not QA reviewers: their opinion isn't a verdict);
+  recorded = tests with an analysis `review` from this PR.
+  Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed PRs of the author whose
+  branch still has a worktree, a local branch or an origin branch.
+pr: markdown: state, branch, worktree, `Closes:` keys, tests (commit subject → TEST, decision, jira, review),
+  then every human review/comment (NEW = after the author's last comment or commit) with its URL and full body.
 """
 import argparse
 import ast
@@ -248,7 +258,8 @@ def cmd_select(a):
             continue
         for key, e in sorted(tests.items()):
             k, dups = kind(e), full_dups(e)
-            if (e["decision"] == "DELETED" or e["decision"] not in a.decision or (a.kind and k not in a.kind)
+            if (e["decision"] == "DELETED" or e.get("review", {}).get("verdict") == "keep"
+                    or e["decision"] not in a.decision or (a.kind and k not in a.kind)
                     or (a.dup_repo and not any(dup_repo(d["path"]) in a.dup_repo for d in dups))
                     or (a.group and group_of(mod, key) not in a.group)):
                 continue
@@ -514,6 +525,135 @@ def cmd_collect_diff(a):
     print("OK: exactly the expected tests disappeared")
 
 
+# --- review of removal PRs ---------------------------------------------------------------------------------------
+
+AUTHOR = "cezarmoise"
+GH_REPO = "scylladb/scylla-dtest"
+QA = {"pehala", "jsmolar", "yarongilor"}  # reviewers added to every PR; not devs
+REMOVE_SUBJECT = re.compile(r"(\w+): remove (test_\w+)")
+
+
+def gh_json(*args):
+    r = subprocess.run(["gh", *args], capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f"gh {' '.join(args)}: {r.stderr.strip()} (auth error → `gh auth login`)")
+    return json.loads(r.stdout)
+
+
+def gh_pages(path):
+    """All items of a paginated REST list."""
+    return [x for page in gh_json("api", "--paginate", "--slurp", f"{path}?per_page=100") for x in page]
+
+
+@cache
+def display_name(login):
+    return gh_json("api", f"users/{login}").get("name") or login
+
+
+def worktrees():
+    """{branch: path} of the dtest worktrees."""
+    out, path = {}, None
+    for line in git(DTEST, "worktree", "list", "--porcelain").splitlines():
+        if line.startswith("worktree "):
+            path = line.split(" ", 1)[1]
+        elif line.startswith("branch refs/heads/"):
+            out[line.removeprefix("branch refs/heads/")] = path
+    return out
+
+
+def removal_prs():
+    prs = gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "open", "--limit", "100", "--json",
+                  "number")  # commits per PR: the list query with commits exceeds GraphQL's node limit
+    prs = [gh_json("pr", "view", str(p["number"]), "-R", GH_REPO, "--json",
+                   "number,title,headRefName,reviewDecision") for p in prs]
+    prs = [dict(p, commits=commits(p["number"])) for p in prs]
+    return [p for p in prs if any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])]
+
+
+def commits(n):
+    """[{oid, subject, committedDate}] (REST: GraphQL's messageHeadline is cut at ~70 chars)."""
+    return [{"oid": c["sha"], "subject": c["commit"]["message"].split("\n", 1)[0],
+             "committedDate": c["commit"]["committer"]["date"]}
+            for c in gh_pages(f"repos/{GH_REPO}/pulls/{n}/commits")]
+
+
+def activity(n, commits):
+    """(human items sorted by date, time of the author's last comment or commit)."""
+    items = [dict(x, where="review") for x in gh_pages(f"repos/{GH_REPO}/pulls/{n}/reviews")]
+    items += [dict(x, where="comment") for x in gh_pages(f"repos/{GH_REPO}/issues/{n}/comments")]
+    items += [dict(x, where="inline") for x in gh_pages(f"repos/{GH_REPO}/pulls/{n}/comments")]
+    for x in items:
+        x["at"] = x.get("submitted_at") or x.get("created_at") or ""
+        x["dev"] = x["user"]["login"] not in QA
+    last = max([c["committedDate"] for c in commits] + [x["at"] for x in items if x["user"]["login"] == AUTHOR])
+    human = [x for x in items if x["user"]["type"] != "Bot" and x["user"]["login"] != AUTHOR
+             and (x["where"] != "review" or x["body"] or x["state"] in ("APPROVED", "CHANGES_REQUESTED"))]
+    return sorted(human, key=lambda x: x["at"]), last
+
+
+def pr_tests(commits):
+    """[(commit, [TEST candidates])] from `<stem>: remove <test>` subjects."""
+    out = []
+    for c in commits:
+        if m := REMOVE_SUBJECT.fullmatch(c["subject"]):
+            out.append((c, [f"{mod}::{key}" for mod, tests in sorted(analysis().items())
+                             if mod.split(".")[-1] == m[1] for key in tests if key.endswith(f"::{m[2]}")]))
+    return out
+
+
+def cmd_prs(a):
+    wt = worktrees()
+    for p in removal_prs():
+        human, last = activity(p["number"], p["commits"])
+        tests = [t for _, cands in pr_tests(p["commits"]) for t in cands]
+        rec = sum(analysis()[t.split("::")[0]][t.split("::", 1)[1]].get("review", {}).get("pr") == p["number"]
+                  for t in tests)
+        print(f"#{p['number']}  {p['reviewDecision'] or '-'}  new={sum(x['at'] > last for x in human)}  "
+              f"dev={sum(x['dev'] for x in human)}  recorded={rec}/{len(tests)}  {p['headRefName']}  "
+              f"worktree={wt.get(p['headRefName'], '-')}  {p['title']}")
+    local = set(git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/heads").split())
+    origin = {r.removeprefix("origin/") for r in
+              git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin").split()}
+    seen = set()
+    for p in gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "closed", "--limit", "100",
+                     "--json", "number,state,headRefName"):
+        b = p["headRefName"]
+        if b not in seen and b != "next" and (b in wt or b in local or b in origin):
+            seen.add(b)
+            print(f"CLEANUP #{p['number']} {p['state']} {b} worktree={wt.get(b, '-')} "
+                  f"origin={'yes' if b in origin else 'no'}")
+
+
+def cmd_pr(a):
+    p = gh_json("pr", "view", str(a.number), "-R", GH_REPO, "--json",
+                "number,title,state,headRefName,reviewDecision,body,labels,url")
+    p["commits"] = commits(a.number)
+    human, last = activity(a.number, p["commits"])
+    print(f"# #{p['number']} {p['title']}\n{p['url']} · {p['state']} · {p['reviewDecision'] or '-'} · "
+          f"labels {', '.join(x['name'] for x in p['labels']) or '-'}\n"
+          f"branch `{p['headRefName']}` · worktree `{worktrees().get(p['headRefName'], '-')}` · "
+          f"Closes: {' '.join(re.findall(r'^Closes: (\S+)', p['body'], re.M)) or '-'}\n\n## Tests")
+    for c, cands in pr_tests(p["commits"]):
+        print(f"- `{c['oid'][:10]}` {c['subject']}")
+        for t in cands or ["(not in analysis)"]:
+            e = analysis().get(t.split("::")[0], {}).get(t.split("::", 1)[-1], {})
+            rv = e.get("review")
+            print(f"  - {t} · {e.get('decision', '-')} · jira {e.get('jira', '-')}"
+                  + (f" · review {rv['verdict']} by {rv['by']} {rv['url']}" if rv else ""))
+    for c in p["commits"]:
+        if not REMOVE_SUBJECT.fullmatch(c["subject"]):
+            print(f"- `{c['oid'][:10]}` {c['subject']} (not a removal commit)")
+    print(f"\n## Human reviews and comments (NEW = after the author's last comment or commit, {last})")
+    for x in human:
+        login = x["user"]["login"]
+        where = {"review": f"review {x.get('state')}", "comment": "comment",
+                 "inline": f"inline `{x.get('path')}:{x.get('line') or x.get('original_line')}`"
+                           + (f" reply to {x['in_reply_to_id']}" if x.get("in_reply_to_id") else "")}[x["where"]]
+        print(f"\n### {'NEW ' if x['at'] > last else ''}{display_name(login)} ({login}{'' if x['dev'] else ', QA'})"
+              f" · {where} · {x['at'][:10]}"
+              f"\n{x['html_url']} (id {x['id']})\n\n{x['body']}")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -530,10 +670,13 @@ def main():
     s = sub.add_parser("collect-diff")
     s.add_argument("--base")
     s.add_argument("tests", nargs="+")
+    sub.add_parser("prs")
+    sub.add_parser("pr").add_argument("number", type=int)
     a = p.parse_args()
     if a.cmd == "select":
         a.decision = a.decision or ["RED"]
-    {"select": cmd_select, "info": cmd_info, "strip": cmd_strip, "collect-diff": cmd_collect_diff}[a.cmd](a)
+    {"select": cmd_select, "info": cmd_info, "strip": cmd_strip, "collect-diff": cmd_collect_diff,
+     "prs": cmd_prs, "pr": cmd_pr}[a.cmd](a)
 
 
 if __name__ == "__main__":

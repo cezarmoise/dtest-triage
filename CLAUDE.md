@@ -27,8 +27,11 @@ groups.json               # test → review group (Jira component, team, reviewe
 scripts/groups.py         # validates groups.json, prints tests per team/group
 scripts/removal.py        # removal PRs: select (kind, pending branches) / info (verify duplicates upstream) /
                           #   strip (in a dtest worktree) / collect-diff
+                          #   / prs (review state, CLEANUP of closed PRs) / pr N (review material)
 .claude/skills/remove-tests/  # /remove-tests <request>: select + verify here, dtest worktree (wt), PR by a Claude in
                           #   herdr following pr.md
+.claude/skills/removal-prs/   # /removal-prs [PR#...]: apply dev reviews of removal PRs: analysis `review` (final),
+                          #   Jira Won't Fix for kept tests, PR changes / follow-up PR by a Claude in herdr (review.md)
 ```
 
 Module = dotted path (`cqlsh_tests.cqlsh_copy_tests` → `cqlsh_tests/cqlsh_copy_tests.py`).
@@ -89,7 +92,9 @@ stops at big refactors (e.g. "port to pytest") → analysis finds real origin fr
    "reason": "...",                             // mentions issues as "Bug: ..." / "Note: ..."
    "issues": [{"kind": "bug|note", "tag", "ref", "text"}],
    "deleted": {"sha", "date", "pr": int | null, "prev": "GREEN|YELLOW|RED"},  // only if DELETED (delta.py)
-   "jira": "DTEST-123"}}}                      // optional: the test's Jira issue (see "Jira format"); analyses keep it
+   "jira": "DTEST-123",                        // optional: the test's Jira issue (see "Jira format"); analyses keep it
+   "review": {"by": "<Name> (<login>)", "url", "date", "pr": int,   // optional: dev verdict on a removal PR,
+              "verdict": "keep|remove"}}}}     //   final: decision GREEN|RED (or DELETED), never re-decided
 ```
 Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the Jenkins window.
 `duplicates.path` is usually `<repo path>::<test>` (scylla `test/...` or a dtest file), sometimes free text
@@ -97,6 +102,9 @@ Tests may be in analysis but not in data: DELETED, or no non-skipped runs in the
 field) are at data `rev`: `gen_data.py` moves them when it changes. Tags: prompt.md step 7
 (enforced by `check_analysis.py` TAGS). `jira`: set only when filing issues; the analyze subagents never add, change or
 drop it, and `check_analysis.py` fails if a key committed at `HEAD` is dropped. A grouped issue = same key on each test.
+`review`: set only by `/removal-prs`; a developer's verdict is final: `check_analysis.py` fails if a committed
+`review.url`/`verdict` changes or the decision doesn't match it (keep → GREEN, remove → RED, either → DELETED).
+`reason` then starts with `Per <Name> (<login>) <url>: <summary of the comment>.`
 
 ## Dashboard (what it needs to work)
 
@@ -194,8 +202,8 @@ Review group: <group> (<team>), reviewers: <names>
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
 - A test that already has `jira`: don't open another issue unless the user says so (then replace the key).
-- `/weekly` runs `scripts/jira_sync.py`: DELETED test → Done; `dtest-red` issue whose tests are no longer RED →
-  Won't Fix; parent → Done once all its sub-tasks are done. A test that turns RED again keeps its closed key.
+- `/weekly` runs `scripts/jira_sync.py`: DELETED test → Done; no test RED and the issue is `dtest-red` or a dev
+  review said keep → Won't Fix (comment = new decision + reason); parent → Done once all its sub-tasks are done. A test that turns RED again keeps its closed key.
 - After creating: set `"jira": "<key>"` on every test the issue covers in `analysis/<module>.json`, run
   `scripts/check_analysis.py <module>`, commit `git commit -m "jira: <keys>" analysis/`, push. The dashboard shows it
   after **Reload data**.

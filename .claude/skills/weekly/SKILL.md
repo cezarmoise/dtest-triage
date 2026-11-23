@@ -39,9 +39,12 @@ Run from `~/github/dtest-triage`. `$T` = `/tmp/claude/<session-id>`.
    groups"), `git commit -m "groups: <what>" groups.json`.
    Then `git pull --rebase -q && git push -q`.
 8. Jira: `python3 scripts/jira_sync.py` (dry run; rules in its docstring) lists issues to close: DELETED tests →
-   Done, `dtest-red` issues whose tests are no longer RED → Won't Fix, parents with all sub-tasks done → Done. Check
+   Done, issues whose tests are no longer RED (`dtest-red` or dev review keep) → Won't Fix, parents with all
+   sub-tasks done → Done. Check
    the CLOSE lines, then `--apply` (auto mode blocks Jira writes: hand the user `! python3 scripts/jira_sync.py
    --apply`). SKIP = key still on a RED/live test (e.g. MOVED copy): leave it open, report it.
-9. Reply: decision changes (test, old → new, why), DELETED tests (with their previous decision), new tests
+9. Removal PRs: `python3 scripts/removal.py prs`; `new=` > 0, or `dev=` > 0 with `recorded=` < all → unhandled
+   reviews: offer `/removal-prs <numbers>`. `CLEANUP` lines (closed/merged PRs): do the removal-prs skill's step 9.
+10. Reply: decision changes (test, old → new, why), DELETED tests (with their previous decision), new tests
    analyzed, Jira issues closed, items for a human (MOVED, `*` ports, dropped HELPER lines, new `groups.json`
-   mappings, Jira SKIP lines, new RED tests without `jira`: offer to open sub-tasks per CLAUDE.md "Jira format").
+   mappings, Jira SKIP lines, new RED tests without `jira`: offer to open sub-tasks per CLAUDE.md "Jira format"), removal PRs with new reviews.

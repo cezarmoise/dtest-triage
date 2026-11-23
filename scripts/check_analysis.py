@@ -19,6 +19,10 @@ TAGS = {  # see .claude/skills/analyze/prompt.md step 7
              "cosmetic", "limited-check", "other"},
 }
 
+REVIEW_KEYS = {"by", "url", "date", "pr", "verdict"}
+REVIEW_FINAL = {"url", "verdict"}  # can't change once committed
+VERDICT = {"keep": "GREEN", "remove": "RED"}
+
 errors = 0
 for mod in sys.argv[1:]:
     data = json.loads((ROOT / f"data/{mod}.json").read_text())
@@ -33,6 +37,9 @@ for mod in sys.argv[1:]:
         old = {}
     problems += [f"{k}: jira {a['jira']} dropped" for k, a in old.items()
                  if a.get("jira") and not analysis.get(k, {}).get("jira")]
+    problems += [f"{k}: review {a['review']['url']} dropped or changed" for k, a in old.items()  # dev verdicts are final
+                 if a.get("review") and {f: analysis.get(k, {}).get("review", {}).get(f) for f in REVIEW_FINAL}
+                 != {f: a["review"][f] for f in REVIEW_FINAL}]
     norun = []
     for k in analysis.keys() - tests:
         if analysis[k].get("decision") == "DELETED":
@@ -58,7 +65,12 @@ for mod in sys.argv[1:]:
         issues = a.get("issues", [])
         problems += [f"{k}: bad issue {i}" for i in issues
                      if i.get("tag") not in TAGS.get(i.get("kind"), ()) or not i.get("text")]
-        if a.get("decision") == "GREEN" and any(i.get("kind") == "bug" for i in issues):
+        if r := a.get("review"):
+            if r.keys() - REVIEW_KEYS or not REVIEW_FINAL <= r.keys() or r.get("verdict") not in VERDICT:
+                problems.append(f"{k}: bad review {r!r}")
+            elif a.get("decision") not in (VERDICT[r["verdict"]], "DELETED"):
+                problems.append(f"{k}: review {r['verdict']} but decision {a.get('decision')}")
+        if a.get("decision") == "GREEN" and not a.get("review") and any(i.get("kind") == "bug" for i in issues):
             problems.append(f"{k}: GREEN with a bug issue")
     left = len(tests - analysis.keys())
     print(f"{mod}: {len(tests) - left}/{len(tests)} analyzed{f', {left} left' if left else ''}"

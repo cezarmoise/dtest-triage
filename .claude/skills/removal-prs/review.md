@@ -1,0 +1,55 @@
+# Apply a dev review to a removal PR (run by a Claude in the PR's scylla-dtest worktree)
+
+Input: the handoff (PR, worktree, branch, verdict per test, PR-level fixes, Closes keys to drop). The verdicts are
+decided: don't re-argue them. Analysis and Jira are done in dtest-triage: don't touch `~/github/dtest-triage`
+(except running `R`), Jira or the main `~/github/scylla-dtest` checkout.
+`R`, `V`, ruff/pytest rules, commit message style, checks, backport labels, PR body sections: as in
+`/home/cezar/github/dtest-triage/.claude/skills/remove-tests/pr.md`. Commits always `PATH=$V:$PATH git commit`
+(hook runs ruff; never `--no-verify`).
+
+0. State: `git fetch -q upstream next`; tree clean; `git rev-parse HEAD` = PR head
+   (`gh pr view <n> -R scylladb/scylla-dtest --json headRefOid,body,labels`), else stop and ask. Read the material
+   and the review threads it links. Base = `git merge-base HEAD upstream/next` (don't rebase onto a newer next).
+1. Reviewer-proposed diffs, messages and permalinks: check each against the tree and the cited code before using it
+   (names imported, lines exist, claim true). Wrong or not applicable → don't apply, say why in the reply (step 4).
+2. Follow-up PR, per `keep + follow-up`:
+   - `cd ~/github/scylla-dtest && command wt switch --no-cd -c <branch> -b upstream/next --format json` → path;
+     branch `<file stem>-<action>` (e.g. `alternator-streams-unmark-gating`), lowercase, ≤ 50 chars, new.
+   - Make the change there, one commit; message: the dev's proposed one if they gave one (checked), else pr.md
+     style; body ends with `Requested in the review of scylladb/scylla-dtest#<n>:` + the comment URL on its own line.
+   - Show it works: e.g. a gating change → `$V/python -m pytest --collect-only -q -m next_gating <file>` no longer
+     lists it (and `-m dtest_full` still does).
+   - `git push -u origin <branch>`; `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch>
+     --reviewer pehala,jsmolar,yarongilor,<dev login> --assignee cezarmoise --label <labels>`; body: what + why;
+     `Follow-up to #<n>: <Name> (@<login>) asked for this instead of removing the test: <comment url>`; template
+     sections; no `Closes:` (the Jira issue is closed Won't Fix). Labels: pr.md step 2 applied to this change
+     (a branch gets `backport/<ver>` only if the changed code is there and the change matters there).
+3. Original PR:
+   a. No `remove` test left → `gh pr comment <n> --body-file <f>` (per kept test: the dev's point in one line +
+      comment URL; the follow-up PR), `gh pr close <n>`. Go to step 4, then 5, then 3c.
+   b. Otherwise rewrite the branch:
+      - Drop each kept test's commit, newest first (shas of later commits change after each rebase; re-read
+        `git log --oneline <base>..` between drops): `git rebase -q --onto <sha>^ <sha>`. Conflict (a later commit
+        touched the same lines, e.g. a shared helper or import) → resolve keeping the later commit's intent minus
+        what the kept test needs, `git rebase --continue`; unsure → `git rebase --abort`, ask the user.
+      - Later commits may have removed helpers the kept test still uses: ruff (F821) / `R collect-diff` show it.
+        Restore them inside the commit that removed them (`git commit --fixup=<that sha>`), and fix its message
+        (`It was the last user of X` no longer true).
+      - Code fixes asked for a commit: `git commit --fixup=<sha>`. New message for a commit: empty commit with
+        `git commit --allow-empty -F <f>`, `<f>` = `amend! <exact old subject>`, blank line, full new message
+        (`--fixup=reword:` needs an editor). Then `git rebase -q --autosquash <base>`; no `fixup!`/`amend!` left.
+      - pr.md step 2 checks with the remaining tests (`collect-diff` OK, one commit per test); recheck the backport
+        labels if the test set changed (`gh pr edit --add-label/--remove-label`).
+      - `git push --force-with-lease origin <branch>`.
+      - Body (`gh pr edit <n> --body-file`): apply the dev's cover-letter fixes (checked); kept tests out of the
+        table, counts, gaps, helpers and `Closes:`; add `### Kept after review`: per test, one line + comment URL
+        (+ follow-up PR).
+   c. Closed PR, last: `git push -q origin --delete <branch>`, then from the main checkout
+      `cd ~/github/scylla-dtest && command wt remove -D --foreground <branch>` (this worktree; the follow-up PR's
+      stays). The herdr workspace stays: the user closes it.
+4. Replies: each handled NEW inline thread → `gh api -X POST repos/scylladb/scylla-dtest/pulls/<n>/comments/<id>/replies
+   -f body=...`, 1-2 lines (what changed, in which commit / PR; or why not applied; scylla follow-ups: "left for a
+   scylla follow-up"). Open PR: one PR comment summarizing the changes per review (link it), then
+   `gh pr edit <n> --add-reviewer <dev login>` (re-request).
+5. Reply in the pane: PR URLs (original: updated/closed; follow-up), per test what happened, what wasn't applied and
+   why, scylla follow-ups the dev proposed. Open PRs keep their worktrees.
