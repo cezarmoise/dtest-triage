@@ -1,8 +1,8 @@
 {
   "file": "prepared_statements_test.py",
-  "analyzed_at": "2026-10-20",
-  "scylla_rev": "9d19bc68f8",
-  "dtest_rev": "2397bdaa078f054d0f6bcb6987adb1c0f137e9f4",
+  "analyzed_at": "2026-11-23",
+  "scylla_rev": "07a29f8ece",
+  "dtest_rev": "8a1d41efac59e2fe4e0a22ac2794ad79223b537c",
   "tests": {
     "TestPreparedStatements::test_dropped_index": {
       "description": "Single node: creates table with secondary index on b, prepares 'SELECT * FROM mytable WHERE b=?', executes it, drops the index, executes the prepared statement again. InvalidRequest is caught and printed, any other exception propagates; success is also accepted. No assertion on results or on the error. Port of Cassandra dtest for CASSANDRA-7875 (prepared statements using dropped indexes).",
@@ -27,6 +27,11 @@
       "relevance": "Prepared statements + secondary index drop still live in scylla (DROP INDEX invalidates prepared statements of the base table via schema change; scylla now pins paging plan to index, 'no longer available' error).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_prepared_statement_with_dropped_index",
+          "coverage": "full",
+          "note": "direct translation (scylla e646e5c922): same single-node prepared 'SELECT * WHERE b=?', DROP INDEX, re-execute; stricter - waits for index, asserts 10 rows before drop and InvalidRequest 'ALLOW FILTERING' after (dtest accepts success too)"
+        },
+        {
           "path": "test/cqlpy/test_secondary_index.py::test_paging_and_drop_index_allow_filtering_prepared",
           "coverage": "partial",
           "note": "prepared indexed SELECT, DROP INDEX, re-execute with assertions (ALLOW FILTERING variant)"
@@ -43,12 +48,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Bug: test asserts nothing - InvalidRequest is swallowed and success also passes (prepared_statements_test.py:46-52), so it only catches crashes/unexpected error types. The same scenario is asserted properly in test/cqlpy/test_secondary_index.py (test_paging_and_drop_index_allow_filtering_prepared, test_paging_and_drop_index_no_allow_filtering).",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_prepared_statement_with_dropped_index (translated in scylla e646e5c922), which runs the same scenario and asserts the InvalidRequest the dtest only tolerates. Bug: test asserts nothing - InvalidRequest is swallowed and success also passes (prepared_statements_test.py:47-53), so it only catches crashes/unexpected error types.",
       "issues": [
         {
           "kind": "bug",
           "tag": "cant-fail",
-          "ref": "prepared_statements_test.py:46",
+          "ref": "prepared_statements_test.py:47",
           "text": "Asserts nothing: InvalidRequest is caught and printed, success also passes; only crashes/unexpected errors fail"
         }
       ],
@@ -74,6 +79,11 @@
       "relevance": "Live: scylla invalidates prepared statements on schema change and supports result metadata id (SCYLLA_USE_METADATA_ID) for exactly this problem.",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_dtest.py::test_prepared_select_star_on_schema_change_two_connections",
+          "coverage": "full",
+          "note": "direct translation (scylla e646e5c922): two sessions prepare SELECT *, ALTER ADD c + DROP b, re-execute both; stricter - asserts 10 rows and exact columns (a, c). Second session is new_cql (same driver Cluster), dtest uses two Clusters; test_metadata_id covers separate Clusters"
+        },
+        {
           "path": "test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_columns",
           "coverage": "full",
           "note": "two sessions prepare SELECT *, third session ALTER TABLE ADD column, both prepared statements return new column count"
@@ -95,7 +105,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Scenario (multiple sessions, prepared SELECT *, ALTER ADD/DROP column, re-execute) fully covered by test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_columns + _types, plus boost schema_change_test and dtest cql_tests.py::test_prepared_statement_invalidation. Note: docstring 'should be address in 4.0 version' refers to Cassandra.",
+      "reason": "Fully covered by test/cqlpy/test_dtest.py::test_prepared_select_star_on_schema_change_two_connections (translated in scylla e646e5c922, same ADD c + DROP b on two sessions, stricter asserts), plus test/cluster/test_metadata_id.py::test_changed_prepared_statement_metadata_columns + _types (separate driver Clusters) and boost schema_change_test. Note: docstring 'should be address in 4.0 version' refers to Cassandra.",
       "issues": [
         {
           "kind": "note",
