@@ -5,10 +5,8 @@ Input: the handoff file (worktree, branch, kind, material, Closes, tests). Work 
 `R` = `/home/cezar/github/dtest-triage/scripts/removal.py` (executable; docstring explains `strip` and `collect-diff`).
 zsh: a variable holding `python3 <path>` doesn't word-split (`$R …` → exit 127): keep `R` one word.
 zsh: `${v}` before a `:` (`$sha:path`, `$v:c…` are modifiers): write `"${sha}:path"`.
-rtk shortens `git log`/`git show` output (subjects cut, bodies dropped): `rtk proxy git …` when you need full text.
 `V` = `$HOME/github/scylla-dtest/.venv-dtest-$(cat .python-version)/bin`.
-Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest`: the shell's rtk wrapper rewrites the output of
-bare `ruff`/`pytest` (e.g. "No issues found" while there are some).
+Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PATH`).
 
 1. Per test, in the handoff order, one commit each:
    a. `R strip <module>::<Class>::<test>`: removes it where it's defined (`defined_in` if inherited) with its
