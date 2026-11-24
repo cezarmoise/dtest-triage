@@ -55,8 +55,9 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
 4. Jira, handoff's "Close as Won't Fix" keys, once the PRs are done:
    `python3 /home/cezar/github/dtest-triage/scripts/jira_sync.py <keys>` (dry run): every key must print
    `CLOSE Won't Fix` (anything else → don't apply, report), then the same with `--apply` (posts the new reason as
-   comment, transitions; parents are left to `/weekly`). Blocked by permissions → ask the user
-   in the pane to run `! python3 /home/cezar/github/dtest-triage/scripts/jira_sync.py --apply <keys>`.
+   comment, transitions; parents are left to `/weekly`). Follow-up PR opened → add `--note "Follow-up: <PR url>"`
+   (dry run and apply). Blocked by permissions → ask the user in the pane to run
+   `! python3 /home/cezar/github/dtest-triage/scripts/jira_sync.py --apply [--note …] <keys>`.
 5. Replies: each handled NEW inline thread → `gh api -X POST repos/scylladb/scylla-dtest/pulls/<n>/comments/<id>/replies
    -f body=...`, 1-2 lines (what changed, in which commit / PR; or why not applied; scylla follow-ups: "left for a
    scylla follow-up"). Refs to other repos in full (`scylladb/scylladb#20191`): a bare `#N` links to scylla-dtest. Open PR: one PR comment summarizing the changes per review (link it), then

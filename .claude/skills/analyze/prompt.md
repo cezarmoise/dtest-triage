@@ -81,6 +81,8 @@ When replacing an entry, keep its `jira` field exactly as it was (the test's Jir
 An entry with `review` holds a developer's verdict from a removal PR review (final): keep `review`, `decision`
 and the `Per <name> ...` part of `reason` exactly; update the other fields as usual (add new issues, but they don't
 change the decision).
+A `reason` starting `Per <name> <url>: it covers <tests> (removed in #<n>)` marks a test a dev-accepted removal relies
+on: keep that part; it can't be RED (`check_analysis.py` fails), at most YELLOW.
 Write it after every few tests (valid JSON each time), so progress survives interruption.
 Do not modify any repo other than writing that file; do not commit. Scratch files/scripts only in your own
 `mktemp -d`; never run or reuse existing files in /tmp (old runs left scripts there that overwrite analysis files).

@@ -104,7 +104,9 @@ field) are at data `rev`: `gen_data.py` moves them when it changes. Tags: prompt
 drop it, and `check_analysis.py` fails if a key committed at `HEAD` is dropped. A grouped issue = same key on each test.
 `review`: set only by `/removal-prs`; a developer's verdict is final: `check_analysis.py` fails if a committed
 `review.url`/`verdict` changes or the decision doesn't match it (keep → GREEN, remove → RED, either → DELETED).
-`reason` then starts with `Per <Name> (<login>) <url>: <summary of the comment>.`
+`reason` then starts with `Per <Name> (<login>) <url>: <summary of the comment>.` A dtest test named as a `full`
+duplicate of a `remove`-reviewed test can't be RED (`check_analysis.py`): `/removal-prs` makes it YELLOW
+(`Per … : it covers <tests> (removed in #<n>) …`).
 
 ## Dashboard (what it needs to work)
 

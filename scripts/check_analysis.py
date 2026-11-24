@@ -2,6 +2,8 @@
 """Validate analysis/<module>.json against data/<module>.json. Exit 1 on errors.
 
 usage: check_analysis.py MODULE ...
+
+Also: a test cited as a `full` dtest duplicate of a test whose `review` accepted its removal can't be RED.
 """
 import json
 import re
@@ -22,6 +24,20 @@ TAGS = {  # see .claude/skills/analyze/prompt.md step 7
 REVIEW_KEYS = {"by", "url", "date", "pr", "verdict"}
 REVIEW_FINAL = {"url", "verdict"}  # can't change once committed
 VERDICT = {"keep": "GREEN", "remove": "RED"}
+
+DTEST_PATH = re.compile(r"(?!test/)([\w/]+)\.py::(\w+::\w+)")
+
+# dtest tests a dev-accepted removal relies on (`full` duplicates): not RED, their removal needs its own review
+covers = {}  # (module, Class::test) → ["<module>::<test> (#<pr>)", ...]
+decisions = {}  # (module, Class::test) → decision, unless reviewed
+for f in sorted((ROOT / "analysis").glob("*.json")):
+    for k, a in json.loads(f.read_text())["tests"].items():
+        if not a.get("review"):
+            decisions[f.stem, k] = a.get("decision")
+        if a.get("review", {}).get("verdict") == "remove":
+            for d in a["duplicates"]:
+                if d["coverage"] == "full" and (m := DTEST_PATH.fullmatch(d["path"])):
+                    covers.setdefault((m[1].replace("/", "."), m[2]), []).append(f"{f.stem}::{k} (#{a['review']['pr']})")
 
 errors = 0
 for mod in sys.argv[1:]:
@@ -70,8 +86,13 @@ for mod in sys.argv[1:]:
                 problems.append(f"{k}: bad review {r!r}")
             elif a.get("decision") not in (VERDICT[r["verdict"]], "DELETED"):
                 problems.append(f"{k}: review {r['verdict']} but decision {a.get('decision')}")
+        if a.get("decision") == "RED" and not a.get("review") and (c := covers.get((mod, k))):
+            problems.append(f"{k}: RED but covers the reviewed removal of {', '.join(c)}: YELLOW")
         if a.get("decision") == "GREEN" and not a.get("review") and any(i.get("kind") == "bug" for i in issues):
             problems.append(f"{k}: GREEN with a bug issue")
+    problems += [f"{cm}::{ck} (another module): RED but covers the reviewed removal of {', '.join(c)}: YELLOW"
+                 for (cm, ck), c in covers.items() if cm != mod and decisions.get((cm, ck)) == "RED"
+                 and any(x.startswith(f"{mod}::") for x in c)]
     left = len(tests - analysis.keys())
     print(f"{mod}: {len(tests) - left}/{len(tests)} analyzed{f', {left} left' if left else ''}"
           f"{f', {len(norun)} without runs' if norun else ''}")

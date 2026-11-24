@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Close Jira issues whose tests are gone or no longer RED, then parents once all their sub-tasks are done.
 
-usage: jira_sync.py [--apply] [KEY ...]   (dry run without --apply; KEYs: only those issues, no parents)
+usage: jira_sync.py [--apply] [--note TEXT] [KEY ...]
+  dry run without --apply; KEYs: only those issues, no parents; --note (needs KEYs): appended to the comment
 
 Per `jira` key (all tests carrying it): all DELETED → Done; none RED and the issue is `dtest-red` or a dev review
 said keep (`review.verdict`) → Won't Fix (the test stays); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
 with a changed test that stay open. REST via `curl -n` (Python's netrc needs 0600).
 """
+import argparse
 import json
 import subprocess
 import sys
@@ -16,8 +18,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 API = "https://scylladb.atlassian.net/rest/api/2"
 DTEST = "https://github.com/scylladb/scylla-dtest"
-apply = "--apply" in sys.argv[1:]
-only = {a for a in sys.argv[1:] if a != "--apply"}
+ap = argparse.ArgumentParser(usage=__doc__.split("usage: ")[1].split("\n\n")[0])
+ap.add_argument("--apply", action="store_true")
+ap.add_argument("--note")
+ap.add_argument("keys", nargs="*")
+args = ap.parse_args()
+apply, only, note = args.apply, set(args.keys), args.note
+if note and not only:
+    ap.error("--note needs KEYs")
 
 
 def jira(method, path, body=None):
@@ -51,6 +59,7 @@ def done(f):
 
 
 def close(key, why, status="Done"):
+    why += f"\n\n{note}" if note else ""
     print(f"{key} CLOSE {status}: {why}")
     if apply:
         transitions = jira("GET", f"issue/{key}/transitions")["transitions"]

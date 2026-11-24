@@ -35,11 +35,16 @@ give no verdict. Two devs disagree on a test → ask the user.
    - Both: fix what the dev corrected: `duplicates` (drop a cited test that doesn't check it, e.g. a vacuous one;
      add the right ones with their notes; gaps the dev named go in the duplicate's `note`), wrong facts in
      `description`/`relevance`. Keep `jira`.
+   - Covers: a dtest test RED in the analysis that a `remove` test's `full` duplicates name (`<file>.py::<Class>::<test>`,
+     after the fixes above) is now what that removal relies on: `decision` YELLOW, `reason` = `Per <Name> (<login>)
+     <url>: it covers <tests> (removed in #<n>), so removing it needs its own dev review. Was RED: <old reason>`;
+     drop "(RED)" mentions of it elsewhere. `check_analysis.py` fails while one stays RED. Its `jira` stays open.
    `python3 scripts/check_analysis.py <modules>`, then `git commit -m "analysis: review #<n>" analysis/`,
    `git pull --rebase -q && git push -q`.
 5. Jira (kept tests with `jira`): `python3 scripts/jira_sync.py <keys>` (dry run, after the push) must print
    `<key> CLOSE Won't Fix` with the new reason as the comment (SKIP = the key still has a RED test: leave it out,
-   report). The CLOSE keys go in the handoff: the herdr agent closes them once the PR work is done.
+   report). The CLOSE keys go in the handoff: the herdr agent closes them once the PR work is done, with
+   `--note` naming the follow-up PR.
 6. PR work needed only for NEW items asking for something (keep, fixes, questions to answer). None (e.g. an
    approval, or a review the user already handled) → skip steps 6-7 for that PR; CLOSE keys left → hand the user
    `! python3 scripts/jira_sync.py --apply <keys>` (auto mode blocks Jira writes here).
