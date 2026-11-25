@@ -1,8 +1,8 @@
 {
   "file": "compaction_additional_test.py",
-  "analyzed_at": "2026-11-23",
+  "analyzed_at": "2026-11-25",
   "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456",
+  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5",
   "tests": {
     "TestCompactionAdditional::test_compact_data_by_time_window": {
       "description": "Single node, TWCS table with 1-minute windows and timestamp_resolution=MILLISECONDS. Writes 7 flushed sstables into each of 4 consecutive past windows (explicit ms USING TIMESTAMP), runs major compaction, snapshots the Data files, then writes 2 more windows and asserts the original sstables are still present (old, already-compacted windows must not be recompacted with newer data). Guards TWCS window bucketing / timestamp_resolution handling.",
@@ -134,35 +134,30 @@
         "44ed3fa059": "Use nodetool cluster repair when needed (PR 5801).",
         "f1c2e0b732": "Populate with generate_cluster_topology(rack_num=3) for rf_rack_valid_keyspaces.",
         "9b8926fdb9": "Added the test.",
-        "9b505498a7": "File-level: dump_sstables via scylla sstable dump-data."
+        "9b505498a7": "File-level: dump_sstables via scylla sstable dump-data.",
+        "fe53fa5001": "File-level: removed the class-level single_node mark (this test boots 3 nodes)."
       },
       "relevance": "Live (same flush-compaction feature).",
       "duplicates": [
         {
+          "path": "test/cqlpy/test_compaction.py::test_flush_drops_deleted_rows",
+          "coverage": "full",
+          "note": "Translation of the one-node sibling (removed from dtest in 0b91cf02d): flush of a memtable with rows + deletions writes only the deletions, checked via mutation_fragments."
+        },
+        {
           "path": "test/boost/memtable_test.cc::memtable_flush_compresses_mutations",
           "coverage": "partial",
           "note": "Flush compaction unit test."
-        },
-        {
-          "path": "compaction_additional_test.py::TestCompactionAdditional::test_compact_tombstones_when_memtable_flush_one_node",
-          "coverage": "full",
-          "note": "Same assertions on the flushing replica; the stopped node adds nothing for the feature."
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~50s) and redundant: the down node/repair adds nothing to the memtable-flush-compaction feature, which is asserted identically by the one-node sibling and boost memtable_flush_compresses_mutations. Note: node2 data is never validated (count(*) after repair runs at default CL from node1); class-level @single_node mark while the test boots 3 nodes.",
+      "reason": "Slow (~50s) and redundant: the down node/repair adds nothing to the memtable-flush-compaction feature, which the one-node sibling, now test/cqlpy/test_compaction.py::test_flush_drops_deleted_rows (dtest 0b91cf02d), and boost memtable_flush_compresses_mutations assert. Note: node2 data is never validated (count(*) after repair runs at default CL from node1, compaction_additional_test.py:315).",
       "issues": [
         {
           "kind": "note",
           "tag": "limited-check",
           "ref": "compaction_additional_test.py:315",
           "text": "node2 data never validated; count(*) after repair runs at default CL from node1."
-        },
-        {
-          "kind": "note",
-          "tag": "other",
-          "ref": "compaction_additional_test.py:123",
-          "text": "Class-level @single_node mark while the test boots 3 nodes."
         }
       ],
       "jira": "DTEST-867"
@@ -368,6 +363,7 @@
         "summary": "Added during pytest conversion/rebase of compaction_additional_test (covers scylladb/scylla#8155)."
       },
       "commits": {
+        "1ecac7df20": "Helper fix: split_pattern now extracts UUID sstable generations and the interrupt regex matches '[<type> ks.cf <id>] ... stopped due to: ' (was 'user-triggered operation'), so the double-compaction check is no longer vacuous.",
         "a195acf07d": "Add tests to next_gating (this test later carries @unmark.next_gating).",
         "bffcd059dd": "Scale down rows in debug mode.",
         "5c316a67f8": "Mark single_node.",
@@ -377,20 +373,14 @@
       },
       "relevance": "Behavior live for vnode keyspaces (compaction_manager::try_perform_cleanup runs with compaction disabled). Under tablets cleanup is a no-op (api/tasks.cc force_keyspace_cleanup returns early for !is_vnode_based); runs only in dtest-release jobs (vnodes, @unmark.next_gating).",
       "duplicates": [],
-      "decision": "YELLOW",
-      "reason": "Unique coverage of #8155 but the core assertion is a no-op. Bug: split_pattern '(?:me|..)-(\\d+)-' (compaction_additional_test.py:609) never matches UUID sstable generations, which scylla always uses (sstables/generation_type.hh sstable_generation_generator -> UUID; config uuid_sstable_identifiers_enabled Unused since 6da758d74c), so regular/cleanup lists are empty and the intersection assert passes trivially. Note: interrupt branch of REG_EXPR_TEMPLATE (compaction_additional_test.py:129) expects 'user-triggered operation', removed in scylla 08c8c03a20 (reason now 'cleanup'), so stopped-task exclusion is dead. Fix regex or remove.",
+      "decision": "GREEN",
+      "reason": "Unique coverage of scylladb/scylla#8155 (no scylla test runs cleanup concurrently with regular/major compaction). The former cant-fail bug (generation regex never matched UUID sstables) and dead interrupt regex were fixed in dtest 1ecac7df20; get_sstables_compactions_flow (compaction_additional_test.py:594) now extracts UUID generations and excludes stopped tasks. Note: log-format comments (compaction_additional_test.py:620-622) still show the old format.",
       "issues": [
         {
-          "kind": "bug",
-          "tag": "cant-fail",
-          "ref": "compaction_additional_test.py:609",
-          "text": "split_pattern '(\\d+)' never matches UUID sstable generations, so regular/cleanup lists are empty and the double-compaction assert passes trivially."
-        },
-        {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "compaction_additional_test.py:129",
-          "text": "'user-triggered operation' interrupt branch of REG_EXPR_TEMPLATE dead since scylla 08c8c03a20; stopped-task exclusion never applies."
+          "tag": "stale-comment",
+          "ref": "compaction_additional_test.py:620-622",
+          "text": "Log-format comments in the helper and both double-compaction tests still show numeric generations and 'user-triggered operation'."
         }
       ]
     },
@@ -403,6 +393,7 @@
         "summary": "Added during pytest conversion/rebase of compaction_additional_test (covers scylladb/scylla#8155)."
       },
       "commits": {
+        "1ecac7df20": "Helper fix: split_pattern now extracts UUID sstable generations and the interrupt regex matches '[<type> ks.cf <id>] ... stopped due to: ' (was 'user-triggered operation'), so the double-compaction check is no longer vacuous.",
         "9a721e14da": "Disable for tablets (required_features !tablets) - cleanup not supported with tablets.",
         "bffcd059dd": "Scale down rows in debug mode.",
         "5c316a67f8": "Mark single_node.",
@@ -410,22 +401,16 @@
         "99998cd538": "Update sstable-generation regex.",
         "2d58256248": "Added the test."
       },
-      "relevance": "Live for vnode keyspaces only; runs only in next-dtest-consistent-topology (16 runs).",
+      "relevance": "Live for vnode keyspaces only; runs only in next-dtest-consistent-topology (50 runs, 100% pass).",
       "duplicates": [],
-      "decision": "YELLOW",
-      "reason": "Unique #8155 coverage but double-compaction assert is a no-op: same helper bugs as the major variant - split_pattern '(\\d+)' cannot match UUID sstable generations (always UUID, sstables/generation_type.hh; 6da758d74c), and the 'user-triggered operation' interrupt regex is dead since scylla 08c8c03a20. Only assert_row_count and grep_log_for_errors are effective. ~157s.",
+      "decision": "GREEN",
+      "reason": "Unique coverage of scylladb/scylla#8155 (no scylla test runs cleanup concurrently with regular/major compaction). The former cant-fail bug (generation regex never matched UUID sstables) and dead interrupt regex were fixed in dtest 1ecac7df20; get_sstables_compactions_flow (compaction_additional_test.py:594) now extracts UUID generations and excludes stopped tasks. Also checks row counts. ~150s. Note: log-format comments (compaction_additional_test.py:620-622) still show the old format.",
       "issues": [
         {
-          "kind": "bug",
-          "tag": "cant-fail",
-          "ref": "compaction_additional_test.py:609",
-          "text": "split_pattern '(\\d+)' never matches UUID sstable generations, so regular/cleanup lists are empty and the double-compaction assert passes trivially."
-        },
-        {
           "kind": "note",
-          "tag": "dead-code",
-          "ref": "compaction_additional_test.py:129",
-          "text": "'user-triggered operation' interrupt branch of REG_EXPR_TEMPLATE dead since scylla 08c8c03a20; stopped-task exclusion never applies."
+          "tag": "stale-comment",
+          "ref": "compaction_additional_test.py:620-622",
+          "text": "Log-format comments in the helper and both double-compaction tests still show numeric generations and 'user-triggered operation'."
         }
       ]
     },
@@ -1660,6 +1645,7 @@
         "summary": "Add tablets version of test_streaming_on_rebuild_multidc (rebuild unsupported with tablets; DTEST-155)."
       },
       "commits": {
+        "fe53fa5001": "Removed the single_node mark (test starts 2 nodes in 2 DCs); no behavior change.",
         "13d5c225ff": "Wait for this table's tablet migration (table_id-specific regex, from_mark) instead of the first one, since audit/system_traces keyspaces now on tablets migrate too.",
         "ef7651e3c0": "Test added."
       },
@@ -1707,6 +1693,7 @@
         "summary": "Adding additional tests for TWCS segregating (streaming/rebuild/repair/decommission tests)."
       },
       "commits": {
+        "fe53fa5001": "Removed the single_node mark (test starts 2 nodes in 2 DCs); no behavior change.",
         "cf5981cceb": "Skip with tablets unconditionally (skip_if(with_feature('tablets'))), rebuild unsupported with tablets.",
         "eccda80e42": "formatting",
         "4e1e3bc7f1": "Replaced required_features('!tablets'/'!consistent-topology-changes') with skip_if(... & issue_open(#17572/#17280)).",
@@ -1746,7 +1733,7 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "The remaining rebuild + off-strategy TWCS segregation test (test_rebuild_node_streaming is RED as its duplicate); no scylla test covers it. Note: 'Streaming for rebuild successful' regex alternative is dead (scylla logs lowercase), the rebuild_with_repair alternative matches (compaction_additional_test.py:1303); self.rebuild_errors ('rebuild is in progress' failures) counted but never asserted (:1718-1737), a missing rebuild still times out on the log wait; ThreadPoolExecutor with one task + immediate .result() is pointless and never shut down (:1733-1735); stale comment 'removed from gating' (:1681-1682) while module pytestmark=next_gating applies (runs in next-dtest-consistent-topology); comment 'auto_bootstrap: false' (:1708) does not match code.",
+      "reason": "The remaining rebuild + off-strategy TWCS segregation test (test_rebuild_node_streaming is RED as its duplicate); no scylla test covers it. Note: 'Streaming for rebuild successful' regex alternative is dead (scylla logs lowercase), the rebuild_with_repair alternative matches (compaction_additional_test.py:1303); self.rebuild_errors ('rebuild is in progress' failures) counted but never asserted (compaction_additional_test.py:1282-1301), a missing rebuild still times out on the log wait; ThreadPoolExecutor with one task + immediate .result() is pointless and never shut down (compaction_additional_test.py:1297-1299); stale comment 'removed from gating' (compaction_additional_test.py:1246-1247) while module pytestmark=next_gating applies (runs in next-dtest-consistent-topology); comment 'auto_bootstrap: false' (compaction_additional_test.py:1272) does not match code.",
       "issues": [
         {
           "kind": "note",
@@ -1770,7 +1757,7 @@
           "kind": "note",
           "tag": "stale-comment",
           "ref": "compaction_additional_test.py:1246-1247",
-          "text": "Comment 'removed from gating' while module next_gating mark applies; 'auto_bootstrap: false' comment (:1708) does not match code."
+          "text": "Comment 'removed from gating' while module next_gating mark applies; 'auto_bootstrap: false' comment (:1272) does not match code."
         }
       ]
     },
