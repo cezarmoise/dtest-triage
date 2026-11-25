@@ -101,7 +101,8 @@
         "d423bdfb76": "file-level: purge anonymous connections in _system_client_content (flaky driver_name None).",
         "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
         "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
-        "87ae715c81": "origin: non-SSL variant added."
+        "87ae715c81": "origin: non-SSL variant added.",
+        "dc9608a1d0": "Deleted the test: cql_system_clients_test.py: remove three single-node tests"
       },
       "relevance": "system.clients virtual table live (scylladb db/virtual_tables.cc:935-1055 sets shard_id, connection_stage, driver_name/version, protocol_version, username).",
       "duplicates": [
@@ -121,7 +122,7 @@
           "note": "address/port/shard_id."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Translated to scylla test/cqlpy/test_virtual_tables.py::test_clients (881ea15b5f, merged in 42ab0bf5bd), which checks all 9 fields on a non-TLS connection with real asserts; dtest PR scylladb/scylla-dtest#7713 (open) removes this test. Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:264, uses non-existent self._opened_sessions). Bug: class fixture fixture_add_additional_log_patterns sets allow_log_errors=True (cql_system_clients_test.py:148-150), so node log errors never fail the test.",
       "issues": [
         {
@@ -154,7 +155,13 @@
           "ref": "cql_system_clients_test.py:148-150",
           "text": "autouse fixture sets allow_log_errors=True for the whole class (since 09e15af38a), so ERROR lines in node logs never fail the test"
         }
-      ]
+      ],
+      "deleted": {
+        "sha": "dc9608a1d04d07a644986ea3133db2e59f86b815",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestSystemClients::test_system_client_hostname": {
       "description": "1-node TLS cluster; user1 connects over TLS and the test intends to assert system.clients.hostname is non-null. Marked @require('#9216') (system.clients missing hostname/ssl_* columns), so it was deselected until scylladb#9216 closed on 2025-09-18.",
@@ -173,11 +180,12 @@
         "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
         "cb5d09b5be": "origin: test added.",
         "87ae715c81": "require('#6946') mark; _system_client_content gains ssl params.",
-        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508)."
+        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508).",
+        "dc9608a1d0": "Deleted the test: cql_system_clients_test.py: remove three single-node tests"
       },
       "relevance": "hostname column exists in schema (db/virtual_tables.cc:938) but client_data::hostname (client_data.hh:58) is never assigned anywhere in scylla; scylladb#9216 (closed 2025-09-18) comment by ptrsmrn: decided NOT to populate hostname (costly rDNS), see scylladb PR #22961 discussion.",
       "duplicates": [],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Tested behavior intentionally not implemented: scylla decided not to fill hostname (scylladb#9216 closing comment); grep shows no writer of client_data::hostname. Scylla 881ea15b5f (dtest translation series 42ab0bf5bd) deliberately did not translate it for that reason; open dtest PR scylladb/scylla-dtest#7713 removes it. Test only passes (32/32) because it is vacuous: Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. If fixed it would always fail. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:264, uses non-existent self._opened_sessions). Bug: class fixture fixture_add_additional_log_patterns sets allow_log_errors=True (cql_system_clients_test.py:148-150), so node log errors never fail the test.",
       "issues": [
         {
@@ -217,7 +225,13 @@
           "text": "autouse fixture sets allow_log_errors=True for the whole class (since 09e15af38a), so ERROR lines in node logs never fail the test"
         }
       ],
-      "jira": "DTEST-575"
+      "jira": "DTEST-575",
+      "deleted": {
+        "sha": "dc9608a1d04d07a644986ea3133db2e59f86b815",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestSystemClients::test_system_client_hostname_non_ssl": {
       "description": "Non-TLS (9042) variant of test_system_client_hostname: intends to assert system.clients.hostname is non-null. @require('#9216').",
@@ -235,11 +249,12 @@
         "80982c39a3": "file-level: ssl_opts -> ssl.SSLContext.",
         "0c802c1aa3": "file-level: replaced wait_anonymous_connections_purged with get_allowed_client_records(allow_anonymous=False); introduced the record.username AttributeError on dict rows that makes this test vacuous.",
         "87ae715c81": "origin: test added with require('#6946').",
-        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508)."
+        "ba3e39f59c": "require mark #6946 -> #9216 (dtest PR #2508).",
+        "dc9608a1d0": "Deleted the test: cql_system_clients_test.py: remove three single-node tests"
       },
       "relevance": "hostname column exists in schema (db/virtual_tables.cc:938) but client_data::hostname (client_data.hh:58) is never assigned anywhere in scylla; scylladb#9216 (closed 2025-09-18) comment by ptrsmrn: decided NOT to populate hostname (costly rDNS), see scylladb PR #22961 discussion.",
       "duplicates": [],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Tested behavior intentionally not implemented: scylla decided not to fill hostname (scylladb#9216 closing comment); grep shows no writer of client_data::hostname. Scylla 881ea15b5f (dtest translation series 42ab0bf5bd) deliberately did not translate it for that reason; open dtest PR scylladb/scylla-dtest#7713 removes it. Test only passes (32/32) because it is vacuous: Bug: vacuous since 0c802c1aa3 (2025-08-29): _system_client_content opens the session with row_factory=dict_factory, but get_allowed_client_records does `record.username` (cql_system_clients_test.py:188) -> AttributeError on dict rows, swallowed by CQLSession.__exit__ returning self (:131); the field maps stay empty and the asserts after the with-block pass. Only prepare()+connect is checked. If fixed it would always fail. Class-level bugs: (1) CQLSession.__exit__ returns self (truthy) at cql_system_clients_test.py:131 since origin 81c26dd725, so ANY exception inside `with self.node_session(...)` is swallowed; (2) get_system_clients_records always filters `protocol_version=null` (CQLSession.protocol_version is never set) and `ssl_enabled=null` for non-TLS sessions (cql_system_clients_test.py:28,38); on Scylla `col=NULL` matches nothing (scylladb test/cqlpy/test_null.py::test_filtering_eq_null) and since scylla bdb90ee15c non-TLS rows have ssl_enabled=false, so check_if_in_system_clients always fails (swallowed) and check_if_not_in_system_clients always passes. Dead code: SessionStore.clear_sessions (:71, iterates dict keys) and TestSystemClients.expect_system_clients (:264, uses non-existent self._opened_sessions). Bug: class fixture fixture_add_additional_log_patterns sets allow_log_errors=True (cql_system_clients_test.py:148-150), so node log errors never fail the test.",
       "issues": [
         {
@@ -279,7 +294,13 @@
           "text": "autouse fixture sets allow_log_errors=True for the whole class (since 09e15af38a), so ERROR lines in node logs never fail the test"
         }
       ],
-      "jira": "DTEST-576"
+      "jira": "DTEST-576",
+      "deleted": {
+        "sha": "dc9608a1d04d07a644986ea3133db2e59f86b815",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestSystemClients::test_system_client_ssl": {
       "description": "1-node TLS cluster; user1 connects over TLS on 9142 and the test intends to assert ssl_cipher_suite, ssl_enabled, ssl_protocol are non-null in system.clients. @require('#9216'); scylla started filling these in bdb90ee15c (2025-07-22, 'set ssl_* columns in system.clients').",
@@ -564,5 +585,5 @@
   },
   "analyzed_at": "2026-11-23",
   "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456"
+  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5"
 }

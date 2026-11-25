@@ -2,7 +2,7 @@
   "file": "secondary_indexes_test.py",
   "analyzed_at": "2026-11-23",
   "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456",
+  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5",
   "tests": {
     "TestLocalIndexes::test_global_local_index_on_same_column": {
       "description": "4 nodes RF=3: creates a local index ((key), v) and a global index (v) on the same column, inserts 9 rows with repeating v values, then asserts each key+v query returns its single row via the local index and each v-only query returns all matching (pk,c) rows via the global index (assert_all, QUORUM, 30 retries). Guards coexistence of local and global indexes on one column and correct index selection.",
@@ -1610,7 +1610,8 @@
         "c3471a97e4": "formatting (autopep8).",
         "60fdd2b6c5": "added single_node attr.",
         "b256636aa0": "moved into class with INDEX_TYPE (Local index new tests refactor); no behavior change.",
-        "22156c5b10": "origin."
+        "22156c5b10": "origin.",
+        "b0a3b5ed20": "Deleted the test: secondary_indexes_test.py: move single-node tests to Scylla's test/cqlpy"
       },
       "relevance": "Live: cql3/statements/create_index_statement.cc:748-752 validate_targets_for_multi_column_index throws 'Only CUSTOM indexes support multiple columns' for both the 2-single-column-target and the >2-target case.",
       "duplicates": [
@@ -1625,9 +1626,15 @@
           "note": "'((p1,p2),c1,v)' rejected (size>2 branch of the local form), no message check."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Fully covered by cqlpy test_index_multiple_columns (60f21d1d43, translated from this test): same CREATE INDEX on (b, c) and on six columns, same 'Only CUSTOM indexes support multiple columns' check. The dtest's random compaction strategy on the base table is irrelevant to a CREATE INDEX rejection. Its local twin was removed in scylla-dtest PR 7849.",
-      "issues": []
+      "issues": [],
+      "deleted": {
+        "sha": "b0a3b5ed2094a2379ad212d8f03beec172215033",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestSecondaryIndexes::test_multi_index_filtering_query": {
       "description": "4 nodes RF=3: table (key uuid, c0, c1, c2 text) with global indexes on c0 and c1, 5 rows; asserts count c0='a' = 4 (QUORUM, retried 5x1s), that c0='a' AND c1='b' without ALLOW FILTERING is rejected ('use ALLOW FILTERING'), and with it returns count 2. Guards that two indexes do not remove the ALLOW FILTERING requirement.",
@@ -2381,7 +2388,8 @@
         "9639765329": "loop simplification, no behavior change.",
         "638fb135eb": "added nested tuple column.",
         "287a37eada": "origin (Cassandra).",
-        "3e6c9ee425": "pre-origin file commit (patient_cql_connection); not this test."
+        "3e6c9ee425": "pre-origin file commit (patient_cql_connection); not this test.",
+        "b0a3b5ed20": "Deleted the test: secondary_indexes_test.py: move single-node tests to Scylla's test/cqlpy"
       },
       "relevance": "Live: global secondary indexes on frozen tuple columns are supported (cqlpy test_secondary_index.py:1037 creates CREATE INDEX ON t(t)).",
       "duplicates": [
@@ -2396,7 +2404,7 @@
           "note": "Only checks CREATE INDEX ON tuple column succeeds and keys/values/entries/full() on a tuple are rejected; no queries."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Fully covered by cqlpy test_index_tuple (60f21d1d43, translated from this test): same four tuple columns and the same four phases (ALLOW FILTERING error, index build over existing rows, post-index inserts, tuple updates), at smaller scale. The dtest never flushes or compacts, so its random compaction strategy is inert; single node, so synchronous_updates and concurrent inserts add nothing. Note: fixed time.sleep(5) after inserts.",
       "issues": [
         {
@@ -2405,7 +2413,13 @@
           "ref": "secondary_indexes_test.py:799",
           "text": "Fixed time.sleep(5) after inserts; redundant, single-node view updates are local and awaited (now also synchronous_updates)"
         }
-      ]
+      ],
+      "deleted": {
+        "sha": "b0a3b5ed2094a2379ad212d8f03beec172215033",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestStaticSecondaryIndexes::test_query_data_with_index": {
       "description": "4-node RF=3 cluster (QUORUM): global index on static column cs1 of a (key, ck) table, created over 2 pre-existing partitions, then 3 more inserted. Asserts count(*) via the index (incl. pre-index data), pk+index, ck+index needing ALLOW FILTERING, contradictory cs1=X AND cs1=Y returning 0, partition delete, TTL on the static column (UPDATE and INSERT USING TTL 15, polled up to 20x1s) dropping matches, TRUNCATE emptying index queries, count(*) of several rows per partition, and pk+ck+index (scylladb#12829, fixed by b03488a965). Guards secondary indexes on static columns (scylladb PR #11166).",

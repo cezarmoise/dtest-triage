@@ -75,7 +75,8 @@
       },
       "commits": {
         "73eb9931a4": "added test",
-        "08c8d1d661": "file-level: selects turned into generators yield_multi_partition_selects (no behavior change)"
+        "08c8d1d661": "file-level: selects turned into generators yield_multi_partition_selects (no behavior change)",
+        "fe2fb2a90f": "Deleted the test: reversed_queries_test.py, schema_test.py: move single-node tests to test/cqlpy"
       },
       "relevance": "Live: multi-partition IN + ORDER BY (unpaged) with reversed per-partition reads.",
       "duplicates": [
@@ -105,7 +106,7 @@
           "note": "reader-level reversed reads with range tombstones over memtable/sstable/cache."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Translated into cqlpy test_clustering_order.py::test_reversed_selects_multi_partition + _bypass_cache (scylla 94938008dc): same data, same 3 queries over memtable / post-flush / BYPASS CACHE; only the order of tied rows is no longer checked, which CQL leaves unspecified (scylladb#15099, open) and the origin commit 73eb9931a4 doesn't target. Note: dtest pins Scylla's tie order with exact `==` (line 236). Note: yield_multi_partition_selects docstring says 'single partition' (line 224, copy-paste).",
       "issues": [
         {
@@ -120,7 +121,13 @@
           "ref": "reversed_queries_test.py:227",
           "text": "exact `==` pins Scylla's unspecified order of tied rows (scylladb#15099, open); would fail if Scylla matched Cassandra."
         }
-      ]
+      ],
+      "deleted": {
+        "sha": "fe2fb2a90f857b38f2dd29535fc6c722f61baef6",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestReversedQueriesMemoryUsage::test_memory": {
       "description": "2 nodes (one per rack), smp=1, memory=512M, RF=2. 10 workers write a ~1GB single partition (100k rows x 10KB) at CL=ALL. Then `ORDER BY id DESC LIMIT 200` (~2MB) must succeed, return 200 rows and be split into >1 page; and its page count must equal the forward `ORDER BY id LIMIT 200` page count. Guards that reversed reads of partitions larger than shard memory don't accumulate the whole partition (scylladb#9134) and use the same page size as forward reads (scylladb PR #9815).",
@@ -260,7 +267,8 @@
         "eccda80e42": "formatting",
         "9ffd273f04": "formatting",
         "2d925aec35": "port to pytest",
-        "cb57b9e4af": "added test (orig.)"
+        "cb57b9e4af": "added test (orig.)",
+        "c1f82f5ef4": "Deleted the test: move unmarked single-node tests to Scylla's test/cqlpy"
       },
       "relevance": "Live behavior, but basic.",
       "duplicates": [
@@ -280,10 +288,16 @@
           "note": "DESC table ORDER BY ASC/DESC with LIMIT."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Fully covered by cqlpy select_order_by_test.py::testReversedComparator (same query shape, memtable + sstable) and dtest paging_test.py::TestPagingSize::test_with_order_by_reversed.",
       "issues": [],
-      "jira": "DTEST-640"
+      "jira": "DTEST-640",
+      "deleted": {
+        "sha": "c1f82f5ef4de03cbd9b429efe8d6e99988bf458d",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestReversedQueriesReadRepairBigMutationsSmallChanges::test_queries_with_read_repair": {
       "description": "2 nodes, hinted handoff off, RF=2, NullCompactionStrategy. Writes 10k rows at CL=ALL, every 1000 rows deletes one random row and flushes node2 (~10 sstables). Stops node2, deletes the first 9 files under data/ks (one sstable), restarts; CL=ALL reversed read must return all live rows reversed (multi-page); then node1 down and node2 CL=ONE BYPASS CACHE read must return everything, proving reversed read repair of a large partition with small differences.",
@@ -481,7 +495,8 @@
         "summary": "Lukasz Paszkowski: add tests for TWCS (part of 'Reversed queries tests', closes scylla-dtest#2253)."
       },
       "commits": {
-        "5c0b1c8140": "added test (orig.)"
+        "5c0b1c8140": "added test (orig.)",
+        "fe2fb2a90f": "Deleted the test: reversed_queries_test.py, schema_test.py: move single-node tests to test/cqlpy"
       },
       "relevance": "Live: TWCS + time_series_sstable_set (enable_optimized_twcs_queries, compaction/time_window_compaction_strategy.cc:127) with reversed single-partition reads.",
       "duplicates": [
@@ -501,7 +516,7 @@
           "note": "reversed clustering-order merger over time_series_sstable_set, asserts full content/order."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Translated into cqlpy test_clustering_order.py::test_reversed_query_twcs (scylla 94938008dc), which does the intended multi-window scenario correctly (microsecond timestamps, 5 windows, exact order); also cqlpy test_twcs_reversed_restricted_query_* and boost test_clustering_order_merger_sstable_set_reversed. Bug: USING TIMESTAMP gets seconds (`int(time.time())`, line 748-750) but CQL timestamps are microseconds, so all 300 writes fall within 300us in one 1970 window; the '5 windows' comment (line 742) is false and the 5 sstables come only from the flushes.",
       "issues": [
         {
@@ -516,7 +531,13 @@
           "ref": "reversed_queries_test.py:643",
           "text": "'5 windows' comment false; 5 sstables come only from flushes."
         }
-      ]
+      ],
+      "deleted": {
+        "sha": "fe2fb2a90f857b38f2dd29535fc6c722f61baef6",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     },
     "TestSinglePartitionReversedQueriesSelectors::test_reverse_selectors": {
       "description": "Single node RF=1; populates 3-column-key table, adds range/row tombstones in bucket 1 (BaseReversedQuerySelector.populate, line 129), then runs 11 single-partition `ORDER BY id DESC` queries (no restriction, =, IN, <, >, ranges, multi-column IN/ranges, independent INs) with exact expected rows, from memtable, from cache after flush, and from sstable with BYPASS CACHE (run_single_partition_selects, line 213). Guards native reversed reads with clustering restrictions over RTs across all three mutation sources.",
@@ -533,7 +554,8 @@
         "8a899af07e": "extract populate/selects into BaseReversedQuerySelector (no behavior change)",
         "73eb9931": "class renamed TestReversedQueriesSelectors -> TestSinglePartitionReversedQueriesSelectors; populate adds bucket 2 rows (unused by single-partition queries)",
         "08c8d1d661": "helper refactored into yield_single_partition_selects generator + callback (same queries/expectations)",
-        "cb57b9e4af": "added test (orig.)"
+        "cb57b9e4af": "added test (orig.)",
+        "fe2fb2a90f": "Deleted the test: reversed_queries_test.py, schema_test.py: move single-node tests to test/cqlpy"
       },
       "relevance": "Live: native reversed reads in memtable/cache/sstable readers, clustering restrictions with ORDER BY DESC.",
       "duplicates": [
@@ -573,12 +595,18 @@
           "note": "same query set via run_selects, but no flush/BYPASS CACHE source split; slow upgrade test."
         }
       ],
-      "decision": "RED",
+      "decision": "DELETED",
       "reason": "Translated 1:1 into cqlpy test_clustering_order.py::test_reversed_selects_single_partition + _bypass_cache (scylla 94938008dc): same data, tombstones, 11 queries and exact expected rows over memtable / post-flush / BYPASS CACHE reads; the dtest adds nothing but a ccm node.",
-      "issues": []
+      "issues": [],
+      "deleted": {
+        "sha": "fe2fb2a90f857b38f2dd29535fc6c722f61baef6",
+        "date": "2026-11-02",
+        "pr": 7713,
+        "prev": "RED"
+      }
     }
   },
   "analyzed_at": "2026-11-23",
   "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456"
+  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5"
 }
