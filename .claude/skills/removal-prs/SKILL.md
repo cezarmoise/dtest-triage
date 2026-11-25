@@ -86,3 +86,5 @@ give no verdict. Two devs disagree on a test → ask the user.
    skip, report); `origin=yes` → `git -C ~/github/scylla-dtest push -q origin --delete <branch>`; then
    `cd ~/github/scylla-dtest && command wt remove -D --foreground <branch>` (dirty worktree → skip, report).
    Its herdr workspace, if open: `herdr workspace list` → `herdr workspace close <id>` (none `working`).
+10. Labels, per `LABELS #<n> <labels>` line of `R prs` (test removals are never backported):
+    `gh pr edit <n> -R scylladb/scylla-dtest --add-label backport/none --remove-label <each listed label but it>`.

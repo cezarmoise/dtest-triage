@@ -37,6 +37,8 @@ prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  work
   by non-bot, non-author users after the author's last comment or commit (approvals without text don't count);
   dev = all of those by devs (not QA reviewers: their opinion isn't a verdict); recorded = tests with an analysis
   `review` from this PR.
+  Then `LABELS #<n> <backport labels|->`: removal PRs (with a remove commit) whose backport labels aren't exactly
+  `backport/none` (test removals are never backported; follow-up PRs may be).
   Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed PRs of the author whose
   branch still has a worktree, a local branch or an origin branch.
 pr: markdown: state, branch, worktree, `Closes:` keys, tests (commit subject → TEST, decision, jira, review),
@@ -567,7 +569,7 @@ def removal_prs():
     prs = gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "open", "--limit", "100", "--json",
                   "number")  # commits per PR: the list query with commits exceeds GraphQL's node limit
     prs = [gh_json("pr", "view", str(p["number"]), "-R", GH_REPO, "--json",
-                   "number,title,headRefName,reviewDecision,body") for p in prs]
+                   "number,title,headRefName,reviewDecision,body,labels") for p in prs]
     prs = [dict(p, commits=commits(p["number"])) for p in prs]
     return [p for p in prs if FOLLOW_UP.search(p["body"]) or any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])]
 
@@ -610,6 +612,7 @@ def bare_approval(x):
 
 def cmd_prs(a):
     wt = worktrees()
+    labels = []
     for p in removal_prs():
         human, last = activity(p["number"], p["commits"])
         tests = [t for _, cands in pr_tests(p["commits"]) for t in cands]
@@ -618,6 +621,11 @@ def cmd_prs(a):
         print(f"#{p['number']}  {p['reviewDecision'] or '-'}  new={sum(x['at'] > last and not bare_approval(x) for x in human)}  "
               f"dev={sum(x['dev'] for x in human)}  recorded={rec}/{len(tests)}  {p['headRefName']}  "
               f"worktree={wt.get(p['headRefName'], '-')}  {p['title']}")
+        bp = {x["name"] for x in p["labels"] if x["name"].startswith("backport/")}
+        if any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"]) and bp != {"backport/none"}:
+            labels.append(f"LABELS #{p['number']} {' '.join(sorted(bp)) or '-'}")
+    for x in labels:
+        print(x)
     local = set(git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/heads").split())
     origin = {r.removeprefix("origin/") for r in
               git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin").split()}

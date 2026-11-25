@@ -27,7 +27,8 @@ groups.json               # test → review group (Jira component, team, reviewe
 scripts/groups.py         # validates groups.json, prints tests per team/group
 scripts/removal.py        # removal PRs: select (kind, pending branches) / info (verify duplicates upstream) /
                           #   strip (in a dtest worktree) / collect-diff
-                          #   / prs (review state, CLEANUP of closed PRs) / pr N (review material)
+                          #   / prs (review state, CLEANUP of closed PRs, LABELS: removals get only backport/none)
+                          #   / pr N (review material)
 .claude/skills/remove-tests/  # /remove-tests <request>: select + verify here, dtest worktree (wt), PR by a Claude in
                           #   herdr following pr.md
 .claude/skills/removal-prs/   # /removal-prs [PR#...]: apply dev reviews of removal PRs: analysis `review` (final),

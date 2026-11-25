@@ -24,8 +24,10 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
    - `git push -u origin <branch>`; `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch>
      --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label <labels>` (only that team as reviewer); body: what + why;
      `Follow-up to #<n>: <Name> (@<login>) asked for this instead of removing the test: <comment url>`; template
-     sections; no `Closes:` (the Jira issue is closed Won't Fix). Labels: pr.md step 2 applied to this change
-     (a branch gets `backport/<ver>` only if the changed code is there and the change matters there).
+     sections; no `Closes:` (the Jira issue is closed Won't Fix). Labels (not a removal, so it may be backported):
+     live releases = the plain `backport/<ver>` labels of `gh label list -R scylladb/scylla-dtest --search backport`
+     (not `-done`, skip `manager-*`); `<ver>` gets `backport/<ver>` only if `upstream/branch-<ver>` (fetch first)
+     has the changed code and the change matters there; none → `backport/none`.
 3. Original PR:
    a. No `remove` test left → `gh pr comment <n> --body-file <f>` (per kept test: the dev's point in one line +
       comment URL; the follow-up PR), `gh pr close <n>`. Then steps 4-5, then 3c, then 6.
@@ -42,8 +44,8 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
         (`--fixup=reword:` needs an editor). Then `git rebase -q --autosquash --exec "$V/ruff check -q <files> &&
         $V/ruff format -q --check <files>" <base>` (rebase skips the commit hook: this checks every commit);
         no `fixup!`/`amend!` left.
-      - pr.md step 2 checks with the remaining tests (`collect-diff` OK, one commit per test); recheck the backport
-        labels if the test set changed (`gh pr edit --add-label/--remove-label`).
+      - pr.md step 2 checks with the remaining tests (`collect-diff` OK, one commit per test); labels: `backport/none`
+        only (swap any other `backport/*` with `gh pr edit --remove-label … --add-label backport/none`).
       - `git push --force-with-lease origin <branch>`.
       - Body (`gh pr edit <n> --body-file`): apply the dev's cover-letter fixes (checked); kept tests out of the
         table, counts, gaps, helpers and `Closes:`; add `### Kept after review`: per test, one line + comment URL
