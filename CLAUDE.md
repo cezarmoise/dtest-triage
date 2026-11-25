@@ -127,18 +127,14 @@ Needs:
   - `modules/<module>~<ver>~<part>`: copy of data + analysis per module (analysis-only tests included), split under
     256 KB per part; `ver` = first 12 chars of the synced commit.
   - `cache/lock`: lease so one Reload runs at a time.
-  - `votes/<module>::<Class>::<test>~<user id>`: one per person per test,
-    `{tid, module, class, test, by, decision: GREEN|RED|null (retracted), note, at, llm_decision, history}`.
+  - `votes/...`: left over from removed voting (2026-11-25); not read.
 
 Data flow:
 - Opening the page reads only the database copy. The copy changes only on **Reload data**: compare the latest `main`
   commit with `cache/meta.sha`; if newer, list the commits since and the files each touched (`get_commit`), re-read just
   those modules at that exact sha. No copy, copy `schema` < 2, or > 60 new commits → full rebuild (~230 connector calls,
   a few minutes). So: push, then click Reload data.
-- Effective decision: analysis `DELETED` > vote majority (GREEN vs RED; tie → YELLOW) > analysis `decision` > GRAY.
-  Votes are only GREEN or RED; voting is disabled on DELETED tests.
-- "LLM changed since a vote": the vote's `llm_decision` ≠ current analysis `decision` (older votes without the field
-  are skipped).
+- Read-only: decision shown = analysis `decision` (GRAY if missing). No voting.
 - Links: scylla-dtest lines at data `rev` (path from `defined_in` when set); `issues.ref` `file.py:N[-M]` → scylla-dtest
   at data `rev`; `duplicates.path` linked only when it parses (`test/...` → scylladb at `scylla_rev`, dtest files →
   scylla-dtest at `rev`), else plain text; origin PR from analysis `origin.pr` over data commits' `pr`.
@@ -157,7 +153,7 @@ first `overrides` fnmatch on `<module>::<Class>::<test>`, else `modules[<module>
 ## Jira format (issues for tests)
 
 Mirror the dashboard's test view. Source: `data/<module>.json` + `analysis/<module>.json` at `main` (pull first) and
-`groups.json`. Votes live only in the dashboard's database: don't mention them unless the user gives the outcome.
+`groups.json`.
 
 Fields:
 - Project `DTEST`; issue type: ask unless given. Labels: `dtest-triage`, `dtest-<decision lowercase>`.
