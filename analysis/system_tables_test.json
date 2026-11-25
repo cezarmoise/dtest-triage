@@ -385,7 +385,7 @@
       }
     },
     "TestProtocolServersTable::test_content": {
-      "description": "Single node, params default/alternator/redis: reads system.protocol_servers and checks each returned row (except thrift 'rpc') is known and has expected listen_addresses/protocol (CQL version vs system.local for native transport). Alternator param enables alternator_port=8000 and expects that address.",
+      "description": "Single node, params alternator/redis (default param moved to scylla test/cqlpy by 5de7f29b7b): reads system.protocol_servers and checks each returned row (except thrift 'rpc') is known and has expected listen_addresses/protocol (CQL version vs system.local for native transport). Alternator param enables alternator_port=8000 and expects that address.",
       "origin": {
         "sha": "9afd7fc05c",
         "date": "2022-04-07",
@@ -393,6 +393,7 @@
         "summary": "Ilya Rarov: tests for new virtual tables snapshots/protocol_servers/runtime_info/versions (scylladb@7a3930f7)."
       },
       "commits": {
+        "5de7f29b7b": "default param removed (translated to scylla test/cqlpy test_protocol_servers_content); only alternator/redis params remain",
         "9ffd273f04": "formatting (ruff format)",
         "9232912f8f": "added @pytest.mark.single_node",
         "b9ffbff236": "docstring/log text: drop thrift/redis mention",
@@ -402,8 +403,13 @@
         "aedaa57c4e": "formatting (ruff pyupgrade)",
         "9afd7fc05c": "origin: test added"
       },
-      "relevance": "Live: protocol_servers_table db/virtual_tables.cc:474. Redis removed from scylla (scylladb ebf1db5c5e 2025-07-23 'remove ./redis and dependencies'); no redis_port option in db/config.cc.",
+      "relevance": "Live: protocol_servers_table db/virtual_tables.cc:476. Redis removed from scylla (scylladb ebf1db5c5e 2025-07-23 'remove ./redis and dependencies'); no redis_port option in db/config.cc.",
       "duplicates": [
+        {
+          "path": "test/cqlpy/test_virtual_tables.py::test_protocol_servers_content",
+          "coverage": "partial",
+          "note": "translation of the removed [default] param (scylladb 045e11694c): asserts native transport row exists with both CQL ports, protocol cql, cql_version; no alternator row check"
+        },
         {
           "path": "test/cqlpy/test_virtual_tables.py::test_protocol_servers",
           "coverage": "partial",
@@ -411,13 +417,19 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Unique content check of protocol_servers (native transport + alternator addresses). Note: redis param is dead since redis removal (scylladb ebf1db5c5e) - no redis row exists and the loop only validates rows present, so it equals 'default' (system_tables_test.py:475). Bug: test never asserts expected rows exist (iterates returned rows only, :587-597), so a missing alternator/native row would pass.",
+      "reason": "[default] moved to scylla test/cqlpy::test_protocol_servers_content (dtest 5de7f29b7b, scylladb 045e11694c); the remaining alternator param is the only check of the alternator row's listen address. Note: redis param is dead since redis removal (scylladb ebf1db5c5e) - no redis row exists, so it just repeats the moved default case (system_tables_test.py:475). Note: docstring still lists the removed 'default' mode (system_tables_test.py:486). Bug: test never asserts expected rows exist (iterates returned rows only, system_tables_test.py:511-521), so a missing alternator/native row would pass.",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-config",
           "ref": "system_tables_test.py:475",
-          "text": "redis param dead since redis removal (scylladb ebf1db5c5e); redis_port unused, param equals 'default'."
+          "text": "redis param dead since redis removal (scylladb ebf1db5c5e); redis_port unused, param repeats the moved default case."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "system_tables_test.py:486",
+          "text": "Docstring still lists 'default' mode, removed by 5de7f29b7b; class docstring still shows a redis row."
         },
         {
           "kind": "bug",
@@ -877,7 +889,7 @@
       }
     }
   },
-  "analyzed_at": "2026-11-23",
+  "analyzed_at": "2026-11-25",
   "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456"
+  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5"
 }
