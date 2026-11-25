@@ -39,12 +39,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "Basic multi-node TTL replication; no scylla cluster test checks per-replica TTL, but the assertion is weak: reads use CL=ONE via exclusive connections (ttl_test.py:683-684), so each coordinator usually reads its local replica but this is not guaranteed, and the check is only |ttl1-ttl2|<=1. Cheap (17s) but low-value; second opinion.",
+      "reason": "Basic multi-node TTL replication; no scylla cluster test checks per-replica TTL, but the assertion is weak: reads use CL=ONE via exclusive connections (ttl_test.py:168-169), so each coordinator usually reads its local replica but this is not guaranteed, and the check is only |ttl1-ttl2|<=1. Cheap (17s) but low-value; second opinion.",
       "issues": [
         {
           "kind": "bug",
           "tag": "weak-check",
-          "ref": "ttl_test.py:683-686",
+          "ref": "ttl_test.py:168-171",
           "text": "CL=ONE exclusive-connection reads may not hit the local replica, and |ttl1-ttl2|<=1 can't detect per-replica TTL recomputation."
         }
       ]
@@ -86,18 +86,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique coverage (expired TTL data through hint replay / CL=ALL read repair; no scylla test/cluster test combines hints with TTL). Note: assert_row_count(session2, ..., 0) at ttl_test.py:721 is trivially true since node2 never received any write (comment admits it); node1.cleanup() at :726 has no purpose (no topology change).",
+      "reason": "Unique coverage (expired TTL data through hint replay / CL=ALL read repair; no scylla test/cluster test combines hints with TTL). Note: assert_row_count(session2, ..., 0) at ttl_test.py:206 is trivially true since node2 never received any write (comment admits it); node1.cleanup() at :726 has no purpose (no topology change).",
       "issues": [
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "ttl_test.py:721",
+          "ref": "ttl_test.py:206",
           "text": "assert_row_count(session2, 0) is trivially true: node2 never received any write (comment admits it)."
         },
         {
           "kind": "note",
           "tag": "dead-code",
-          "ref": "ttl_test.py:726",
+          "ref": "ttl_test.py:211",
           "text": "node1.cleanup() has no purpose (no topology change)."
         }
       ]
@@ -208,12 +208,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully translated to cqlpy by 2541a4201a, split in two: test_boundary_ttl_invalid (rejected TTLs, 'ttl is too large') and test_boundary_ttl_beyond_2038 (max_ttl, 2^31-1-now and +1 accepted, TTL 5 overwrite expires) together assert everything the dtest does, with clock jumps instead of 20s of sleeps; also covered by test_time_overflow_using_ttl and update_test.py::testUpdateWithTtl. Note: docstring still says 'boundary_ttl + 1 # invalid' but test asserts it is accepted (ttl_test.py:532 vs :562).",
+      "reason": "Fully translated to cqlpy by 2541a4201a, split in two: test_boundary_ttl_invalid (rejected TTLs, 'ttl is too large') and test_boundary_ttl_beyond_2038 (max_ttl, 2^31-1-now and +1 accepted, TTL 5 overwrite expires) together assert everything the dtest does, with clock jumps instead of 20s of sleeps; also covered by test_time_overflow_using_ttl and update_test.py::testUpdateWithTtl. Note: docstring still says 'boundary_ttl + 1 # invalid' but test asserts it is accepted (ttl_test.py:115 vs :562).",
       "issues": [
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "ttl_test.py:532",
+          "ref": "ttl_test.py:115",
           "text": "Docstring says 'boundary_ttl + 1 # invalid' but test asserts it is accepted (:562)."
         }
       ],
@@ -427,7 +427,7 @@
         "dbbab8c283": "GCE timing tweaks",
         "e14c03320f": "origin"
       },
-      "relevance": "Cassandra-6363 scenario (CAS) no longer exercised; Scylla has supported LWT since 4.0, so the comment at ttl_test.py:516 is stale.",
+      "relevance": "Cassandra-6363 scenario (CAS) no longer exercised; Scylla has supported LWT since 4.0, so the comment at ttl_test.py:115 is stale.",
       "duplicates": [
         {
           "path": "test/cqlpy/test_ttl.py::test_delete_with_ttl_expired",
@@ -441,25 +441,25 @@
         }
       ],
       "decision": "RED",
-      "reason": "What it checks (unconditional DELETE after a TTL'd cell expired) is fully translated to cqlpy test_ttl.py::test_delete_with_ttl_expired (2541a4201a); the original CASSANDRA-6363 conditional delete is disabled here (and in the port), and CAS on an expired TTL cell is covered by cqlpy testCasAndTTL. Bug: conditional DELETE ... IF commented out (ttl_test.py:516-518, 54fdcdb8ae). Note: stale comment says Scylla does not support LWT.",
+      "reason": "What it checks (unconditional DELETE after a TTL'd cell expired) is fully translated to cqlpy test_ttl.py::test_delete_with_ttl_expired (2541a4201a); the original CASSANDRA-6363 conditional delete is disabled here (and in the port), and CAS on an expired TTL cell is covered by cqlpy testCasAndTTL. Bug: conditional DELETE ... IF commented out (ttl_test.py:115, 49fdcdb8ae). Note: stale comment says Scylla does not support LWT.",
       "issues": [
         {
           "kind": "bug",
           "tag": "check-disabled",
-          "ref": "ttl_test.py:516-518",
+          "ref": "ttl_test.py:115",
           "text": "Conditional DELETE ... IF (CASSANDRA-6363 target) commented out in 54fdcdb8ae; only unconditional delete checked."
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "ttl_test.py:516-518",
+          "ref": "ttl_test.py:115",
           "text": "Comment says Scylla does not support lightweight transactions; LWT is supported."
         }
       ],
       "jira": "DTEST-645"
     },
     "TestTTL::test_insert_ttl_has_priority_on_defaut_ttl": {
-      "description": "Single node, table default_time_to_live=1; inserts a row USING TTL 4 (10 in debug) and calls eventually_expires (ttl_test.py:109-133): sleeps to ttl-2, asserts full row [1,1,1,1], then polls every 0.1s until ttl+1 asserting the row is either complete (no null non-key cells, scylladb#5290) or gone, and not gone before ttl-1; finally asserts empty. Guards that explicit TTL overrides default TTL and that row/cell expiry happen at the same instant.",
+      "description": "Single node, table default_time_to_live=1; inserts a row USING TTL 4 (10 in debug) and calls eventually_expires (ttl_test.py:55): sleeps to ttl-2, asserts full row [1,1,1,1], then polls every 0.1s until ttl+1 asserting the row is either complete (no null non-key cells, scylladb#5290) or gone, and not gone before ttl-1; finally asserts empty. Guards that explicit TTL overrides default TTL and that row/cell expiry happen at the same instant.",
       "origin": {
         "sha": "a6f2e52eea",
         "date": "2014-12-07",
@@ -505,7 +505,7 @@
         {
           "kind": "note",
           "tag": "cosmetic",
-          "ref": "ttl_test.py:136",
+          "ref": "ttl_test.py:55",
           "text": "Method name typo 'defaut'."
         }
       ]
@@ -598,12 +598,12 @@
         }
       ],
       "decision": "RED",
-      "reason": "Fully translated to cqlpy test_ttl.py::test_removing_default_ttl_does_not_affect_existing_rows (2541a4201a): same timeline and row counts (existing rows keep their TTLs, rows written after ALTER to 0 never expire), with clock jumps instead of 32s of sleeps. Note: runtime dominated by the 30s explicit TTL wait (ttl_test.py:189-228).",
+      "reason": "Fully translated to cqlpy test_ttl.py::test_removing_default_ttl_does_not_affect_existing_rows (2541a4201a): same timeline and row counts (existing rows keep their TTLs, rows written after ALTER to 0 never expire), with clock jumps instead of 32s of sleeps. Note: runtime dominated by the 30s explicit TTL wait (ttl_test.py:55).",
       "issues": [
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "ttl_test.py:189-228",
+          "ref": "ttl_test.py:55",
           "text": "Runtime dominated by 30s explicit TTL wait; could be shortened."
         }
       ]
@@ -641,18 +641,18 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "End-to-end #5290 regression on a clustered table with mixed default/explicit TTL; boost covers only the row_marker unit. Note: nodes=4 with RF=1 and a single partition (ttl_test.py:236) adds startup cost but no coverage; could be single_node. Note: prepare(default_time_to_live=1) then immediate ALTER to default_ttl is redundant.",
+      "reason": "End-to-end #5290 regression on a clustered table with mixed default/explicit TTL; boost covers only the row_marker unit. Note: nodes=4 with RF=1 and a single partition (ttl_test.py:61) adds startup cost but no coverage; could be single_node. Note: prepare(default_time_to_live=1) then immediate ALTER to default_ttl is redundant.",
       "issues": [
         {
           "kind": "note",
           "tag": "slow",
-          "ref": "ttl_test.py:237",
+          "ref": "ttl_test.py:62",
           "text": "nodes=4 with RF=1 and one partition adds startup cost, no coverage; could be single node."
         },
         {
           "kind": "note",
           "tag": "redundant-param",
-          "ref": "ttl_test.py:237-241",
+          "ref": "ttl_test.py:62-66",
           "text": "prepare(default_time_to_live=1) immediately ALTERed to default_ttl (4, 10 in debug); redundant."
         }
       ]
@@ -861,13 +861,13 @@
         {
           "kind": "note",
           "tag": "limited-check",
-          "ref": "ttl_test.py:376-393",
+          "ref": "ttl_test.py:115",
           "text": "No assertion before expiry; only post-expiry state checked."
         },
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "ttl_test.py:377",
+          "ref": "ttl_test.py:115",
           "text": "Name misleading: overwrites cell without TTL, doesn't remove a TTL."
         }
       ]
@@ -918,12 +918,12 @@
         }
       ],
       "decision": "YELLOW",
-      "reason": "What runs is fully translated to cqlpy test_ttl.py::test_overlapped_rows_ttls (LCS/STCS/TWCS) + test_overlapped_rows_ttls_ics (2541a4201a), same keys and expected survivors with clock jumps instead of 24s of sleeps per param; only the per-strategy claim holds it back from RED, and the port has no flush/compaction either (fixing it there would make this RED). Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:589-629, never did since 449736c6f0), so all 4 variants read the same memtable data. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:77-78).",
+      "reason": "What runs is fully translated to cqlpy test_ttl.py::test_overlapped_rows_ttls (LCS/STCS/TWCS) + test_overlapped_rows_ttls_ics (2541a4201a), same keys and expected survivors with clock jumps instead of 24s of sleeps per param; only the per-strategy claim holds it back from RED, and the port has no flush/compaction either (fixing it there would make this RED). Bug: compaction-strategy parametrization is a no-op: the test never flushes or compacts (ttl_test.py:115, never did since 449736c6f0), so all 4 variants read the same memtable data. Note: no range tombstones despite PR #766 description; smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824 (ttl_test.py:54-55).",
       "issues": [
         {
           "kind": "bug",
           "tag": "wrong-scenario",
-          "ref": "ttl_test.py:589-629",
+          "ref": "ttl_test.py:115",
           "text": "Compaction-strategy params are a no-op: never flushes/compacts (since 449736c6f0), all 4 variants read memtable."
         },
         {
@@ -935,7 +935,7 @@
         {
           "kind": "note",
           "tag": "stale-comment",
-          "ref": "ttl_test.py:77-78",
+          "ref": "ttl_test.py:54-55",
           "text": "smart_sleep_with_print is a 'temporary' debug helper for closed dtest#824."
         }
       ]
