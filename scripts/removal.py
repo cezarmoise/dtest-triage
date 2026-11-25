@@ -5,7 +5,7 @@ usage: removal.py select [--module GLOB]... [--decision D]... [--kind K]... [--d
        removal.py info TEST... | -          (fetch dtest next, scylladb/scylla-manager master first)
        removal.py strip [--force] TARGET... (in a dtest worktree)
        removal.py collect-diff [--base REV] TEST...  (in a dtest worktree)
-       removal.py prs                       (open removal PRs and their review state)
+       removal.py prs [--state S]           (triage PRs and their review state; default open)
        removal.py pr N                      (material for handling the reviews of PR N)
 
 select: `<test>  <decision>  <kind>  jira=<key>  pending=<branch>  dup=<first full duplicate>`, DELETED never listed.
@@ -32,14 +32,16 @@ strip: remove functions/classes (with decorators and the comments right above) f
 collect-diff: pytest --collect-only of the whole repo at --base (default merge-base with upstream/next) and of the
   working tree; exit 1 unless exactly the given tests disappeared (inherited copies, added tests, new collection
   errors all fail).
-prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  worktree=<path|->  <title>` per open
-  PR by the author with a `<stem>: remove <test>` commit or a `Follow-up to #<n>` body line; new = reviews/comments
+prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  worktree=<path|->  <title>[  <state>]`
+  per triage PR = PR by AUTHOR with the LABEL (`area/test_efficiency`: removals and follow-ups; --state: open,
+  closed, merged or all, default open; state shown unless open); new = reviews/comments
   by non-bot, non-author users after the author's last comment or commit (approvals without text don't count);
   dev = all of those by devs (not QA reviewers: their opinion isn't a verdict); recorded = tests with an analysis
   `review` from this PR.
-  Then `LABELS #<n> <backport labels|->`: removal PRs (with a remove commit) whose backport labels aren't exactly
-  `backport/none` (test removals are never backported; follow-up PRs may be).
-  Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed PRs of the author whose
+  Then `LABELS #<n> <backport labels|->`: open removal PRs (with a remove commit) whose backport labels aren't
+  exactly `backport/none` (test removals are never backported; follow-up PRs may be).
+  Then `UNLABELED #<n> <title>`: open PRs of AUTHOR with " remove " in the title but without the LABEL.
+  Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed triage PRs whose
   branch still has a worktree, a local branch or an origin branch.
 pr: markdown: state, branch, worktree, `Closes:` keys, tests (commit subject → TEST, decision, jira, review),
   then every human review/comment (NEW = after the author's last comment or commit) with its URL and full body.
@@ -533,8 +535,8 @@ def cmd_collect_diff(a):
 AUTHOR = "cezarmoise"
 GH_REPO = "scylladb/scylla-dtest"
 QA = {"pehala", "jsmolar", "yarongilor"}  # reviewers added to every PR; not devs
+LABEL = "area/test_efficiency"  # on every triage PR (removals and follow-ups); with AUTHOR, lists them
 REMOVE_SUBJECT = re.compile(r"(\w+): remove (test_\w+)")
-FOLLOW_UP = re.compile(r"^Follow-up to #\d+", re.M)  # PR body of a change a dev asked for instead of a removal
 
 
 def gh_json(*args):
@@ -565,13 +567,15 @@ def worktrees():
     return out
 
 
-def removal_prs():
-    prs = gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "open", "--limit", "100", "--json",
-                  "number")  # commits per PR: the list query with commits exceeds GraphQL's node limit
-    prs = [gh_json("pr", "view", str(p["number"]), "-R", GH_REPO, "--json",
-                   "number,title,headRefName,reviewDecision,body,labels") for p in prs]
-    prs = [dict(p, commits=commits(p["number"])) for p in prs]
-    return [p for p in prs if FOLLOW_UP.search(p["body"]) or any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])]
+def triage_prs(state, fields):
+    return gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--label", LABEL, "--state", state,
+                   "--limit", "500", "--json", fields)
+
+
+def removal_prs(state="open"):
+    # commits per PR: the list query with commits exceeds GraphQL's node limit
+    return [dict(p, commits=commits(p["number"]))
+            for p in triage_prs(state, "number,title,state,headRefName,reviewDecision,body,labels")]
 
 
 def commits(n):
@@ -613,25 +617,30 @@ def bare_approval(x):
 def cmd_prs(a):
     wt = worktrees()
     labels = []
-    for p in removal_prs():
+    for p in removal_prs(a.state):
         human, last = activity(p["number"], p["commits"])
         tests = [t for _, cands in pr_tests(p["commits"]) for t in cands]
         rec = sum(analysis()[t.split("::")[0]][t.split("::", 1)[1]].get("review", {}).get("pr") == p["number"]
                   for t in tests)
         print(f"#{p['number']}  {p['reviewDecision'] or '-'}  new={sum(x['at'] > last and not bare_approval(x) for x in human)}  "
               f"dev={sum(x['dev'] for x in human)}  recorded={rec}/{len(tests)}  {p['headRefName']}  "
-              f"worktree={wt.get(p['headRefName'], '-')}  {p['title']}")
+              f"worktree={wt.get(p['headRefName'], '-')}  {p['title']}"
+              + (f"  {p['state']}" if a.state != "open" else ""))
         bp = {x["name"] for x in p["labels"] if x["name"].startswith("backport/")}
-        if any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"]) and bp != {"backport/none"}:
+        if (p["state"] == "OPEN" and bp != {"backport/none"}
+                and any(REMOVE_SUBJECT.match(c["subject"]) for c in p["commits"])):
             labels.append(f"LABELS #{p['number']} {' '.join(sorted(bp)) or '-'}")
     for x in labels:
         print(x)
+    for p in gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "open", "--limit", "500",
+                     "--json", "number,title,labels"):
+        if " remove " in p["title"] and LABEL not in {x["name"] for x in p["labels"]}:
+            print(f"UNLABELED #{p['number']} {p['title']}")
     local = set(git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/heads").split())
     origin = {r.removeprefix("origin/") for r in
               git(DTEST, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin").split()}
     seen = set()
-    for p in gh_json("pr", "list", "-R", GH_REPO, "--author", AUTHOR, "--state", "closed", "--limit", "100",
-                     "--json", "number,state,headRefName"):
+    for p in triage_prs("closed", "number,state,headRefName"):
         b = p["headRefName"]
         if b not in seen and b != "next" and (b in wt or b in local or b in origin):
             seen.add(b)
@@ -685,7 +694,7 @@ def main():
     s = sub.add_parser("collect-diff")
     s.add_argument("--base")
     s.add_argument("tests", nargs="+")
-    sub.add_parser("prs")
+    sub.add_parser("prs").add_argument("--state", default="open", choices=["open", "closed", "merged", "all"])
     sub.add_parser("pr").add_argument("number", type=int)
     a = p.parse_args()
     if a.cmd == "select":

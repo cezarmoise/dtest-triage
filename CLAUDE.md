@@ -8,6 +8,12 @@ Repo: https://github.com/cezarmoise/dtest-triage (this repo, `~/github/dtest-tri
 - dtest: `~/github/scylla-dtest` (main checkout; read code at `upstream/next`, `git fetch upstream next` first).
 - scylla: `~/github/scylladb` (read-only; unit/cluster tests under `test/`).
 
+## Commits (this repo only)
+
+A change that is final, with no open questions for the user: commit and push to `main` without asking. Before the
+push, `git pull --rebase -q`; `git log origin/main..` has `fixup!`/`amend!`/`squash!` commits → squash them first
+(`git rebase -q --autosquash origin/main`).
+
 ## Layout
 
 ```
@@ -27,7 +33,8 @@ groups.json               # test → review group (Jira component, team, reviewe
 scripts/groups.py         # validates groups.json, prints tests per team/group
 scripts/removal.py        # removal PRs: select (kind, pending branches) / info (verify duplicates upstream) /
                           #   strip (in a dtest worktree) / collect-diff
-                          #   / prs (review state, CLEANUP of closed PRs, LABELS: removals get only backport/none)
+                          #   / prs (ours = author cezarmoise + label area/test_efficiency; review state, CLEANUP of
+                          #   closed PRs, LABELS: removals get only backport/none, UNLABELED)
                           #   / pr N (review material)
 .claude/skills/remove-tests/  # /remove-tests <request>: select + verify here, dtest worktree (wt), PR by a Claude in
                           #   herdr following pr.md

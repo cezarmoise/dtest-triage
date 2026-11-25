@@ -88,3 +88,5 @@ give no verdict. Two devs disagree on a test → ask the user.
    Its herdr workspace, if open: `herdr workspace list` → `herdr workspace close <id>` (none `working`).
 10. Labels, per `LABELS #<n> <labels>` line of `R prs` (test removals are never backported):
     `gh pr edit <n> -R scylladb/scylla-dtest --add-label backport/none --remove-label <each listed label but it>`.
+    `UNLABELED #<n>` (one of ours removing tests, not listed by `R prs`): a triage PR → `gh pr edit <n> -R
+    scylladb/scylla-dtest --add-label area/test_efficiency`, then rerun `R prs`; else ignore.

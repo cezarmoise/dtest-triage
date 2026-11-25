@@ -32,7 +32,8 @@ Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PA
      shared helper) → stop and ask the user.
    - `git log --oneline upstream/next..HEAD`: one commit per test. `git diff --stat upstream/next...HEAD`: deletions
      (plus rewritten import lines).
-   - Labels: `backport/none` only (agreed with the devs: test removals are never backported).
+   - Labels: `backport/none` only (agreed with the devs: test removals are never backported), and
+     `area/test_efficiency` (marks the triage PRs: `removal.py prs` lists ours by it).
 3. `git push -u origin <branch>` (origin = cezarmoise fork; never a bare `git push`).
 4. PR body file (Markdown):
    - 1-2 sentences: what is removed and why; "One commit per test; each message names the covering test with a
@@ -45,7 +46,7 @@ Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PA
      (N tests / M items gone, nothing else); "No Jenkins run" unticked. Pre-checks: backport label ticked
      (`backport/none`: test removals aren't backported), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
-   --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label backport/none` (only that team as reviewer;
+   --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label backport/none,area/test_efficiency` (only that team as reviewer;
    not a draft: the owner wants
    reviewers at creation). Title like `alternator_tests: remove tests covered by test/alternator` or
    `manager tests: remove tests covered by scylla-manager integration tests`.
