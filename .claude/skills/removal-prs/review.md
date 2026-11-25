@@ -22,7 +22,7 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
      logs a `Deselecting …` line with the name, don't grep that) of `$V/python -m pytest --collect-only -q -m
      next_gating <file>`: 0; with `-m "dtest_full and (not next_gating or unmark_if)"` (full suite): 1.
    - `git push -u origin <branch>`; `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch>
-     --reviewer pehala,jsmolar,yarongilor,<dev login> --assignee cezarmoise --label <labels>`; body: what + why;
+     --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label <labels>` (only that team as reviewer); body: what + why;
      `Follow-up to #<n>: <Name> (@<login>) asked for this instead of removing the test: <comment url>`; template
      sections; no `Closes:` (the Jira issue is closed Won't Fix). Labels: pr.md step 2 applied to this change
      (a branch gets `backport/<ver>` only if the changed code is there and the change matters there).

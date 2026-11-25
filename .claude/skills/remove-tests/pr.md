@@ -50,7 +50,8 @@ Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PA
      (N tests / M items gone, nothing else); "No Jenkins run" unticked. Pre-checks: backport label ticked
      (the labels of step 2, and why), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
-   --reviewer pehala,jsmolar,yarongilor --assignee cezarmoise --label <labels of step 2>` (not a draft: the owner wants
+   --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label <labels of step 2>` (only that team as reviewer;
+   not a draft: the owner wants
    reviewers at creation). Title like `alternator_tests: remove tests covered by test/alternator` or
    `manager tests: remove tests covered by scylla-manager integration tests`.
 5. `gh pr view <n> -R scylladb/scylla-dtest --json commits,reviewRequests,labels` matches; reply with the PR URL and

@@ -9,7 +9,7 @@ Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`. `R` = `
 
 Rule: a developer's review of a removal PR is final. It becomes `review` in the analysis entry (CLAUDE.md contract);
 `check_analysis.py` keeps it and the matching decision, the analyze rechecks never re-decide it.
-Dev = human reviewer other than the PR author and the QA reviewers added to every PR (pehala, jsmolar, yarongilor;
+Dev = human reviewer other than the PR author and the QA reviewers (pehala, jsmolar, yarongilor, requested on older PRs;
 `R pr` tags them `QA`); bots never count (coderabbit, qodo, copilot). QA comments can still ask for PR changes, but
 give no verdict. Two devs disagree on a test → ask the user.
 
