@@ -145,7 +145,8 @@ Data flow:
 
 `groups.json` (not read by the dashboard): `groups.<g>` = `{component, team, reviewers, note?}`; `component` is a
 Jira `Scylla components` value (setting it auto-assigns the SME) or null; `reviewers` = SME assignee + watchers from
-Confluence "Scylla components SMEs auto assignment"; `teams` = Atlassian team members (wider pool). Test → group:
+Confluence "Scylla components SMEs auto assignment"; `teams` = Atlassian team members (wider pool); `github` = reviewer
+→ GitHub login (`scripts/groups.py` fails if a reviewer has none). Test → group:
 first `overrides` fnmatch on `<module>::<Class>::<test>`, else `modules[<module>]`. New module → add it there
 (`scripts/groups.py` fails otherwise).
 

@@ -41,6 +41,8 @@ def main():
     errors += [f"unused group: {g}" for g in sorted(G["groups"].keys() - used)]
     errors += [f"{g}: unknown team {v['team']}" for g, v in G["groups"].items()
                if v["team"] and v["team"] not in G["teams"]]
+    errors += [f"reviewer without github login: {r}" for r in sorted(
+        {r for v in G["groups"].values() for r in v["reviewers"]} - G["github"].keys())]
     tids = [f"{m}::{k}" for m, ks in all_tests.items() for k in ks]
     errors += [f"override matches nothing: {p}" for p in G["overrides"]
                if not any(fnmatchcase(t, p) for t in tids)]
