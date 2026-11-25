@@ -321,6 +321,65 @@
       ],
       "jira": "DTEST-970"
     },
+    "TestCqlshCopy::test_copy_from_with_fewer_failures_than_max_attempts": {
+      "description": "Single node, 1000 rows via cassandra-stress; COPY TO a csv, TRUNCATE, then COPY FROM WITH CHUNKSIZE='1' AND MAXATTEMPTS='5' with CQLSH_COPY_TEST_FAILURES={'failing_batch': id 30, 3 failures}, so batch 30 fails on attempts 1-2 and is imported on attempt 3. Asserts the output matches COPY_FROM_FAILURE_RE (the 'Failed to import ... will retry' message, i.e. the injection fired) and assert_row_count == 1000. Guards cqlsh COPY FROM retrying a failed batch and still importing every row (CASSANDRA-9302).",
+      "origin": {
+        "sha": "081d3f3ca6",
+        "date": "2015-11-26",
+        "pr": null,
+        "summary": "Upstream Cassandra dtest '9302: tests with failure injection' (Stefania Alborghetti); came in with an upstream merge, no scylla-dtest PR."
+      },
+      "commits": {
+        "ccc91f1984": "assert COPY_FROM_FAILURE_RE on stdout+stderr instead of 'Failed to import' in stderr; add skip_if(scylladb/cqlsh-rs#191)",
+        "eccda80e42": "formatting (ruff 0.9.4)",
+        "6f303700c6": "add use_cassandra_stress mark",
+        "9ffd273f04": "formatting (ruff format)",
+        "aedaa57c4e": "formatting (pyupgrade f-strings)",
+        "518ca98f00": "assert 'Failed to process' -> 'Failed to import' in err (the retry message), so the test passes with retries",
+        "d9b34802f3": "pytest port; flipped assertNotIn('Failed to process') to assert 'Failed to process' in err; count via assert_row_count",
+        "238b55c2bd": "remove @require('#2386'): test enabled on scylla (file-level)",
+        "60fdd2b6c5": "add single_node mark",
+        "29646f1956": "python3: text-mode temp file",
+        "19621d766f": "drop freshCluster decorator",
+        "954d2d4c02": "replace @require('9302') with @require('#2386')",
+        "081d3f3ca6": "test added (origin)"
+      },
+      "relevance": "MAXATTEMPTS/CHUNKSIZE retry logic and the failing_batch injection (ImportProcess.maybe_inject_failures, 'batch attempts < failures') are cqlsh-client code (scylla-cqlsh pylib/cqlshlib/copyutil.py); the server only serves INSERTs. Scylla master still ships Python scylla-cqlsh (tools/cqlsh submodule); no scylla test/ uses CQLSH_COPY_TEST_FAILURES. Skipped from 2026-08-09 (ccc91f1984) until scylladb/cqlsh-rs#191 closed 2026-11-23; all 10 runs (builds 11837-11842, both gating jobs) passed.",
+      "duplicates": [
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyFromWithFailures::test_copy_from_with_fewer_failures_than_max_attempts",
+          "coverage": "full",
+          "note": "explicit port (scylla-cqlsh 408a239bb1, PR #234): same failing_batch id 30 / 3 failures / CHUNKSIZE 1 / MAXATTEMPTS 5; stronger: asserts 'attempt 2 of 5', no 'attempt 3 of 5', no 'given up'/'Failed to process', count == 1000 and the retried row present; runs in scylla-cqlsh CI against Scylla"
+        },
+        {
+          "path": "scylladb/scylla-cqlsh:pylib/cqlshlib/test/test_copy_round_trip.py::TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries",
+          "coverage": "full",
+          "note": "COPY FROM with failing_batch id 30 failing on attempts 1-2 of MAXATTEMPTS 3 (CHUNKSIZE 10); asserts retries, no 'given up', every row imported"
+        }
+      ],
+      "decision": "RED",
+      "reason": "Fully covered by the stronger explicit scylla-cqlsh port TestCopyFromWithFailures::test_copy_from_with_fewer_failures_than_max_attempts (408a239bb1, scylla-cqlsh#234) and TestCopyRoundTripWithRetries::test_bulk_round_trip_with_retries; the retry logic is pure cqlsh-client code. Note: skip_if(cqlsh-rs#191) (cqlsh_copy_tests.py:1510) inert, issue closed 2026-11-23. Note: docstring says 'COPY TO job' and the assert message says 'No COPY FROM failure' though the COPY must succeed (cqlsh_copy_tests.py:1518, 1543). Note: CQLSH_COPY_TEST_FAILURES env never unset (cqlsh_copy_tests.py:1536).",
+      "issues": [
+        {
+          "kind": "note",
+          "tag": "stale-mark",
+          "ref": "cqlsh_copy_tests.py:1510",
+          "text": "skip_if(issue_open('scylladb/cqlsh-rs#191')) inert: issue closed 2026-11-23."
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "cqlsh_copy_tests.py:1543",
+          "text": "Docstring says 'COPY TO job' (it is COPY FROM); assert message 'No COPY FROM failure' though the regex checks the retry message of a COPY expected to succeed."
+        },
+        {
+          "kind": "note",
+          "tag": "other",
+          "ref": "cqlsh_copy_tests.py:1536",
+          "text": "CQLSH_COPY_TEST_FAILURES env set, never unset; leaks into later run_cqlsh calls in the worker."
+        }
+      ]
+    },
     "TestCqlshCopy::test_copy_from_with_child_process_crashing": {
       "description": "Single node, 1000 rows via cassandra-stress; COPY TO, TRUNCATE, COPY FROM WITH CHUNKSIZE=1 and CQLSH_COPY_TEST_FAILURES={'exit_batch': id 30} so the worker importing batch 30 exits. Asserts stderr non-empty and row count < 1000. Guards cqlsh COPY FROM aborting when a child process dies (CASSANDRA-9302).",
       "origin": {
@@ -1430,7 +1489,7 @@
       ]
     }
   },
-  "analyzed_at": "2026-11-23",
+  "analyzed_at": "2026-11-25",
   "scylla_rev": "e71c65d2a6",
   "dtest_rev": "ef5e5c7d49e7599553a6eb4d333447b652cf4456"
 }
