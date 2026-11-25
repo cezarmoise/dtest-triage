@@ -127,7 +127,6 @@ Needs:
   - `modules/<module>~<ver>~<part>`: copy of data + analysis per module (analysis-only tests included), split under
     256 KB per part; `ver` = first 12 chars of the synced commit.
   - `cache/lock`: lease so one Reload runs at a time.
-  - `votes/...`: left over from removed voting (2026-11-25); not read.
 
 Data flow:
 - Opening the page reads only the database copy. The copy changes only on **Reload data**: compare the latest `main`
