@@ -29,8 +29,8 @@ One PR = one removal kind (`R select` kind column), so reviewers judge one kind 
    - `dup-selected` (two selected tests cite each other): remove only the narrower one; the broader one (or the
      one in gating) stays in dtest, so drop it from the list. Note which.
    - `missing`, `dup-red`, `dup-pending`: drop.
-   Then regenerate the material from the final list: `R info <final tests> > $T/<branch>.md`. Its `Closes:` header
-   is the one to use (computed for the final list); BLOCKED lines left in it are the hand-verified ones.
+   Then regenerate the material from the final list: `R info <final tests> > $T/<branch>.md`. Its `Closes:` and
+   `Reviewers:` headers are the ones to use (computed for the final list); BLOCKED lines left in it are the hand-verified ones.
 4. Confirm: go on without asking only if every test is RED, one kind and verified. Otherwise show the list, ask once.
 5. Branch + worktree (scylla-dtest, not this repo): name `remove-<scope>-<kind>` (e.g. `remove-alternator-covered`),
    lowercase, ≤ 50 chars, not on `git -C ~/github/scylla-dtest branch -a`. Then
@@ -45,6 +45,7 @@ One PR = one removal kind (`R select` kind column), so reviewers judge one kind 
    Kind: <kind>: <why these are removed, one line>
    Material: $T/<branch>.md (per test: reason, issues, verified duplicates with permalinks)
    Closes: <keys from the material header | none>
+   Reviewers: <logins from the material header | none>
    Tests, in commit order (grouped by file):
    <module>::<Class>::<test>
    Notes: <hand-verified duplicates with permalinks, dup-selected partners kept in dtest, ...>

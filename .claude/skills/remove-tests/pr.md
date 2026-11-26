@@ -1,6 +1,6 @@
 # Removal PR (run by a Claude in a scylla-dtest worktree)
 
-Input: the handoff file (worktree, branch, kind, material, Closes, tests). Work only in the worktree; don't touch
+Input: the handoff file (worktree, branch, kind, material, Closes, Reviewers, tests). Work only in the worktree; don't touch
 `~/github/dtest-triage` or the main `~/github/scylla-dtest` checkout.
 `R` = `/home/cezar/github/dtest-triage/scripts/removal.py` (executable; docstring explains `strip` and `collect-diff`).
 zsh: a variable holding `python3 <path>` doesn't word-split (`$R …` → exit 127): keep `R` one word.
@@ -46,9 +46,9 @@ Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PA
      (N tests / M items gone, nothing else); "No Jenkins run" unticked. Pre-checks: backport label ticked
      (`backport/none`: test removals aren't backported), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
-   --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label backport/none,area/test_efficiency` (only that team as reviewer;
-   not a draft: the owner wants
-   reviewers at creation). Title like `alternator_tests: remove tests covered by test/alternator` or
+   --reviewer scylladb/dtest-maintainers[,<handoff Reviewers>] --assignee cezarmoise --label backport/none,area/test_efficiency`
+   (the team + the review group's devs from groups.json, nothing else; not a draft: the owner wants reviewers at
+   creation). Title like `alternator_tests: remove tests covered by test/alternator` or
    `manager tests: remove tests covered by scylla-manager integration tests`.
 5. `gh pr view <n> -R scylladb/scylla-dtest --json commits,reviewRequests,labels` matches; reply with the PR URL and
    one line per test. Leave the worktree in place.

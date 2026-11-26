@@ -23,7 +23,7 @@ info: commit material per test (markdown) + check of each full duplicate at the 
   dup-red / dup-selected / dup-pending: a dtest duplicate that is RED/DELETED, in this selection, or removed on
                a pending branch; doesn't count as coverage
   covered/covered-bug tests without an `ok` duplicate are BLOCKED (exit 1). Header: `Closes:` = Jira keys whose
-  every test is in the selection.
+  every test is in the selection; `Reviewers:` = GitHub logins of the groups.json reviewers of the tests' groups.
 strip: remove functions/classes (with decorators and the comments right above) from a dtest worktree.
   TARGET = <path.py>::<Class>::<name> | <path.py>::<name> | <module>::<Class>::<test> (at its `defined_in`).
   Then: drop the imports this made unused, ruff isort + format, fail on new pyflakes issues, fail if a removed
@@ -314,12 +314,18 @@ def cmd_info(a):
     closes = sorted(j for j in keys if all(f"{m}::{k}" in sel for m, ts in analysis().items()
                                            for k, e in ts.items() if e.get("jira") == j))
     kinds = Counter(kind(analysis()[m][k]) for m, k in map(split_test, tests))
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from groups import G, group_of  # noqa: PLC0415
+
+    reviewers = dict.fromkeys(G["github"][r] for m, k in map(split_test, tests)
+                              for r in G["groups"][group_of(m, k)]["reviewers"])
     print(f"# Removal material {date.today()}: dtest {NEXT} {sha('dtest')[:10]}, scylladb {sha('scylla')[:10]}, "
           f"scylla-manager {sha('manager')[:10]}")
     print(f"Tests: {len(tests)} ({', '.join(f'{k} {n}' for k, n in sorted(kinds.items()))}); "
           f"blocked: {', '.join(blocked) or 'none'}")
     print(f"Closes: {', '.join(closes) or 'none'}" + (f"; other Jira keys (left to jira_sync): "
                                                       f"{', '.join(sorted(keys - set(closes)))}" if keys - set(closes) else ""))
+    print(f"Reviewers: {','.join(reviewers) or 'none'}")
     print()
     print("\n".join(out))
     sys.exit(1 if blocked else 0)
