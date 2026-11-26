@@ -31,6 +31,8 @@ For EACH of those tests:
      slow + redundant (covered elsewhere, incl. other dtests); tests Cassandra-only behavior.
    - YELLOW: partial overlap, unsure relevance, thin evidence.
    - GREEN: unique coverage of live behavior.
+   Tests CI depends on are GREEN whatever their coverage, reason starting `Smoke test:` + the dependency (the
+   `dtest_smoke` tests: the Jenkinsfile PR CI fallback runs `-m dtest_smoke bootstrap_test.py`).
    Harness/driver-only tests stay YELLOW; cqlsh tests ported to scylla-cqlsh count as full coverage.
    `manager_*` tests: scylla-manager integration tests against real Scylla count as scylla tests (full → RED);
    service-level ones with a mock runner are partial. Path: `scylla-manager@<short sha> <path>::<test>`.
