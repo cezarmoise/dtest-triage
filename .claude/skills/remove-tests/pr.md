@@ -37,6 +37,19 @@ too). zsh has noclobber: overwrite with `>|` or the Write tool.
      (plus rewritten import lines).
    - Labels: `backport/none` only (agreed with the devs: test removals are never backported), and
      `area/test_efficiency` (marks the triage PRs: `removal.py prs` lists ours by it).
+   - Review your own work as a skeptical reviewer would, from the sources, not the material (it can be wrong):
+     - each `git show <commit>`: only the test and its own helpers go; no orphaned comments, decorators or blank
+       lines; nothing else touched.
+     - every claim of every message: open each permalink and read the cited test/code at that sha: it exists,
+       the lines match, it checks what the message says (same scenario, real assertions). Bug claims: the cited
+       lines show it. Facts (PRs, issues closed, gating, durations) hold.
+     - what depends on the removed tests: `git grep` their names and markers (the ones few tests carry) in the
+       whole repo, incl. `Jenkinsfile`, `*.groovy`, `*.yaml`, `pytest.ini`, `conftest.py`, docs. A CI stage that
+       selects them (e.g. `-m dtest_smoke bootstrap_test.py`) would collect nothing, or less than it expects.
+     Wrong or unsupported claim → fix it: code → `git commit --fixup=<sha>`; message → `git commit --allow-empty -F <file>`, file =
+     `amend! <old subject>`, blank line, new message (`-F` can't go with `--fixup`); then
+     `GIT_SEQUENCE_EDITOR=true git rebase -q -i --autosquash $(git merge-base HEAD upstream/next)`. The removal
+     itself doesn't hold (no real coverage, CI needs it) → stop and ask the user before pushing.
 3. `git push -u origin <branch>` (origin = cezarmoise fork; never a bare `git push`).
 4. PR body file (Markdown):
    - 1-2 sentences: what is removed and why; "One commit per test; each message names the covering test with a
@@ -48,6 +61,7 @@ too). zsh has noclobber: overwrite with `>|` or the Write tool.
    - Sections of `.github/pull_request_template.md`. Testing: tick only what ran: pre-commit ruff, `collect-diff`
      (N tests / M items gone, nothing else); "No Jenkins run" unticked. Pre-checks: backport label ticked
      (`backport/none`: test removals aren't backported), no debug code ticked, `test/tablets` / `test/no-tablets` not needed.
+   Check the body like the messages (step 2): every claim, link and table row.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
    --reviewer scylladb/dtest-maintainers[,<handoff Reviewers>] --assignee cezarmoise --label backport/none,area/test_efficiency`
    (the team + the review group's devs from groups.json, nothing else; not a draft: the owner wants reviewers at
