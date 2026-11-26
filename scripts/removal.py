@@ -43,7 +43,7 @@ prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  work
   Then `UNLABELED #<n> <title>`: open PRs of AUTHOR with " remove " in the title but without the LABEL.
   Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed triage PRs whose
   branch still has a worktree, a local branch or an origin branch.
-pr: markdown: state, branch, worktree, `Closes:` keys, tests (commit subject → TEST, decision, jira, review),
+pr: markdown: state, branch, worktree, `Closes:` keys, review group logins (as info), tests (commit subject → TEST, decision, jira, review),
   then every human review/comment (NEW = after the author's last comment or commit) with its URL and full body.
 """
 import argparse
@@ -276,6 +276,15 @@ def cmd_select(a):
           file=sys.stderr)
 
 
+def group_logins(tests):
+    """GitHub logins of the groups.json reviewers of the tests' review groups, comma-separated, or "none"."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from groups import G, group_of  # noqa: PLC0415
+
+    return ",".join(dict.fromkeys(G["github"][r] for m, k in map(split_test, tests)
+                                  for r in G["groups"][group_of(m, k)]["reviewers"])) or "none"
+
+
 def cmd_info(a):
     tests = sys.stdin.read().split() if a.tests == ["-"] else a.tests
     sel = set(tests)
@@ -314,18 +323,13 @@ def cmd_info(a):
     closes = sorted(j for j in keys if all(f"{m}::{k}" in sel for m, ts in analysis().items()
                                            for k, e in ts.items() if e.get("jira") == j))
     kinds = Counter(kind(analysis()[m][k]) for m, k in map(split_test, tests))
-    sys.path.insert(0, str(ROOT / "scripts"))
-    from groups import G, group_of  # noqa: PLC0415
-
-    reviewers = dict.fromkeys(G["github"][r] for m, k in map(split_test, tests)
-                              for r in G["groups"][group_of(m, k)]["reviewers"])
     print(f"# Removal material {date.today()}: dtest {NEXT} {sha('dtest')[:10]}, scylladb {sha('scylla')[:10]}, "
           f"scylla-manager {sha('manager')[:10]}")
     print(f"Tests: {len(tests)} ({', '.join(f'{k} {n}' for k, n in sorted(kinds.items()))}); "
           f"blocked: {', '.join(blocked) or 'none'}")
     print(f"Closes: {', '.join(closes) or 'none'}" + (f"; other Jira keys (left to jira_sync): "
                                                       f"{', '.join(sorted(keys - set(closes)))}" if keys - set(closes) else ""))
-    print(f"Reviewers: {','.join(reviewers) or 'none'}")
+    print(f"Reviewers: {group_logins(tests)}")
     print()
     print("\n".join(out))
     sys.exit(1 if blocked else 0)
@@ -659,10 +663,12 @@ def cmd_pr(a):
                 "number,title,state,headRefName,reviewDecision,body,labels,url")
     p["commits"] = commits(a.number)
     human, last = activity(a.number, p["commits"])
+    tests = [t for _, cands in pr_tests(p["commits"]) for t in cands]
     print(f"# #{p['number']} {p['title']}\n{p['url']} · {p['state']} · {p['reviewDecision'] or '-'} · "
           f"labels {', '.join(x['name'] for x in p['labels']) or '-'}\n"
           f"branch `{p['headRefName']}` · worktree `{worktrees().get(p['headRefName'], '-')}` · "
-          f"Closes: {' '.join(re.findall(r'^Closes: (\S+)', p['body'], re.M)) or '-'}\n\n## Tests")
+          f"Closes: {' '.join(re.findall(r'^Closes: (\S+)', p['body'], re.M)) or '-'} · "
+          f"Reviewers (review groups): {group_logins(tests)}\n\n## Tests")
     for c, cands in pr_tests(p["commits"]):
         print(f"- `{c['oid'][:10]}` {c['subject']}")
         for t in cands or ["(not in analysis)"]:

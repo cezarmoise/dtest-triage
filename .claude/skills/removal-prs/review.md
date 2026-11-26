@@ -22,8 +22,9 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
      logs a `Deselecting …` line with the name, don't grep that) of `$V/python -m pytest --collect-only -q -m
      next_gating <file>`: 0; with `-m "dtest_full and (not next_gating or unmark_if)"` (full suite): 1.
    - `git push -u origin <branch>`; `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch>
-     --reviewer scylladb/dtest-maintainers --assignee cezarmoise --label area/test_efficiency,<labels>` (only that team as reviewer; the area label
-     lists it in `removal.py prs`); body: what + why;
+     --reviewer scylladb/dtest-maintainers[,<logins>] --assignee cezarmoise --label area/test_efficiency,<labels>` (logins =
+     the review groups of the kept tests: `R info <tests> | grep ^Reviewers:`; nothing else; the area label lists it
+     in `removal.py prs`); body: what + why;
      `Follow-up to #<n>: <Name> (@<login>) asked for this instead of removing the test: <comment url>`; template
      sections; no `Closes:` (the Jira issue is closed Won't Fix). Labels (not a removal, so it may be backported):
      live releases = the plain `backport/<ver>` labels of `gh label list -R scylladb/scylla-dtest --search backport`
