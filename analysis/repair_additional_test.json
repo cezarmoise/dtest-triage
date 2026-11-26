@@ -1095,8 +1095,9 @@
         "summary": "Benny Halevy: tests for repairing a single node in the cluster."
       },
       "commits": {
+        "29424ccfbc": "disable tablet load balancing around the per-node PK count (replaces force_capacity_based_balancing, which didn't stop migrations; fixes 271 == 300 flake, SCYLLADB-6551)",
         "70b4dbca91": "request_timeout=300 for the RF-change ALTER (tablet rebuilds can be slow)",
-        "526ade33b2": "force_capacity_based_balancing=true to avoid tablet migration during the per-node PK count",
+        "526ade33b2": "force_capacity_based_balancing=true to avoid tablet migration during the per-node PK count (removed in 29424ccfbc)",
         "68b718f8d6": "rf_rack_valid_keyspaces=false (RF 1->2->3 can't be rack-valid), until scylladb#23525",
         "2ae0479db1": "populate dc1 with racks r1=2, r2=1",
         "eccda80e42": "formatting (ruff 0.9.4)",
@@ -1106,7 +1107,7 @@
         "fb3dfc9ea9": "lint fix (ruff pylint checks)",
         "931a69c17b": "origin"
       },
-      "relevance": "Vnodes: live (ALTER RF doesn't stream, repair must fill new replicas). Tablets: `nodetool repair` with no keyspace repairs only vnode keyspaces and just warns about tablet ones (tools/scylla-nodetool.cc:1830-1833), so ks is never repaired; new replicas get data from the tablet rebuild done by ALTER KEYSPACE (see 70b4dbca91).",
+      "relevance": "Vnodes: live (ALTER RF doesn't stream, repair must fill new replicas). Tablets: `nodetool repair` with no keyspace repairs only vnode keyspaces and just warns about tablet ones (tools/scylla-nodetool.cc:1877-1881), so ks is never repaired; new replicas get data from the tablet rebuild done by ALTER KEYSPACE (see 70b4dbca91). Since 29424ccfbc the RF=1 per-node count runs with tablet load balancing disabled (REST storage_service/tablets/balancing), so it is stable on tablets.",
       "duplicates": [
         {
           "path": "test/cluster/test_tablets.py::test_tablet_rf_change",
@@ -1120,12 +1121,12 @@
         }
       ],
       "decision": "GREEN",
-      "reason": "Unique on vnodes (repair after RF increase syncs data to replicas that never had it). Note: in next-dtest-tablets the repair step is a no-op: plain `nodetool repair` skips tablet keyspaces (tools/scylla-nodetool.cc:1830-1833), so it only tests the RF-change rebuild there; should use node.repair()/cluster repair or skip with tablets. Note: rf_rack_valid_keyspaces=false workaround (68b718f8d6) says to remove after scylladb#23525, which was closed 2025-10-21.",
+      "reason": "Unique on vnodes (repair after RF increase syncs data to replicas that never had it). Note: in next-dtest-tablets the repair step is a no-op: plain `nodetool repair` skips tablet keyspaces (tools/scylla-nodetool.cc:1877-1881), so it only tests the RF-change rebuild there; should use node.repair()/cluster repair or skip with tablets. Note: rf_rack_valid_keyspaces=false workaround (68b718f8d6) says to remove after scylladb#23525, which was closed 2025-10-21.",
       "issues": [
         {
           "kind": "note",
           "tag": "other",
-          "ref": "tools/scylla-nodetool.cc:1830-1833",
+          "ref": "tools/scylla-nodetool.cc:1877-1881",
           "text": "In next-dtest-tablets plain nodetool repair skips tablet keyspaces; repair step is a no-op there, exercised on vnodes."
         },
         {
@@ -2047,7 +2048,7 @@
       "issues": []
     }
   },
-  "analyzed_at": "2026-11-02",
-  "scylla_rev": "e71c65d2a6",
-  "dtest_rev": "15c566882da9ccd4d78c297503006a0f2e8230e5"
+  "analyzed_at": "2026-11-26",
+  "scylla_rev": "c381b0628d",
+  "dtest_rev": "94c33433a38c36892189b6ec47f4a17df495e63b"
 }
