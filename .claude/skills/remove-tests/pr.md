@@ -7,6 +7,9 @@ zsh: a variable holding `python3 <path>` doesn't word-split (`$R …` → exit 1
 zsh: `${v}` before a `:` (`$sha:path`, `$v:c…` are modifiers): write `"${sha}:path"`.
 `V` = `$HOME/github/scylla-dtest/.venv-dtest-$(cat .python-version)/bin`.
 Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PATH`).
+Your files (commit messages, PR body): in your own `~/.cache/claude/<your session id>/`, named after the branch
+(`<branch>.body.md`, `<branch>.msg`), never in the handoff's folder (other agents of the same handoff write there
+too). zsh has noclobber: overwrite with `>|` or the Write tool.
 
 1. Per test, in the handoff order, one commit each:
    a. `R strip <module>::<Class>::<test>`: removes it where it's defined (`defined_in` if inherited) with its

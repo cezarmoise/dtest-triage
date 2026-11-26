@@ -39,7 +39,7 @@ Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`.
    groups"), `git commit -m "groups: <what>" groups.json`.
    Then `git pull --rebase -q && git push -q`.
 8. Jira: `python3 scripts/jira_sync.py` (dry run; rules in its docstring) lists issues to close: DELETED tests →
-   Done, issues whose tests are no longer RED (`dtest-red` or dev review keep) → Won't Fix, parents with all
+   Done, issues whose tests are all GREEN/DELETED → Won't Fix, parents with all
    sub-tasks done → Done. Check
    the CLOSE lines, then `--apply` (auto mode blocks Jira writes: hand the user `! python3 scripts/jira_sync.py
    --apply`). SKIP = key still on a RED/live test (e.g. MOVED copy): leave it open, report it.

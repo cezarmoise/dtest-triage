@@ -164,7 +164,7 @@ Mirror the dashboard's test view. Source: `data/<module>.json` + `analysis/<modu
 `groups.json`.
 
 Fields:
-- Project `DTEST`; issue type: ask unless given. Labels: `dtest-triage`, `dtest-<decision lowercase>`.
+- Project `DTEST`; issue type: ask unless given. Label: `dtest-triage`.
 - Group = `groups.json` group of the test (see "Review groups"). `component` set → `Scylla components`
   (customfield_10321) = it, leave assignee empty (auto-assigns the SME). `component` null → assignee = first reviewer.
   Other reviewers → watchers if the tool allows, else the "Review group" line below.
@@ -208,8 +208,8 @@ Review group: <group> (<team>), reviewers: <names>
 - Grouped issue: first a table `| Test | Decision | Bugs | Notes | Pass | Avg |`, then per test `### <Class>::<test>`
   with the header lines and `####` sections above.
 - A test that already has `jira`: don't open another issue unless the user says so (then replace the key).
-- `/weekly` runs `scripts/jira_sync.py`: DELETED test → Done; no test RED and the issue is `dtest-red` or a dev
-  review said keep → Won't Fix (comment = new decision + reason); parent → Done once all its sub-tasks are done. A test that turns RED again keeps its closed key.
+- `/weekly` runs `scripts/jira_sync.py`: DELETED test → Done; all tests GREEN or DELETED (a dev review keep →
+  GREEN) → Won't Fix (comment = new decision + reason); YELLOW stays open; parent → Done once all its sub-tasks are done. A test that turns RED again keeps its closed key.
 - After creating: set `"jira": "<key>"` on every test the issue covers in `analysis/<module>.json`, run
   `scripts/check_analysis.py <module>`, commit `git commit -m "jira: <keys>" analysis/`, push. The dashboard shows it
   after **Reload data**.

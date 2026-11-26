@@ -3,7 +3,7 @@
 Input: the handoff (PR, worktree, branch, verdict per test, PR-level fixes, Closes keys to drop, Jira keys to close).
 The verdicts are decided: don't re-argue them. The analysis is already updated and pushed: don't touch
 `~/github/dtest-triage` (except running its scripts) or the main `~/github/scylla-dtest` checkout.
-`R`, `V`, ruff/pytest/zsh rules, commit message style, checks, backport labels, PR body sections: as in
+`R`, `V`, ruff/pytest/zsh rules, where your files go, commit message style, checks, backport labels, PR body sections: as in
 `/home/cezar/github/dtest-triage/.claude/skills/remove-tests/pr.md`. Commits always `PATH=$V:$PATH git commit`
 (hook runs ruff; never `--no-verify`).
 

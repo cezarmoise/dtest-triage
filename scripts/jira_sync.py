@@ -4,8 +4,8 @@
 usage: jira_sync.py [--apply] [--note TEXT] [KEY ...]
   dry run without --apply; KEYs: only those issues, no parents; --note (needs KEYs): appended to the comment
 
-Per `jira` key (all tests carrying it): all DELETED → Done; none RED and the issue is `dtest-red` or a dev review
-said keep (`review.verdict`) → Won't Fix (the test stays); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
+Per `jira` key (all tests carrying it): all DELETED → Done; all GREEN or DELETED → Won't Fix (the test stays; a dev
+review that said keep makes it GREEN); YELLOW keeps the issue open (still needs an opinion); parent with all sub-tasks done → Done. Output: `<key> CLOSE <status>: <why>`, `<key> SKIP <why>` for keys
 with a changed test that stay open. REST via `curl -n` (Python's netrc needs 0600).
 """
 import argparse
@@ -83,17 +83,15 @@ closed = set()
 for key, ts in sorted(tests.items()):
     if key not in issues or done(issues[key]):
         continue
-    red = [t for t, a in ts if a["decision"] == "RED"]
     why = "; ".join(f"{t} deleted from scylla-dtest in {d['sha'][:10]} ({DTEST}/commit/{d['sha']}"
                     f"{f', {DTEST}/pull/' + str(d['pr']) if d['pr'] else ''}) on {d['date']}"
                     if (d := a.get("deleted")) else f"{t} is now {a['decision']}: {a['reason']}"
                     for t, a in ts if a["decision"] != "RED")
     if all(a["decision"] == "DELETED" for _, a in ts):
         close(key, why)
-    elif not red and ("dtest-red" in issues[key]["labels"]
-                      or any(a.get("review", {}).get("verdict") == "keep" for _, a in ts)):
+    elif all(a["decision"] in ("GREEN", "DELETED") for _, a in ts):
         close(key, why, "Won't Fix")
-    elif any(a["decision"] == "DELETED" for _, a in ts) or "dtest-red" in issues[key]["labels"] and len(red) < len(ts):
+    elif any(a["decision"] != "RED" for _, a in ts):
         print(f"{key} SKIP still on {', '.join(t for t, a in ts if a['decision'] != 'DELETED')}")
         continue
     else:
