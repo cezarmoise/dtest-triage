@@ -345,23 +345,23 @@
       "relevance": "The Cassandra bug (MV streaming mutations exceeding max_mutation_size_in_kb / commitlog segment) is Cassandra-specific; Scylla has no max_mutation_size_in_kb option (absent from db/config.cc) and the config that made the test meaningful is commented out (materialized_views_test.py:1794-1799). The base partitions are wide, the view partitions are not (5 rows each). Bootstrap+MV itself is live. 37/37 passed, ~106s (2x per build).",
       "duplicates": [
         {
-          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_mv",
-          "coverage": "full",
-          "note": "same flow (write, bootstrap, read view via new node, write more) on narrow rows, ~21s"
-        },
-        {
           "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_wide_mv_with_range_deletions",
-          "coverage": "partial",
-          "note": "same flow on wide base partitions with range deletions, ~15s"
+          "coverage": "full",
+          "note": "same CASSANDRA-11670 scenario on wide base partitions (10 x 100 rows): write, bootstrap, read base and view through the new node, write more; plus range deletions; ~15s"
         },
         {
           "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
           "coverage": "partial",
           "note": "[vnodes] bootstrap with MV, view verified; release-skipped"
+        },
+        {
+          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_after_mv",
+          "coverage": "partial",
+          "note": "same add-node flow but one row per base partition, so not the wide-partition streaming case"
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~106s, 25k sequential inserts + ~50k sequential reads) and redundant with test_add_node_after_mv; the CASSANDRA-11670 trigger (max_mutation_size_in_kb, migration wait jvm arg) is Cassandra-only and commented out. Note: dead commented-out config and unused MIGRATION_WAIT constant (materialized_views_test.py:72, 1797); view reads right after inserts use assert_one without retry although view updates are async (same flakiness class fixed in ab816f83 for test_allow_filtering); 'very wide MV' is a misnomer (view partitions are 5 rows).",
+      "reason": "Slow (~106s, ~50k sequential inserts + ~75k sequential reads) and redundant with test_add_node_after_wide_mv_with_range_deletions (same CASSANDRA-11670 flow on wide base partitions); the Cassandra trigger config (max_mutation_size_in_kb, migration wait jvm arg) is commented out. Note: dead commented-out config and unused MIGRATION_WAIT constant (materialized_views_test.py:72, 1797); view reads right after inserts use assert_one without retry although view updates are async (same flakiness class fixed in ab816f83 for test_allow_filtering).",
       "issues": [
         {
           "kind": "note",
@@ -374,12 +374,6 @@
           "tag": "other",
           "ref": "",
           "text": "View reads right after inserts use assert_one without retry despite async view updates; flake risk"
-        },
-        {
-          "kind": "note",
-          "tag": "stale-comment",
-          "ref": "",
-          "text": "'very wide MV' misnomer: view partitions are 5 rows"
         }
       ],
       "jira": "DTEST-772"
@@ -1143,9 +1137,9 @@
       "relevance": "Live (DROP MATERIALIZED VIEW, system_schema.views). 38/38 passed, ~12s.",
       "duplicates": [
         {
-          "path": "test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id",
+          "path": "test/cqlpy/test_materialized_view.py (every test via new_materialized_view)",
           "coverage": "full",
-          "note": "creates MV, drops it, recreates with same id (relies on drop removing the schema entry)"
+          "note": "every cqlpy MV test drops its view on exit"
         },
         {
           "path": "test/cqlpy/test_compaction_strategy_validation.py::test_create_view_compaction_options",
@@ -1158,9 +1152,9 @@
           "note": "drops view and asserts system_schema.views empty (multi-node, injection, release-skipped)"
         },
         {
-          "path": "test/cqlpy/test_materialized_view.py (every test via new_materialized_view)",
-          "coverage": "full",
-          "note": "every cqlpy MV test drops its view on exit"
+          "path": "test/cqlpy/test_materialized_view.py::test_creating_mv_with_given_id",
+          "coverage": "partial",
+          "note": "indirect: never checks system_schema.views after DROP; only relies on the drop freeing the id for a re-create"
         }
       ],
       "decision": "RED",
@@ -1984,18 +1978,18 @@
       "relevance": "Live (view building + removenode). 39/39 passed, ~88s.",
       "duplicates": [
         {
-          "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
-          "coverage": "full",
-          "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
-        },
-        {
           "path": "test/cluster/test_view_building_coordinator.py::test_node_operation_during_view_building",
           "coverage": "full",
           "note": "tablets, params add/remove/decommission/replace, paused building tasks, check_view_contents"
+        },
+        {
+          "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+          "coverage": "partial",
+          "note": "[remove] (vnodes) repairs the view before comparing it with the base (known staging-update race, won't be fixed), so lost view updates are hidden"
         }
       ],
       "decision": "RED",
-      "reason": "Full coverage: removenode during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[remove] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[remove] (tablets), both with paused builder and content check; dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Also the slowest of the family (~88s). Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65).",
+      "reason": "Full coverage (tablets; the vnodes test repairs the view before comparing): removenode during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[remove] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[remove] (tablets), both with paused builder and content check; dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Also the slowest of the family (~88s). Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65).",
       "issues": [
         {
           "kind": "note",
@@ -2051,18 +2045,18 @@
       "relevance": "Live (view building + decommission). 38/38 passed, ~33s.",
       "duplicates": [
         {
-          "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
-          "coverage": "full",
-          "note": "vnodes, params stop/remove/decommission/add; pauses view builder via injection so the op really overlaps the build, then checks view == base. Migrated from dtest node-action-during-build tests (scylla 8887dfe73a)"
-        },
-        {
           "path": "test/cluster/test_view_building_coordinator.py::test_node_operation_during_view_building",
           "coverage": "full",
           "note": "tablets, params add/remove/decommission/replace, paused building tasks, check_view_contents"
+        },
+        {
+          "path": "test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building",
+          "coverage": "partial",
+          "note": "[decommission] (vnodes) repairs the view before comparing it with the base (known staging-update race, won't be fixed), so lost view updates are hidden"
         }
       ],
       "decision": "RED",
-      "reason": "Full coverage: decommission during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[decommission] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[decommission] (tablets); the follow-up bootstrap is the [add] case. dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65).",
+      "reason": "Full coverage (tablets; the vnodes test repairs the view before comparing): decommission during view building is tested by test/cluster/mv/test_mv_building.py::test_node_operation_during_view_building[decommission] (vnodes) and test_view_building_coordinator.py::test_node_operation_during_view_building[decommission] (tablets); the follow-up bootstrap is the [add] case. dtest precedent: the secondary_indexes_test *_during_index_build equivalents were deleted as migrated in dtest 0e66dd5a. Note: skip_if issue_open(#18826) is stale (closed 2025-08-29). Note (helper, :792-865): exclude_errors broadly ignores `Error applying view update to` and `mutation_write_timeout_exception` on all nodes, so view-update failures (the thing under test) never fail the test; patterns `migration_task - Cant send migration request` (:855) and `Request is aborted by a caller` (:862) match nothing in scylla (dead); the #17290 comment refers to a closed issue (closed 2025-07-04); module next_gating disabled citing closed scylladb#15046 (:62-65).",
       "issues": [
         {
           "kind": "note",
@@ -2522,9 +2516,9 @@
       "relevance": "Live: base ALTER ADD with non-SELECT* view. 38/38 passed in both jobs, ~12s.",
       "duplicates": [
         {
-          "path": "test/cqlpy/test_materialized_view_old.py::test_alter_table_with_updates",
+          "path": "test/cqlpy/test_materialized_view_old.py::test_3362_with_ttls_alter_add",
           "coverage": "full",
-          "note": "explicit-column view, base ALTER ADD columns, view row unchanged"
+          "note": "view selecting only the key, base ALTER ADD a, b, then SELECT * on the view returns only the key; needs the clock injection fixture, so dev/debug only"
         },
         {
           "path": "test/cqlpy/test_materialized_view_old.py::test_unselected_column",
@@ -2535,10 +2529,15 @@
           "path": "test/cqlpy/test_materialized_view.py::test_alter_table_add_select_star",
           "coverage": "partial",
           "note": "complementary SELECT * case"
+        },
+        {
+          "path": "test/cqlpy/test_materialized_view_old.py::test_alter_table_with_updates",
+          "coverage": "partial",
+          "note": "ALTER ADD on the base with an explicit-column view, but selects explicit columns from the view, so never checks the added column is absent"
         }
       ],
       "decision": "RED",
-      "reason": "Single-node schema semantics fully covered by cqlpy test_alter_table_with_updates (explicit-column view + base ALTER ADD) and test_unselected_column; the 3-node dtest adds nothing. Note: first view read right after RF=1 inserts without eventually() (materialized_views_test.py:1868).",
+      "reason": "Single-node schema semantics fully covered by cqlpy test_3362_with_ttls_alter_add (SELECT * on the view after base ALTER ADD returns only the key; dev/debug only), with test_alter_table_with_updates and test_unselected_column; the 3-node dtest adds nothing. Note: first view read right after RF=1 inserts without eventually() (materialized_views_test.py:1868).",
       "issues": [
         {
           "kind": "note",
@@ -3121,17 +3120,22 @@
       "duplicates": [
         {
           "path": "test/cqlpy/test_materialized_view.py::test_truncate_base",
-          "coverage": "full",
-          "note": "TRUNCATE base with 2 views, asserts base and both views empty (single node, no explicit flush)"
+          "coverage": "partial",
+          "note": "same check (TRUNCATE base empties views) but memtable-only: cqlpy runs with --auto-snapshot 0 and never flushes"
         },
         {
           "path": "materialized_views_test.py::TestMaterializedViews::test_mv_consistency_after_truncate_and_insert",
           "coverage": "partial",
-          "note": "multi-node RF=3, 5 views, caching on, TRUNCATE + empty check + repopulate"
+          "note": "multi-node RF=3, 5 views, TRUNCATE + empty check + repopulate; auto_snapshot: False, so no flushed data is truncated (its `cache` param is the pytest fixture, not a row-cache variant)"
+        },
+        {
+          "path": "secondary_indexes_test.py::TestSecondaryIndexes::test_truncate_base",
+          "coverage": "partial",
+          "note": "flushes then truncates a base with 2 indexes (view-backed); index views, not materialized views"
         }
       ],
-      "decision": "RED",
-      "reason": "Same scenario as cqlpy test_materialized_view.py::test_truncate_base (TRUNCATE base empties views), with the multi-node/cached variant also in test_mv_consistency_after_truncate_and_insert; only extra is an explicit flush of a single row, which TRUNCATE itself performs/handles anyway. Note: assert_one on the view row only checks visibility, the cache-clearing claim is not verified separately.",
+      "decision": "YELLOW",
+      "reason": "Kept in scylla-dtest#7944: no MV test checks that views are empty after truncating a base whose data is in sstables. This test flushes first; cqlpy test_truncate_base runs with --auto-snapshot 0, so TRUNCATE drops memtables without flushing, and test_mv_consistency_after_truncate_and_insert sets auto_snapshot: False (materialized_views_test.py:3176). Only secondary_indexes_test::test_truncate_base truncates flushed data, for index views. Note: assert_one on the view row only checks visibility, the cache-clearing claim is not verified separately.",
       "issues": [
         {
           "kind": "note",
