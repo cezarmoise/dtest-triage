@@ -7,6 +7,7 @@ usage: removal.py select [--module GLOB]... [--decision D]... [--kind K]... [--d
        removal.py collect-diff [--base REV] TEST...  (in a dtest worktree)
        removal.py prs [--state S]           (triage PRs and their review state; default open)
        removal.py pr N                      (material for handling the reviews of PR N)
+       removal.py feedback FILE...          (validate a PR agent's report for the triage)
 
 select: `<test>  <decision>  <kind>  jira=<key>  pending=<branch>  dup=<first full duplicate>`, DELETED never listed.
   --decision default RED. --module matches the dotted module or its file path (fnmatch).
@@ -28,7 +29,8 @@ strip: remove functions/classes (with decorators and the comments right above) f
   TARGET = <path.py>::<Class>::<name> | <path.py>::<name> | <module>::<Class>::<test> (at its `defined_in`).
   Then: drop the imports this made unused, ruff isort + format, fail on new pyflakes issues, fail if a removed
   non-test name is still referenced anywhere (--force: other same-named defs), warn on references to a removed test,
-  list candidates: names the removed code used whose definitions now have no references.
+  list candidates: names the removed code used whose definitions now have no references; possible candidates:
+  defined in the edited file, referenced only in other files that define the same name (likely their own def).
 collect-diff: pytest --collect-only of the whole repo at --base (default merge-base with upstream/next) and of the
   working tree; exit 1 unless exactly the given tests disappeared (inherited copies, added tests, new collection
   errors all fail).
@@ -43,6 +45,14 @@ prs: `#<n>  <reviewDecision>  new=<k>  dev=<d>  recorded=<r>/<t>  <branch>  work
   Then `UNLABELED #<n> <title>`: open PRs of AUTHOR with " remove " in the title but without the LABEL.
   Then `CLEANUP #<n> <MERGED|CLOSED> <branch> worktree=<path|-> origin=<yes|no>`: closed triage PRs whose
   branch still has a worktree, a local branch or an origin branch.
+feedback FILE...: validate a PR agent's report for the triage (pr.md "Report back"). JSON:
+  {"branch", "pr": int|null, "items": [{"test": TEST, "action", "text", "evidence": [url|sha|file:line, ...], ...}]}
+  action: kept      test dropped from the PR (text = why it isn't covered / must stay)
+          dup       "dup": {"path", "coverage": full|partial|none, "note"}: correct or add a duplicate (none =
+                    the cited test doesn't cover it)
+          claim     text = the correct fact for a wrong statement in reason/issues/description
+          issue     "issue": {"kind": bug|note, "tag", "ref", "text"}: new issue in the test
+          followup  work left for later (e.g. a helper shared with a sibling PR); "test" optional
 pr: markdown: state, branch, worktree, `Closes:` keys, review group logins (as info), tests (commit subject → TEST, decision, jira, review),
   then every human review/comment (NEW = after the author's last comment or commit) with its URL and full body.
 """
@@ -485,14 +495,24 @@ def cmd_strip(a):
             print(f"  warning: {name} still referenced:\n    {shown}")
         elif not a.force:
             restore(f"{name} still referenced (other same-named def? rerun with --force):\n    {shown}")
-    cands = []
+    cands, maybe = [], []
     for name in sorted(used - names - SKIP_NAMES):
         hits = grep_w(repo, name)
         defs = [h for h in hits if is_def(h, name)]
-        if defs and len(defs) == len(hits):
+        if not defs:
+            continue
+        here = [h for h in defs if h.split(":", 1)[0] in by_file]
+        others = {h.split(":", 1)[0] for h in defs} - set(by_file)
+        refs = {h.split(":", 1)[0] for h in hits if not is_def(h, name)}
+        if len(defs) == len(hits):
             cands.append(f"{name}  {':'.join(defs[0].split(':', 2)[:2])}")
+        elif here and refs <= others:
+            maybe.append(f"{name}  {':'.join(here[0].split(':', 2)[:2])}  (refs only in {', '.join(sorted(refs))})")
     if cands:
         print("candidates (defined, no references left):\n  " + "\n  ".join(cands))
+    if maybe:
+        print("possible candidates (left references are in files with their own def; check, then --force):\n  "
+              + "\n  ".join(maybe))
     if problems:
         sys.exit("NEW ISSUES (fix, or `git checkout -- <file>` to undo):\n  " + "\n  ".join(problems))
 
@@ -690,6 +710,46 @@ def cmd_pr(a):
               f"\n{x['html_url']} (id {x['id']})\n\n{x['body']}")
 
 
+ACTIONS = {"kept", "dup", "claim", "issue", "followup"}
+
+
+def cmd_feedback(a):
+    tree = ast.parse((ROOT / "scripts/check_analysis.py").read_text())  # its import runs the checks
+    TAGS = next(ast.literal_eval(n.value) for n in tree.body
+                if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "TAGS")
+
+    errs = []
+    for fn in a.files:
+        try:
+            d = json.loads(Path(fn).read_text())
+        except (OSError, ValueError) as e:
+            errs.append(f"{fn}: {e}")
+            continue
+        if not isinstance(d.get("branch"), str) or not isinstance(d.get("pr"), (int, type(None))):
+            errs.append(f"{fn}: needs branch (str) and pr (int|null)")
+        for i, x in enumerate(d.get("items") or []):
+            w, act, t = f"{fn} item {i}", x.get("action"), x.get("test")
+            if act not in ACTIONS:
+                errs.append(f"{w}: action {act!r} not in {sorted(ACTIONS)}")
+            if t or act != "followup":
+                mod, _, key = (t or "").partition("::")
+                if key not in analysis().get(mod, {}):
+                    errs.append(f"{w}: test {t!r} not in analysis")
+            if not x.get("text") or not isinstance(x.get("evidence"), list) or not x["evidence"]:
+                errs.append(f"{w}: needs text and a non-empty evidence list")
+            dup, iss = x.get("dup") or {}, x.get("issue") or {}
+            if act == "dup" and not (dup.get("path") and dup.get("coverage") in ("full", "partial", "none")):
+                errs.append(f"{w}: dup needs path and coverage full|partial|none")
+            if act == "issue" and not (iss.get("kind") in ("bug", "note") and iss.get("tag") in TAGS[iss["kind"]]
+                                       and iss.get("text") and "ref" in iss):
+                errs.append(f"{w}: issue needs kind bug|note, tag in TAGS, ref, text")
+        if not d.get("items"):
+            errs.append(f"{fn}: no items")
+    if errs:
+        sys.exit("\n".join(errs))
+    print("OK")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -708,11 +768,12 @@ def main():
     s.add_argument("tests", nargs="+")
     sub.add_parser("prs").add_argument("--state", default="open", choices=["open", "closed", "merged", "all"])
     sub.add_parser("pr").add_argument("number", type=int)
+    sub.add_parser("feedback").add_argument("files", nargs="+")
     a = p.parse_args()
     if a.cmd == "select":
         a.decision = a.decision or ["RED"]
     {"select": cmd_select, "info": cmd_info, "strip": cmd_strip, "collect-diff": cmd_collect_diff,
-     "prs": cmd_prs, "pr": cmd_pr}[a.cmd](a)
+     "prs": cmd_prs, "pr": cmd_pr, "feedback": cmd_feedback}[a.cmd](a)
 
 
 if __name__ == "__main__":
