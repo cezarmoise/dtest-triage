@@ -180,9 +180,9 @@
       "relevance": "Same hollow add-DC as the insert variant: keyspace {'dc1':3} never altered, dc2 nodes own no data. Runtime ~226s, of which ~200s is the time.sleep(1) per update in _multiple_int_updates (200 updates total). 37/37 passed.",
       "duplicates": [
         {
-          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update",
+          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update[3]",
           "coverage": "full",
-          "note": "updates of view-key column during a real bootstrap (replica-owning node), base vs view compared at QUORUM; ~17s"
+          "note": "updates of view-key column during a real bootstrap (replica-owning node), base vs view compared at QUORUM; ~17s. Only the rf=3 case: rf=1 is skipped while scylladb#26981/#26984 are open; the removed test used RF=3."
         },
         {
           "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
@@ -191,19 +191,19 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~226s, mostly sleep) + redundant: the 'DC add' never touches the keyspace replication (no ALTER/rebuild in _add_dc_during_mv_change, materialized_views_test.py:555-609), so it reduces to 200 MV updates while non-replica nodes join, a weaker version of test_add_node_during_base_table_update. Bug: dc2 'validation' reads dc1 replicas only. Note: `more_inserts=300000` arg is unused for the update path; docstring says 'during MV inserts'.",
+      "reason": "Slow (~226s, mostly sleep) + redundant: the 'DC add' never touches the keyspace replication (no ALTER/rebuild in _add_dc_during_mv_change, materialized_views_test.py:555-614), so it reduces to 200 MV updates while non-replica nodes join, a weaker version of test_add_node_during_base_table_update. Bug: dc2 'validation' reads dc1 replicas only. Note: `more_inserts=300000` doesn't drive the update count (fixed 200), it only sizes fetch_size (materialized_views_test.py:556); docstring says 'during MV inserts'.",
       "issues": [
         {
           "kind": "bug",
           "tag": "wrong-scenario",
-          "ref": "materialized_views_test.py:555-609",
+          "ref": "materialized_views_test.py:555-614",
           "text": "Add-DC is hollow: keyspace never ALTERed to dc2 nor rebuilt; dc2 'validation' only coordinates reads of dc1 replicas"
         },
         {
           "kind": "note",
           "tag": "redundant-param",
-          "ref": "",
-          "text": "more_inserts=300000 is unused for the update path"
+          "ref": "materialized_views_test.py:556",
+          "text": "more_inserts=300000 doesn't drive the update count (fixed 200); only sizes fetch_size"
         },
         {
           "kind": "note",
@@ -2620,7 +2620,7 @@
         {
           "path": "materialized_views_test.py::TestMaterializedViews::test_range_tombstone_and_repair_test",
           "coverage": "full",
-          "note": "same where clauses (open/closed range, multi-partition) on fresh clusters, both vnodes and tablets"
+          "note": "Same kinds of deletes (open/closed range, one or several partitions) on fresh clusters, vnodes and tablets; not the same where clauses (ids and bounds differ). Not covered: several delete+repair cycles on one cluster."
         },
         {
           "path": "test/boost/view_build_test.cc::test_view_update_generator_buffering",
@@ -2629,7 +2629,7 @@
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~75s) + redundant: its deletes are the same cases as test_range_tombstone_and_repair_test params (which also run with tablets) and the bug is unit-tested in boost view_build_test.cc. Its failures (4/50, builds 1156-1171) predate 1489f5dfe, which fixed the swallowed 60s repair timeout PR 7677 identified in build 1171 (DTEST-365). Note: tablets skip at materialized_views_test.py:3108 has no reason/issue. Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3125).",
+      "reason": "Slow (~75s) + redundant: its deletes are the same kinds as test_range_tombstone_and_repair_test params (only the several cycles on one cluster are lost) (which also run with tablets) and the bug is unit-tested in boost view_build_test.cc. Its failures (4/50, builds 1156-1171) predate 1489f5dfe, which fixed the swallowed 60s repair timeout PR 7677 identified in build 1171 (DTEST-365). Note: tablets skip at materialized_views_test.py:3108 has no reason/issue. Note: the repair is keyspace-wide so it also repairs the view table itself; view==base equality can come from view repair, not from view-update generation (only the permit-error grep really guards the fix). Bug: self.allow_log_errors=True disables the generic error log check (materialized_views_test.py:3125); the duplicate sets it too (:3066).",
       "issues": [
         {
           "kind": "note",
@@ -3363,23 +3363,23 @@
       "relevance": "Live repair of base+view; but the check is weak. 37/37 passed, ~345s (slowest repair test here).",
       "duplicates": [
         {
-          "path": "materialized_views_test.py::TestMaterializedViews::test_complex_repair",
-          "coverage": "full",
-          "note": "same down-replica-then-node1.repair() flow (5 nodes) and verifies after repair with the up-to-date nodes stopped; runs on vnodes and tablets"
-        },
-        {
           "path": "materialized_views_test.py::TestMaterializedViews::test_repair_mv",
-          "coverage": "partial",
-          "note": "down node + repair (view table only), verification isolated on the repaired node"
+          "coverage": "full",
+          "note": "node2 down during updates with hinted handoff off, restarted, view repaired, then node1 and node3 stopped and node2 alone must return exact view counts at CL=ONE. test_base_replica_repair adds the base-repair path."
         },
         {
           "path": "test/cluster/test_tablets_colocation.py::test_repair_colocated_base_and_view",
           "coverage": "partial",
           "note": "repair of a node that missed writes, view checked on that node (skip_bug)"
+        },
+        {
+          "path": "materialized_views_test.py::TestMaterializedViews::test_complex_repair",
+          "coverage": "partial",
+          "note": "After node1.repair() compares base == view on node1/4/5 (QUORUM) and node2/3 (ONE), each half already self-consistent before the repair, so it passes even if the repair transferred nothing (materialized_views_test.py:2617-2632)."
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~345s) + weak + redundant: after node1.repair() the CL=ONE reads go through node1's session with all nodes up (materialized_views_test.py:2441-2445), so node1/node3 (which already had the data) can serve them and the test passes even if repair fixed nothing; test_complex_repair and test_repair_mv cover repair of views with the stale replica isolated. Note: keyspace-wide repair also repairs the view tables, so view equality need not come from base repair.",
+      "reason": "Slow (~345s) + weak + redundant: after node1.repair() the CL=ONE reads go through node1's session with all nodes up (materialized_views_test.py:2441-2445), so node1/node3 (which already had the data) can serve them and the test passes even if repair fixed nothing; test_repair_mv covers repair of views with the stale replica isolated (test_complex_repair only partially: its checks pass even if repair did nothing). Note: keyspace-wide repair also repairs the view tables, so view equality need not come from base repair.",
       "issues": [
         {
           "kind": "bug",
