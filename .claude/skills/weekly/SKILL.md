@@ -45,6 +45,8 @@ Run from `~/github/dtest-triage`. `$T` = `~/.cache/claude/<session-id>`.
    --apply`). SKIP = key still on a RED/live test (e.g. MOVED copy): leave it open, report it.
 9. Removal PRs: `python3 scripts/removal.py prs`; `new=` > 0, or `dev=` > 0 with `recorded=` < all → unhandled
    reviews: offer `/removal-prs <numbers>`. `CLEANUP` lines (closed/merged PRs): do the removal-prs skill's step 9.
+   Reports of PR agents left in `/home/cezar/.cache/claude/dtest-triage-inbox/*.json` (not `done/`): apply each per
+   `.claude/skills/remove-tests/feedback.md`.
 10. Reply: decision changes (test, old → new, why), DELETED tests (with their previous decision), new tests
    analyzed, Jira issues closed, items for a human (MOVED, `*` ports, dropped HELPER lines, new `groups.json`
-   mappings, Jira SKIP lines, new RED tests without `jira`: offer to open sub-tasks per CLAUDE.md "Jira format"), removal PRs with new reviews.
+   mappings, Jira SKIP lines, report `followup` items, new RED tests without `jira`: offer to open sub-tasks per CLAUDE.md "Jira format"), removal PRs with new reviews.

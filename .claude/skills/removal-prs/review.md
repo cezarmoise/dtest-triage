@@ -12,7 +12,7 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
    and the review threads it links. Base = `git merge-base HEAD upstream/next` (don't rebase onto a newer next).
    Before rewriting: `git branch backup-<n> HEAD` (compare with it after the rewrite; delete it after the push).
 1. Reviewer-proposed diffs, messages and permalinks: check each against the tree and the cited code before using it
-   (names imported, lines exist, claim true). Wrong or not applicable → don't apply, say why in the reply (step 4).
+   (names imported, lines exist, claim true). Wrong or not applicable → don't apply, say why in the reply (step 7).
 2. Follow-up PR, per `keep + follow-up`:
    - `cd ~/github/scylla-dtest && command wt switch --no-cd -c <branch> -b upstream/next --format json` → path;
      branch `<file stem>-<action>` (e.g. `alternator-streams-unmark-gating`), lowercase, ≤ 50 chars, new.
@@ -32,7 +32,7 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
      has the changed code and the change matters there; none → `backport/none`.
 3. Original PR:
    a. No `remove` test left → `gh pr comment <n> --body-file <f>` (per kept test: the dev's point in one line +
-      comment URL; the follow-up PR), `gh pr close <n>`. Then steps 4-5, then 3c, then 6.
+      comment URL; the follow-up PR), `gh pr close <n>`. Then steps 4-5, then 3c, then 6-7.
    b. Otherwise rewrite the branch:
       - Drop each kept test's commit, newest first (shas of later commits change after each rebase; re-read
         `git log --oneline <base>..` between drops): `git rebase -q --onto <sha>^ <sha>`. Conflict (a later commit
@@ -66,5 +66,8 @@ The verdicts are decided: don't re-argue them. The analysis is already updated a
    -f body=...`, 1-2 lines (what changed, in which commit / PR; or why not applied; scylla follow-ups: "left for a
    scylla follow-up"). Refs to other repos in full (`scylladb/scylladb#20191`): a bare `#N` links to scylla-dtest. Open PR: one PR comment summarizing the changes per review (link it), then
    `gh pr edit <n> --add-reviewer <dev login>` (re-request).
-6. Reply in the pane: PR URLs (original: updated/closed; follow-up), Jira keys closed, per test what happened, what wasn't applied and
+6. Triage facts the review or your checks showed wrong beyond the decided verdicts (a cited duplicate that
+   doesn't cover, a wrong claim, a new issue): report them as in pr.md step 6 (`kept` doesn't apply: the
+   verdicts are recorded already).
+7. Reply in the pane: PR URLs (original: updated/closed; follow-up), Jira keys closed, per test what happened, what wasn't applied and
    why, scylla follow-ups the dev proposed. Open PRs keep their worktrees.

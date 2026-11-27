@@ -35,9 +35,11 @@ scripts/removal.py        # removal PRs: select (kind, pending branches) / info 
                           #   strip (in a dtest worktree) / collect-diff
                           #   / prs (ours = author cezarmoise + label area/test_efficiency; review state, CLEANUP of
                           #   closed PRs, LABELS: removals get only backport/none, UNLABELED)
-                          #   / pr N (review material)
+                          #   / pr N (review material) / feedback (validate a PR agent's report)
 .claude/skills/remove-tests/  # /remove-tests <request>: select + verify here, dtest worktree (wt), PR by a Claude in
-                          #   herdr following pr.md
+                          #   herdr following pr.md; its corrections come back as a report in
+                          #   ~/.cache/claude/dtest-triage-inbox/<branch>.json + a prompt to the session that
+                          #   sent it (handoff `Report to:` pane); applied per feedback.md (else by /weekly)
 .claude/skills/removal-prs/   # /removal-prs [PR#...]: apply dev reviews of removal PRs: analysis `review` (final),
                           #   Jira Won't Fix for kept tests, PR changes / follow-up PR by a Claude in herdr (review.md)
 ```

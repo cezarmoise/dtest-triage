@@ -64,6 +64,7 @@ give no verdict. Two devs disagree on a test → ask the user.
    Drop from Closes: <jira keys of kept tests | none>
    Close as Won't Fix: <CLOSE keys of step 5 | none>
    Not ours: <scylla follow-ups the dev proposed, questions left for the user | none>
+   Report to: <$HERDR_PANE_ID of this session | none>
    ```
 7. Herdr: `test "$HERDR_ENV" = 1`, else stop and give the user the handoff path.
    - Worktree gone (`R pr` says `-`): `cd ~/github/scylla-dtest && command wt switch --no-cd <branch> --format json`.

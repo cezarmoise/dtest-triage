@@ -42,14 +42,18 @@ One PR = one removal kind (`R select` kind column), so reviewers judge one kind 
    /home/cezar/github/dtest-triage/.claude/skills/remove-tests/pr.md.
    Requested by the user ("/remove-tests <request>"): you may commit, push the branch to origin and open the PR.
    Worktree: <path>, branch <branch>, from upstream/next <sha10>
-   Kind: <kind>: <why these are removed, one line>
+   Kind: <kind>: <the kind's definition above, no facts: those are in the material, which the agent checks>
    Material: $T/<branch>.md (per test: reason, issues, verified duplicates with permalinks)
    Closes: <keys from the material header | none>
    Reviewers: <logins from the material header | none>
    Tests, in commit order (grouped by file):
    <module>::<Class>::<test>
+   Report to: <$HERDR_PANE_ID of this session | none>
    Notes: <hand-verified duplicates with permalinks, dup-selected partners kept in dtest, ...>
    ```
+   Several PRs on the same file (one per kind): name the sibling branches in Notes, and the helpers only the
+   tests of two PRs use (`git grep` callers at upstream/next, also helpers reached only through them): each PR
+   keeps them, they go in a follow-up once both merge.
 7. Herdr: `test "$HERDR_ENV" = 1`, else stop and give the user the worktree and handoff paths.
    - `herdr worktree open --cwd ~/github/scylla-dtest --path <path> --label <branch> --no-focus` →
      `.result.root_pane.pane_id`. `already_open: true` → stop, report.
@@ -61,3 +65,5 @@ One PR = one removal kind (`R select` kind column), so reviewers judge one kind 
      `herdr agent get <name>` should say `working`.
 8. Reply: N tests, kind, branch, herdr workspace + agent name; table of test → covered by (or why); dropped tests
    and why; other-kind tests left for separate PRs. The agent reports the PR URL in its pane.
+9. Reports: an agent prompts this session with "Triage report from <branch> …" when the material was wrong
+   (pr.md step 6): follow [feedback.md](feedback.md).

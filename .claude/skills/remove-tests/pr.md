@@ -9,7 +9,9 @@ zsh: `${v}` before a `:` (`$sha:path`, `$v:c…` are modifiers): write `"${sha}:
 Run ruff/pytest only through `R`, `$V/ruff` or `$V/python -m pytest` (not on `PATH`).
 Your files (commit messages, PR body): in your own `~/.cache/claude/<your session id>/`, named after the branch
 (`<branch>.body.md`, `<branch>.msg`), never in the handoff's folder (other agents of the same handoff write there
-too). zsh has noclobber: overwrite with `>|` or the Write tool.
+too). zsh has noclobber: overwrite with `>|` or the Write tool (also inside loops: a `>` on the 2nd pass fails).
+Heredocs: `<<'EOF'` (unquoted, backticks in Markdown run as commands). Grep the repo with `git grep -I` (`test_data/`
+has binary files).
 
 1. Per test, in the handoff order, one commit each:
    a. `R strip <module>::<Class>::<test>`: removes it where it's defined (`defined_in` if inherited) with its
@@ -17,7 +19,10 @@ too). zsh has noclobber: overwrite with `>|` or the Write tool.
    b. `candidates` = defs nothing references anymore. Strip the ones that only served this test, in this same commit
       (`R strip <file>::<Class>::<name>` or `<file>::<name>`), and repeat on the new candidates. Keep generic code
       under `tools/` (list it in the PR body as dead but kept) and parameters of sctool/CLI wrappers.
+      `possible candidates`: the other references are in files with their own same-named def. Check they don't
+      reach this one (no import, no subclass), then strip with `--force`.
       `still referenced` = in use: keep it (`--force` only when the hit is an unrelated same-named def).
+      Helpers shared with a sibling PR's tests (handoff Notes): keep, even if dead after this PR.
    c. Message file (`git commit -F`):
       - subject `<file stem>: remove <test>` (e.g. `alternator_tests: remove test_x`);
       - body wrapped at 72 (URLs, identifiers may run over), from the material:
@@ -46,6 +51,17 @@ too). zsh has noclobber: overwrite with `>|` or the Write tool.
      - what depends on the removed tests: `git grep` their names and markers (the ones few tests carry) in the
        whole repo, incl. `Jenkinsfile`, `*.groovy`, `*.yaml`, `pytest.ini`, `conftest.py`, docs. A CI stage that
        selects them (e.g. `-m dtest_smoke bootstrap_test.py`) would collect nothing, or less than it expects.
+     - dead branches: helpers the removed tests called with their own argument values (`node_action="stop"`,
+       `change="update"`): `git grep` the remaining callers; branches and helpers only those values reached go in
+       one last commit `<file stem>: drop dead code of <helper>` (not for helpers shared with a sibling PR).
+     - Qodo, an independent review (it caught coverage gaps the self-review missed): the `qodo:qodo-review` skill
+       with `--repo scylladb/scylla-dtest` (origin is the fork: Qodo has no credentials for it),
+       `--base $(git merge-base HEAD upstream/next)`, `--deep --full` (auto depth picks lite; `--deep` alone reused
+       an earlier lite result), `--async --json`; poll `qodo review status <id> --json` (exit 2 = working) in a
+       background command. Every finding: check it in the sources; real → fix as below (a removed test that is
+       not really covered → ask the user; dropped → report it in step 6); an accepted trade-off → it goes in the body's
+       gaps. Fixed something → run it again (incremental). Don't record dismissals in Qodo without the user.
+       Don't run the CodeRabbit CLI: on deletion-only diffs it reviews nothing ("No fresh detailed file review").
      Wrong or unsupported claim → fix it: code → `git commit --fixup=<sha>`; message → `git commit --allow-empty -F <file>`, file =
      `amend! <old subject>`, blank line, new message (`-F` can't go with `--fixup`); then
      `GIT_SEQUENCE_EDITOR=true git rebase -q -i --autosquash $(git merge-base HEAD upstream/next)`. The removal
@@ -65,7 +81,22 @@ too). zsh has noclobber: overwrite with `>|` or the Write tool.
    `gh pr create -R scylladb/scylla-dtest --base next --head cezarmoise:<branch> --title "<title>" --body-file <file>
    --reviewer scylladb/dtest-maintainers[,<handoff Reviewers>] --assignee cezarmoise --label backport/none,area/test_efficiency`
    (the team + the review group's devs from groups.json, nothing else; not a draft: the owner wants reviewers at
-   creation). Title like `alternator_tests: remove tests covered by test/alternator` or
+   creation). Error (e.g. HTTP 504) → `gh pr list -R scylladb/scylla-dtest --head <branch> --state all` before
+   retrying. Title like `alternator_tests: remove tests covered by test/alternator` or
    `manager tests: remove tests covered by scylla-manager integration tests`.
-5. `gh pr view <n> -R scylladb/scylla-dtest --json commits,reviewRequests,labels` matches; reply with the PR URL and
-   one line per test. Leave the worktree in place.
+5. `gh pr view <n> -R scylladb/scylla-dtest --json commits,reviewRequests,labels` matches (a bot may add others,
+   e.g. `P3`: fine); reply with the PR URL and one line per test. Leave the worktree in place.
+6. Report back to the triage whatever the material got wrong, so the analysis gets fixed (it would select the
+   same test again). Also later in this session, whenever the PR changes (user requests, reviews). Report
+   `/home/cezar/.cache/claude/dtest-triage-inbox/<branch>.json` (`mkdir -p`; rewrite it with every item, old and
+   new), format in `R`'s docstring (`feedback`); `R feedback <file>` prints `OK`. One item per fact:
+   - `kept`: a handoff test you didn't remove (why, evidence);
+   - `dup`: a cited duplicate that doesn't cover it (`coverage: none`/`partial`), or a better one you cited;
+   - `claim`: a wrong fact in reason/issues (scylladb#6022 is about decommission, not removenode);
+   - `issue`: a bug/note found in the test that the material lacks;
+   - `followup`: work left (a helper dead once a sibling PR merges).
+   Evidence = permalinks, shas, issue links. Wording fixes of your own messages aren't items. Nothing → no report.
+   Then send it: `herdr agent prompt <handoff Report to> "Triage report from <branch> (PR #<n>): read <file> and
+   apply it: follow /home/cezar/github/dtest-triage/.claude/skills/remove-tests/feedback.md."` (no `--wait`).
+   `agent_blocked` → `herdr agent wait <pane> --until idle --until working --timeout 600000`, retry once. No
+   `Report to`, or it fails → say so in the reply: the file waits in the inbox for `/weekly`.
