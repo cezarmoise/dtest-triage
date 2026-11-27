@@ -122,7 +122,7 @@
         {
           "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_write_during_migration",
           "coverage": "partial",
-          "note": "[vnodes] writes to MV base while a node bootstraps (that node does get ranges), checks view count; release-skipped (injections)"
+          "note": "MV inserts while a node bootstraps (vnodes) or a tablet migrates, then all rows must appear in the view. RF=1, single DC, release-skipped (injections). Covers what the dtest actually ran (inserts during a join), not a real add-DC."
         },
         {
           "path": "test/cluster/mv/test_mv_topology_change.py::test_mv_topology_change",
@@ -130,24 +130,30 @@
           "note": "writes with MV during node add/decommission, crash check; release-skipped"
         },
         {
-          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update",
-          "coverage": "partial",
-          "note": "MV base writes during a real (replica-owning) bootstrap, base vs view compared"
-        },
-        {
           "path": "materialized_views_test.py::TestMaterializedViews::test_add_dc_after_mv_network_replication",
           "coverage": "partial",
           "note": "real add-DC procedure (ALTER + rebuild) with MV"
+        },
+        {
+          "path": "materialized_views_test.py::TestMaterializedViews::test_add_node_during_base_table_update",
+          "coverage": "partial",
+          "note": "Base-table UPDATEs (not inserts) while one node bootstraps into dc1, then base vs view compared at QUORUM. No DC addition, no insert workload."
         }
       ],
       "decision": "RED",
-      "reason": "Slow (~93s) and the DC addition is a no-op for the tested keyspace: rf=3 -> {'dc1':3}, no ALTER KEYSPACE/rebuild in _add_dc_during_mv_change (materialized_views_test.py:555-609), so it is MV inserts while unrelated nodes join, covered by test_add_node_during_base_table_update and test_mv_write_during_migration. Bug: final 'validate on dc2' check does not validate dc2 data (dc2 holds none). Note: original guard #5459 closed. If kept, should ALTER RF to include dc2 during inserts.",
+      "reason": "Slow (~93s) and the DC addition is a no-op for the tested keyspace: rf=3 -> {'dc1':3}, no ALTER KEYSPACE/rebuild in _add_dc_during_mv_change (materialized_views_test.py:555-614), so it is MV inserts while unrelated nodes join, partially covered by test_add_node_during_base_table_update and test_mv_write_during_migration. Bug: final 'validate on dc2' check does not validate dc2 data (dc2 holds none). Note: original guard #5459 closed. If kept, should ALTER RF to include dc2 during inserts. Note: docstring claims a log check that doesn't exist (materialized_views_test.py:518-525).",
       "issues": [
         {
           "kind": "bug",
           "tag": "wrong-scenario",
-          "ref": "materialized_views_test.py:555-609",
+          "ref": "materialized_views_test.py:555-614",
           "text": "Add-DC is hollow: keyspace never ALTERed to dc2 nor rebuilt; dc2 'validation' only coordinates reads of dc1 replicas"
+        },
+        {
+          "kind": "note",
+          "tag": "stale-comment",
+          "ref": "materialized_views_test.py:518-525",
+          "text": "Docstring says 'Validate the log has no errors', but neither the test nor _add_dc_during_mv_change checks logs."
         }
       ],
       "jira": "DTEST-770"
